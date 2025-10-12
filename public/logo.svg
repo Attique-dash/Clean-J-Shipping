@@ -1,0 +1,17 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="128" height="128" rx="24" fill="#0f1b2a"/>
+  <g filter="url(#glow)">
+    <path d="M28 72c22-2 36-10 52-26l10 6c-10 16-24 28-42 34l22 4-10 10c-18-2-28-10-32-28Z" fill="#29d3ff"/>
+    <circle cx="88" cy="40" r="12" stroke="#29d3ff" stroke-width="4" fill="none"/>
+    <rect x="82" y="34" width="12" height="12" rx="2" fill="#29d3ff"/>
+  </g>
+  <defs>
+    <filter id="glow" x="0" y="0" width="128" height="128" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+</svg>
