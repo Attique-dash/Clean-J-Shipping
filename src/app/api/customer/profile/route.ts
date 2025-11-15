@@ -10,9 +10,22 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const userId = (payload as any).uid || (payload as any)._id as string | undefined;
+  const pl = payload as { uid?: string; _id?: string };
+  const userId = pl.uid || pl._id;
   const user = userId
-    ? await User.findById(userId).select("firstName lastName email phone address userCode role createdAt lastLogin").lean()
+    ? await User.findById(userId)
+        .select("firstName lastName email phone address userCode role accountStatus createdAt lastLogin")
+        .lean<{
+          firstName?: string;
+          lastName?: string;
+          email: string;
+          phone?: string;
+          userCode: string;
+          accountStatus?: "active" | "inactive";
+          address?: { street?: string; city?: string; state?: string; zipCode?: string; country?: string };
+          createdAt?: Date;
+          lastLogin?: Date;
+        }>()
     : null;
   if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -33,6 +46,7 @@ export async function GET(req: Request) {
     email: user.email,
     phone: user.phone,
     address,
+    accountStatus: user.accountStatus ?? undefined,
     createdAt: user.createdAt ?? undefined,
     lastLogin: user.lastLogin ?? undefined,
   });
@@ -88,9 +102,20 @@ export async function PUT(req: Request) {
     };
   }
 
-  const updated = await User.findByIdAndUpdate((payload as any).uid || (payload as any)._id, { $set: update }, { new: true }).select(
-    "firstName lastName email phone address userCode createdAt lastLogin"
-  );
+  const pl2 = payload as { uid?: string; _id?: string };
+  const updated = await User.findByIdAndUpdate(pl2.uid || pl2._id, { $set: update }, { new: true })
+    .select("firstName lastName email phone address userCode accountStatus createdAt lastLogin")
+    .lean<{
+      firstName?: string;
+      lastName?: string;
+      email: string;
+      phone?: string;
+      userCode: string;
+      accountStatus?: "active" | "inactive";
+      address?: { street?: string; city?: string; state?: string; zipCode?: string; country?: string };
+      createdAt?: Date;
+      lastLogin?: Date;
+    }>();
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const full_name = [updated.firstName, updated.lastName].filter(Boolean).join(" ");
@@ -110,7 +135,8 @@ export async function PUT(req: Request) {
     email: updated.email,
     phone: updated.phone,
     address,
-    createdAt: (updated as any).createdAt ?? undefined,
-    lastLogin: (updated as any).lastLogin ?? undefined,
+    accountStatus: updated.accountStatus ?? undefined,
+    createdAt: updated.createdAt ?? undefined,
+    lastLogin: updated.lastLogin ?? undefined,
   });
 }

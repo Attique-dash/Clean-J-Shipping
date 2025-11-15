@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 type Pkg = {
-  _id?: string;
+  _id: string;
   trackingNumber: string;
   status?: string;
   description?: string;
@@ -34,15 +34,40 @@ export default function InvoiceUploadPage() {
   type Item = { name: string; qty: number; value: number; description?: string };
   const [items, setItems] = useState<Item[]>([{ name: "", qty: 1, value: 0, description: "" }]);
 
+  const MAX_FILE_SIZE = 10 * 1024 * 1024;
+  const ALLOWED_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+  function validateFiles(files: FileList | null): { valid: boolean; error?: string } {
+    if (!files || files.length === 0) {
+      return { valid: false, error: "No files selected" };
+    }
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.size > MAX_FILE_SIZE) {
+        return { valid: false, error: `File "${file.name}" exceeds 10MB limit` };
+      }
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        return { valid: false, error: `File "${file.name}" has invalid type. Only PDF and images allowed.` };
+      }
+    }
+    return { valid: true };
+  }
+
   useEffect(() => {
     // load user's packages
     fetch("/api/customer/packages", { cache: "no-store" })
       .then(async (r) => {
         const data = await r.json();
         if (r.ok) {
-          const items = (data.items || []) as Pkg[];
+          const list = Array.isArray(data?.packages) ? data.packages : [];
+          const items: Pkg[] = list.map((p: { id?: string; _id?: string; tracking_number?: string; trackingNumber?: string; status?: string; description?: string; updated_at?: string; updatedAt?: string; }) => ({
+            _id: String(p.id || p._id || ""),
+            trackingNumber: String(p.tracking_number || p.trackingNumber || ""),
+            status: p.status,
+            description: p.description,
+            updatedAt: (p.updated_at || p.updatedAt) as string | undefined,
+          }));
           setPackages(items);
-          if (items.length > 0) setSelectedId((items as any)[0]._id || "");
+          if (items.length > 0) setSelectedId(items[0]._id || "");
         } else {
           setError(data?.error || "Failed to load packages");
         }
@@ -87,7 +112,7 @@ export default function InvoiceUploadPage() {
         setMessage("Invoice uploaded successfully");
         setUploaded((data?.invoiceDocuments || []) as UploadDoc[]);
       }
-    } catch (err) {
+    } catch {
       setError("Network error while uploading");
     } finally {
       setSubmitting(false);
@@ -112,7 +137,7 @@ export default function InvoiceUploadPage() {
                 className="rounded-md border border-gray-300 bg-white px-3 py-2"
               >
                 {packages.map((p) => (
-                  <option key={(p as any)._id} value={(p as any)._id}>
+                  <option key={p._id || ""} value={p._id || ""}>
                     {(p.trackingNumber || "")} — {p.description || p.status || "Package"}
                   </option>
                 ))}
@@ -160,7 +185,16 @@ export default function InvoiceUploadPage() {
                 type="file"
                 multiple
                 accept="application/pdf,image/jpeg,image/png,image/webp"
-                onChange={(e) => setFiles(e.target.files)}
+                onChange={(e) => {
+                  const validation = validateFiles(e.target.files);
+                  if (!validation.valid) {
+                    setError(validation.error || "Invalid file");
+                    setFiles(null);
+                  } else {
+                    setFiles(e.target.files);
+                    setError(null);
+                  }
+                }}
                 className="rounded-md border border-gray-300 bg-white px-3 py-2"
               />
               <span className="text-xs text-gray-500">PDF, JPG, PNG, WEBP</span>

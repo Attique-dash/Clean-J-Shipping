@@ -3,6 +3,9 @@ import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
 import { hashPassword } from "@/lib/auth";
 import { registerSchema, customerRegisterSchema, customerRegisterAltSchema } from "@/lib/validators";
+import { EmailToken } from "@/models/EmailToken";
+import crypto from "crypto";
+import { sendVerificationEmail } from "@/lib/email";
 
 // Type guard to detect Mongo duplicate key errors safely
 function isMongoDuplicateKeyError(e: unknown): e is { code: number } {
@@ -126,6 +129,24 @@ export async function POST(req: Request) {
       role: "customer",
     });
 
+    // Create email verification token (valid for 24 hours)
+    try {
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await EmailToken.create({ userId: user._id, token, expiresAt });
+
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "";
+      const verifyUrl = `${baseUrl}/api/auth/verify?t=${encodeURIComponent(token)}`;
+      await sendVerificationEmail({
+        to: email,
+        firstName,
+        verifyUrl,
+      });
+    } catch (e) {
+      console.error("Failed to queue verification email", e);
+      // Do not fail registration if email cannot be sent
+    }
+
     // Dashboard-friendly response
     return NextResponse.json({
       message: "Registered",
@@ -139,6 +160,7 @@ export async function POST(req: Request) {
           ? { street: address.street, city: address.city, state: address.state, zip_code: address.zipCode, country: address.country }
           : undefined,
       },
+      email_verification: { sent: true },
     });
   } catch (err: unknown) {
     // Map common mongoose errors

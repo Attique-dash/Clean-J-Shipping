@@ -4,6 +4,7 @@ import { getAuthFromRequest } from "@/lib/rbac";
 import { User } from "@/models/User";
 import { Payment } from "@/models/Payment";
 import { customerPaymentCreateSchema } from "@/lib/validators";
+import { stripe } from "@/lib/stripe";
 
 export async function GET(req: Request) {
   const payload = getAuthFromRequest(req);
@@ -42,39 +43,57 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const user = payload._id ? await User.findById(payload._id).select("_id userCode") : null;
+  const user = payload._id ? await User.findById(payload._id).select("_id userCode firstName lastName") : null;
   const userCode = user?.userCode || (payload.userCode as string | undefined);
   if (!userCode) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { amount, currency = "USD", method = "visa", reference, tracking_number } = parsed.data;
+  const { amount, currency = "USD", method = "visa", reference, tracking_number, billing } = parsed.data as {
+    amount: number;
+    currency?: string;
+    method?: string;
+    reference?: string;
+    tracking_number?: string;
+    billing?: Record<string, unknown> | undefined;
+  };
 
-  // Simulate payment gateway
-  // In real integration, call gateway (e.g. Stripe, Adyen), handle 3DS, webhooks, etc.
-  const gatewayId = `gw_${Date.now().toString(36)}`;
-  const status: "initiated" | "authorized" | "captured" = "captured";
+  // Create Stripe PaymentIntent
+  if (!amount || amount < 0.5) {
+    return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
+  }
 
-  const created = await Payment.create({
-    userCode,
-    customer: user?._id,
-    amount,
-    currency,
-    method,
-    reference,
-    gatewayId,
-    status,
-    trackingNumber: tracking_number,
-    meta: { source: "customer_portal" },
-  });
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100),
+      currency: currency.toLowerCase(),
+      metadata: {
+        userCode,
+        trackingNumber: tracking_number || "",
+      },
+      description: user ? `Payment for ${user.firstName || ""} ${user.lastName || ""}`.trim() : undefined,
+    });
 
-  // TODO: send confirmation (email or notification)
+    const created = await Payment.create({
+      userCode,
+      customer: user?._id,
+      amount,
+      currency,
+      method,
+      reference: paymentIntent.client_secret || reference,
+      gatewayId: paymentIntent.id,
+      status: "initiated",
+      trackingNumber: tracking_number,
+      meta: { source: "customer_portal", billing },
+    });
 
-  return NextResponse.json({
-    payment_id: String(created._id),
-    amount: created.amount,
-    currency: created.currency,
-    method: created.method,
-    status: created.status,
-    gateway_id: created.gatewayId,
-    tracking_number: created.trackingNumber || null,
-  });
+    return NextResponse.json({
+      payment_id: String(created._id),
+      client_secret: paymentIntent.client_secret,
+      amount,
+      currency,
+    });
+  } catch (error: unknown) {
+    const message = typeof error === "object" && error !== null && "message" in error ? (error as { message?: string }).message : undefined;
+    console.error("Stripe error:", error);
+    return NextResponse.json({ error: message || "Stripe error" }, { status: 500 });
+  }
 }

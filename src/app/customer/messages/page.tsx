@@ -36,6 +36,10 @@ export default function CustomerMessagesPage() {
 
   useEffect(() => {
     load();
+    const id = setInterval(() => {
+      load();
+    }, 30000);
+    return () => clearInterval(id);
   }, []);
 
   // Group messages by subject (conversation key). Fallback to "Support Team"

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
+import { dbConnect } from "@/lib/db";
+import { ApiKey } from "@/models/ApiKey";
+import { hashApiKey } from "@/models/ApiKey";
 
 export type Role = "admin" | "customer" | "warehouse";
 
@@ -62,4 +65,47 @@ export function isWarehouseAuthorized(req: Request): boolean {
     // ignore token errors and fall back to api key
   }
   return verifyWarehouseKeyFromRequest(req);
+}
+
+// Strict async verification using ApiKey model. Only accepts header keys.
+export async function verifyWarehouseApiKey(
+  req: Request,
+  requiredPermissions: string[] = []
+): Promise<{ valid: boolean; keyInfo?: { keyPrefix: string; name: string } }> {
+  const provided = req.headers.get("x-warehouse-key") || req.headers.get("x-api-key") || "";
+  if (!provided) return { valid: false };
+  if (!provided.startsWith("wh_live_") && !provided.startsWith("wh_test_")) {
+    return { valid: false };
+  }
+  const hashed = hashApiKey(provided);
+  try {
+    await dbConnect();
+    const keyRecord = await ApiKey.findOne({
+      key: hashed,
+      active: true,
+      $or: [
+        { expiresAt: { $exists: false } },
+        { expiresAt: { $gt: new Date() } },
+      ],
+    }).select("keyPrefix name permissions active expiresAt");
+    if (!keyRecord) return { valid: false };
+    if (requiredPermissions.length) {
+      const hasAll = requiredPermissions.every((p) => keyRecord.permissions.includes(p));
+      if (!hasAll) return { valid: false };
+    }
+    // update usage async
+    ApiKey.findByIdAndUpdate(keyRecord._id, { $set: { lastUsedAt: new Date() }, $inc: { usageCount: 1 } }).catch(() => {});
+    return { valid: true, keyInfo: { keyPrefix: keyRecord.keyPrefix, name: keyRecord.name } };
+  } catch {
+    return { valid: false };
+  }
+}
+
+export async function isWarehouseAuthorizedAsync(req: Request, requiredPermissions: string[] = []): Promise<boolean> {
+  try {
+    const auth = getAuthFromRequest(req);
+    if (hasRole(auth, "warehouse")) return true;
+  } catch {}
+  const { valid } = await verifyWarehouseApiKey(req, requiredPermissions);
+  return valid;
 }

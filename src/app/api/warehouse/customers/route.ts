@@ -9,7 +9,6 @@ export async function GET(req: Request) {
   if (!isWarehouseAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
   await dbConnect();
 
   const url = new URL(req.url);
@@ -62,4 +61,27 @@ export async function GET(req: Request) {
   });
 
   return NextResponse.json({ customers: results, total_count: results.length });
+}
+
+export async function DELETE(req: Request) {
+  if (!isWarehouseAuthorized(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  await dbConnect();
+
+  let raw: unknown;
+  try {
+    raw = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const user_code = (raw as { user_code?: unknown })?.user_code;
+  if (typeof user_code !== "string" || !user_code.trim()) {
+    return NextResponse.json({ error: "user_code is required" }, { status: 400 });
+  }
+
+  const deleted = await User.findOneAndDelete({ role: "customer", userCode: user_code.trim() });
+  if (!deleted) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json({ ok: true });
 }

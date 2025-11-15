@@ -10,6 +10,7 @@ type Profile = {
   email: string;
   phone?: string;
   address?: Address;
+  accountStatus?: "active" | "inactive";
   lastLogin?: string;
   createdAt?: string;
 };
@@ -20,6 +21,11 @@ export default function CustomerProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [pwdOpen, setPwdOpen] = useState(false);
+  const [pwdSaving, setPwdSaving] = useState(false);
+  const [pwdError, setPwdError] = useState<string | null>(null);
+  const [pwdOk, setPwdOk] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ current_password: "", new_password: "", confirm_password: "" });
 
   async function load() {
     setLoading(true);
@@ -31,7 +37,19 @@ export default function CustomerProfilePage() {
         const meRes = await fetch("/api/auth/me", { cache: "no-store" });
         const meData = await meRes.json();
         if (!meRes.ok || !meData?.user) throw new Error(meData?.error || "Failed to load profile");
-        const u = meData.user as any;
+        type MeUser = {
+          userCode?: string;
+          user_code?: string;
+          firstName?: string;
+          lastName?: string;
+          name?: string;
+          email?: string;
+          phone?: string;
+          address?: { street?: string; city?: string; state?: string; zipCode?: string; country?: string };
+          lastLogin?: string;
+          createdAt?: string;
+        };
+        const u: MeUser = meData.user as MeUser;
         const mapped: Profile = {
           user_code: u.userCode || u.user_code || "",
           full_name: [u.firstName, u.lastName].filter(Boolean).join(" ") || u.name || "",
@@ -142,13 +160,17 @@ export default function CustomerProfilePage() {
               <div className="space-y-2 text-sm text-gray-800">
                 <div><span className="text-gray-500">Last Login:</span> <span>{profile.lastLogin ? new Date(profile.lastLogin).toLocaleString() : '-'}</span></div>
                 <div><span className="text-gray-500">Member Since:</span> <span>{profile.createdAt ? new Date(profile.createdAt).toLocaleDateString() : '-'}</span></div>
+                <div className="flex items-center gap-2"><span className="text-gray-500">Status:</span> {profile.accountStatus === 'inactive' ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">Inactive</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Active</span>
+                )}</div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Edit form (optional) */}
       {editing && (
         <form onSubmit={onSave} className="space-y-3 rounded-xl border bg-white p-5 shadow-sm">
           <div className="grid grid-cols-2 gap-3">
@@ -210,6 +232,52 @@ export default function CustomerProfilePage() {
             </button>
           </div>
         </form>
+      )}
+
+      {profile && (
+        <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-base font-semibold">Change Password</div>
+            <button type="button" onClick={() => setPwdOpen((v) => !v)} className="rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
+              {pwdOpen ? "Close" : "Open"}
+            </button>
+          </div>
+          {pwdOpen && (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setPwdSaving(true);
+                setPwdError(null);
+                setPwdOk(false);
+                try {
+                  const res = await fetch("/api/customer/profile/password", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(pwdForm),
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) throw new Error(data?.error || "Failed to change password");
+                  setPwdOk(true);
+                  setPwdForm({ current_password: "", new_password: "", confirm_password: "" });
+                } catch (err) {
+                  setPwdError(err instanceof Error ? err.message : "Failed");
+                } finally {
+                  setPwdSaving(false);
+                }
+              }}
+              className="grid gap-3 md:grid-cols-3"
+            >
+              <input className="rounded-md border px-3 py-2" type="password" placeholder="Current password" value={pwdForm.current_password} onChange={(e) => setPwdForm({ ...pwdForm, current_password: e.target.value })} required />
+              <input className="rounded-md border px-3 py-2" type="password" placeholder="New password" value={pwdForm.new_password} onChange={(e) => setPwdForm({ ...pwdForm, new_password: e.target.value })} required />
+              <input className="rounded-md border px-3 py-2" type="password" placeholder="Confirm new password" value={pwdForm.confirm_password} onChange={(e) => setPwdForm({ ...pwdForm, confirm_password: e.target.value })} required />
+              <div className="md:col-span-3 flex items-center justify-end gap-2">
+                {pwdError && <div className="text-sm text-red-600">{pwdError}</div>}
+                {pwdOk && <div className="text-sm text-green-700">Password updated</div>}
+                <button disabled={pwdSaving} className="rounded-md bg-blue-600 px-4 py-2 text-white disabled:opacity-50">{pwdSaving ? "Updating..." : "Update Password"}</button>
+              </div>
+            </form>
+          )}
+        </div>
       )}
     </div>
   );

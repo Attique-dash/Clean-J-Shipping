@@ -1,52 +1,46 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
-import { Package, type IPackage } from "@/models/Package";
+import { Package } from "@/models/Package";
 import { User } from "@/models/User";
-import { getAllowedWarehouseKeys, verifyWarehouseKeyFromRequest } from "@/lib/rbac";
+import { verifyWarehouseApiKey } from "@/lib/rbac";
 import { getServiceTypeName, getExternalStatusLabel } from "@/lib/mappings";
+import { rateLimit } from "@/lib/rateLimit";
 
-// Narrowing helper for extracting APIToken from arbitrary JSON
-function hasStringApiToken(x: unknown): x is { APIToken: string } {
-  const token = (x as any)?.APIToken;
-  return typeof token === "string" && token.trim().length > 0;
-}
+// (removed legacy body-token support on purpose)
 
 // This endpoint ingests an array of package objects in the external format and upserts them into our system.
 // URL: /api/warehouse/addpackage/subdir
 // Method: POST
 export async function POST(req: Request) {
-  // Prefer header-based key (x-warehouse-key or x-api-key)
-  let authorized = verifyWarehouseKeyFromRequest(req);
-  let bodyText = "";
-
-  // Read body so we can also check APIToken field if header is not set
-  try {
-    bodyText = await req.text();
-  } catch {
-    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
-  }
-
-  if (!authorized) {
-    try {
-      const maybeJson = JSON.parse(bodyText);
-      const arr = Array.isArray(maybeJson) ? maybeJson : [];
-      const tokenInBody = arr.find(hasStringApiToken)?.APIToken.trim();
-      if (tokenInBody) {
-        const allowed = getAllowedWarehouseKeys();
-        if (allowed.includes(tokenInBody)) authorized = true;
-      }
-    } catch {
-      // ignore, will fall through to unauthorized
-    }
-  }
-
-  if (!authorized) {
+  // Strict header-only API key with permission check
+  const { valid, keyInfo } = await verifyWarehouseApiKey(req, ["packages:write"]);
+  if (!valid) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Now parse JSON once for real
+  // Apply per-key rate limiting (1 minute window, 100 requests)
+  const limit = 100;
+  const rl = rateLimit(keyInfo!.keyPrefix, { windowMs: 60 * 1000, maxRequests: limit });
+  if (!rl.allowed) {
+    return NextResponse.json({
+      error: "Rate limit exceeded",
+      retryAfter: rl.retryAfter,
+      resetAt: new Date(rl.resetAt).toISOString(),
+    }, {
+      status: 429,
+      headers: {
+        "X-RateLimit-Limit": String(limit),
+        "X-RateLimit-Remaining": "0",
+        "X-RateLimit-Reset": String(rl.resetAt),
+        "Retry-After": String(rl.retryAfter ?? 60),
+      },
+    });
+  }
+
+  // Read and parse JSON body
   let payload: unknown;
   try {
+    const bodyText = await req.text();
     payload = bodyText ? JSON.parse(bodyText) : null;
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
@@ -94,10 +88,10 @@ export async function POST(req: Request) {
         continue;
       }
 
-      const initial: Partial<IPackage> = {
+      const initial = {
         trackingNumber,
         userCode: customer.userCode,
-        customer: customer._id as any,
+        customer: customer._id as unknown as string,
         weight,
         shipper,
         description,
@@ -158,10 +152,16 @@ export async function POST(req: Request) {
       results.push({ trackingNumber, ok: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error";
-      results.push({ trackingNumber: String((item as any)?.TrackingNumber || ""), ok: false, error: message });
+      const tnField = (item as Record<string, unknown>)["TrackingNumber"];
+      const tnSafe = typeof tnField === "string" ? tnField : "";
+      results.push({ trackingNumber: tnSafe, ok: false, error: message });
     }
   }
 
   // Spec says response payload N/A; we'll return a small summary for observability.
-  return NextResponse.json({ ok: true, processed: results.length, results });
+  const res = NextResponse.json({ ok: true, processed: results.length, results });
+  res.headers.set("X-RateLimit-Limit", "100");
+  res.headers.set("X-RateLimit-Remaining", String(rl.remaining));
+  res.headers.set("X-RateLimit-Reset", String(rl.resetAt));
+  return res;
 }

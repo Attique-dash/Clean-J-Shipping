@@ -37,7 +37,22 @@ export async function POST(req: Request) {
   const tax = Number((subtotal * taxRate).toFixed(2));
   const total = Number((subtotal + tax).toFixed(2));
 
-  const receiptNo = `R${Date.now()}`;
+  // Validate calculated total (server-side) and enforce minimum amount
+  const expectedTotal = Number((subtotal + tax).toFixed(2));
+  if (Math.abs(total - expectedTotal) > 0.01) {
+    return NextResponse.json(
+      { error: "Transaction total mismatch", calculated: total, expected: expectedTotal },
+      { status: 400 }
+    );
+  }
+  if (total < 0.01) {
+    return NextResponse.json({ error: "Invalid transaction amount" }, { status: 400 });
+  }
+
+  // Generate stronger unique receipt number
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const receiptNo = `R${timestamp}-${random}`;
   const created = await PosTransaction.create({
     receiptNo,
     customerCode: customer_code,

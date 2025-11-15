@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package, type IPackage, type PackageStatus } from "@/models/Package";
 import { User } from "@/models/User";
-import { isWarehouseAuthorized, getAuthFromRequest } from "@/lib/rbac";
+import { isWarehouseAuthorized, getAuthFromRequest, verifyWarehouseApiKey } from "@/lib/rbac";
 import { updatePackageSchema } from "@/lib/validators";
 import { sendStatusUpdateEmail } from "@/lib/email";
+import { rateLimit } from "@/lib/rateLimit";
 
 function isValidStatus(s: unknown): s is PackageStatus {
   return ["Unknown", "At Warehouse", "In Transit", "At Local Port", "Delivered", "Deleted"].includes(
@@ -45,6 +46,25 @@ function internalToUiStatus(s: PackageStatus): "in_transit" | "ready_for_pickup"
 export async function POST(req: Request) {
   if (!isWarehouseAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Try to derive a stable identifier for rate limiting
+  let identifier = "warehouse";
+  try {
+    const { valid, keyInfo } = await verifyWarehouseApiKey(req);
+    if (valid && keyInfo?.keyPrefix) identifier = keyInfo.keyPrefix;
+    else {
+      const payload = getAuthFromRequest(req);
+      const fromCookie = (payload?.uid as string | undefined) || (payload?.email as string | undefined) || (payload?.userCode as string | undefined);
+      if (fromCookie) identifier = `wh_${fromCookie}`;
+    }
+  } catch {}
+  const rl = rateLimit(identifier, { windowMs: 60_000, maxRequests: 100 });
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, {
+      status: 429,
+      headers: { "Retry-After": String(rl.retryAfter ?? 60) }
+    });
   }
 
   await dbConnect();

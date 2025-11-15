@@ -47,13 +47,14 @@ export async function GET(req: Request) {
       )
       .sort({ updatedAt: -1 })
       .limit(200)
-      .lean(),
+      .lean<IPackage & { _id?: string | { toString(): string }; branch?: string; entryDate?: Date; updatedAt?: Date; invoiceDocuments?: unknown[]; invoiceRecords?: { status: string; submittedAt?: Date; totalValue?: number }[] }>(),
   ]);
 
-  const packages = pkgs.map((p: IPackage & { branch?: string; entryDate?: Date; invoiceDocuments?: unknown[]; invoiceRecords?: { status: string; submittedAt?: Date; totalValue?: number }[] }) => {
+  const packages = pkgs.map((p) => {
     const status = toUiStatus(p.status);
     const current_location = p.branch || undefined;
-    const weight = typeof p.weight === "number" ? `${p.weight} kg` : undefined;
+    const weightNum = typeof p.weight === "number" ? p.weight : undefined;
+    const weight = typeof weightNum === "number" ? `${weightNum} kg` : undefined;
 
     // Invoice status
     const hasDocs = Array.isArray(p.invoiceDocuments) && p.invoiceDocuments.length > 0;
@@ -85,18 +86,29 @@ export async function GET(req: Request) {
     else if (status === "delivered") actions_available.push("track");
     else actions_available.push("upload_document");
 
-    // estimated delivery: not available in schema; omit unless you want a heuristic
-    const estimated_delivery: string | undefined = undefined;
+    // estimated delivery heuristic
+    let estimated_delivery: string | undefined = undefined;
+    if (p.entryDate) {
+      const base = new Date(p.entryDate);
+      if (status === "in_transit") base.setDate(base.getDate() + 7);
+      else if (status === "ready_for_pickup") base.setDate(base.getDate() + 1);
+      else if (status === "pending") base.setDate(base.getDate() + 10);
+      if (!isNaN(base.getTime())) estimated_delivery = base.toISOString().slice(0, 10);
+    }
 
+    const id = p._id ? (typeof p._id === "string" ? p._id : p._id.toString()) : undefined;
     return {
+      id,
       tracking_number: p.trackingNumber,
       description: p.description || undefined,
       status,
       current_location,
       estimated_delivery,
       weight,
+      weight_kg: weightNum,
       invoice_status,
       ready_since,
+      updated_at: p.updatedAt ? new Date(p.updatedAt).toISOString() : undefined,
     };
   });
 

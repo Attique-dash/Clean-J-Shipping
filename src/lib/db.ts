@@ -1,60 +1,112 @@
-import mongoose from "mongoose";
+// lib/db.ts
+import mongoose from 'mongoose';
+import { toast } from 'react-hot-toast';
 
-const MONGODB_URI = process.env.MONGODB_URI as string;
-const MONGODB_DB = process.env.MONGODB_DB || "courier_app";
-const TLS_INSECURE = String(process.env.MONGODB_TLS_INSECURE || "").toLowerCase() === "true";
+const MONGODB_URI = process.env.MONGODB_URI!;
 
 if (!MONGODB_URI) {
-  console.warn("MONGODB_URI is not set. Please configure it in your environment.");
+  const errorMsg = '❌ MONGODB_URI is not defined in .env.local';
+  if (typeof window !== 'undefined') {
+    toast.error('Database configuration error. Please contact support.');
+  }
+  throw new Error(errorMsg);
 }
 
-interface GlobalMongoose {
+interface CachedConnection {
   conn: typeof mongoose | null;
   promise: Promise<typeof mongoose> | null;
+  lastConnectionAttempt: number;
 }
 
-// @ts-ignore
-let cached: GlobalMongoose = global.mongoose || { conn: null, promise: null };
+// Use global to cache the mongoose connection
+declare global {
+  var mongoose: CachedConnection | undefined;
+}
 
-// @ts-ignore
+const CONNECTION_TIMEOUT = 5000; // 5 seconds
+const RECONNECT_INTERVAL = 5000; // 5 seconds
+
+let cached: CachedConnection = global.mongoose || { 
+  conn: null, 
+  promise: null, 
+  lastConnectionAttempt: 0 
+};
+
 if (!global.mongoose) {
-  // @ts-ignore
   global.mongoose = cached;
 }
 
-export async function dbConnect() {
-  if (cached.conn) return cached.conn;
+// Handle connection events
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+  if (typeof window !== 'undefined') {
+    toast.error('Database connection error. Please try again later.');
+  }
+});
 
-  if (!cached.promise) {
-    const uri = MONGODB_URI || "mongodb://127.0.0.1:27017/courier_app";
-    const isSrv = uri.startsWith("mongodb+srv://");
-    const connOpts: mongoose.ConnectOptions = {
-      dbName: MONGODB_DB,
-      serverSelectionTimeoutMS: 15000,
+mongoose.connection.on('disconnected', () => {
+  console.log('MongoDB disconnected');
+  cached.conn = null;
+  cached.promise = null;
+});
+
+async function connectWithRetry() {
+  try {
+    const opts = {
+      bufferCommands: false,
+      serverSelectionTimeoutMS: CONNECTION_TIMEOUT,
+      socketTimeoutMS: CONNECTION_TIMEOUT,
     };
-    // Optionally allow insecure TLS for corporate proxies/SSL interception environments.
-    // Do NOT use in production; prefer fixing root CA/proxy config.
-    if (TLS_INSECURE) {
-      // @ts-expect-error mongoose types may not include this option in older versions
-      (connOpts as any).tlsAllowInvalidCertificates = true;
-      // @ts-expect-error
-      (connOpts as any).tlsAllowInvalidHostnames = true;
-    }
 
-    cached.promise = mongoose
-      .connect(uri, connOpts)
-      .then((m) => m)
-      .catch((err) => {
-        console.error("[dbConnect] Failed to connect to MongoDB", {
-          message: err?.message,
-          name: err?.name,
-          code: (err as any)?.code,
-          reason: (err as any)?.reason,
-        });
-        throw err;
-      });
+    await mongoose.connect(MONGODB_URI, opts);
+    console.log('✅ MongoDB Connected Successfully');
+    if (typeof window !== 'undefined') {
+      toast.success('Connected to database');
+    }
+    return mongoose;
+  } catch (error) {
+    console.error('❌ MongoDB Connection Error:', error);
+    if (typeof window !== 'undefined') {
+      toast.error('Failed to connect to database. Retrying...');
+    }
+    // Wait before retrying
+    await new Promise(resolve => setTimeout(resolve, RECONNECT_INTERVAL));
+    return connectWithRetry();
+  }
+}
+
+export default async function dbConnect(): Promise<typeof mongoose> {
+  // If we have a cached connection and it's still valid, return it
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
   }
 
-  cached.conn = await cached.promise;
-  return cached.conn;
+  // Prevent multiple connection attempts within a short time
+  const now = Date.now();
+  if (cached.promise && (now - cached.lastConnectionAttempt) < RECONNECT_INTERVAL) {
+    return (await cached.promise).connection;
+  }
+
+  // Create new connection promise
+  if (!cached.promise) {
+    cached.lastConnectionAttempt = now;
+    cached.promise = connectWithRetry().catch(err => {
+      cached.promise = null;
+      throw err;
+    });
+  }
+
+  try {
+    cached.conn = await cached.promise;
+    return cached.conn;
+  } catch (error) {
+    console.error('Database connection failed:', error);
+    if (typeof window !== 'undefined') {
+      toast.error('Failed to connect to database');
+    }
+    throw error;
+  }
 }
+
+// Also export as named export for flexibility
+export { dbConnect };

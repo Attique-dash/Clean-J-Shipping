@@ -9,6 +9,8 @@ type PreAlert = {
   origin?: string;
   expectedDate?: string;
   notes?: string;
+  status?: "submitted" | "approved" | "rejected";
+  decidedAt?: string;
   createdAt?: string;
 };
 
@@ -123,7 +125,13 @@ export default function PreAlertsPage() {
                 <div className="text-sm">
                   <div className="text-gray-500">Expected</div>
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-xs text-yellow-700">● Pending Review</span>
+                    {p.status === "approved" ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">● Approved</span>
+                    ) : p.status === "rejected" ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">● Rejected</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-xs text-yellow-700">● Submitted</span>
+                    )}
                     <span className="text-gray-700">{p.expectedDate ? new Date(p.expectedDate).toLocaleDateString() : "-"}</span>
                   </div>
                 </div>

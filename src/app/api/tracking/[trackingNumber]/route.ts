@@ -1,73 +1,57 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
-import { Package, IPackage, PackageStatus } from "@/models/Package";
-
-function toUiStatus(status: string): "in_transit" | "ready_for_pickup" | "delivered" | "pending" | "received" {
-  switch (status) {
-    case "In Transit":
-      return "in_transit";
-    case "Delivered":
-      return "delivered";
-    case "At Local Port":
-      return "ready_for_pickup";
-    case "At Warehouse":
-      return "received";
-    case "Unknown":
-    default:
-      return "pending";
-  }
-}
+import { Package } from "@/models/Package";
 
 export async function GET(
   _req: Request,
   { params }: { params: { trackingNumber: string } }
 ) {
+  const trackingRaw = decodeURIComponent(params.trackingNumber || "").trim();
+  if (!trackingRaw) {
+    return NextResponse.json({ error: "Missing tracking number" }, { status: 400 });
+  }
+
   await dbConnect();
-  const pkg = await Package.findOne({ trackingNumber: params.trackingNumber })
+
+  // Case-insensitive lookup; also try normalized variants
+  const candidates = [trackingRaw, trackingRaw.toUpperCase(), trackingRaw.toLowerCase()].filter((v, i, a) => a.indexOf(v) === i);
+
+  const pkg = await Package.findOne({ trackingNumber: { $in: candidates } })
     .select(
-      "trackingNumber description status branch weight entryDate createdAt history"
+      "trackingNumber status userCode weight shipper description history branch length width height entryDate updatedAt createdAt serviceTypeId serviceTypeName externalStatusLabel"
     )
     .lean();
-  if (!pkg) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const pkgDoc = pkg as Pick<IPackage, "trackingNumber" | "description" | "status" | "weight" | "history" | "createdAt"> & {
-    branch?: string;
-    entryDate?: Date;
-  };
+  if (!pkg) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
-  const status = toUiStatus(pkgDoc.status);
-  const current_location = pkgDoc.branch || undefined;
-  const weight = typeof pkgDoc.weight === "number" ? `${pkgDoc.weight} kg` : undefined;
-
-  // Build tracking history (newest first)
-  const tracking_history = Array.isArray(pkgDoc.history)
-    ? [...(pkgDoc.history as { status: PackageStatus; at?: Date; note?: string }[])]
-        .sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime())
-        .map((h) => {
-          const s = toUiStatus(h.status);
-          let description: string | undefined;
-          if (s === "ready_for_pickup") description = "Package ready for customer pickup";
-          else if (s === "in_transit") description = "Package in transit to destination";
-          else if (s === "received") description = "Package received at facility";
-          return {
-            status: s,
-            timestamp: h.at ? new Date(h.at).toISOString() : undefined,
-            location: undefined,
-            description,
-          };
-        })
+  const history = Array.isArray(pkg.history)
+    ? pkg.history.map((h: { status?: string; at?: Date; note?: string }) => ({
+        status: String(h.status || ""),
+        at: h.at ? new Date(h.at).toISOString() : new Date().toISOString(),
+        note: h.note ? String(h.note) : undefined,
+      }))
     : [];
 
-  // No ETA in schema; set undefined. If needed, derive from business rules later.
-  const estimated_delivery = undefined as unknown as string | undefined;
-
   return NextResponse.json({
-    tracking_number: pkgDoc.trackingNumber,
-    description: pkgDoc.description || undefined,
-    status,
-    current_location,
-    weight,
-    tracking_history,
-    estimated_delivery,
+    trackingNumber: pkg.trackingNumber,
+    status: pkg.status,
+    userCode: pkg.userCode,
+    weight: typeof pkg.weight === "number" ? pkg.weight : undefined,
+    shipper: pkg.shipper || undefined,
+    description: pkg.description || undefined,
+    currentLocation: (pkg as any).branch || undefined,
+    dimensions: {
+      length: typeof (pkg as any).length === "number" ? (pkg as any).length : undefined,
+      width: typeof (pkg as any).width === "number" ? (pkg as any).width : undefined,
+      height: typeof (pkg as any).height === "number" ? (pkg as any).height : undefined,
+    },
+    entryDate: (pkg as any).entryDate ? new Date((pkg as any).entryDate).toISOString() : undefined,
+    updatedAt: pkg.updatedAt ? new Date(pkg.updatedAt as any).toISOString() : undefined,
+    serviceTypeId: (pkg as any).serviceTypeId || undefined,
+    serviceTypeName: (pkg as any).serviceTypeName || undefined,
+    externalStatusLabel: (pkg as any).externalStatusLabel || undefined,
+    history,
   });
 }

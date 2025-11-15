@@ -1,43 +1,60 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { verifyToken } from "@/lib/auth";
+// middleware.ts
+import { withAuth } from 'next-auth/middleware';
+import { NextResponse } from 'next/server';
 
-export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+export default withAuth(
+  function middleware(req) {
+    const token = req.nextauth.token;
+    const isAuth = !!token;
+    const isAuthPage = req.nextUrl.pathname.startsWith('/login') || 
+                       req.nextUrl.pathname.startsWith('/register');
+    const isAdminPage = req.nextUrl.pathname.startsWith('/admin');
 
-  if (pathname.startsWith("/admin")) {
-    const token = req.cookies.get("auth_token")?.value;
-    const payload = token ? verifyToken(token) : null;
-    if (!payload || payload.role !== "admin") {
-      const url = new URL("/login", req.url);
-      url.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(url);
+    // If user is on auth pages and already authenticated, redirect to home
+    if (isAuthPage && isAuth) {
+      return NextResponse.redirect(new URL('/', req.url));
     }
-  }
 
-  if (pathname.startsWith("/dashboard")) {
-    const token = req.cookies.get("auth_token")?.value;
-    const payload = token ? verifyToken(token) : null;
-    if (!payload || (payload.role !== "customer" && payload.role !== "admin")) {
-      const url = new URL("/login", req.url);
-      url.searchParams.set("redirect", "/dashboard");
-      return NextResponse.redirect(url);
+    // If accessing admin pages, check if user is admin
+    if (isAdminPage) {
+      if (!isAuth) {
+        return NextResponse.redirect(new URL('/login', req.url));
+      }
+      
+      if (token?.role !== 'admin') {
+        return NextResponse.redirect(new URL('/', req.url));
+      }
     }
+
+    return NextResponse.next();
+  },
+  {
+    callbacks: {
+      authorized: ({ token, req }) => {
+        // Allow access to public routes
+        const publicRoutes = ['/', '/products', '/about', '/contact'];
+        const isPublicRoute = publicRoutes.some(route => 
+          req.nextUrl.pathname === route || req.nextUrl.pathname.startsWith('/api')
+        );
+        
+        if (isPublicRoute) {
+          return true;
+        }
+
+        // For protected routes, require authentication
+        return !!token;
+      },
+    },
   }
+);
 
-  if (pathname.startsWith("/warehouse")) {
-    const token = req.cookies.get("auth_token")?.value;
-    const payload = token ? verifyToken(token) : null;
-    if (!payload || (payload.role !== "warehouse" && payload.role !== "admin")) {
-      const url = new URL("/login", req.url);
-      url.searchParams.set("redirect", "/warehouse");
-      return NextResponse.redirect(url);
-    }
-  }
-
-  return NextResponse.next();
-}
-
+// Configure which routes should be protected
 export const config = {
-  matcher: ["/admin/:path*", "/dashboard/:path*", "/warehouse/:path*"],
+  matcher: [
+    '/admin/:path*',
+    '/profile/:path*',
+    '/orders/:path*',
+    '/login',
+    '/register',
+  ],
 };

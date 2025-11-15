@@ -25,3 +25,28 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Custom orange scrollbar for elements using class `scrollbar-orange` */
+.scrollbar-orange {
+  scrollbar-color: #fb923c transparent; /* Firefox */
+  scrollbar-width: thin; /* Firefox */
+}
+.scrollbar-orange::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-orange::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-orange::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #fdba74, #fb923c);
+  border-radius: 9999px;
+}
+.scrollbar-orange::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #fb923c, #f97316);
+}
+.scrollbar-orange::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}

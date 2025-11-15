@@ -58,11 +58,16 @@ export async function POST(req: Request) {
     scheduled_at?: string;
   };
 
-  // Determine recipients (all customers)
-  const customers: Array<{ _id: Types.ObjectId; email: string; userCode: string }> = await User.find({ role: "customer" })
+  // Determine recipients (all customers with a valid userCode)
+  const customers = (await User.find({ role: "customer" })
     .select("_id email userCode")
-    .lean();
-  const totalRecipients = customers.length;
+    .lean()) as Array<{ _id: Types.ObjectId; email?: string; userCode?: string }>;
+  const withUserCode = customers.filter((u) => typeof u.userCode === "string" && u.userCode.trim().length > 0) as Array<{
+    _id: Types.ObjectId;
+    email?: string;
+    userCode: string;
+  }>;
+  const totalRecipients = withUserCode.length;
 
   const created = await Broadcast.create({
     title,
@@ -86,7 +91,7 @@ export async function POST(req: Request) {
         sender: "support";
         createdAt: Date;
         updatedAt: Date;
-      }> = customers.map((u) => ({
+      }> = withUserCode.map((u) => ({
         userCode: u.userCode,
         customer: u._id,
         subject: title,

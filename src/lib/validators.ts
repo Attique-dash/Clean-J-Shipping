@@ -245,6 +245,17 @@ export const customerPaymentCreateSchema = z.object({
   reference: z.string().min(1).optional(),
   // Optional linkage to a tracking number or bill
   tracking_number: z.string().min(1).optional(),
+  // Optional billing details captured from the customer portal
+  billing: z
+    .object({
+      fullName: z.string().optional(),
+      address: z.string().optional(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+      zip: z.string().optional(),
+      sameAsShipping: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 // Customer Messages

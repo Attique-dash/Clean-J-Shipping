@@ -13,13 +13,24 @@ export async function GET(req: Request) {
   await dbConnect();
 
   let userCode = payload.userCode as string | undefined;
-  if (!userCode && payload._id) {
-    const user = await User.findById(payload._id).select("userCode");
+  let userId: string | undefined = undefined;
+  if ((!userCode || !userCode.trim()) && payload._id) {
+    const user = await User.findById(payload._id).select("_id userCode");
     userCode = user?.userCode;
+    userId = user?._id ? String(user._id) : undefined;
+  } else if (payload._id) {
+    userId = String(payload._id);
   }
-  if (!userCode) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userCode && !userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const items = await Message.find({ userCode }).sort({ createdAt: -1 }).limit(200).lean();
+  // Support legacy messages created without userCode by matching on customer ObjectId as well
+  const or: any[] = [];
+  if (userCode) or.push({ userCode });
+  if (userId) or.push({ customer: userId });
+  const items = await Message.find(or.length ? { $or: or } : { userCode: "__none__" })
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .lean();
   return NextResponse.json({ messages: items });
 }
 

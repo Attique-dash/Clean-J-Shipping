@@ -6,6 +6,8 @@ import { Types, FilterQuery } from "mongoose";
 import { hashPassword } from "@/lib/auth";
 import { getAuthFromRequest } from "@/lib/rbac";
 import { adminCreateCustomerSchema, adminUpdateCustomerSchema, adminDeleteCustomerSchema } from "@/lib/validators";
+import { logAudit } from "@/lib/audit";
+import { hasPermission, type AdminRole } from "@/lib/permissions";
 
 export async function GET(req: Request) {
   await dbConnect();
@@ -44,7 +46,7 @@ export async function GET(req: Request) {
 
   const total_count = await User.countDocuments(filter);
   const customers = await User.find(filter)
-    .select("firstName lastName email phone address createdAt accountStatus userCode emailVerified")
+    .select("firstName lastName email phone address createdAt accountStatus userCode emailVerified accountType branch serviceTypeIDs")
     .sort({ createdAt: -1 })
     .skip((page - 1) * per_page)
     .limit(per_page);
@@ -65,8 +67,11 @@ export async function GET(req: Request) {
     const member_since = u.createdAt ? u.createdAt.toISOString() : undefined;
     const address = u.address
       ? {
+          street: u.address.street,
           city: u.address.city,
           state: u.address.state,
+          zip_code: u.address.zipCode,
+          country: u.address.country,
         }
       : undefined;
     return {
@@ -75,9 +80,12 @@ export async function GET(req: Request) {
       full_name,
       email: u.email,
       phone: u.phone,
+      branch: u.branch,
+      serviceTypeIDs: u.serviceTypeIDs || [],
       address,
       email_verified: Boolean(u.emailVerified),
       account_status: u.accountStatus || "active",
+      account_type: u.accountType,
       package_count: countsByUserCode.get(u.userCode) || 0,
       member_since,
     };
@@ -161,6 +169,19 @@ export async function POST(req: Request) {
     accountType,
     role: "customer",
   });
+  // Audit log create
+  await logAudit({
+    userId: String((payload as { _id?: string; uid?: string; email?: string } | null)?.uid || (payload as { _id?: string } | null)?._id || ""),
+    userEmail: String((payload as { email?: string } | null)?.email || ""),
+    action: "create",
+    resource: "customer",
+    resourceId: String(created._id),
+    changes: {
+      email: { old: undefined, new: created.email },
+      userCode: { old: undefined, new: created.userCode },
+    },
+    req,
+  });
   return NextResponse.json({ ok: true, id: created._id, userCode: created.userCode });
 }
 
@@ -169,6 +190,10 @@ export async function PUT(req: Request) {
   const payload = getAuthFromRequest(req);
   if (!payload || payload.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const ar = (payload && (payload as { adminRole?: AdminRole }).adminRole) as AdminRole | undefined;
+  if (!ar || !hasPermission(ar, "customers:write")) {
+    return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
   }
 
   let raw: unknown;
@@ -214,6 +239,19 @@ export async function PUT(req: Request) {
 
   const updated = await User.findByIdAndUpdate(trimmedId, { $set: update }, { new: true });
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Audit log update
+  await logAudit({
+    userId: String((payload as { _id?: string; uid?: string; email?: string } | null)?.uid || (payload as { _id?: string } | null)?._id || ""),
+    userEmail: String((payload as { email?: string } | null)?.email || ""),
+    action: "update",
+    resource: "customer",
+    resourceId: trimmedId,
+    changes: {
+      ...(update.firstName !== undefined ? { firstName: { old: (await User.findById(trimmedId).lean())?.firstName, new: update.firstName } } : {}),
+      ...(update.email !== undefined ? { email: { old: (await User.findById(trimmedId).lean())?.email, new: update.email } } : {}),
+    },
+    req,
+  });
   return NextResponse.json({ ok: true });
 }
 
@@ -242,5 +280,18 @@ export async function DELETE(req: Request) {
   }
   const deleted = await User.findByIdAndDelete(trimmedId);
   if (!deleted) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Audit log delete
+  await logAudit({
+    userId: String((payload as { _id?: string; uid?: string; email?: string } | null)?.uid || (payload as { _id?: string } | null)?._id || ""),
+    userEmail: String((payload as { email?: string } | null)?.email || ""),
+    action: "delete",
+    resource: "customer",
+    resourceId: trimmedId,
+    changes: {
+      email: { old: deleted.email, new: undefined },
+      userCode: { old: deleted.userCode, new: undefined },
+    },
+    req,
+  });
   return NextResponse.json({ ok: true });
 }

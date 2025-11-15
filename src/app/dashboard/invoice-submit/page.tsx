@@ -44,9 +44,15 @@ export default function InvoiceSubmitPage() {
       .then(async (r) => {
         const data = await r.json();
         if (r.ok) {
-          const list = (data.items || []) as Pkg[];
-          setPackages(list);
-          if (list.length > 0) setSelectedId((list as any)[0]._id || "");
+          const list = Array.isArray(data?.packages) ? data.packages : [];
+          const items: Pkg[] = list.map((p: { id?: string; _id?: string; tracking_number?: string; trackingNumber?: string; status?: string; description?: string; }) => ({
+            _id: String(p.id || p._id || ""),
+            trackingNumber: String(p.tracking_number || p.trackingNumber || ""),
+            status: p.status,
+            description: p.description,
+          }));
+          setPackages(items);
+          if (items.length > 0) setSelectedId(items[0]._id || "");
         } else {
           setError(data?.error || "Failed to load packages");
         }
@@ -74,7 +80,7 @@ export default function InvoiceSubmitPage() {
       // If total not manually set, auto-fill from computed items
       setTotalValue(String(Number(computedItemsTotal.toFixed(2))));
     }
-  }, [computedItemsTotal]);
+  }, [computedItemsTotal, totalValue]);
 
   function updateItem(idx: number, patch: Partial<InvoiceItem>) {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
@@ -125,7 +131,7 @@ export default function InvoiceSubmitPage() {
         setFile(null);
         setItems([{ description: "", quantity: 1, unit_value: 0, total_value: 0 }]);
       }
-    } catch (err) {
+    } catch {
       setError("Network error while submitting");
     } finally {
       setSubmitting(false);
@@ -150,7 +156,7 @@ export default function InvoiceSubmitPage() {
               className="rounded-md border border-neutral-300 bg-white px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
             >
               {packages.map((p) => (
-                <option key={(p as any)._id} value={(p as any)._id}>
+                <option key={p._id || ""} value={p._id || ""}>
                   {(p.trackingNumber || "")} — {p.description || p.status || "Package"}
                 </option>
               ))}

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
 
 type Payment = {
   _id: string;
@@ -14,17 +16,35 @@ type Payment = {
   createdAt?: string;
 };
 
+type CustomerBill = {
+  amount_due: number;
+  currency?: string;
+};
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+
 export default function CustomerPaymentsPage() {
+  return (
+    <Elements stripe={stripePromise}>
+      <CustomerPaymentsInner />
+    </Elements>
+  );
+}
+
+function CustomerPaymentsInner() {
   const [items, setItems] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // Card panel
-  const [form, setForm] = useState({ amount: "", currency: "USD", method: "card", reference: "", tracking_number: "", cardholder: "", exp: "", cvc: "" });
+  const [form, setForm] = useState({ amount: "", currency: "USD", method: "visa", reference: "", tracking_number: "" });
   // Billing panel
   const [billing, setBilling] = useState({ fullName: "", address: "", city: "", state: "", zip: "", sameAsShipping: true });
   // Bills (to compute due)
-  const [bills, setBills] = useState<Array<{ amount_due: number; currency?: string }>>([]);
+  const [bills, setBills] = useState<CustomerBill[]>([]);
+
+  const stripe = useStripe();
+  const elements = useElements();
 
   async function load() {
     setLoading(true);
@@ -43,19 +63,24 @@ export default function CustomerPaymentsPage() {
 
   useEffect(() => {
     load();
+    const id = setInterval(() => {
+      load();
+    }, 30000);
+    return () => clearInterval(id);
   }, []);
 
   // Load bills to compute outstanding amount
   useEffect(() => {
     fetch("/api/customer/bills", { cache: "no-store" })
       .then(async (r) => {
-        const d = await r.json();
+        const d: { bills?: CustomerBill[]; error?: string } = await r.json();
         if (!r.ok) throw new Error(d?.error || "Failed to load bills");
-        const list = Array.isArray(d?.bills) ? d.bills : [];
-        setBills(list.map((b: any) => ({ amount_due: Number(b.amount_due) || 0, currency: b.currency || "USD" })));
-        const total = list.reduce((s: number, b: any) => s + (Number(b.amount_due) || 0), 0);
+        const list: CustomerBill[] = Array.isArray(d?.bills) ? d.bills : [];
+        setBills(list.map((b) => ({ amount_due: Number(b.amount_due) || 0, currency: b.currency || "USD" })));
+        const total = list.reduce((s: number, b) => s + (Number(b.amount_due) || 0), 0);
         // Pre-fill amount
-        setForm((f) => ({ ...f, amount: total ? String(total) : f.amount, currency: (list.find((b: any) => b.currency)?.currency) || f.currency }));
+        const detectedCurrency = list.find((b) => Boolean(b.currency))?.currency;
+        setForm((f) => ({ ...f, amount: total ? String(total) : f.amount, currency: detectedCurrency || f.currency }));
       })
       .catch(() => {});
   }, []);
@@ -63,10 +88,15 @@ export default function CustomerPaymentsPage() {
   const totalDue = useMemo(() => bills.reduce((s, b) => s + (Number(b.amount_due) || 0), 0), [bills]);
   const ccy = useMemo(() => bills.find((b) => b.currency)?.currency || form.currency || "USD", [bills, form.currency]);
 
+  // Card validation is handled by Stripe Elements, so we can remove manual validators.
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
     setError(null);
+
+    const isCard = form.method === "visa" || form.method === "mastercard" || form.method === "amex";
+
+    setSaving(true);
     try {
       const res = await fetch("/api/customer/payments", {
         method: "POST",
@@ -82,7 +112,31 @@ export default function CustomerPaymentsPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Payment failed");
-      setForm({ amount: "", currency: ccy, method: "card", reference: "", tracking_number: "", cardholder: "", exp: "", cvc: "" });
+
+      if (isCard) {
+        if (!stripe || !elements) throw new Error("Stripe not ready");
+        const card = elements.getElement(CardElement);
+        if (!card) throw new Error("Card element not found");
+        const result = await stripe.confirmCardPayment(data.client_secret, {
+          payment_method: {
+            card,
+            billing_details: {
+              name: billing.fullName,
+              address: {
+                line1: billing.address,
+                city: billing.city,
+                state: billing.state,
+                postal_code: billing.zip,
+              },
+            },
+          },
+        });
+        if (result.error) {
+          throw new Error(result.error.message || "Card confirmation failed");
+        }
+      }
+
+      setForm({ amount: "", currency: ccy, method: "visa", reference: "", tracking_number: "" });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
@@ -93,6 +147,9 @@ export default function CustomerPaymentsPage() {
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+      )}
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold">Complete Your Payment</h1>
@@ -122,14 +179,24 @@ export default function CustomerPaymentsPage() {
           </div>
         </div>
 
-        {/* Pay with Card */}
+        {/* Payment */}
         <div className="rounded-xl border bg-white p-5 shadow-sm">
-          <div className="mb-3 text-sm font-semibold">Pay with Card</div>
+          <div className="mb-3 text-sm font-semibold">Payment</div>
           <div className="space-y-3">
-            <input className="w-full rounded-md border px-3 py-2" placeholder="Cardholder Name" value={form.cardholder} onChange={(e) => setForm({ ...form, cardholder: e.target.value })} />
             <div className="grid grid-cols-2 gap-3">
-              <input className="rounded-md border px-3 py-2" placeholder="Expiration (MM/YY)" value={form.exp} onChange={(e) => setForm({ ...form, exp: e.target.value })} />
-              <input className="rounded-md border px-3 py-2" placeholder="CVC" value={form.cvc} onChange={(e) => setForm({ ...form, cvc: e.target.value })} />
+              <label className="text-sm text-gray-700">Method</label>
+              <select className="rounded-md border px-3 py-2" value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}>
+                <option value="visa">Visa</option>
+                <option value="mastercard">Mastercard</option>
+                <option value="amex">AmEx</option>
+                <option value="bank">Bank</option>
+                <option value="wallet">Wallet</option>
+              </select>
+            </div>
+            <div className="rounded-md border px-3 py-2">
+              <CardElement options={{
+                style: { base: { fontSize: "16px", color: "#424770" } },
+              }} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <input className="rounded-md border px-3 py-2" placeholder="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
