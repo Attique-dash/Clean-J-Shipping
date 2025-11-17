@@ -1,14 +1,12 @@
-import { Package } from "@/models/Package";
-import { PreAlert } from "@/models/PreAlert";
-import { Payment } from "@/models/Payment";
-import { User } from "@/models/User";
+"use client";
+
 import Link from "next/link";
 import Image from "next/image";
-import { getServerSession } from 'next-auth';
-import { redirect } from 'next/navigation';
-import dbConnect from '@/lib/db';
-import { authOptions } from '@/lib/auth';
-import Order from '@/models/Order';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
+import { LogoutButton } from "@/components/LogoutButton";
+
 import { 
   PackageIcon, 
   TrendingUp, 
@@ -25,88 +23,110 @@ import {
   AlertCircle
 } from "lucide-react";
 
-export default async function AdminDashboard() {
-  const session = await getServerSession(authOptions);
+interface DashboardStats {
+  totalPackages: number;
+  newToday: number;
+  pendingAlerts: number;
+  revenueToday: number;
+  recentActivity: Array<{
+    time: string;
+    text: string;
+    right?: string;
+  }>;
+  preAlerts: Array<{
+    trackingNumber: string;
+    status: string;
+    createdAt: string;
+  }>;
+}
 
- if (!session || !session.user) {
-    redirect('/login');
+export default function AdminDashboard() {
+  const router = useRouter();
+  const { data: session, status } = useSession();
+  const [data, setData] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Wait for session to load
+    if (status === 'loading') return;
+    
+    // Check authentication and role
+    if (status === 'unauthenticated') {
+      console.log('Not authenticated, redirecting to login');
+      router.replace('/login?redirect=/admin');
+      return;
+    }
+
+    if (!session?.user) {
+      console.log('No user session, redirecting to login');
+      router.replace('/login?redirect=/admin');
+      return;
+    }
+
+    if (session.user.role !== 'admin') {
+      console.log('Not admin user, redirecting to login');
+      router.replace('/login');
+      return;
+    }
+
+    // User is authenticated and is admin, fetch data
+    console.log('Admin authenticated, fetching data');
+    fetchData();
+  }, [status, session]);
+
+  const fetchData = async () => {
+    try {
+      const response = await fetch('/api/admin/dashboard/stats');
+      if (!response.ok) throw new Error('Failed to fetch data');
+      const result = await response.json();
+      setData(result);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Show loading while checking authentication
+  if (status === 'loading' || loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-[#0f4d8a] border-t-transparent mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
   }
 
-  // Check if user is admin
-  if (session.user.role !== 'admin') {
-    redirect('/'); // Redirect to home if not admin
+  // Don't render anything if redirecting
+  if (status === 'unauthenticated' || session?.user?.role !== 'admin') {
+    return null;
   }
 
-  // Now connect to database
-  await dbConnect();
+  if (error || !data) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
+          <p className="mt-4 text-gray-600">{error || 'Failed to load data'}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-4 rounded-lg bg-[#0f4d8a] px-4 py-2 text-white hover:bg-[#0e447d]"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const endOfToday = new Date(startOfToday);
-  endOfToday.setDate(endOfToday.getDate() + 1);
-
-  const [
-    totalPackages,
-    newToday,
-    pendingAlerts,
-    revenueAgg,
-    recentPackages,
-    recentPayments,
-    recentCustomers,
-    preAlertsList,
-  ] = await Promise.all([
-    Package.countDocuments({}),
-    Package.countDocuments({ createdAt: { $gte: startOfToday, $lt: endOfToday } }),
-    PreAlert.countDocuments({ status: "submitted" }),
-    Payment.aggregate([
-      { $match: { status: "captured", createdAt: { $gte: startOfToday, $lt: endOfToday } } },
-      { $group: { _id: null, total: { $sum: "$amount" } } },
-    ]),
-    Package.find({}, { trackingNumber: 1, status: 1, updatedAt: 1, userCode: 1 }).sort({ updatedAt: -1 }).limit(5).lean<{
-      trackingNumber: string;
-      status: string;
-      updatedAt: Date;
-      userCode?: string;
-      _id: unknown;
-    }>(),
-    Payment.find({ status: "captured" }, { amount: 1, userCode: 1, createdAt: 1 }).sort({ createdAt: -1 }).limit(5).lean<{
-      amount: number;
-      userCode: string;
-      createdAt: Date;
-      _id: unknown;
-    }>(),
-    User.find({ role: "customer" }, { email: 1, createdAt: 1 }).sort({ createdAt: -1 }).limit(5).lean<{
-      email: string;
-      createdAt: Date;
-      _id: unknown;
-    }>(),
-    PreAlert.find({}, { trackingNumber: 1, status: 1, createdAt: 1 }).sort({ createdAt: -1 }).limit(6).lean<{
-      trackingNumber: string;
-      status: string;
-      createdAt: Date;
-      _id: unknown;
-    }>(),
-  ]);
-
-  const revenueToday = Number(revenueAgg?.[0]?.total || 0);
-
-  type Activity = { time: Date; text: string; right?: string };
-  const activities: Activity[] = [];
-  recentPackages.forEach((p) => {
-    activities.push({ time: new Date(p.updatedAt), text: `Package ${p.trackingNumber} ${p.status}` });
-  });
-  recentPayments.forEach((pay) => {
-    activities.push({ time: new Date(pay.createdAt), text: `Payment captured $${pay.amount.toFixed(2)}`, right: pay.userCode });
-  });
-  recentCustomers.forEach((u) => {
-    activities.push({ time: new Date(u.createdAt), text: `New customer registered`, right: u.email });
-  });
-  activities.sort((a, b) => b.time.getTime() - a.time.getTime());
-  const recent = activities.slice(0, 8);
+  const { totalPackages, newToday, pendingAlerts, revenueToday, recentActivity, preAlerts } = data;
 
   return (
     <div className="w-full max-w-full px-2 sm:px-4 space-y-6">
-
       {/* Main Grid Layout */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Left Column - Main Content */}
@@ -144,7 +164,7 @@ export default async function AdminDashboard() {
             />
           </div>
 
-          {/* Hero Banner with overlay */}
+          {/* Hero Banner */}
           <section className="group relative overflow-hidden rounded-2xl border border-gray-200 shadow-xl transition-all hover:shadow-2xl w-full">
             <div className="relative h-40 w-full sm:h-48 md:h-56">
               <div className="absolute inset-0 bg-gradient-to-r from-[#0f4d8a]/95 via-[#0e7893]/90 to-[#0f4d8a]/95" />
@@ -224,10 +244,10 @@ export default async function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
-                  {recent.map((a, i) => (
+                  {recentActivity.map((a, i) => (
                     <tr key={i} className="transition-colors hover:bg-gray-50">
                       <td className="whitespace-nowrap px-4 sm:px-6 py-4 text-sm text-gray-900">
-                        {a.time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {new Date(a.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">{a.text}</td>
                       <td className="whitespace-nowrap px-4 sm:px-6 py-4 text-right text-sm">
@@ -272,7 +292,7 @@ export default async function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
-                  {preAlertsList.map((p, i) => (
+                  {preAlerts.map((p, i) => (
                     <tr key={i} className="transition-colors hover:bg-gray-50">
                       <td className="whitespace-nowrap px-4 sm:px-6 py-4 text-sm font-semibold text-gray-900">{p.trackingNumber}</td>
                       <td className="px-6 py-4">
@@ -331,7 +351,7 @@ export default async function AdminDashboard() {
               </Link>
             </div>
             <ul className="space-y-3">
-              {preAlertsList.slice(0, 4).map((p, i) => (
+              {preAlerts.slice(0, 4).map((p, i) => (
                 <li key={i} className="flex items-center justify-between rounded-lg bg-gray-50 p-3 transition-all hover:bg-gray-100">
                   <div className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">

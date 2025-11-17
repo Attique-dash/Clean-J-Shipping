@@ -4,7 +4,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
 import dynamic from "next/dynamic";
 
 const FaFacebookF = dynamic(() => import("react-icons/fa").then(m => m.FaFacebookF), { ssr: false });
@@ -16,8 +15,6 @@ const FiX = dynamic(() => import("react-icons/fi").then(m => m.FiX), { ssr: fals
 const MdEmail = dynamic(() => import("react-icons/md").then(m => m.MdEmail), { ssr: false });
 
 export default function TopHeader() {
-  const { data: session, status } = useSession();
-  const loggedIn = status === 'authenticated';
   const pathname = usePathname();
   const router = useRouter();
   const [showTopBar, setShowTopBar] = useState(true);
@@ -25,13 +22,10 @@ export default function TopHeader() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
+  
   useEffect(() => {
     const onScroll = () => {
       setShowTopBar(window.scrollY < 50);
-    };
-    const handleLogout = async () => {
-      await signOut({ redirect: false });
-      router.push('/login');
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -73,7 +67,22 @@ export default function TopHeader() {
     router.push(`/search?q=${encodeURIComponent(q)}`);
   };
 
-  if (pathname.startsWith("/login") || pathname.startsWith("/register")) {
+  // Define routes where header should be hidden
+  const hideHeaderRoutes = [
+    '/login',
+    '/register',
+    '/admin',
+    '/customer',
+    '/warehouse',
+  ];
+
+  // Check if current route should hide header
+  const shouldHideHeader = hideHeaderRoutes.some(route => 
+    pathname?.startsWith(route)
+  );
+
+  // Hide header on specified routes
+  if (shouldHideHeader) {
     return null;
   }
 
@@ -81,41 +90,39 @@ export default function TopHeader() {
     <>
     <header className="z-50 overflow-x-hidden text-gray-900 transition-all duration-500 ease-in-out">
       {/* === Top Blue Bar === */}
-      {!loggedIn && (
-        <div
-          className={`relative h-10 overflow-hidden bg-[#0E7893] text-white transition-all duration-500 ease-in-out ${
-            showTopBar ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-10"
-          }`}
-        >
-          {/* Left & Right Diagonal Cuts */}
-          <span className="pointer-events-none absolute left-0 top-0 h-full w-10 -skew-x-12 bg-white" />
-          <span className="pointer-events-none absolute right-0 top-0 h-full w-10 skew-x-12 bg-white" />
+      <div
+        className={`relative h-10 overflow-hidden bg-[#0E7893] text-white transition-all duration-500 ease-in-out ${
+          showTopBar ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-10"
+        }`}
+      >
+        {/* Left & Right Diagonal Cuts */}
+        <span className="pointer-events-none absolute left-0 top-0 h-full w-10 -skew-x-12 bg-white" />
+        <span className="pointer-events-none absolute right-0 top-0 h-full w-10 skew-x-12 bg-white" />
 
-          <div className="relative z-10 mx-auto hidden h-full max-w-7xl items-center md:flex md:justify-center lg:justify-between gap-8 px-6 text-sm">
-            <div className="flex items-center gap-6">
-              <a href="tel:+18765785945" className="inline-flex items-center gap-2 hover:opacity-90">
-                <FaPhoneAlt className="text-[#E67919]" size={18} />
-                <span className="font-medium ">1 (876) 578-5945</span>
-              </a>
-              <a href="mailto:info@cleanshipping.com" className="inline-flex items-center gap-2 hover:opacity-90">
-                <MdEmail className="text-[#E67919]" size={18} />
-                <span className="font-medium">info@cleanshipipping.com</span>
-              </a>
-            </div>
-            <div className="flex items-center gap-4 pr-1">
-              <a aria-label="Facebook" href="#" className="hover:opacity-90">
-                <FaFacebookF size={16} className="text-[#E67919]" />
-              </a>
-              <a aria-label="Twitter" href="#" className="hover:opacity-90">
-                <FaTwitter size={16} className="text-[#E67919]" />
-              </a>
-              <a aria-label="Instagram" href="#" className="hover:opacity-90">
-                <FaInstagram size={16} className="text-[#E67919]" />
-              </a>
-            </div>
+        <div className="relative z-10 mx-auto hidden h-full max-w-7xl items-center md:flex md:justify-center lg:justify-between gap-8 px-6 text-sm">
+          <div className="flex items-center gap-6">
+            <a href="tel:+18765785945" className="inline-flex items-center gap-2 hover:opacity-90">
+              <FaPhoneAlt className="text-[#E67919]" size={18} />
+              <span className="font-medium ">1 (876) 578-5945</span>
+            </a>
+            <a href="mailto:info@cleanshipping.com" className="inline-flex items-center gap-2 hover:opacity-90">
+              <MdEmail className="text-[#E67919]" size={18} />
+              <span className="font-medium">info@cleanshipping.com</span>
+            </a>
+          </div>
+          <div className="flex items-center gap-4 pr-1">
+            <a aria-label="Facebook" href="#" className="hover:opacity-90">
+              <FaFacebookF size={16} className="text-[#E67919]" />
+            </a>
+            <a aria-label="Twitter" href="#" className="hover:opacity-90">
+              <FaTwitter size={16} className="text-[#E67919]" />
+            </a>
+            <a aria-label="Instagram" href="#" className="hover:opacity-90">
+              <FaInstagram size={16} className="text-[#E67919]" />
+            </a>
           </div>
         </div>
-      )}
+      </div>
 
       {/* === White Navbar (Sticky) === */}
       <div className={`sticky top-0 z-40 border-b border-neutral-200 bg-white shadow-sm transition-all duration-300`}>
@@ -124,46 +131,35 @@ export default function TopHeader() {
             <Image src="/images/Logo.png" alt="Clean Shipping" width={150} height={60} priority className="w-[180px] md:w-[150px] h-auto" />
           </Link>
 
-          {!loggedIn ? (
-            <nav className="hidden items-center gap-8 md:flex">
-              {[
-                { href: "/", label: "Home" },
-                { href: "/about-us", label: "About Us" },
-                { href: "/services", label: "Services" },
-                { href: "/rates", label: "Rates" },
-                { href: "/customs-policy", label: "Customs Policy" },
-                { href: "/contact", label: "Contact Us" },
-              ].map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`text-[15px] font-semibold tracking-wide hover:text-[#E67919] ${
-                    pathname === item.href ? "text-[#E67919]" : "text-gray-800"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          ): <>
-          <h1 className="text-[#E67919] text-2xl font-bold text-center">Admin Portal</h1>
-          </>}
+          <nav className="hidden items-center gap-8 md:flex">
+            {[
+              { href: "/", label: "Home" },
+              { href: "/about-us", label: "About Us" },
+              { href: "/services", label: "Services" },
+              { href: "/rates", label: "Rates" },
+              { href: "/customs-policy", label: "Customs Policy" },
+              { href: "/contact", label: "Contact Us" },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`text-[15px] font-semibold tracking-wide hover:text-[#E67919] ${
+                  pathname === item.href ? "text-[#E67919]" : "text-gray-800"
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
 
           <div className="flex items-center gap-4">
-            {!loggedIn ? (
-              <Link
-                href="/login"
-                className="hidden md:inline-flex rounded-md bg-[#E67919] md:px-4 md:py-2 md:text-sm lg:px-5 lg:py-2.5 lg:text-sm font-semibold text-white shadow-sm hover:bg-gray-900"
-              >
-                Login | Register
-              </Link>
-            ) : (
-              <form action="/api/auth/logout" method="POST" className="hidden md:block">
-                <button className="rounded-md border border-gray-300 md:px-3 md:py-2 md:text-sm lg:px-4 lg:py-2 lg:text-sm hover:bg-gray-50">Logout</button>
-              </form>
-            )}
+            <Link
+              href="/login"
+              className="hidden md:inline-flex rounded-md bg-[#E67919] md:px-4 md:py-2 md:text-sm lg:px-5 lg:py-2.5 lg:text-sm font-semibold text-white shadow-sm hover:bg-gray-900"
+            >
+              Login | Register
+            </Link>
 
-            {!loggedIn && (
             <button
               aria-label="Search"
               onClick={() => setIsSearchOpen(true)}
@@ -174,7 +170,6 @@ export default function TopHeader() {
                 <line x1="16.65" y1="16.65" x2="21" y2="21" stroke="currentColor" strokeWidth="2" />
               </svg>
             </button>
-            )}
 
             {/* Mobile menu button */}
             <button
@@ -216,29 +211,27 @@ export default function TopHeader() {
             </button>
           </div>
 
-          {!loggedIn && (
-            <nav className="flex flex-col gap-1 px-4 py-3">
-              {[
-                { href: "/", label: "Home" },
-                { href: "/about-us", label: "About Us" },
-                { href: "/services", label: "Services" },
-                { href: "/rates", label: "Rates" },
-                { href: "/customs-policy", label: "Customs Policy" },
-                { href: "/contact", label: "Contact Us" },
-              ].map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setIsDrawerOpen(false)}
-                  className={`block rounded-md px-3 py-3 text-[15px] font-semibold tracking-wide hover:bg-gray-50 ${
-                    pathname === item.href ? "text-[#E67919]" : "text-gray-800"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          )}
+          <nav className="flex flex-col gap-1 px-4 py-3">
+            {[
+              { href: "/", label: "Home" },
+              { href: "/about-us", label: "About Us" },
+              { href: "/services", label: "Services" },
+              { href: "/rates", label: "Rates" },
+              { href: "/customs-policy", label: "Customs Policy" },
+              { href: "/contact", label: "Contact Us" },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setIsDrawerOpen(false)}
+                className={`block rounded-md px-3 py-3 text-[15px] font-semibold tracking-wide hover:bg-gray-50 ${
+                  pathname === item.href ? "text-[#E67919]" : "text-gray-800"
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
 
           {/* Contact info + socials inside drawer for small screens */}
           <div className="mt-auto border-t px-4 py-4 space-y-3">
@@ -255,19 +248,13 @@ export default function TopHeader() {
               <a aria-label="Twitter" href="#" className="inline-flex h-9 w-9 items-center justify-center rounded-md ring-1 ring-gray-200 hover:bg-gray-50"><FaTwitter className="text-[#E67919]" /></a>
               <a aria-label="Instagram" href="#" className="inline-flex h-9 w-9 items-center justify-center rounded-md ring-1 ring-gray-200 hover:bg-gray-50"><FaInstagram className="text-[#E67919]" /></a>
             </div>
-            {!loggedIn ? (
-              <Link
-                href="/login"
-                onClick={() => setIsDrawerOpen(false)}
-                className="mt-3 block rounded-md bg-[#E67919] px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-[#cf6912]"
-              >
-                Login | Register
-              </Link>
-            ) : (
-              <form action="/api/auth/logout" method="POST">
-                <button className="w-full rounded-md border border-gray-300 px-4 py-2.5 text-sm hover:bg-gray-50">Logout</button>
-              </form>
-            )}
+            <Link
+              href="/login"
+              onClick={() => setIsDrawerOpen(false)}
+              className="mt-3 block rounded-md bg-[#E67919] px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-[#cf6912]"
+            >
+              Login | Register
+            </Link>
           </div>
         </div>
       </div>

@@ -7,10 +7,12 @@ import { LuMailOpen } from "react-icons/lu";
 import { IoMdTime } from "react-icons/io";
 import { FaFacebookF, FaInstagram  } from "react-icons/fa";
 import { FaXTwitter, FaLinkedinIn } from "react-icons/fa6";
+import TopHeader from "@/components/TopHeader";
 
 export default function ContactPage() {
   return (
     <>
+    <TopHeader />
     <section
       className="relative w-full overflow-hidden"
       style={{

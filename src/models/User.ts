@@ -4,14 +4,16 @@ export type UserRole = "admin" | "customer" | "warehouse";
 
 export interface IUser {
   _id?: string;
-  userCode: string; // external code used by warehouse
-  firstName: string;
-  lastName: string;
+  userCode: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   passwordHash: string;
+  password?: string;
+  phone?: string;
+  role: UserRole;
   branch?: string;
   serviceTypeIDs?: string[];
-  phone?: string;
   address?: {
     street?: string;
     city?: string;
@@ -19,47 +21,50 @@ export interface IUser {
     zipCode?: string;
     country?: string;
   };
-  role: UserRole;
   accountStatus?: "active" | "inactive";
-  lastLogin?: Date;
   emailVerified?: boolean;
-  accountType?: string;
   createdAt?: Date;
   updatedAt?: Date;
+  lastLogin?: Date;
 }
 
 const UserSchema = new Schema<IUser>(
   {
     userCode: { type: String, required: true, unique: true, index: true },
-    firstName: { type: String, required: true },
-    lastName: { type: String, required: true },
+    firstName: { type: String },
+    lastName: { type: String },
     email: { type: String, required: true, unique: true, index: true },
     passwordHash: { type: String, required: true },
+    phone: { type: String },
+    role: { type: String, enum: ["admin", "customer", "warehouse"], default: "customer", index: true },
     branch: { type: String },
     serviceTypeIDs: [{ type: String }],
-    phone: { type: String },
     address: {
-      type: new Schema(
-        {
-          street: { type: String },
-          city: { type: String },
-          state: { type: String },
-          zipCode: { type: String },
-          country: { type: String },
-        },
-        { _id: false }
-      ),
+      street: String,
+      city: String,
+      state: String,
+      zipCode: String,
+      country: String,
     },
     accountStatus: { type: String, enum: ["active", "inactive"], default: "active" },
-    lastLogin: { type: Date },
     emailVerified: { type: Boolean, default: false },
-    accountType: { type: String },
-    role: { type: String, enum: ["admin", "customer", "warehouse"], default: "customer" },
+    lastLogin: { type: Date },
   },
   { timestamps: true }
 );
 
-const User = models.User || model<IUser>("User", UserSchema);
+UserSchema.virtual("password")
+  .get(function() {
+    return this.passwordHash;
+  })
+  .set(function(value) {
+    this.passwordHash = value;
+  });
 
+UserSchema.set("toJSON", { virtuals: true });
+UserSchema.set("toObject", { virtuals: true });
+
+const User = (models && models.User) || model<IUser>("User", UserSchema);
+
+export { User };
 export default User;
-

@@ -36,7 +36,7 @@ type InvoiceRecord = {
 };
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const auth = getAuthFromRequest(req);
+  const auth = await getAuthFromRequest(req);
   const unauthorized = requireRole(auth, "customer");
   if (unauthorized) return unauthorized;
 

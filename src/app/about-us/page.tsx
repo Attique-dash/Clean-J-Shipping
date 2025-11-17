@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { FiDollarSign, FiClock } from "react-icons/fi";
 import { motion } from "framer-motion";
+import TopHeader from "@/components/TopHeader";
 
 export default function AboutUsPage() {
   const items = [
@@ -19,6 +20,7 @@ export default function AboutUsPage() {
 
   return (
     <>
+      <TopHeader />
       {/* Hero / Banner */}
       <section
         className="relative w-full overflow-hidden"

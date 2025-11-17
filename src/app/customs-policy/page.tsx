@@ -3,10 +3,12 @@ import Link from "next/link";
 import Image from "next/image";
 import { TfiPackage } from "react-icons/tfi";
 import { motion } from "framer-motion";
+import TopHeader from "@/components/TopHeader";
 
 export default function CustomsPolicyPage() {
   return (
     <>
+      <TopHeader />
       <section
         className="relative w-full overflow-hidden"
         style={{

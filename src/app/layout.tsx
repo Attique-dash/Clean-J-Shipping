@@ -1,36 +1,27 @@
+// src/app/layout.tsx
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import LayoutContent from "@/components/LayoutContent";
+import { Providers } from "@/components/Providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-  display: 'swap',
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-  display: 'swap',
-});
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Shipping Dashboard",
-  description: "Shipping and logistics management system",
+  title: "Clean JS Shipping - Logistics & Delivery",
+  description: "Manage your shipments, track deliveries, and streamline your logistics operations",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} font-sans`}>
-        <LayoutContent>
+      <body className={inter.className}>
+        <Providers>
           {children}
-        </LayoutContent>
+        </Providers>
       </body>
     </html>
   );

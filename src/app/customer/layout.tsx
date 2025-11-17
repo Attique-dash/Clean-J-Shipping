@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import Image from "next/image";
 import {
   Home,
   Package,
@@ -17,7 +18,7 @@ import {
   X,
   ChevronRight,
   UserCog,
-  Contact
+  Contact,
 } from "lucide-react";
 
 export default function CustomerLayout({
@@ -30,18 +31,11 @@ export default function CustomerLayout({
 
   const navItems = [
     {
-      href: "/dashboard",
+      href: "/customer/dashboard",
       label: "Dashboard",
       icon: Home,
       description: "Customer dashboard overview",
       color: "from-blue-500 to-blue-600",
-    },
-    {
-      href: "/customer/profile",
-      label: "Profile",
-      icon: User,
-      description: "View and update your profile",
-      color: "from-green-500 to-green-600",
     },
     {
       href: "/customer/packages",
@@ -92,23 +86,35 @@ export default function CustomerLayout({
       description: "View archived items",
       color: "from-gray-500 to-gray-600",
     },
+    {
+      href: "/customer/profile",
+      label: "Profile",
+      icon: User,
+      description: "View and update your profile",
+      color: "from-green-500 to-green-600",
+    },
   ];
 
   return (
     <div className="h-screen w-full overflow-x-hidden bg-gray-50 text-gray-900">
       <div className="flex h-full w-full">
         {/* Desktop Sidebar */}
-        <aside className={`fixed inset-y-0 left-0 z-40 w-72 transform ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:relative lg:translate-x-0 transition-transform duration-200 ease-in-out bg-gradient-to-b from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] text-white shadow-2xl overflow-hidden flex-col`}>
+        <aside className="hidden md:flex w-72 h-screen bg-gradient-to-b from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] text-white shadow-2xl overflow-hidden flex-col">
           {/* Header */}
           <div className="border-b border-white/10 bg-gradient-to-r from-[#0e447d] to-[#0c3a6b] px-6 py-5">
             <div className="flex items-center gap-3">
+              {/* Logo Box */}
               <div className="flex h-12 w-12 items-center justify-center rounded-md bg-white/10 backdrop-blur-sm">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm">
-                  C
-                </div>
+                <Image
+                  src="/images/Logo.png"
+                  alt="Clean J Shipping"
+                  width={40}
+                  height={40}
+                  className="h-10 w-12 object-contain"
+                />
               </div>
+
+              {/* Title */}
               <div>
                 <div className="text-xl font-bold tracking-tight">
                   Clean J Shipping
@@ -124,9 +130,11 @@ export default function CustomerLayout({
           <nav className="flex-1 space-y-1 p-4 overflow-y-auto pr-2 scrollbar-orange overscroll-contain">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = item.href === "/customer"
-                ? pathname === "/customer"
-                : (pathname === item.href || pathname.startsWith(item.href + "/"));
+              const isActive =
+                item.href === "/customer"
+                  ? pathname === "/customer"
+                  : pathname === item.href ||
+                    pathname.startsWith(item.href + "/");
 
               return (
                 <Link
@@ -137,7 +145,7 @@ export default function CustomerLayout({
                       ? "bg-white/15 text-white shadow-lg backdrop-blur-sm"
                       : "text-blue-100 hover:bg-white/10 hover:text-white"
                   }`}
-                  onClick={() => setMobileOpen(false)}
+                  title={item.description}
                 >
                   <div
                     className={`flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br ${
@@ -146,6 +154,7 @@ export default function CustomerLayout({
                       isActive ? "scale-110" : "group-hover:scale-105"
                     }`}
                   >
+                    <Icon className="h-5 w-5 text-white" strokeWidth={2.5} />
                   </div>
                   <span className="flex-1 text-left">{item.label}</span>
                   {isActive && (
@@ -174,13 +183,16 @@ export default function CustomerLayout({
 
         <div className="relative flex-1 h-full overflow-y-auto bg-gray-50">
           {/* Mobile header (small screens) */}
-          <div className="sticky top-0 z-20 border-b border-gray-200 bg-white/90 backdrop-blur lg:hidden">
+          <div className="sticky top-0 z-20 border-b border-gray-200 bg-white/90 backdrop-blur md:hidden">
             <div className="relative flex items-center justify-between px-3 py-2">
               {/* Left: Logo */}
               <div className="flex items-center">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm">
-                  C
-                </div>
+                <Image
+                  src="/images/Logo.png"
+                  alt="Clean J Shipping"
+                  width={70}
+                  height={36}
+                />
               </div>
 
               {/* Center: Title */}
@@ -198,6 +210,81 @@ export default function CustomerLayout({
               </button>
             </div>
           </div>
+
+          {/* Mobile Drawer */}
+          {mobileOpen && (
+            <div className="fixed inset-0 z-40 md:hidden">
+              <div
+                className="absolute inset-0 bg-black/40"
+                onClick={() => setMobileOpen(false)}
+              />
+              <div className="absolute left-0 top-0 h-full w-72 transform bg-gradient-to-b from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] text-white shadow-2xl transition-transform">
+                <div className="flex items-center justify-between border-b border-white/10 px-4 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 backdrop-blur-sm">
+                      <Image
+                        src="/images/Logo.png"
+                        alt="Clean J Shipping"
+                        width={36}
+                        height={36}
+                      />
+                    </div>
+                    <div className="text-sm font-semibold">Customer Portal</div>
+                  </div>
+                  <button
+                    aria-label="Close sidebar"
+                    onClick={() => setMobileOpen(false)}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-md ring-1 ring-white/20 hover:bg-white/10"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <nav className="space-y-1 p-4 overflow-y-auto h-[calc(100vh-140px)] pr-2 scrollbar-orange overscroll-contain">
+                  {navItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive =
+                      item.href === "/customer"
+                        ? pathname === "/customer"
+                        : pathname === item.href ||
+                          pathname.startsWith(item.href + "/");
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMobileOpen(false)}
+                        className={`group relative w-full flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 cursor-pointer ${
+                          isActive
+                            ? "bg-white/15 text-white shadow-lg backdrop-blur-sm"
+                            : "text-blue-100 hover:bg-white/10 hover:text-white"
+                        }`}
+                        title={item.description}
+                      >
+                        <div
+                          className={`flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br ${item.color} shadow-md`}
+                        >
+                          <Icon
+                            className="h-5 w-5 text-white"
+                            strokeWidth={2.5}
+                          />
+                        </div>
+                        <span className="flex-1 text-left">{item.label}</span>
+                        <ChevronRight className="h-4 w-4 opacity-60" />
+                      </Link>
+                    );
+                  })}
+                </nav>
+
+                <div className="border-t border-white/10 p-4">
+                  <form action="/api/auth/logout" method="POST">
+                    <button className="w-full rounded-md bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20 transition">
+                      Logout
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
 
           <main className="flex-1 overflow-y-auto p-4 md:p-6 w-full max-w-full">
             <div className="mx-auto w-full max-w-full overflow-x-hidden">

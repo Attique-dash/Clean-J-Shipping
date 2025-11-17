@@ -13,12 +13,13 @@ import { FaUserCheck } from "react-icons/fa";
 import { FaShoppingCart } from "react-icons/fa";
 import { IoAirplane } from "react-icons/io5";
 import { FiClock } from "react-icons/fi";
-
+import TopHeader from "@/components/TopHeader";
 
 
 export default function Home() {
   return (
     <div className="bg-white text-gray-900">
+      <TopHeader />
       {/* ===== Hero Section ===== */}
       <section className="relative w-full overflow-hidden">
         {/* background slider fills this section */}

@@ -1,173 +1,104 @@
-import { NextResponse } from "next/server";
-import { dbConnect } from "@/lib/db";
-import { User } from "@/models/User";
-import { hashPassword } from "@/lib/auth";
-import { registerSchema, customerRegisterSchema, customerRegisterAltSchema } from "@/lib/validators";
-import { EmailToken } from "@/models/EmailToken";
-import crypto from "crypto";
-import { sendVerificationEmail } from "@/lib/email";
+import { NextResponse } from 'next/server';
+import { dbConnect } from '@/lib/db';
+import User from '@/models/User';
+import { hashPassword } from '@/lib/auth';
+import crypto from 'crypto';
+import mongoose from 'mongoose';
 
-// Type guard to detect Mongo duplicate key errors safely
-function isMongoDuplicateKeyError(e: unknown): e is { code: number } {
-  return (
-    typeof e === "object" &&
-    e !== null &&
-    "code" in e &&
-    typeof (e as { code: unknown }).code === "number" &&
-    (e as { code: unknown }).code === 11000
-  );
-}
-
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    await dbConnect();
-    let body: unknown = null;
-    try {
-      body = await req.json();
-    } catch {
-      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    // Connect to database
+    const db = await dbConnect();
+    
+    // Make sure models are registered
+    const UserModel = db.models.User || User;
+    
+    const body = await request.json();
+    const { 
+      fullName, 
+      email, 
+      phoneNo, 
+      password, 
+      adress, 
+      city, 
+      state, 
+      zip_code, 
+      country 
+    } = body;
+
+    // Validate required fields
+    if (!fullName || !email || !password) {
+      return NextResponse.json(
+        { error: 'Full name, email, and password are required' },
+        { status: 400 }
+      );
     }
 
-    // Try existing schema first for backward compatibility
-    const parsedLegacy = registerSchema.safeParse(body);
-    let firstName: string;
-    let lastName: string;
-    let email: string;
-    let password: string;
-    let branch: string | undefined;
-    let serviceTypeIDs: string[] | undefined;
-    let phone: string | undefined;
-    let address:
-      | {
-          street?: string;
-          city?: string;
-          state?: string;
-          zipCode?: string;
-          country?: string;
-        }
-      | undefined;
-
-    if (parsedLegacy.success) {
-      ({ firstName, lastName, email, password, branch, serviceTypeIDs } = parsedLegacy.data);
-    } else {
-      // Try the strict alternative schema first (matches user's requested payload)
-      const parsedAlt = customerRegisterAltSchema.safeParse(body);
-      if (parsedAlt.success) {
-        const { fullName, email: em, phoneNo, password: pwd, adress, city, state, zip_code, country } = parsedAlt.data;
-        email = em;
-        password = pwd;
-        phone = phoneNo;
-        // Split fullName into first and last name
-        const parts = fullName.trim().split(/\s+/);
-        if (parts.length === 1) {
-          firstName = parts[0];
-          lastName = "";
-        } else {
-          lastName = parts.pop() as string;
-          firstName = parts.join(" ");
-        }
-        address = {
-          street: adress,
-          city,
-          state,
-          zipCode: zip_code,
-          country,
-        };
-      } else {
-        // Fallback to the existing customer schema (backward compatible)
-        const parsedNew = customerRegisterSchema.safeParse(body);
-        if (!parsedNew.success) {
-          return NextResponse.json(
-            { error: { legacy: parsedLegacy.error.flatten(), alt: parsedAlt.error.flatten(), customer: parsedNew.error.flatten() } },
-            { status: 400 }
-          );
-        }
-        const { full_name, address: addr, phone: ph, password: pwd, email: em } = parsedNew.data;
-        email = em;
-        password = pwd;
-        phone = ph;
-        // Split full_name into first and last name (last token as lastName)
-        const parts = full_name.trim().split(/\s+/);
-        if (parts.length === 1) {
-          firstName = parts[0];
-          lastName = "";
-        } else {
-          lastName = parts.pop() as string;
-          firstName = parts.join(" ");
-        }
-        if (addr) {
-          address = {
-            street: addr.street,
-            city: addr.city,
-            state: addr.state,
-            zipCode: addr.zip_code,
-            country: addr.country,
-          };
-        }
-      }
+    // Check if user already exists
+    const existingUser = await UserModel.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return NextResponse.json(
+        { error: 'Email already in use' },
+        { status: 400 }
+      );
     }
 
-    const existing = await User.findOne({ email });
-    if (existing) {
-      return NextResponse.json({ error: "Email already registered" }, { status: 409 });
-    }
+    // Split full name
+    const nameParts = (fullName || '').trim().split(/\s+/);
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
 
-    // Create a simple userCode from timestamp - in production you may use a better generator
-    const userCode = `U${Date.now()}`;
+    // Generate unique user code
+    const userCode = `C${Date.now()}${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+
+    // Hash password
     const passwordHash = await hashPassword(password);
 
-    const user = await User.create({
+    // Create user
+    const user = new UserModel({
       userCode,
       firstName,
       lastName,
-      email,
+      email: email.toLowerCase(),
       passwordHash,
-      branch,
-      serviceTypeIDs,
-      phone,
-      address,
-      role: "customer",
-    });
-
-    // Create email verification token (valid for 24 hours)
-    try {
-      const token = crypto.randomBytes(32).toString("hex");
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      await EmailToken.create({ userId: user._id, token, expiresAt });
-
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "";
-      const verifyUrl = `${baseUrl}/api/auth/verify?t=${encodeURIComponent(token)}`;
-      await sendVerificationEmail({
-        to: email,
-        firstName,
-        verifyUrl,
-      });
-    } catch (e) {
-      console.error("Failed to queue verification email", e);
-      // Do not fail registration if email cannot be sent
-    }
-
-    // Dashboard-friendly response
-    return NextResponse.json({
-      message: "Registered",
-      user: {
-        id: user._id,
-        user_code: user.userCode,
-        full_name: [firstName, lastName].filter(Boolean).join(" "),
-        email: user.email,
-        phone: user.phone,
-        address: address
-          ? { street: address.street, city: address.city, state: address.state, zip_code: address.zipCode, country: address.country }
-          : undefined,
+      phone: phoneNo,
+      address: {
+        street: adress,
+        city,
+        state,
+        zipCode: zip_code,
+        country,
       },
-      email_verification: { sent: true },
+      role: 'customer',
+      accountStatus: 'active',
+      emailVerified: false,
     });
-  } catch (err: unknown) {
-    // Map common mongoose errors
-    if (isMongoDuplicateKeyError(err)) {
-      return NextResponse.json({ error: "Email already registered" }, { status: 409 });
-    }
-    console.error("/api/auth/register failed", err);
-    return NextResponse.json({ error: "Registration failed" }, { status: 500 });
+
+    // Save user to database
+    await user.save();
+
+    console.log('User created successfully:', user.userCode);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Registration successful',
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        name: `${user.firstName} ${user.lastName}`.trim(),
+        userCode: user.userCode,
+      }
+    }, { status: 201 });
+  } catch (error: any) {
+    console.error('Registration error:', error);
+    const errorMessage = error.code === 11000 ? 'Email already exists' : 'Error creating user';
+    return NextResponse.json(
+      { 
+        success: false,
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      },
+      { status: 500 }
+    );
   }
 }

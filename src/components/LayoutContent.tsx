@@ -6,7 +6,7 @@ import { SessionProvider } from 'next-auth/react';
 
 const TopHeader = dynamic(() => import('@/components/TopHeader'), { ssr: false });
 
-const HIDE_HEADER_PATHS = ['/admin', '/customer', '/dashboard', '/warehouse', '/login'];
+const HIDE_HEADER_PATHS = ['/admin', '/customer', '/warehouse', '/login'];
 
 function shouldShowHeader(pathname: string) {
   return !HIDE_HEADER_PATHS.some(path => pathname && pathname.startsWith(path));

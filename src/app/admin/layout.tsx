@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import Image from "next/image";
+import { LogoutButton } from "@/components/LogoutButton";   
 import {
   Home,
   ShoppingCart,
@@ -212,9 +213,7 @@ export default function AdminLayout({
           {/* Sidebar footer with Logout button */}
           <div className="border-t border-white/10 p-4">
             <form action="/api/auth/logout" method="POST">
-              <button className="w-full rounded-md bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20 transition">
-                Logout
-              </button>
+                <LogoutButton />
             </form>
           </div>
         </aside>
@@ -297,9 +296,7 @@ export default function AdminLayout({
 
                 <div className="border-t border-white/10 p-4">
                   <form action="/api/auth/logout" method="POST">
-                    <button className="w-full rounded-md bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20 transition">
-                      Logout
-                    </button>
+                      <LogoutButton />
                   </form>
                 </div>
               </div>

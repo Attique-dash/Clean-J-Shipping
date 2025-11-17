@@ -6,7 +6,7 @@ import { comparePassword, hashPassword } from "@/lib/auth";
 
 export async function POST(req: Request) {
   await dbConnect();
-  const payload = getAuthFromRequest(req);
+  const payload = await getAuthFromRequest(req);
   if (!payload || (payload.role !== "customer" && payload.role !== "admin")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

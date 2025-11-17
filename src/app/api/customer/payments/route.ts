@@ -1,99 +1,80 @@
 import { NextResponse } from "next/server";
-import { dbConnect } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 import { getAuthFromRequest } from "@/lib/rbac";
-import { User } from "@/models/User";
-import { Payment } from "@/models/Payment";
-import { customerPaymentCreateSchema } from "@/lib/validators";
 import { stripe } from "@/lib/stripe";
 
 export async function GET(req: Request) {
-  const payload = getAuthFromRequest(req);
-  if (!payload || (payload.role !== "customer" && payload.role !== "admin")) {
+  const payload = await getAuthFromRequest(req);
+  if (!payload || payload.role !== "customer") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  await dbConnect();
 
-  let userCode = payload.userCode as string | undefined;
-  if (!userCode && payload._id) {
-    const user = await User.findById(payload._id).select("userCode");
-    userCode = user?.userCode;
+  try {
+    const payments = await prisma.payment.findMany({
+      where: { userId: payload.id },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+
+    return NextResponse.json({ payments });
+  } catch (error) {
+    console.error("Error fetching payments:", error);
+    return NextResponse.json({ error: "Failed to fetch payments" }, { status: 500 });
   }
-  if (!userCode) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const items = await Payment.find({ userCode }).sort({ createdAt: -1 }).limit(100).lean();
-  return NextResponse.json({ payments: items });
 }
 
 export async function POST(req: Request) {
-  const payload = getAuthFromRequest(req);
-  if (!payload || (payload.role !== "customer" && payload.role !== "admin")) {
+  const payload = await getAuthFromRequest(req);
+  if (!payload || payload.role !== "customer") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  await dbConnect();
-
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  const parsed = customerPaymentCreateSchema.safeParse(raw);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  }
-
-  const user = payload._id ? await User.findById(payload._id).select("_id userCode firstName lastName") : null;
-  const userCode = user?.userCode || (payload.userCode as string | undefined);
-  if (!userCode) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { amount, currency = "USD", method = "visa", reference, tracking_number, billing } = parsed.data as {
-    amount: number;
-    currency?: string;
-    method?: string;
-    reference?: string;
-    tracking_number?: string;
-    billing?: Record<string, unknown> | undefined;
-  };
-
-  // Create Stripe PaymentIntent
-  if (!amount || amount < 0.5) {
-    return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
-  }
 
   try {
+    let raw: unknown;
+    try {
+      raw = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+
+    const { amount, currency = "USD", method = "card" } = raw as any;
+
+    if (!amount || amount < 0.5) {
+      return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
+    }
+
+    // Create Stripe PaymentIntent
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100),
       currency: currency.toLowerCase(),
       metadata: {
-        userCode,
-        trackingNumber: tracking_number || "",
+        userId: payload.id,
       },
-      description: user ? `Payment for ${user.firstName || ""} ${user.lastName || ""}`.trim() : undefined,
     });
 
-    const created = await Payment.create({
-      userCode,
-      customer: user?._id,
-      amount,
-      currency,
-      method,
-      reference: paymentIntent.client_secret || reference,
-      gatewayId: paymentIntent.id,
-      status: "initiated",
-      trackingNumber: tracking_number,
-      meta: { source: "customer_portal", billing },
+    // Create payment record
+    const created = await prisma.payment.create({
+      data: {
+        userId: payload.id,
+        transactionId: paymentIntent.id,
+        amount,
+        currency,
+        paymentMethod: method,
+        status: "pending",
+        metadata: {
+          clientSecret: paymentIntent.client_secret
+        }
+      }
     });
 
     return NextResponse.json({
-      payment_id: String(created._id),
+      payment_id: created.id,
       client_secret: paymentIntent.client_secret,
       amount,
       currency,
     });
-  } catch (error: unknown) {
-    const message = typeof error === "object" && error !== null && "message" in error ? (error as { message?: string }).message : undefined;
-    console.error("Stripe error:", error);
-    return NextResponse.json({ error: message || "Stripe error" }, { status: 500 });
+  } catch (error) {
+    console.error("Error creating payment:", error);
+    return NextResponse.json({ error: "Failed to create payment" }, { status: 500 });
   }
 }

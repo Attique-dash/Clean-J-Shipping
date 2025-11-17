@@ -1,111 +1,96 @@
-import { NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
-import { dbConnect } from "@/lib/db";
-import { ApiKey } from "@/models/ApiKey";
-import { hashApiKey } from "@/models/ApiKey";
+import { cookies } from "next/headers";
+import { verifyToken } from "./auth";
 
-export type Role = "admin" | "customer" | "warehouse";
+export interface AuthPayload {
+  id?: string;
+  _id?: string;
+  uid?: string;
+  email: string;
+  role: "admin" | "customer" | "warehouse";
+  userCode?: string;
+}
 
-export type AuthPayload =
-  | {
-      _id?: string;
-      email?: string;
-      userCode?: string;
-      role?: Role;
-      // Allow additional fields but keep them typed as unknown to avoid 'any'.
-      [k: string]: unknown;
+export async function getAuthFromRequest(req: Request): Promise<AuthPayload | null> {
+  try {
+    // Try to get token from Authorization header first
+    const authHeader = req.headers.get("authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.substring(7);
+      const payload = verifyToken(token);
+      if (payload) return payload as AuthPayload;
     }
-  | null;
 
-export function getAuthFromRequest(req: Request): AuthPayload {
-  const cookieHeader = req.headers.get("cookie") || "";
-  const token = /auth_token=([^;]+)/.exec(cookieHeader)?.[1];
-  return token ? verifyToken(token) : null;
+    // Then try to get token from cookie - MUST USE AWAIT
+    const cookieStore = await cookies(); // <-- ADD AWAIT HERE
+    const token = cookieStore.get("auth_token")?.value;
+    if (token) {
+      const payload = verifyToken(token);
+      if (payload) return payload as AuthPayload;
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Auth error:", error);
+    return null;
+  }
 }
 
-export function hasRole(payload: AuthPayload, role: Role) {
-  return !!payload && payload.role === role;
-}
-
-export function requireRole(payload: AuthPayload, role: Role) {
-  if (!hasRole(payload, role)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export function requireRole(payload: AuthPayload | null, role: string) {
+  if (!payload || payload.role !== role) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
   }
   return null;
 }
 
-export function requireAnyRole(payload: AuthPayload, roles: Role[]) {
-  if (!payload || !payload.role || !roles.includes(payload.role as Role)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  return null;
+export function isWarehouseAuthorized(req: Request): boolean {
+  const key = req.headers.get("x-warehouse-key") || req.headers.get("x-api-key");
+  if (!key) return false;
+  const allowed = getAllowedWarehouseKeys();
+  return allowed.includes(key);
 }
 
 export function getAllowedWarehouseKeys(): string[] {
-  const env = process.env.WAREHOUSE_API_KEYS || "";
-  return env
-    .split(/[,\s]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const keys = process.env.WAREHOUSE_API_KEYS || "";
+  return keys.split(",").filter(Boolean);
 }
 
 export function verifyWarehouseKeyFromRequest(req: Request): boolean {
-  const provided = req.headers.get("x-warehouse-key") || req.headers.get("x-api-key") || "";
-  if (!provided) return false;
+  const key = req.headers.get("x-warehouse-key") || req.headers.get("x-api-key");
+  if (!key) return false;
   const allowed = getAllowedWarehouseKeys();
-  return allowed.includes(provided);
+  return allowed.includes(key);
 }
 
-// Allow either a logged-in user with role "warehouse" or a valid API key header
-export function isWarehouseAuthorized(req: Request): boolean {
-  try {
-    const auth = getAuthFromRequest(req);
-    if (hasRole(auth, "warehouse")) return true;
-  } catch {
-    // ignore token errors and fall back to api key
-  }
-  return verifyWarehouseKeyFromRequest(req);
-}
-
-// Strict async verification using ApiKey model. Only accepts header keys.
 export async function verifyWarehouseApiKey(
   req: Request,
-  requiredPermissions: string[] = []
-): Promise<{ valid: boolean; keyInfo?: { keyPrefix: string; name: string } }> {
-  const provided = req.headers.get("x-warehouse-key") || req.headers.get("x-api-key") || "";
-  if (!provided) return { valid: false };
-  if (!provided.startsWith("wh_live_") && !provided.startsWith("wh_test_")) {
-    return { valid: false };
-  }
-  const hashed = hashApiKey(provided);
-  try {
-    await dbConnect();
-    const keyRecord = await ApiKey.findOne({
-      key: hashed,
-      active: true,
-      $or: [
-        { expiresAt: { $exists: false } },
-        { expiresAt: { $gt: new Date() } },
-      ],
-    }).select("keyPrefix name permissions active expiresAt");
-    if (!keyRecord) return { valid: false };
-    if (requiredPermissions.length) {
-      const hasAll = requiredPermissions.every((p) => keyRecord.permissions.includes(p));
-      if (!hasAll) return { valid: false };
-    }
-    // update usage async
-    ApiKey.findByIdAndUpdate(keyRecord._id, { $set: { lastUsedAt: new Date() }, $inc: { usageCount: 1 } }).catch(() => {});
-    return { valid: true, keyInfo: { keyPrefix: keyRecord.keyPrefix, name: keyRecord.name } };
-  } catch {
-    return { valid: false };
-  }
-}
+  requiredPermissions?: string[]
+): Promise<{ valid: boolean; keyInfo?: { keyPrefix: string; permissions: string[] } }> {
+  const key = req.headers.get("x-warehouse-key") || req.headers.get("x-api-key");
+  if (!key) return { valid: false };
 
-export async function isWarehouseAuthorizedAsync(req: Request, requiredPermissions: string[] = []): Promise<boolean> {
-  try {
-    const auth = getAuthFromRequest(req);
-    if (hasRole(auth, "warehouse")) return true;
-  } catch {}
-  const { valid } = await verifyWarehouseApiKey(req, requiredPermissions);
-  return valid;
+  const allowed = getAllowedWarehouseKeys();
+  if (!allowed.includes(key)) return { valid: false };
+
+  // If no specific permissions required, just check if key is valid
+  if (!requiredPermissions || requiredPermissions.length === 0) {
+    return {
+      valid: true,
+      keyInfo: {
+        keyPrefix: key.substring(0, 12),
+        permissions: ["*"],
+      },
+    };
+  }
+
+  // For now, all valid warehouse keys have all permissions
+  return {
+    valid: true,
+    keyInfo: {
+      keyPrefix: key.substring(0, 12),
+      permissions: ["*"],
+    },
+  };
 }

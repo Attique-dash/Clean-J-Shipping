@@ -1,9 +1,11 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
+import TopHeader from "@/components/TopHeader";
 export default function RatesPage() {
   return (
     <>
+      <TopHeader />
       <section
         className="relative w-full overflow-hidden"
         style={{

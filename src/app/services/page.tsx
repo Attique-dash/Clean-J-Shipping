@@ -2,10 +2,12 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
+import TopHeader from "@/components/TopHeader";
 
 export default function ServicesPage() {
   return (
     <>
+      <TopHeader />
       {/* Hero / Banner */}
       <section
         className="relative w-full overflow-hidden"
