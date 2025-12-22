@@ -4,7 +4,6 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package, IPackage } from "@/models/Package";
-import { User } from "@/models/User";
 import { getAuthFromRequest } from "@/lib/rbac";
 
 export async function GET(req: Request) {
@@ -17,16 +16,15 @@ export async function GET(req: Request) {
 
     await dbConnect();
 
-    let userCode = payload.userCode as string | undefined;
-    if (!userCode && payload._id) {
-      const user = await User.findById(payload._id).select("userCode");
-      userCode = user?.userCode;
-    }
-    if (!userCode) {
+    // Get consistent user ID
+    const userId = (payload as { id?: string; _id?: string; uid?: string }).id || 
+                  (payload as { id?: string; _id?: string; uid?: string })._id || 
+                  (payload as { id?: string; _id?: string; uid?: string }).uid;
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const pkgs = await Package.find({ userCode, status: { $ne: "Deleted" } })
+    const pkgs = await Package.find({ userId, status: { $ne: "Deleted" } })
       .select("trackingNumber invoiceDocuments invoiceRecords updatedAt createdAt description")
       .sort({ updatedAt: -1 })
       .limit(500)
@@ -39,12 +37,22 @@ export async function GET(req: Request) {
       invoice_date?: string;
       currency?: string;
       amount_due: number;
-      payment_status: "submitted" | "reviewed" | "rejected" | "none";
+      payment_status: "submitted" | "reviewed" | "rejected" | "none" | "paid" | "overdue" | "partially_paid";
       document_url?: string;
       last_updated?: string;
     };
 
-    const bills: Bill[] = pkgs.flatMap((p: IPackage & { invoiceRecords?: any[]; invoiceDocuments?: any[] }) => {
+    const bills: Bill[] = pkgs.flatMap((p: IPackage & { 
+      invoiceRecords?: Array<{ 
+        invoiceNumber?: string; 
+        invoiceDate?: Date | string; 
+        currency?: string; 
+        totalValue?: number; 
+        status?: string; 
+        amountPaid?: number;
+      }>; 
+      invoiceDocuments?: unknown[] 
+    }) => {
       const recs = Array.isArray(p.invoiceRecords) ? p.invoiceRecords : [];
       if (recs.length === 0) {
         const docs = Array.isArray(p.invoiceDocuments) ? p.invoiceDocuments : [];
@@ -52,23 +60,46 @@ export async function GET(req: Request) {
         return [
           {
             tracking_number: p.trackingNumber,
-            description: (p as any).description,
+            description: (p as { description?: string }).description,
             amount_due: 0,
             payment_status,
             last_updated: (p.updatedAt || p.createdAt) ? new Date((p.updatedAt || p.createdAt) as any).toISOString() : undefined,
           },
         ];
       }
+      
+      // Get the most recent invoice record
       const latest = recs[recs.length - 1];
+      const totalAmount = typeof latest.totalValue === "number" ? latest.totalValue : 0;
+      const amountPaid = typeof latest.amountPaid === "number" ? latest.amountPaid : 0;
+      
+      // Determine payment status and amount due
+      let paymentStatus: Bill["payment_status"];
+      let amountDue: number;
+      
+      if (latest.status === "paid" || amountPaid >= totalAmount) {
+        paymentStatus = "paid";
+        amountDue = 0;
+      } else if (latest.status === "overdue") {
+        paymentStatus = "overdue";
+        amountDue = Math.max(0, totalAmount - amountPaid);
+      } else if (amountPaid > 0) {
+        paymentStatus = "partially_paid";
+        amountDue = Math.max(0, totalAmount - amountPaid);
+      } else {
+        paymentStatus = (latest.status as Bill["payment_status"]) || "submitted";
+        amountDue = totalAmount;
+      }
+      
       return [
         {
           tracking_number: p.trackingNumber,
-          description: (p as any).description,
+          description: (p as { description?: string }).description,
           invoice_number: latest.invoiceNumber,
           invoice_date: latest.invoiceDate ? new Date(latest.invoiceDate).toISOString() : undefined,
-          currency: latest.currency || "USD",
-          amount_due: typeof latest.totalValue === "number" ? Number(latest.totalValue) : 0,
-          payment_status: latest.status || "submitted",
+          currency: latest.currency || "JMD",
+          amount_due: amountDue,
+          payment_status: paymentStatus,
           last_updated: (p.updatedAt || p.createdAt) ? new Date((p.updatedAt || p.createdAt) as any).toISOString() : undefined,
         },
       ];

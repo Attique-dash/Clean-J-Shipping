@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Use the new configuration key instead of experimental
-  serverExternalPackages: ['mongoose', 'mongodb', 'bcryptjs'],
+  // Optimize for memory usage
+  compress: true,
   
   env: {
     DATABASE_URL: process.env.DATABASE_URL,

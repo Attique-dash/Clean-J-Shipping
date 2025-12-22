@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, MapPin, Clock, Package, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Loader2, MapPin, Clock, Package, CheckCircle2, X } from 'lucide-react';
 
 type Status = 'pending' | 'picked_up' | 'in_transit' | 'out_for_delivery' | 'delivered' | 'cancelled';
 

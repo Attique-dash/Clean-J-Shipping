@@ -3,7 +3,7 @@ import nodemailer from "nodemailer";
 const EMAIL_USER = process.env.EMAIL_USER;
 const EMAIL_PASS = process.env.EMAIL_PASS;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
-const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Clean JS Shipping";
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Clean J Shipping";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 
 let transporter: nodemailer.Transporter | null = null;

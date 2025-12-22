@@ -7,7 +7,7 @@ import { Providers } from "@/components/Providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Clean JS Shipping - Logistics & Delivery",
+  title: "Clean J Shipping - Logistics & Delivery",
   description: "Manage your shipments, track deliveries, and streamline your logistics operations",
 };
 

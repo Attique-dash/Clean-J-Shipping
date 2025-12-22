@@ -1,5 +1,16 @@
-export function generateTrackingNumber(prefix: string = 'TAS'): string {
-  // Format: PREFIX-YYYYMMDD-RANDOM6-CHECK
+export function generateTrackingNumber(prefix: string = 'TAS', short: boolean = false): string {
+  if (short) {
+    // Short format: PREFIX-RANDOM6 (10 chars total)
+    // Example: TAS-A3F7K2
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let random = '';
+    for (let i = 0; i < 6; i++) {
+      random += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return `${prefix}-${random}`;
+  }
+  
+  // Long format: PREFIX-YYYYMMDD-RANDOM6-CHECK
   // Example: TAS-20250119-A3F7K2-X
   const date = new Date();
   const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');

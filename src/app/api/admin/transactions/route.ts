@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { getAuthFromRequest } from "@/lib/rbac";
 import { Payment } from "@/models/Payment";
+import { PosTransaction } from "@/models/PosTransaction";
 
 export async function GET(req: Request) {
-  const payload = getAuthFromRequest(req);
+  const payload = await getAuthFromRequest(req);
   if (!payload || payload.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -18,36 +19,108 @@ export async function GET(req: Request) {
   const per_page_raw = Math.max(parseInt(url.searchParams.get("per_page") || "20", 10) || 20, 1);
   const per_page = Math.min(per_page_raw, 100);
 
-  const filter: Record<string, unknown> = {};
-  if (method) filter.method = method;
-  if (status) filter.status = status;
+  // Build filters for Payment model
+  const paymentFilter: Record<string, unknown> = {};
+  if (method && ["visa", "mastercard", "amex", "bank", "wallet"].includes(method)) {
+    paymentFilter.method = method;
+  }
+  if (status && ["initiated", "authorized", "captured", "failed", "refunded"].includes(status)) {
+    paymentFilter.status = status;
+  }
   if (q) {
     const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-    (filter as any).$or = [{ reference: regex }, { trackingNumber: regex }, { userCode: regex }, { gatewayId: regex }];
+    (paymentFilter as any).$or = [
+      { reference: regex },
+      { trackingNumber: regex },
+      { userCode: regex },
+      { gatewayId: regex }
+    ];
   }
 
-  const total_count = await Payment.countDocuments(filter);
-  const items = await Payment.find(filter)
-    .sort({ createdAt: -1 })
-    .skip((page - 1) * per_page)
-    .limit(per_page)
-    .lean();
+  // Build filters for POS transactions
+  const posFilter: Record<string, unknown> = {};
+  if (method && ["cash", "card", "visa", "mastercard", "amex", "bank", "wallet"].includes(method)) {
+    posFilter.method = method;
+  }
+  if (q) {
+    const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    (posFilter as any).$or = [
+      { receiptNo: regex },
+      { customerCode: regex },
+      { notes: regex }
+    ];
+  }
+
+  // Fetch both Payment and POS transactions
+  const [payments, posTransactions, paymentCount] = await Promise.all([
+    Payment.find(paymentFilter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * per_page)
+      .limit(per_page)
+      .lean()
+      .catch(() => []),
+    PosTransaction.find(posFilter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * per_page)
+      .limit(per_page)
+      .lean()
+      .catch(() => []),
+    Payment.countDocuments(paymentFilter).catch(() => 0),
+  ]);
+
+  // Map Payment model transactions
+  const paymentTransactions = payments.map((p) => ({
+    id: `payment-${p._id}`,
+    user_code: p.userCode,
+    amount: p.amount,
+    currency: p.currency,
+    method: p.method,
+    status: p.status === "captured" ? "completed" : p.status === "initiated" ? "pending" : p.status === "failed" ? "failed" : p.status,
+    reference: p.reference || null,
+    gateway_id: p.gatewayId || null,
+    payment_gateway: p.gatewayId ? "paypal" : null,
+    tracking_number: p.trackingNumber || null,
+    created_at: p.createdAt ? new Date(p.createdAt).toISOString() : null,
+    updated_at: p.updatedAt ? new Date(p.updatedAt).toISOString() : null,
+  }));
+
+  // Map POS transactions
+  const posTransactionsMapped = posTransactions.map((pos) => ({
+    id: `pos-${pos._id}`,
+    user_code: pos.customerCode || null,
+    amount: pos.total,
+    currency: "USD",
+    method: pos.method,
+    status: "completed", // POS transactions are always completed
+    reference: pos.receiptNo,
+    gateway_id: null,
+    payment_gateway: "pos",
+    tracking_number: null,
+    created_at: pos.createdAt ? new Date(pos.createdAt).toISOString() : null,
+    updated_at: pos.updatedAt ? new Date(pos.updatedAt).toISOString() : null,
+  }));
+
+  // Combine and sort by date
+  const allTransactions = [...paymentTransactions, ...posTransactionsMapped]
+    .sort((a, b) => {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return dateB - dateA;
+    })
+    .slice(0, per_page);
+
+  // Apply status filter if needed (after combining)
+  const filteredTransactions = status && status !== "all"
+    ? allTransactions.filter(t => {
+        if (status === "completed") return t.status === "completed" || t.status === "captured";
+        if (status === "pending") return t.status === "pending" || t.status === "initiated" || t.status === "authorized";
+        return t.status === status;
+      })
+    : allTransactions;
 
   return NextResponse.json({
-    transactions: items.map((p) => ({
-      id: String(p._id),
-      user_code: p.userCode,
-      amount: p.amount,
-      currency: p.currency,
-      method: p.method,
-      status: p.status,
-      reference: p.reference || null,
-      gateway_id: p.gatewayId || null,
-      tracking_number: (p as any).trackingNumber || null,
-      created_at: p.createdAt ? new Date(p.createdAt).toISOString() : null,
-      updated_at: p.updatedAt ? new Date(p.updatedAt).toISOString() : null,
-    })),
-    total_count,
+    transactions: filteredTransactions,
+    total_count: paymentCount + posTransactions.length,
     page,
     per_page,
   });

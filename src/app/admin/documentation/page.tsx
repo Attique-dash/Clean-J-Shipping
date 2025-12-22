@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, FileText, Search, RefreshCw, AlertCircle, ChevronRight, File, Folder, Copy, Check, ZoomIn, ZoomOut } from "lucide-react";
+import { BookOpen, FileText, Search, RefreshCw, AlertCircle, ChevronRight, File, Folder, Copy, Check, ZoomIn, ZoomOut, Loader2 } from "lucide-react";
 
 type DocMeta = { path: string; name: string };
 
@@ -49,6 +49,7 @@ export default function DocumentationPage() {
 
   useEffect(() => {
     loadList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -80,69 +81,80 @@ export default function DocumentationPage() {
   const groupedDocs = groupDocsByFolder(filteredDocs);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#0f4d8a] to-[#E67919] flex items-center justify-center">
-              <BookOpen className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-[#0f4d8a] to-[#E67919] bg-clip-text text-transparent">
-                Documentation
-              </h1>
-              <p className="text-slate-600 text-sm mt-1">Browse and search system documentation</p>
-            </div>
-          </div>
-          <button 
-            onClick={loadList}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
-        </div>
+        {/* Header Section */}
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-white/10" />
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl p-5 shadow-md border border-slate-200">
-            <div className="flex items-center justify-between">
+          <div className="relative flex flex-col gap-6">
+            
+            {/* Top Row */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <p className="text-sm text-slate-600 font-medium">Total Documents</p>
-                <p className="text-3xl font-bold text-[#0f4d8a] mt-1">{docs.length}</p>
+                <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-200">
+                  Documentation
+                </h1>
+                <p className="mt-1 text-sm text-blue-100">
+                  Browse and search system documentation
+                </p>
               </div>
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#0f4d8a] to-blue-600 flex items-center justify-center">
-                <FileText className="w-6 h-6 text-white" />
-              </div>
-            </div>
-          </div>
 
-          <div className="bg-white rounded-xl p-5 shadow-md border border-slate-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 font-medium">Categories</p>
-                <p className="text-3xl font-bold text-[#E67919] mt-1">{Object.keys(groupedDocs).length}</p>
-              </div>
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#E67919] to-orange-600 flex items-center justify-center">
-                <Folder className="w-6 h-6 text-white" />
-              </div>
+              <button 
+                onClick={loadList}
+                disabled={loading}
+                className="inline-flex items-center gap-2 rounded-2xl bg-white/15 px-5 py-3 text-sm font-semibold shadow-md backdrop-blur transition hover:bg-white/25 hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
+                <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
             </div>
-          </div>
 
-          <div className="bg-white rounded-xl p-5 shadow-md border border-slate-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 font-medium">Search Results</p>
-                <p className="text-3xl font-bold text-green-600 mt-1">{filteredDocs.length}</p>
+            {/* Stats Cards inside header */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
+              {/* Total Documents */}
+              <div className="group relative overflow-hidden rounded-xl bg-white/10 p-5 shadow-md backdrop-blur">
+                <div className="relative flex items-center gap-4">
+                  <div className="rounded-lg bg-white/20 p-3">
+                    <FileText className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-100">Total Documents</p>
+                    <p className="mt-1 text-2xl font-bold">{docs.length}</p>
+                  </div>
+                </div>
               </div>
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
-                <Search className="w-6 h-6 text-white" />
+
+              {/* Categories */}
+              <div className="group relative overflow-hidden rounded-xl bg-orange-500/20 p-5 shadow-md backdrop-blur">
+                <div className="relative flex items-center gap-4">
+                  <div className="rounded-lg bg-white/20 p-3">
+                    <Folder className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-orange-100">Categories</p>
+                    <p className="mt-1 text-2xl font-bold">{Object.keys(groupedDocs).length}</p>
+                  </div>
+                </div>
               </div>
+
+              {/* Search Results */}
+              <div className="group relative overflow-hidden rounded-xl bg-green-500/20 p-5 shadow-md backdrop-blur">
+                <div className="relative flex items-center gap-4">
+                  <div className="rounded-lg bg-white/20 p-3">
+                    <Search className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-green-100">Search Results</p>
+                    <p className="mt-1 text-2xl font-bold">{filteredDocs.length}</p>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
-        </div>
+        </header>
 
         {/* Error Message */}
         {error && (
@@ -184,9 +196,10 @@ export default function DocumentationPage() {
               {/* Document List */}
               <div className="max-h-[calc(100vh-20rem)] overflow-y-auto">
                 {loading ? (
-                  <div className="p-6 text-center">
-                    <RefreshCw className="w-8 h-8 text-[#0f4d8a] animate-spin mx-auto mb-2" />
-                    <p className="text-sm text-slate-600">Loading documents...</p>
+                  <div className="p-6">
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
+                    </div>
                   </div>
                 ) : filteredDocs.length === 0 ? (
                   <div className="p-6 text-center">

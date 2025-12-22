@@ -69,20 +69,20 @@ export default function AdminShipmentsPage() {
     switch (mode) {
       case "air":
         return (
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z" />
+          <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
           </svg>
         );
       case "sea":
         return (
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8h6m-5 0a3 3 0 110 6H9l3 3m-3-6h6m6 1a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4m-2 0l2 2m-2-2l2-2m16 0l-2 2m2-2l-2-2M4 12l2-2m0 0l2 2m-2-2v8a2 2 0 002 2h8a2 2 0 002-2v-8m-2 2l-2-2m2 2l2 2" />
           </svg>
         );
       case "land":
         return (
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
           </svg>
         );
     }
@@ -95,96 +95,87 @@ export default function AdminShipmentsPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* Header Section */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#0f4d8a] to-[#E67919] bg-clip-text text-transparent">
-              Shipments Management
-            </h1>
-            <p className="mt-1 text-sm text-gray-600">Create and manage shipment manifests</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="rounded-lg bg-white px-4 py-2 shadow-md border border-gray-200">
-              <div className="flex items-center gap-2">
-                <svg className="h-5 w-5 text-[#0f4d8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
-                <div>
-                  <p className="text-xs text-gray-500">Total Shipments</p>
-                  <p className="text-lg font-bold text-gray-900">{filledShipments}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-white/10" />
 
-        {/* Stats Cards */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0f4d8a] to-[#0f4d8a]/80 p-6 text-white shadow-lg transition-all hover:shadow-xl hover:scale-105">
-            <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10"></div>
-            <div className="relative">
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-white/20 p-2">
-                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-blue-100">Manifest ID</p>
-                  <p className="mt-1 text-lg font-bold">{manifestId || "Not Set"}</p>
-                </div>
+          <div className="relative flex flex-col gap-6">
+            
+            {/* Top Row */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-200">
+                  Shipments Management
+                </h1>
+                <p className="mt-1 text-sm text-blue-100">
+                  Create and manage shipment manifests
+                </p>
               </div>
             </div>
-          </div>
 
-          <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#E67919] to-[#E67919]/80 p-6 text-white shadow-lg transition-all hover:shadow-xl hover:scale-105">
-            <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10"></div>
-            <div className="relative">
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-white/20 p-2">
-                  {getModeIcon(mode)}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-orange-100">Transport Mode</p>
-                  <p className="mt-1 text-lg font-bold capitalize">{mode}</p>
-                </div>
-              </div>
-            </div>
-          </div>
+            {/* Stats Cards inside header */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
-          <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 p-6 text-white shadow-lg transition-all hover:shadow-xl hover:scale-105">
-            <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10"></div>
-            <div className="relative">
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-white/20 p-2">
-                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-purple-100">Total Weight</p>
-                  <p className="mt-1 text-lg font-bold">{totalWeight.toFixed(2)} kg</p>
+              {/* Manifest ID */}
+              <div className="group relative overflow-hidden rounded-xl bg-white/10 p-5 shadow-md backdrop-blur">
+                <div className="relative flex items-center gap-4">
+                  <div className="rounded-lg bg-white/20 p-3">
+                    <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-100">Manifest ID</p>
+                    <p className="mt-1 text-2xl font-bold">{manifestId || "Not Set"}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-green-500 to-green-600 p-6 text-white shadow-lg transition-all hover:shadow-xl hover:scale-105">
-            <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10"></div>
-            <div className="relative">
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-white/20 p-2">
-                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-green-100">Items Added</p>
-                  <p className="mt-1 text-lg font-bold">{filledShipments}</p>
+              {/* Transport Mode */}
+              <div className="group relative overflow-hidden rounded-xl bg-orange-500/20 p-5 shadow-md backdrop-blur">
+                <div className="relative flex items-center gap-4">
+                  <div className="rounded-lg bg-white/20 p-3">
+                    {getModeIcon(mode)}
+                  </div>
+                  <div>
+                    <p className="text-sm text-orange-100">Transport Mode</p>
+                    <p className="mt-1 text-2xl font-bold capitalize">{mode}</p>
+                  </div>
                 </div>
               </div>
+
+              {/* Total Weight */}
+              <div className="group relative overflow-hidden rounded-xl bg-purple-500/20 p-5 shadow-md backdrop-blur">
+                <div className="relative flex items-center gap-4">
+                  <div className="rounded-lg bg-white/20 p-3">
+                    <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm text-purple-100">Total Weight</p>
+                    <p className="mt-1 text-2xl font-bold">{totalWeight.toFixed(2)} kg</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Items Added */}
+              <div className="group relative overflow-hidden rounded-xl bg-green-500/20 p-5 shadow-md backdrop-blur">
+                <div className="relative flex items-center gap-4">
+                  <div className="rounded-lg bg-white/20 p-3">
+                    <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm text-green-100">Items Added</p>
+                    <p className="mt-1 text-2xl font-bold">{filledShipments}</p>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
-        </div>
+        </header>
 
         {/* Main Form */}
         <form onSubmit={onSubmit} className="space-y-6">
@@ -338,7 +329,7 @@ export default function AdminShipmentsPage() {
                           </div>
                           <div>
                             <p className="text-sm font-medium text-gray-900">No shipments added</p>
-                            <p className="mt-1 text-sm text-gray-500">Click "Add Shipment" to get started</p>
+                            <p className="mt-1 text-sm text-gray-500">Click &quot;Add Shipment&quot; to get started</p>
                           </div>
                         </div>
                       </td>

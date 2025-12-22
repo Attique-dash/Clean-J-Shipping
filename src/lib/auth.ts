@@ -18,16 +18,24 @@ export async function comparePassword(
 export function signToken(payload: { 
   id: string; 
   email: string; 
-  role: string 
+  role: string;
+  userCode?: string;
 }): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
 }
 
-export function verifyToken(token: string): any {
+export function verifyToken(token: string): { id: string; email: string; role: string; userCode?: string } | null {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (typeof decoded === 'string') {
+      return null;
+    }
+    return decoded as { id: string; email: string; role: string; userCode?: string };
   } catch (error) {
+    console.error('Token verification failed:', error);
     return null;
   }
 }
 
+// Re-export authOptions from NextAuth configuration
+export { authOptions } from '@/lib/auth-config';

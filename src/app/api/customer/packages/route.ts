@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 
 export async function GET(req: NextRequest) {
   try {
-    // IMPORTANT: Use await since getAuthFromRequest is now async
+    // CRITICAL FIX: Always await getAuthFromRequest
     const auth = await getAuthFromRequest(req);
     
     // Check if user is authorized
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
       return authError;
     }
 
-    // TypeScript now knows auth is not null
+    // TypeScript now knows auth is not null - use consistent ID extraction
     const userId = auth!.id || auth!._id || auth!.uid;
 
     if (!userId) {
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Fetch packages for this customer
+    // Fetch packages for this customer using userId
     const packages = await prisma.package.findMany({
       where: {
         userId: userId,
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       orderBy: {
         createdAt: 'desc',
       },
-      take: 100, // Limit results
+      take: 100,
     });
 
     // Map to response format
@@ -45,12 +45,14 @@ export async function GET(req: NextRequest) {
       status: p.status,
       description: p.itemDescription,
       weight_kg: p.weight,
-      weight: p.weight,
-      userCode: auth!.userCode,
+      weight: p.weight ? `${p.weight} kg` : undefined,
+      userCode: (auth as { userCode?: string }).userCode,
       shipper: p.senderName,
       current_location: p.currentLocation,
       updated_at: p.updatedAt?.toISOString(),
       updatedAt: p.updatedAt?.toISOString(),
+      created_at: p.createdAt?.toISOString(),
+      createdAt: p.createdAt?.toISOString(),
       estimated_delivery: p.estimatedDelivery?.toISOString(),
       invoice_status: p.paymentStatus,
     }));

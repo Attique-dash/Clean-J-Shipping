@@ -1,3 +1,4 @@
+// src/app/api/warehouse/account/route.ts
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
@@ -6,7 +7,8 @@ import { hashPassword } from "@/lib/auth";
 
 export async function GET(req: Request) {
   await dbConnect();
-  const payload = getAuthFromRequest(req);
+  // CRITICAL FIX: Add await
+  const payload = await getAuthFromRequest(req);
   if (!payload || payload.role !== "warehouse" || !payload.uid) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -16,7 +18,8 @@ export async function GET(req: Request) {
 
 export async function PUT(req: Request) {
   await dbConnect();
-  const payload = getAuthFromRequest(req);
+  // CRITICAL FIX: Add await
+  const payload = await getAuthFromRequest(req);
   if (!payload || payload.role !== "warehouse" || !payload.uid) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

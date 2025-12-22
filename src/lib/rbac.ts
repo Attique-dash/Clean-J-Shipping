@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
 import { verifyToken } from "./auth";
+import { getToken } from "next-auth/jwt";
+import { NextRequest } from "next/server";
 
 export interface AuthPayload {
   id?: string;
@@ -10,27 +12,62 @@ export interface AuthPayload {
   userCode?: string;
 }
 
-export async function getAuthFromRequest(req: Request): Promise<AuthPayload | null> {
+export async function getAuthFromRequest(req: Request | NextRequest): Promise<AuthPayload | null> {
   try {
-    // Try to get token from Authorization header first
-    const authHeader = req.headers.get("authorization");
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.substring(7);
-      const payload = verifyToken(token);
-      if (payload) return payload as AuthPayload;
+    // Method 1: Try NextAuth JWT token first
+    const token = await getToken({
+      req: req as any,
+      secret: process.env.NEXTAUTH_SECRET
+    });
+
+    if (token && token.email && token.role) {
+      return {
+        id: token.id as string,
+        _id: token.id as string,
+        uid: token.id as string,
+        email: token.email as string,
+        role: token.role as "admin" | "customer" | "warehouse",
+        userCode: token.userCode as string | undefined,
+      };
     }
 
-    // Then try to get token from cookie - MUST USE AWAIT
-    const cookieStore = await cookies(); // <-- ADD AWAIT HERE
-    const token = cookieStore.get("auth_token")?.value;
-    if (token) {
-      const payload = verifyToken(token);
-      if (payload) return payload as AuthPayload;
+    // Method 2: Try Authorization header
+    const authHeader = req.headers.get("authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const bearerToken = authHeader.substring(7);
+      const payload = verifyToken(bearerToken);
+      if (payload && payload.email && payload.role) {
+        return {
+          id: payload.id,
+          _id: payload.id,
+          uid: payload.id,
+          email: payload.email,
+          role: payload.role,
+          userCode: payload.userCode,
+        } as AuthPayload;
+      }
+    }
+
+    // Method 3: Try cookie-based auth token
+    const cookieStore = await cookies();
+    const authToken = cookieStore.get("auth_token")?.value;
+    if (authToken) {
+      const payload = verifyToken(authToken);
+      if (payload && payload.email && payload.role) {
+        return {
+          id: payload.id,
+          _id: payload.id,
+          uid: payload.id,
+          email: payload.email,
+          role: payload.role,
+          userCode: payload.userCode,
+        } as AuthPayload;
+      }
     }
 
     return null;
   } catch (error) {
-    console.error("Auth error:", error);
+    console.error("[Auth] Error in getAuthFromRequest:", error);
     return null;
   }
 }
@@ -74,7 +111,6 @@ export async function verifyWarehouseApiKey(
   const allowed = getAllowedWarehouseKeys();
   if (!allowed.includes(key)) return { valid: false };
 
-  // If no specific permissions required, just check if key is valid
   if (!requiredPermissions || requiredPermissions.length === 0) {
     return {
       valid: true,
@@ -85,7 +121,6 @@ export async function verifyWarehouseApiKey(
     };
   }
 
-  // For now, all valid warehouse keys have all permissions
   return {
     valid: true,
     keyInfo: {

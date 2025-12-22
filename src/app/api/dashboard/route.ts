@@ -21,8 +21,7 @@ export async function GET() {
       totalShipments,
       activeShipments,
       deliveredThisMonth,
-      inTransit,
-      allShipments
+      inTransit
     ] = await Promise.all([
       Package.countDocuments(),
       Package.countDocuments({ status: { $in: ['in_transit', 'out_for_delivery', 'in_progress'] } }),
@@ -30,12 +29,17 @@ export async function GET() {
         status: 'delivered',
         updatedAt: { $gte: startOfMonth, $lte: endOfMonth }
       }),
-      Package.countDocuments({ status: 'in_transit' }),
-      Package.find().lean()
+      Package.countDocuments({ status: 'in_transit' })
     ]);
 
-    // Calculate average delivery time
-    const deliveredPackages = allShipments.filter(pkg => pkg.status === 'delivered' && pkg.createdAt && pkg.updatedAt);
+    // Get limited sample of delivered packages for average delivery time calculation
+    const deliveredPackagesSample = await Package.find({ status: 'delivered' })
+      .select('createdAt updatedAt')
+      .limit(1000) // Limit to prevent memory issues
+      .lean();
+
+    // Calculate average delivery time from sample
+    const deliveredPackages = deliveredPackagesSample.filter(pkg => pkg.createdAt && pkg.updatedAt);
     const totalDeliveryTime = deliveredPackages.reduce((acc, pkg) => {
       const deliveryTime = (new Date(pkg.updatedAt).getTime() - new Date(pkg.createdAt).getTime()) / (1000 * 60 * 60);
       return acc + deliveryTime;

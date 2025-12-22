@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
+import { WebSocketProvider } from "@/components/providers/WebSocketProvider";
 import {
   Home,
   Package,
@@ -19,6 +20,10 @@ import {
   ChevronRight,
   UserCog,
   Contact,
+  HelpCircle,
+  Headphones,
+  Gift,
+  ShoppingCart,
 } from "lucide-react";
 
 export default function CustomerLayout({
@@ -28,6 +33,35 @@ export default function CustomerLayout({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
+
+  // Load cart count from localStorage
+  useEffect(() => {
+    const updateCartCount = () => {
+      const cartData = localStorage.getItem('customer_cart');
+      if (cartData) {
+        try {
+          const trackingNumbers = JSON.parse(cartData);
+          setCartCount(trackingNumbers.length);
+        } catch (e) {
+          setCartCount(0);
+        }
+      } else {
+        setCartCount(0);
+      }
+    };
+
+    updateCartCount();
+    // Listen for storage changes (when cart is updated in other tabs)
+    window.addEventListener('storage', updateCartCount);
+    // Also check periodically
+    const interval = setInterval(updateCartCount, 1000);
+
+    return () => {
+      window.removeEventListener('storage', updateCartCount);
+      clearInterval(interval);
+    };
+  }, []);
 
   const navItems = [
     {
@@ -46,17 +80,10 @@ export default function CustomerLayout({
     },
     {
       href: "/customer/bills",
-      label: "Bills",
+      label: "Bills & Payments",
       icon: FileText,
-      description: "View and manage your bills",
+      description: "View and manage your bills and payments",
       color: "from-pink-500 to-pink-600",
-    },
-    {
-      href: "/customer/payments",
-      label: "Payments",
-      icon: CreditCard,
-      description: "Make and track payments",
-      color: "from-indigo-500 to-indigo-600",
     },
     {
       href: "/customer/messages",
@@ -66,11 +93,25 @@ export default function CustomerLayout({
       color: "from-cyan-500 to-cyan-600",
     },
     {
-      href: "/customer/contact",
-      label: "Contact Us",
-      icon: Contact,
-      description: "Get in touch with support",
-      color: "from-orange-500 to-orange-600",
+      href: "/customer/faq",
+      label: "FAQ",
+      icon: HelpCircle,
+      description: "Frequently asked questions",
+      color: "from-indigo-500 to-indigo-600",
+    },
+    {
+      href: "/customer/support",
+      label: "Support",
+      icon: Headphones,
+      description: "Support tickets and help",
+      color: "from-purple-500 to-purple-600",
+    },
+    {
+      href: "/customer/referral",
+      label: "Referral",
+      icon: Gift,
+      description: "Refer friends and earn rewards",
+      color: "from-pink-500 to-pink-600",
     },
     {
       href: "/customer/pre-alerts",
@@ -83,7 +124,7 @@ export default function CustomerLayout({
       href: "/customer/archives",
       label: "Archives",
       icon: Archive,
-      description: "View archived items",
+      description: "View archived packages and messages",
       color: "from-gray-500 to-gray-600",
     },
     {
@@ -130,9 +171,15 @@ export default function CustomerLayout({
           <nav className="flex-1 space-y-1 p-4 overflow-y-auto pr-2 scrollbar-orange overscroll-contain">
             {navItems.map((item) => {
               const Icon = item.icon;
+              // Special case: Bills & Payments should be active for both /customer/bills and /customer/payments
               const isActive =
                 item.href === "/customer"
                   ? pathname === "/customer"
+                  : item.href === "/customer/bills"
+                  ? pathname === item.href ||
+                    pathname.startsWith(item.href + "/") ||
+                    pathname === "/customer/payments" ||
+                    pathname.startsWith("/customer/payments/")
                   : pathname === item.href ||
                     pathname.startsWith(item.href + "/");
 
@@ -171,6 +218,24 @@ export default function CustomerLayout({
             })}
           </nav>
 
+          {/* Cart Link */}
+          {cartCount > 0 && (
+            <div className="border-t border-white/10 p-4">
+              <Link
+                href="/customer/checkout"
+                className="group relative w-full flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 cursor-pointer bg-gradient-to-r from-[#E67919] to-[#f59e42] text-white shadow-lg hover:shadow-xl"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/20 shadow-md">
+                  <ShoppingCart className="h-5 w-5 text-white" strokeWidth={2.5} />
+                </div>
+                <span className="flex-1 text-left">Checkout Cart</span>
+                <span className="bg-white text-[#E67919] text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
+                  {cartCount}
+                </span>
+              </Link>
+            </div>
+          )}
+
           {/* Sidebar footer with Logout button */}
           <div className="border-t border-white/10 p-4">
             <form action="/api/auth/logout" method="POST">
@@ -200,14 +265,28 @@ export default function CustomerLayout({
                 Clean J Shipping
               </div>
 
-              {/* Right: Toggle */}
-              <button
-                aria-label="Open sidebar"
-                onClick={() => setMobileOpen(true)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md ring-1 ring-gray-200 hover:bg-gray-50"
-              >
-                <Menu className="h-5 w-5" />
-              </button>
+              {/* Right: Cart & Toggle */}
+              <div className="flex items-center gap-2">
+                {cartCount > 0 && (
+                  <Link
+                    href="/customer/checkout"
+                    className="relative inline-flex h-10 w-10 items-center justify-center rounded-md ring-1 ring-gray-200 hover:bg-gray-50"
+                    aria-label="Shopping cart"
+                  >
+                    <ShoppingCart className="h-5 w-5 text-gray-700" />
+                    <span className="absolute -top-1 -right-1 bg-[#E67919] text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                      {cartCount}
+                    </span>
+                  </Link>
+                )}
+                <button
+                  aria-label="Open sidebar"
+                  onClick={() => setMobileOpen(true)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-md ring-1 ring-gray-200 hover:bg-gray-50"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -243,9 +322,15 @@ export default function CustomerLayout({
                 <nav className="space-y-1 p-4 overflow-y-auto h-[calc(100vh-140px)] pr-2 scrollbar-orange overscroll-contain">
                   {navItems.map((item) => {
                     const Icon = item.icon;
+                    // Special case: Bills & Payments should be active for both /customer/bills and /customer/payments
                     const isActive =
                       item.href === "/customer"
                         ? pathname === "/customer"
+                        : item.href === "/customer/bills"
+                        ? pathname === item.href ||
+                          pathname.startsWith(item.href + "/") ||
+                          pathname === "/customer/payments" ||
+                          pathname.startsWith("/customer/payments/")
                         : pathname === item.href ||
                           pathname.startsWith(item.href + "/");
                     return (
@@ -288,7 +373,9 @@ export default function CustomerLayout({
 
           <main className="flex-1 overflow-y-auto p-4 md:p-6 w-full max-w-full">
             <div className="mx-auto w-full max-w-full overflow-x-hidden">
-              {children}
+              <WebSocketProvider>
+                {children}
+              </WebSocketProvider>
             </div>
           </main>
         </div>

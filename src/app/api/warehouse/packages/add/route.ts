@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package, type IPackage } from "@/models/Package";
 import { User } from "@/models/User";
+import { PreAlert } from "@/models/PreAlert";
 import { isWarehouseAuthorized, getAuthFromRequest, verifyWarehouseApiKey } from "@/lib/rbac";
 import { addPackageSchema } from "@/lib/validators";
 import { sendNewPackageEmail } from "@/lib/email";
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
     const { valid, keyInfo } = await verifyWarehouseApiKey(req);
     if (valid && keyInfo?.keyPrefix) identifier = keyInfo.keyPrefix;
     else {
-      const payload = getAuthFromRequest(req);
+      const payload = await getAuthFromRequest(req);
       const fromCookie = (payload?.uid as string | undefined) || (payload?.email as string | undefined) || (payload?.userCode as string | undefined);
       if (fromCookie) identifier = `wh_${fromCookie}`;
     }
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
     }
 
     // Create/update package within the transaction
-    await Package.findOneAndUpdate(
+    const pkg = await Package.findOneAndUpdate(
       { trackingNumber },
       {
         // Keep insert-only fields in $setOnInsert
@@ -97,6 +98,22 @@ export async function POST(req: Request) {
       },
       { upsert: true, new: true, session }
     );
+
+    // Create pre-alert for customer when warehouse logs package
+    // Check if pre-alert already exists for this tracking number
+    const existingPreAlert = await PreAlert.findOne({ trackingNumber }).session(session);
+    if (!existingPreAlert && pkg) {
+      await PreAlert.create([{
+        userCode: customer.userCode,
+        customer: customer._id,
+        trackingNumber,
+        carrier: typeof shipper === "string" ? shipper : undefined,
+        origin: typeof warehouse === "string" ? warehouse : undefined,
+        status: "approved", // Auto-approved since warehouse received it
+        notes: `Package received at warehouse${receivedBy ? ` by ${receivedBy}` : ""}`,
+        decidedAt: now,
+      }], { session });
+    }
 
     await session.commitTransaction();
 

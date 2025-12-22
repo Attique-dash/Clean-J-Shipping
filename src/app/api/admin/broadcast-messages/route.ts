@@ -8,7 +8,7 @@ import { Message } from "@/models/Message";
 import { Types } from "mongoose";
 
 export async function GET(req: Request) {
-  const payload = getAuthFromRequest(req);
+  const payload = await  getAuthFromRequest(req);
   if (!payload || payload.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const payload = getAuthFromRequest(req);
+  const payload = await  getAuthFromRequest(req);
   if (!payload || payload.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

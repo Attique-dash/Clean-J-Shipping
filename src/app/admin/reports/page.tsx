@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Package, Users, Truck, DollarSign, TrendingUp, TrendingDown, AlertCircle, CheckCircle, Clock, FileText, Activity, RefreshCw, Calendar, ArrowUpRight } from "lucide-react";
+import { Package, Users, Truck, DollarSign, TrendingUp, TrendingDown, AlertCircle, CheckCircle, Clock, FileText, Activity, RefreshCw, Calendar, ArrowUpRight, Loader2 } from "lucide-react";
 
 type Summary = {
   total_packages: number;
@@ -173,11 +173,8 @@ export default function AdminReportsPage() {
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="text-center space-y-4">
-              <RefreshCw className="w-12 h-12 text-[#0f4d8a] animate-spin mx-auto" />
-              <p className="text-slate-600 font-medium">Loading reports...</p>
-            </div>
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
           </div>
         ) : report ? (
           <>

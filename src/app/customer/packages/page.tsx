@@ -1,12 +1,14 @@
+// src/app/customer/packages/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Package, Search, MapPin, Filter, X, Calendar, Weight, Upload, ExternalLink, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 
 type UIPackage = {
   id?: string;
   tracking_number: string;
   description?: string;
-  status: "in_transit" | "ready_for_pickup" | "delivered" | "pending" | "received";
+  status: "in_transit" | "ready_for_pickup" | "delivered" | "pending" | "received" | "archived";
   current_location?: string;
   estimated_delivery?: string;
   weight?: string;
@@ -27,11 +29,14 @@ export default function CustomerPackagesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [locationQuery, setLocationQuery] = useState("");
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  
   // Advanced filters
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
   const [weightMin, setWeightMin] = useState<string>("");
   const [weightMax, setWeightMax] = useState<string>("");
+  
   // Pagination
   const [page, setPage] = useState(1);
   const pageSize = 20;
@@ -76,13 +81,16 @@ export default function CustomerPackagesPage() {
         || (p.description || "").toLowerCase().includes(q);
       const matchesStatus = !statusFilter || p.status === statusFilter;
       const matchesLocation = !lq || (p.current_location || "").toLowerCase().includes(lq);
+      
       // Date range filter on updated_at or ready_since/estimated_delivery as fallback
       const fromOk = !dateFrom || (p.updated_at ? new Date(p.updated_at) >= new Date(dateFrom) : true);
       const toOk = !dateTo || (p.updated_at ? new Date(p.updated_at) <= new Date(dateTo + "T23:59:59") : true);
+      
       // Weight filters use numeric weight_kg if available
       const w = p.weight_kg as number | undefined;
       const wMinOk = !weightMin || (typeof w === "number" ? w >= Number(weightMin) : true);
       const wMaxOk = !weightMax || (typeof w === "number" ? w <= Number(weightMax) : true);
+      
       return matchesQuery && matchesStatus && matchesLocation && fromOk && toOk && wMinOk && wMaxOk;
     });
   }, [items, debouncedQuery, statusFilter, locationQuery, dateFrom, dateTo, weightMin, weightMax]);
@@ -93,15 +101,39 @@ export default function CustomerPackagesPage() {
 
   function statusLabel(s: UIPackage["status"]) {
     switch (s) {
+      case "received":
+        return "Received";
+      case "pending":
+        return "Processing";
       case "in_transit":
-        return "In Transit";
+        return "Shipped";
       case "ready_for_pickup":
-        return "At Local Port";
+        return "Ready for Pickup";
       case "delivered":
         return "Delivered";
-      case "pending":
+      case "archived":
+        return "Archived";
       default:
-        return "At Warehouse/Unknown";
+        return "Unknown";
+    }
+  }
+
+  function getStatusColor(s: UIPackage["status"]) {
+    switch (s) {
+      case "received":
+        return "bg-purple-100 text-purple-800 border-purple-200";
+      case "pending":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "in_transit":
+        return "bg-blue-100 text-blue-800 border-blue-200";
+      case "ready_for_pickup":
+        return "bg-orange-100 text-orange-800 border-orange-200";
+      case "delivered":
+        return "bg-green-100 text-green-800 border-green-200";
+      case "archived":
+        return "bg-gray-100 text-gray-800 border-gray-200";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200";
     }
   }
 
@@ -126,93 +158,377 @@ export default function CustomerPackagesPage() {
     }
   }
 
+  function clearFilters() {
+    setQuery("");
+    setLocationQuery("");
+    setStatusFilter("");
+    setDateFrom("");
+    setDateTo("");
+    setWeightMin("");
+    setWeightMax("");
+    setPage(1);
+  }
+
+  const hasActiveFilters = query || locationQuery || statusFilter || dateFrom || dateTo || weightMin || weightMax;
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold">My Packages</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            className="rounded-md border px-3 py-1.5 text-sm"
-            placeholder="Search by tracking/description"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <input
-            className="rounded-md border px-3 py-1.5 text-sm"
-            placeholder="Filter by location"
-            value={locationQuery}
-            onChange={(e) => setLocationQuery(e.target.value)}
-          />
-          <select
-            className="rounded-md border px-3 py-1.5 text-sm"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="">All statuses</option>
-            <option value="in_transit">In Transit</option>
-            <option value="ready_for_pickup">At Local Port</option>
-            <option value="delivered">Delivered</option>
-            <option value="pending">At Warehouse/Unknown</option>
-          </select>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center space-x-3">
+              <div className="p-3 bg-gradient-to-br from-[#0f4d8a] to-[#1e6bb8] rounded-xl shadow-lg">
+                <Package className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-[#0f4d8a]">My Packages</h1>
+                <p className="text-sm text-gray-600 mt-1">
+                  Showing {filtered.length} of {total} packages
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => load()}
+              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-lg hover:shadow-lg transition-all duration-200"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+          <div className="space-y-4">
+            {/* Main Filters Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  className="w-full pl-10 pr-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
+                  placeholder="Search tracking/description..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
+
+              {/* Location */}
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  className="w-full pl-10 pr-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[#E67919] focus:ring-2 focus:ring-orange-100 transition-all text-sm"
+                  placeholder="Filter by location..."
+                  value={locationQuery}
+                  onChange={(e) => setLocationQuery(e.target.value)}
+                />
+              </div>
+
+              {/* Status */}
+              <select
+                className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[#0891b2] focus:ring-2 focus:ring-cyan-100 transition-all text-sm"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="">All statuses</option>
+                <option value="received">Received</option>
+                <option value="pending">Processing</option>
+                <option value="in_transit">Shipped</option>
+                <option value="ready_for_pickup">Ready for Pickup</option>
+                <option value="delivered">Delivered</option>
+                <option value="archived">Archived</option>
+              </select>
+
+              {/* Advanced Filters Toggle */}
+              <button
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="flex items-center justify-center space-x-2 px-4 py-2.5 border-2 border-gray-200 rounded-lg hover:border-[#E67919] hover:bg-orange-50 transition-all text-sm font-medium"
+              >
+                <Filter className="h-4 w-4" />
+                <span>Advanced</span>
+              </button>
+            </div>
+
+            {/* Advanced Filters */}
+            {showAdvancedFilters && (
+              <div className="pt-4 border-t border-gray-200">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Date From */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                      <Calendar className="inline h-3 w-3 mr-1" />
+                      Date From
+                    </label>
+                    <input
+                      type="date"
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Date To */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                      <Calendar className="inline h-3 w-3 mr-1" />
+                      Date To
+                    </label>
+                    <input
+                      type="date"
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Weight Min */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                      <Weight className="inline h-3 w-3 mr-1" />
+                      Min Weight (kg)
+                    </label>
+                    <input
+                      type="number"
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
+                      placeholder="0"
+                      value={weightMin}
+                      onChange={(e) => setWeightMin(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Weight Max */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                      <Weight className="inline h-3 w-3 mr-1" />
+                      Max Weight (kg)
+                    </label>
+                    <input
+                      type="number"
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
+                      placeholder="999"
+                      value={weightMax}
+                      onChange={(e) => setWeightMax(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Clear Filters */}
+            {hasActiveFilters && (
+              <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                <span className="text-sm text-gray-600">
+                  {filtered.length} results found
+                </span>
+                <button
+                  onClick={clearFilters}
+                  className="flex items-center space-x-1 text-sm text-[#E67919] hover:text-[#d66a15] font-medium"
+                >
+                  <X className="h-4 w-4" />
+                  <span>Clear all filters</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <div className="h-5 w-5 text-red-600">⚠</div>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-800">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Table */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr className="bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8]">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                    Tracking
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                    Description
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                    Location
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                    Weight
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                    Date Added
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                    Invoice
+                  </th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold text-white uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-100">
+                {loading ? (
+                  <tr>
+                    <td className="px-6 py-12 text-center" colSpan={7}>
+                      <div className="flex flex-col items-center justify-center space-y-3">
+                        <Loader2 className="h-8 w-8 text-[#0f4d8a] animate-spin" />
+                        <p className="text-sm text-gray-600">Loading packages...</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paged.length === 0 ? (
+                  <tr>
+                    <td className="px-6 py-12 text-center" colSpan={7}>
+                      <div className="flex flex-col items-center justify-center space-y-3">
+                        <Package className="h-12 w-12 text-gray-300" />
+                        <p className="text-sm font-medium text-gray-600">No packages found</p>
+                        <p className="text-xs text-gray-400">Try adjusting your filters</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  paged.map((p) => (
+                    <tr
+                      key={p.tracking_number}
+                      className="hover:bg-gradient-to-r hover:from-slate-50 hover:to-blue-50 transition-colors duration-150"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-[#0f4d8a] to-[#1e6bb8] rounded-lg flex items-center justify-center">
+                            <Package className="h-5 w-5 text-white" />
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-bold text-gray-900">
+                              {p.tracking_number}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-900">
+                          {p.description || <span className="text-gray-400">No description</span>}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getStatusColor(p.status)}`}>
+                          {statusLabel(p.status)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center text-sm text-gray-900">
+                          <MapPin className="h-4 w-4 text-[#E67919] mr-1.5" />
+                          {p.current_location || <span className="text-gray-400">Unknown</span>}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {p.weight || <span className="text-gray-400">-</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {p.created_at || p.createdAt || p.updated_at || p.updatedAt
+                          ? new Date(p.created_at || p.createdAt || p.updated_at || p.updatedAt).toLocaleDateString()
+                          : <span className="text-gray-400">N/A</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs rounded ${
+                          p.invoice_status === 'uploaded' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {p.invoice_status || "Pending"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end space-x-2">
+                          <a
+                            href={`/track?q=${encodeURIComponent(p.tracking_number)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-3 py-1.5 border border-[#0891b2] text-[#0891b2] rounded-lg hover:bg-cyan-50 transition-all text-xs font-medium"
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            Track
+                          </a>
+                          {p.id && (
+                            <label className="inline-flex items-center px-3 py-1.5 border border-[#E67919] text-[#E67919] rounded-lg hover:bg-orange-50 transition-all text-xs font-medium cursor-pointer">
+                              {uploadingId === p.id ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  Uploading...
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="h-3 w-3 mr-1" />
+                                  Invoice
+                                </>
+                              )}
+                              <input
+                                type="file"
+                                accept="application/pdf,image/jpeg,image/png,image/webp"
+                                multiple
+                                className="hidden"
+                                onChange={(e) => uploadInvoice(p, e.target.files)}
+                                disabled={uploadingId === p.id}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {!loading && paged.length > 0 && (
+            <div className="bg-gradient-to-r from-slate-50 to-blue-50 px-6 py-4 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  Showing <span className="font-semibold text-[#0f4d8a]">{(pageClamped - 1) * pageSize + 1}</span> to{" "}
+                  <span className="font-semibold text-[#0f4d8a]">
+                    {Math.min(pageClamped * pageSize, filtered.length)}
+                  </span>{" "}
+                  of <span className="font-semibold text-[#0f4d8a]">{filtered.length}</span> results
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={pageClamped === 1}
+                    className="inline-flex items-center px-3 py-2 border-2 border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Previous
+                  </button>
+                  <span className="text-sm text-gray-700">
+                    Page <span className="font-semibold text-[#0f4d8a]">{pageClamped}</span> of{" "}
+                    <span className="font-semibold text-[#0f4d8a]">{totalPages}</span>
+                  </span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={pageClamped === totalPages}
+                    className="inline-flex items-center px-3 py-2 border-2 border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-
-      {error && <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-
-      <div className="rounded-xl border overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50/80">
-            <tr>
-              <th className="px-3 py-2 text-left">Tracking</th>
-              <th className="px-3 py-2 text-left">Description</th>
-              <th className="px-3 py-2 text-left">Status</th>
-              <th className="px-3 py-2 text-left">Location</th>
-              <th className="px-3 py-2 text-left">Weight</th>
-              <th className="px-3 py-2 text-left">Invoice</th>
-              <th className="px-3 py-2 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td className="px-3 py-4" colSpan={7}>Loading...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td className="px-3 py-4" colSpan={7}>No packages found</td></tr>
-            ) : (
-              filtered.map((p) => (
-                <tr key={p.tracking_number}>
-                  <td className="px-3 py-2 font-medium">{p.tracking_number}</td>
-                  <td className="px-3 py-2">{p.description || "-"}</td>
-                  <td className="px-3 py-2">{statusLabel(p.status)}</td>
-                  <td className="px-3 py-2">{p.current_location || "-"}</td>
-                  <td className="px-3 py-2">{p.weight || "-"}</td>
-                  <td className="px-3 py-2">{p.invoice_status || "-"}</td>
-                  <td className="px-3 py-2 text-right space-x-2">
-                    <a className="rounded border px-2 py-1 text-xs" href={`/track?q=${encodeURIComponent(p.tracking_number)}`} target="_blank">Track</a>
-                    <button
-                      className="rounded border px-2 py-1 text-xs"
-                      onClick={() => load()}
-                    >Refresh</button>
-                    {p.id && (
-                      <label className="rounded border px-2 py-1 text-xs cursor-pointer">
-                        {uploadingId === p.id ? "Uploading..." : "Upload Invoice"}
-                        <input
-                          type="file"
-                          accept="application/pdf,image/jpeg,image/png,image/webp"
-                          multiple
-                          className="hidden"
-                          onChange={(e) => uploadInvoice(p, e.target.files)}
-                        />
-                      </label>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="text-xs text-gray-500">Total: {total}</div>
     </div>
   );
 }

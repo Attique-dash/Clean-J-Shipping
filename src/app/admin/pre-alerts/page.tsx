@@ -5,17 +5,33 @@ export const dynamic = "force-dynamic";
 
 export default async function PreAlertsPage() {
   // Build absolute base URL for server runtime
-  const h = headers();
+  const h = await headers();
   const host = h.get("x-forwarded-host") || h.get("host") || "localhost:3000";
   const proto = h.get("x-forwarded-proto") || "http";
   const base = `${proto}://${host}`;
 
-  const res = await fetch(`${base}/api/admin/pre-alerts`, { cache: "no-store" });
+  const res = await fetch(`${base}/api/admin/pre-alerts`, { 
+    cache: "no-store",
+    credentials: 'include',
+  });
   let data: any[] = [];
   try {
     const json = await res.json();
-    data = Array.isArray(json?.pre_alerts) ? json.pre_alerts : Array.isArray(json?.items) ? json.items : Array.isArray(json) ? json : [];
-  } catch {}
+    if (res.ok) {
+      data = Array.isArray(json?.pre_alerts) ? json.pre_alerts : Array.isArray(json?.items) ? json.items : Array.isArray(json) ? json : [];
+      // Map the data to match the expected format
+      data = data.map((p: any) => ({
+        _id: p.id || p._id,
+        trackingNumber: p.tracking_number || p.trackingNumber,
+        carrier: p.carrier || "Unknown",
+        origin: p.origin || "Unknown",
+        expectedDate: p.expected_date || p.expectedDate,
+        status: p.status || "pending",
+      }));
+    }
+  } catch (err) {
+    console.error("Error loading pre-alerts:", err);
+  }
 
   // Status color mapping
   const getStatusColor = (status: string) => {
@@ -37,66 +53,107 @@ export default async function PreAlertsPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* Header Section */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#0f4d8a] to-[#E67919] bg-clip-text text-transparent">
-              Pre-Alerts Dashboard
-            </h1>
-            <p className="mt-1 text-sm text-gray-600">
-              Monitor incoming shipment notifications in real-time
-            </p>
-          </div>
-          <Link 
-            href="/admin" 
-            className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#0f4d8a] to-[#0f4d8a]/90 px-4 py-2 text-sm font-medium text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95"
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        {/* Invoice-Style Header */}
+<header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl">
+  <div className="absolute inset-0 bg-white/10" />
+
+  <div className="relative flex flex-col gap-6">
+    {/* Top Row */}
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex items-center gap-4">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
+          <svg className="h-7 w-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h18v4H3V3zm0 6h18v4H3V9zm0 6h18v4H3v-4z" />
+          </svg>
+        </div>
+
+        <div>
+          <p className="text-sm uppercase tracking-widest text-blue-100">
+            Shipment Notifications
+          </p>
+          <h1 className="text-3xl font-bold leading-tight md:text-4xl">
+            Pre-Alerts Dashboard
+          </h1>
+      </div>
+    </div>
+
+    {/* Right Button */}
+    <Link
+      href="/admin"
+      className="flex items-center gap-2 rounded-2xl bg-white/15 px-5 py-3 text-sm font-semibold shadow-lg shadow-blue-900/30 transition hover:bg-white/25 hover:shadow-xl hover:scale-105 active:scale-95 backdrop-blur"
+    >
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+      </svg>
+      Back to Dashboard
+    </Link>
+    </div>
+
+    {/* Stats Cards inside header */}
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Total */}
+      <div className="group relative overflow-hidden rounded-xl bg-white/10 p-5 shadow-md backdrop-blur">
+        <div className="relative flex items-center gap-4">
+          <div className="rounded-lg bg-white/20 p-3">
+            <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
-            Back to Dashboard
-          </Link>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0f4d8a] to-[#0f4d8a]/80 p-6 text-white shadow-lg transition-all hover:shadow-xl hover:scale-105">
-            <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10"></div>
-            <div className="relative">
-              <p className="text-sm font-medium text-blue-100">Total Pre-Alerts</p>
-              <p className="mt-2 text-3xl font-bold">{data.length}</p>
-            </div>
           </div>
-
-          <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#E67919] to-[#E67919]/80 p-6 text-white shadow-lg transition-all hover:shadow-xl hover:scale-105">
-            <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10"></div>
-            <div className="relative">
-              <p className="text-sm font-medium text-orange-100">In Transit</p>
-              <p className="mt-2 text-3xl font-bold">
-                {data.filter(p => p.status?.toLowerCase().includes("transit")).length}
-              </p>
-            </div>
-          </div>
-
-          <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-green-500 to-green-600 p-6 text-white shadow-lg transition-all hover:shadow-xl hover:scale-105">
-            <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10"></div>
-            <div className="relative">
-              <p className="text-sm font-medium text-green-100">Delivered</p>
-              <p className="mt-2 text-3xl font-bold">
-                {data.filter(p => p.status?.toLowerCase().includes("delivered")).length}
-              </p>
-            </div>
-          </div>
-
-          <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-yellow-500 to-yellow-600 p-6 text-white shadow-lg transition-all hover:shadow-xl hover:scale-105">
-            <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10"></div>
-            <div className="relative">
-              <p className="text-sm font-medium text-yellow-100">Pending</p>
-              <p className="mt-2 text-3xl font-bold">
-                {data.filter(p => p.status?.toLowerCase().includes("pending")).length}
-              </p>
-            </div>
+          <div>
+            <p className="text-sm text-blue-100">Total</p>
+            <p className="mt-1 text-2xl font-bold">{data.length}</p>
           </div>
         </div>
+      </div>
+
+      {/* In Transit */}
+      <div className="group relative overflow-hidden rounded-xl bg-blue-500/20 p-5 shadow-md backdrop-blur">
+        <div className="relative flex items-center gap-4">
+          <div className="rounded-lg bg-white/20 p-3">
+            <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm text-blue-100">In Transit</p>
+            <p className="mt-1 text-2xl font-bold">{data.filter(p => p.status?.toLowerCase().includes("transit")).length}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Delivered */}
+      <div className="group relative overflow-hidden rounded-xl bg-green-500/20 p-5 shadow-md backdrop-blur">
+        <div className="relative flex items-center gap-4">
+          <div className="rounded-lg bg-white/20 p-3">
+            <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm text-green-100">Delivered</p>
+            <p className="mt-1 text-2xl font-bold">{data.filter(p => p.status?.toLowerCase().includes("delivered")).length}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Pending */}
+      <div className="group relative overflow-hidden rounded-xl bg-yellow-500/20 p-5 shadow-md backdrop-blur">
+        <div className="relative flex items-center gap-4">
+          <div className="rounded-lg bg-white/20 p-3">
+            <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm text-yellow-100">Pending</p>
+            <p className="mt-1 text-2xl font-bold">{data.filter(p => p.status?.toLowerCase().includes("pending")).length}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
 
         {/* Main Table Card */}
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
@@ -134,6 +191,9 @@ export default async function PreAlertsPage() {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                     Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                    Actions
                   </th>
                 </tr>
               </thead>
@@ -198,6 +258,112 @@ export default async function PreAlertsPage() {
                       <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${getStatusColor(p.status)}`}>
                         {p.status}
                       </span>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4">
+                      <div className="flex gap-2">
+                        {p.status === "submitted" && (
+                          <>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch(`${base}/api/admin/pre-alerts`, {
+                                    method: "PUT",
+                                    headers: { "Content-Type": "application/json" },
+                                    credentials: 'include',
+                                    body: JSON.stringify({ id: p._id, action: "approve" }),
+                                  });
+                                  if (res.ok) {
+                                    window.location.reload();
+                                  }
+                                } catch (err) {
+                                  alert("Failed to approve pre-alert");
+                                }
+                              }}
+                              className="px-3 py-1 text-xs font-medium text-green-700 bg-green-100 rounded hover:bg-green-200"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch(`${base}/api/admin/pre-alerts`, {
+                                    method: "PUT",
+                                    headers: { "Content-Type": "application/json" },
+                                    credentials: 'include',
+                                    body: JSON.stringify({ id: p._id, action: "reject" }),
+                                  });
+                                  if (res.ok) {
+                                    window.location.reload();
+                                  }
+                                } catch (err) {
+                                  alert("Failed to reject pre-alert");
+                                }
+                              }}
+                              className="px-3 py-1 text-xs font-medium text-red-700 bg-red-100 rounded hover:bg-red-200"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                        {p.status !== "cancelled" && (
+                          <>
+                            <button
+                              onClick={async () => {
+                                if (confirm(`Resend pre-alert for tracking ${p.trackingNumber}?`)) {
+                                  try {
+                                    const res = await fetch(`${base}/api/admin/pre-alerts`, {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      credentials: 'include',
+                                      body: JSON.stringify({ id: p._id, action: "resend" }),
+                                    });
+                                    if (res.ok) {
+                                      alert("Pre-alert resent successfully!");
+                                      window.location.reload();
+                                    } else {
+                                      const data = await res.json();
+                                      alert(data?.error || "Failed to resend pre-alert");
+                                    }
+                                  } catch (err) {
+                                    alert("Failed to resend pre-alert");
+                                  }
+                                }
+                              }}
+                              className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded hover:bg-blue-200"
+                              title="Resend Pre-Alert"
+                            >
+                              Resend
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (confirm(`Cancel pre-alert for tracking ${p.trackingNumber}?`)) {
+                                  try {
+                                    const res = await fetch(`${base}/api/admin/pre-alerts`, {
+                                      method: "PUT",
+                                      headers: { "Content-Type": "application/json" },
+                                      credentials: 'include',
+                                      body: JSON.stringify({ id: p._id, action: "cancel" }),
+                                    });
+                                    if (res.ok) {
+                                      alert("Pre-alert cancelled successfully!");
+                                      window.location.reload();
+                                    } else {
+                                      const data = await res.json();
+                                      alert(data?.error || "Failed to cancel pre-alert");
+                                    }
+                                  } catch (err) {
+                                    alert("Failed to cancel pre-alert");
+                                  }
+                                }
+                              }}
+                              className="px-3 py-1 text-xs font-medium text-orange-700 bg-orange-100 rounded hover:bg-orange-200"
+                              title="Cancel Pre-Alert"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

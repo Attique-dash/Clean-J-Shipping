@@ -1,222 +1,229 @@
-import { dbConnect } from "@/lib/db";
-import { Package } from "@/models/Package";
+// src/app/admin/unknown-packages/page.tsx
+'use client';
 
-export default async function UnknownPackagesPage() {
-  await dbConnect();
-  const raw = await Package.find({
-    $or: [{ status: "Unknown" }, { customer: { $exists: false } }, { customer: null }],
-  })
-    .sort({ updatedAt: -1 })
-    .limit(500)
-    .lean<{
-      _id: unknown;
-      trackingNumber: string;
-      status: string;
-      userCode: string;
-      updatedAt?: Date | string;
-      description?: string;
-    }[]>();
+import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'react-toastify';
+import {
+  FaUser,
+  FaSearch,
+  FaLink,
+  FaTrash,
+  FaExclamationTriangle,
+  FaEnvelope,
+} from 'react-icons/fa';
+import { Loader2 } from 'lucide-react';
 
-  const items = raw.map((p) => ({
-    _id: String(p._id),
-    trackingNumber: p.trackingNumber,
-    status: p.status,
-    userCode: p.userCode,
-    description: p.description,
-    updatedAt:
-      typeof p.updatedAt === "string"
-        ? p.updatedAt
-        : p.updatedAt?.toISOString?.() ?? new Date().toISOString(),
-  }));
+interface Package {
+  _id: string;
+  trackingNumber: string;
+  sender: {
+    name: string;
+    email?: string;
+    phone?: string;
+  };
+  receivedAt: string;
+  notes?: string;
+}
+
+export default function UnknownPackagesPage() {
+  const { status } = useSession();
+  const router = useRouter();
+  const [packages, setPackages] = useState<Package[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Redirect if not authenticated or not admin
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [status, router]);
+
+  // Load unknown packages
+  useEffect(() => {
+    const fetchPackages = async () => {
+      try {
+        const res = await fetch('/api/warehouse/packages/unknown');
+        const data = await res.json();
+        
+        if (!res.ok) {
+          throw new Error(data.message || 'Failed to load packages');
+        }
+
+        setPackages(data.packages);
+      } catch (error) {
+        console.error('Error loading packages:', error);
+        toast.error('Failed to load unknown packages');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (status === 'authenticated') {
+      fetchPackages();
+    }
+  }, [status]);
+
+  // Filter packages based on search term
+  const filteredPackages = packages.filter(pkg => 
+    pkg.trackingNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    pkg.sender?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    pkg.sender?.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Link package to customer
+  const linkToCustomer = async (packageId: string, customerId: string) => {
+    try {
+      const res = await fetch(`/api/warehouse/packages/${packageId}/link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to link package');
+      }
+
+      // Remove from the list
+      setPackages(packages.filter(pkg => pkg._id !== packageId));
+      toast.success('Package linked successfully');
+    } catch (error) {
+      console.error('Error linking package:', error);
+      toast.error('Failed to link package');
+    }
+  };
+
+  // Delete package
+  const handleDelete = async (packageId: string) => {
+    if (!window.confirm('Are you sure you want to delete this package?')) return;
+
+    try {
+      const res = await fetch(`/api/warehouse/packages/${packageId}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to delete package');
+      }
+
+      // Remove from the list
+      setPackages(packages.filter(pkg => pkg._id !== packageId));
+      toast.success('Package deleted successfully');
+    } catch (error) {
+      console.error('Error deleting package:', error);
+      toast.error('Failed to delete package');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20">
+        <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-orange-50">
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Header Section */}
-        <div className="mb-8">
-          <div className="bg-gradient-to-r from-[#0f4d8a] to-[#E67919] rounded-2xl shadow-2xl p-8 text-white">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <h1 className="text-4xl font-bold mb-2 flex items-center gap-3">
-                  <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
-                  Unknown Packages
-                </h1>
-                <p className="text-blue-100 text-lg">Packages requiring attention and assignment</p>
-              </div>
-              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-6 py-4 border border-white/30">
-                <div className="text-sm font-medium text-blue-100 mb-1">Total Items</div>
-                <div className="text-4xl font-bold">{items.length}</div>
-              </div>
-            </div>
-          </div>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Unknown Packages</h1>
+          <p className="text-gray-600">Packages that couldn&apos;t be matched to a customer</p>
         </div>
+      </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#0f4d8a] hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium mb-1">Unknown Status</p>
-                <p className="text-3xl font-bold text-[#0f4d8a]">
-                  {items.filter(i => i.status === "Unknown").length}
-                </p>
-              </div>
-              <div className="bg-blue-100 p-3 rounded-lg">
-                <svg className="w-8 h-8 text-[#0f4d8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-            </div>
+      {/* Search Bar */}
+      <div className="mb-6">
+        <div className="relative rounded-md shadow-sm">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <FaSearch className="h-5 w-5 text-gray-400" />
           </div>
-
-          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-[#E67919] hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium mb-1">No Customer</p>
-                <p className="text-3xl font-bold text-[#E67919]">
-                  {items.filter(i => !i.userCode || i.userCode === "").length}
-                </p>
-              </div>
-              <div className="bg-orange-100 p-3 rounded-lg">
-                <svg className="w-8 h-8 text-[#E67919]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium mb-1">Recent (24h)</p>
-                <p className="text-3xl font-bold text-green-600">
-                  {items.filter(i => {
-                    const diff = Date.now() - new Date(i.updatedAt).getTime();
-                    return diff < 24 * 60 * 60 * 1000;
-                  }).length}
-                </p>
-              </div>
-              <div className="bg-green-100 p-3 rounded-lg">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-            </div>
-          </div>
+          <input
+            type="text"
+            className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 pr-12 sm:text-sm border-gray-300 rounded-md p-3 border"
+            placeholder="Search by tracking #, sender name, or email"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
+      </div>
 
-        {/* Table Section */}
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
-          {/* Table Header */}
-          <div className="bg-gradient-to-r from-[#0f4d8a] to-[#0f4d8a]/90 px-6 py-4">
-            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              Package Details
-            </h2>
-          </div>
-
-          {/* Table Content */}
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b-2 border-gray-200">
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Tracking Number
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    User Code
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Last Updated
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {items.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                        </svg>
-                        <p className="text-gray-500 font-medium">No unknown packages found</p>
+      {/* Packages List */}
+      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+        <ul className="divide-y divide-gray-200">
+          {filteredPackages.length === 0 ? (
+            <li className="p-4 text-center text-gray-500">
+              {searchTerm ? 'No packages match your search' : 'No unknown packages found'}
+            </li>
+          ) : (
+            filteredPackages.map((pkg) => (
+              <li key={pkg._id} className="p-4 hover:bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0 h-12 w-12 rounded-full bg-yellow-100 flex items-center justify-center">
+                        <FaExclamationTriangle className="h-6 w-6 text-yellow-600" />
                       </div>
-                    </td>
-                  </tr>
-                ) : (
-                  items.map((p, idx) => (
-                    <tr 
-                      key={p._id} 
-                      className="hover:bg-blue-50/50 transition-colors duration-150"
+                      <div className="ml-4">
+                        <div className="flex items-center">
+                          <p className="text-sm font-medium text-yellow-800 truncate">
+                            {pkg.trackingNumber}
+                          </p>
+                          <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                            Unassigned
+                          </span>
+                        </div>
+                        <div className="mt-1 text-sm text-gray-500">
+                          <div className="flex items-center">
+                            <FaUser className="mr-1" />
+                            <span>{pkg.sender?.name || 'Unknown Sender'}</span>
+                          </div>
+                          {pkg.sender?.email && (
+                            <div className="mt-1 flex items-center text-xs text-gray-400">
+                              <FaEnvelope className="mr-1" />
+                              <span>{pkg.sender.email}</span>
+                            </div>
+                          )}
+                          <div className="mt-1 text-xs text-gray-400">
+                            <span>Received: {new Date(pkg.receivedAt).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ml-4 flex-shrink-0 flex space-x-2">
+                    <button
+                      onClick={() => {
+                        // In a real app, this would open a modal to select a customer
+                        const customerId = prompt('Enter customer ID:');
+                        if (customerId) {
+                          linkToCustomer(pkg._id, customerId);
+                        }
+                      }}
+                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-[#E67919] rounded-full animate-pulse"></div>
-                          <span className="text-sm font-semibold text-gray-900">{p.trackingNumber}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-200">
-                          <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                          {p.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {p.userCode ? (
-                          <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-[#0f4d8a]/10 text-[#0f4d8a] border border-[#0f4d8a]/20">
-                            {p.userCode}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200">
-                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
-                            </svg>
-                            Not Assigned
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-600 line-clamp-2">
-                          {p.description || <span className="text-gray-400 italic">No description</span>}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 font-medium">
-                          {new Date(p.updatedAt).toLocaleDateString()}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {new Date(p.updatedAt).toLocaleTimeString()}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                      <FaLink className="mr-1" /> Link to Customer
+                    </button>
+                    <button
+                      onClick={() => handleDelete(pkg._id)}
+                      className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <FaTrash className="mr-1" /> Delete
+                    </button>
+                  </div>
+                </div>
+                {pkg.notes && (
+                  <div className="mt-2 text-sm text-gray-500 bg-yellow-50 p-2 rounded-md">
+                    <p className="font-medium">Notes:</p>
+                    <p>{pkg.notes}</p>
+                  </div>
                 )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Footer */}
-          {items.length > 0 && (
-            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <span>Showing <span className="font-semibold text-gray-900">{items.length}</span> packages</span>
-                <span className="text-xs">Last updated: {new Date().toLocaleString()}</span>
-              </div>
-            </div>
+              </li>
+            ))
           )}
-        </div>
+        </ul>
       </div>
     </div>
   );

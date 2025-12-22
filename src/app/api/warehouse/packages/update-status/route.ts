@@ -6,9 +6,10 @@ import { isWarehouseAuthorized, getAuthFromRequest, verifyWarehouseApiKey } from
 import { updatePackageSchema } from "@/lib/validators";
 import { sendStatusUpdateEmail } from "@/lib/email";
 import { rateLimit } from "@/lib/rateLimit";
+import { wsManager } from "@/lib/websocket-server";
 
 function isValidStatus(s: unknown): s is PackageStatus {
-  return ["Unknown", "At Warehouse", "In Transit", "At Local Port", "Delivered", "Deleted"].includes(
+  return ["Unknown", "At Warehouse", "In Transit", "At Local Port", "Delivered", "Deleted", "Shipped"].includes(
     s as PackageStatus
   );
 }
@@ -21,6 +22,8 @@ function uiToInternalStatus(ui?: string): PackageStatus | undefined {
       return "At Local Port";
     case "delivered":
       return "Delivered";
+    case "shipped":
+      return "In Transit"; // Map "shipped" to "In Transit" for admin visibility
     case "pending":
       return "At Warehouse";
     default:
@@ -54,7 +57,7 @@ export async function POST(req: Request) {
     const { valid, keyInfo } = await verifyWarehouseApiKey(req);
     if (valid && keyInfo?.keyPrefix) identifier = keyInfo.keyPrefix;
     else {
-      const payload = getAuthFromRequest(req);
+      const payload = await getAuthFromRequest(req);
       const fromCookie = (payload?.uid as string | undefined) || (payload?.email as string | undefined) || (payload?.userCode as string | undefined);
       if (fromCookie) identifier = `wh_${fromCookie}`;
     }
@@ -93,7 +96,12 @@ export async function POST(req: Request) {
 
   // Determine final internal status (UI overrides if provided)
   const uiMapped = uiToInternalStatus(statusUi);
-  const status = (uiMapped ?? statusIn) as PackageStatus;
+  // Map "Shipped" to "In Transit" for compatibility
+  let finalStatus = (uiMapped ?? statusIn) as PackageStatus;
+  if (finalStatus === "Shipped" || (statusIn as string) === "Shipped") {
+    finalStatus = "In Transit";
+  }
+  const status = finalStatus;
   if (!isValidStatus(status)) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
@@ -150,10 +158,43 @@ export async function POST(req: Request) {
     }
   }
 
-  const payload = getAuthFromRequest(req);
+  const payload = await getAuthFromRequest(req);
   const updated_by = (payload?.userCode as string) || (payload?.email as string) || "warehouse";
   const new_status_ui = internalToUiStatus(status);
   const finalLocation = location || (pkg?.branch as string | undefined);
+
+  // Send WebSocket notification with location if available
+  if (pkg) {
+    const customer = await User.findOne({ userCode: pkg.userCode, role: "customer" }).select("_id").lean();
+    const userId = customer ? String(customer._id) : undefined;
+
+    // Try to extract location from note or use branch
+    let locationData: { latitude?: number; longitude?: number; address?: string } | undefined;
+    if (finalLocation) {
+      locationData = { address: finalLocation };
+    }
+
+    wsManager.notifyPackageUpdate({
+      trackingNumber: pkg.trackingNumber,
+      userId,
+      status,
+      location: finalLocation,
+    });
+
+    // Also emit location update if location data exists
+    if (locationData && userId) {
+      wsManager.sendToUser(userId, {
+        type: 'package_update',
+        data: {
+          trackingNumber: pkg.trackingNumber,
+          status,
+          location: locationData,
+          timestamp: now,
+        },
+        timestamp: now,
+      });
+    }
+  }
 
   return NextResponse.json({
     tracking_number: trackingNumber,

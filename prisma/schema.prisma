@@ -15,9 +15,16 @@ model Admin {
   name      String
   phone     String?
   avatar    String?
+  role      String   @default("admin") // 'admin', 'warehouse_staff', 'customer_support'
   isActive  Boolean  @default(true)
+  lastLogin DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Relations
+  messages    Message[]  @relation("AdminMessages")
+  broadcasts  Broadcast[]
+  manifests   Manifest[]
 
   @@map("admins")
 }
@@ -40,17 +47,50 @@ model User {
   verificationToken String?
   resetPasswordToken String?
   resetPasswordExpires DateTime?
+  shippingAddresses  ShippingAddress[]
+  shippingId     String?   @unique // Unique shipping ID for customer
+  loyaltyPoints  Int       @default(0)
+  lastLogin      DateTime?
+  preferences    Json?     // User preferences stored as JSON
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   // Relations
   packages       Package[]
   payments       Payment[]
-  messages       Message[]
+  messages       Message[]  @relation("UserMessages")
+  bills          Bill[]
+  preAlerts      PreAlert[]
   
   // Indexes
   @@index([phone])
+  @@index([shippingId])
   @@map("users")
+}
+
+// Shipping address for customers
+model ShippingAddress {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  label       String   // e.g., 'Home', 'Work', 'Warehouse'
+  contactName String
+  phone       String
+  address     String
+  city        String
+  state       String
+  zipCode     String
+  country     String   @default("Jamaica")
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("shipping_addresses")
 }
 
 // ApiKey model - for API keys management
@@ -63,9 +103,14 @@ model ApiKey {
   permissions String[] // JSON array of permissions
   expiresAt   DateTime?
   lastUsedAt  DateTime?
+  ipWhitelist String[] // Array of whitelisted IPs
+  rateLimit   Int      @default(1000) // Requests per hour
+  createdBy   String   @db.ObjectId // Admin ID who created the key
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Indexes
+  @@index([createdBy])
   @@map("apikeys")
 }
 
@@ -73,62 +118,99 @@ model ApiKey {
 model Broadcast {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   title       String
-  message     String
-  type        String   // 'info', 'warning', 'alert', 'announcement'
+  message     String   @db.String(1000)
+  type        String   // 'info', 'warning', 'alert', 'announcement', 'maintenance'
   priority    String   @default("normal") // 'low', 'normal', 'high', 'urgent'
   targetUsers String[] // Array of user IDs or ['all']
   isActive    Boolean  @default(true)
-  expiresAt   DateTime?
+  startDate   DateTime @default(now())
+  endDate     DateTime?
+  isPinned    Boolean  @default(false)
+  createdBy   String   @db.ObjectId // Admin ID who created the broadcast
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Relations
+  admin       Admin    @relation(fields: [createdBy], references: [id])
+
+  // Indexes
+  @@index([isActive])
+  @@index([isPinned])
+  @@index([startDate, endDate])
   @@map("broadcasts")
 }
 
 // Manifest model - for shipment manifests
 model Manifest {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
-  manifestNumber  String
+  manifestNumber  String    @unique
+  type            String    @default("standard") // 'standard', 'consolidated', 'return'
+  origin          String
+  destination     String
   route           String
   vehicleNumber   String?
   driverName      String?
   driverPhone     String?
   departureDate   DateTime
+  estimatedArrival DateTime
   arrivalDate     DateTime?
-  status          String    @default("pending") // 'pending', 'in_transit', 'arrived', 'completed'
+  status          String    @default("pending") // 'pending', 'in_transit', 'arrived', 'completed', 'cancelled'
   totalPackages   Int       @default(0)
-  notes           String?
+  totalWeight     Float     @default(0) // in kg
+  totalValue      Float     @default(0) // total declared value
+  notes           String?   @db.String(1000)
+  createdBy       String    @db.ObjectId // Admin ID who created the manifest
+  closedBy        String?   @db.ObjectId // Admin ID who closed the manifest
+  closedAt        DateTime?
+  isSealed        Boolean   @default(false)
+  sealNumber      String?   // Physical seal number for security
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   // Relations
   packages        Package[]
+  admin           Admin     @relation(fields: [createdBy], references: [id])
+  closer          Admin?    @relation("ManifestCloser", fields: [closedBy], references: [id])
 
+  // Indexes
+  @@index([manifestNumber])
+  @@index([status])
+  @@index([departureDate, arrivalDate])
   @@map("manifests")
 }
 
 // Message model - for customer support messages
 model Message {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId     String   @db.ObjectId
-  subject    String
-  message    String
-  status     String   @default("open") // 'open', 'in_progress', 'resolved', 'closed'
-  priority   String   @default("normal") // 'low', 'normal', 'high'
-  category   String?  // 'inquiry', 'complaint', 'feedback', 'support'
-  response   String?
-  respondedAt DateTime?
-  respondedBy String?
-  isRead     Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  threadId     String?  @db.ObjectId // For thread/conversation grouping
+  userId       String   @db.ObjectId
+  adminId      String?  @db.ObjectId
+  subject      String
+  message      String   @db.String(5000)
+  attachments  String[] // Array of file URLs
+  status       String   @default("open") // 'open', 'in_progress', 'resolved', 'closed'
+  priority     String   @default("normal") // 'low', 'normal', 'high', 'urgent'
+  category     String   @default("inquiry") // 'inquiry', 'complaint', 'feedback', 'support', 'billing', 'shipment'
+  relatedTo    String?  // Related entity ID (package, payment, etc.)
+  relatedType  String?  // Type of related entity ('package', 'payment', 'invoice')
+  isRead       Boolean  @default(false)
+  isCustomerRead Boolean @default(true)
+  isAdminRead  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation("UserMessages", fields: [userId], references: [id], onDelete: Cascade)
+  admin        Admin?   @relation("AdminMessages", fields: [adminId], references: [id])
+  thread       Message? @relation("MessageThread", fields: [threadId], references: [id])
+  replies      Message[] @relation("MessageThread")
 
   // Indexes
   @@index([userId])
+  @@index([adminId])
   @@index([status])
+  @@index([category])
+  @@index([createdAt])
   @@map("messages")
 }
 
@@ -136,38 +218,71 @@ model Message {
 model Package {
   id                String    @id @default(auto()) @map("_id") @db.ObjectId
   trackingNumber    String    @unique
-  referenceNumber   String?
+  referenceNumber   String?   // Customer's reference number/PO
+  barcode           String?   // Barcode data for scanning
+  
+  // Customer Information
+  userId            String    @db.ObjectId
+  customerNotes     String?   // Special instructions from customer
   
   // Sender Information
+  senderType        String    @default("customer") // 'customer', 'warehouse', 'third_party'
   senderName        String
+  senderCompany     String?
   senderPhone       String
   senderEmail       String?
   senderAddress     String
   senderCity        String
   senderState       String
   senderZipCode     String
-  senderCountry     String    @default("Pakistan")
+  senderCountry     String    @default("Jamaica")
   
   // Receiver Information
   receiverName      String
+  receiverCompany   String?
   receiverPhone     String
   receiverEmail     String?
   receiverAddress   String
   receiverCity      String
   receiverState     String
   receiverZipCode   String
-  receiverCountry   String    @default("Pakistan")
+  receiverCountry   String    @default("Jamaica")
   
   // Package Details
   weight            Float     // in kg
+  volumetricWeight  Float?    // in kg (calculated)
   length            Float?    // in cm
   width             Float?    // in cm
   height            Float?    // in cm
+  dimensionUnit     String    @default("cm")
+  weightUnit        String    @default("kg")
   itemDescription   String
+  itemCategory      String?   // 'electronics', 'clothing', 'documents', etc.
+  itemQuantity      Int       @default(1)
   itemValue         Float?    // declared value
-  packageType       String    // 'document', 'parcel', 'freight'
-  deliveryType      String    // 'standard', 'express', 'overnight', 'same_day'
-  serviceType       String?   // 'pickup', 'delivery', 'door_to_door'
+  hsCode            String?   // Harmonized System code for customs
+  
+  // Service Details
+  packageType       String    @default("parcel") // 'document', 'parcel', 'freight', 'pallet'
+  serviceType       String    @default("standard") // 'standard', 'express', 'overnight', 'same_day'
+  deliveryType      String    @default("door_to_door") // 'pickup', 'delivery', 'door_to_door', 'warehouse_pickup'
+  shippingMethod    String?   // 'air', 'sea', 'ground'
+  
+  // Consolidation
+  isConsolidated    Boolean   @default(false)
+  consolidationId   String?   @db.ObjectId // For consolidated shipments
+  originalPackages  String[]  // Array of package IDs that were consolidated
+  
+  // Warehouse Details
+  warehouseLocation String?   // Location in warehouse (aisle/shelf/bin)
+  dateReceived      DateTime? // When package was received at warehouse
+  receivedBy        String?   // Staff ID who received the package
+  
+  // Customs Information
+  isInternational   Boolean   @default(false)
+  customsValue      Float?    // For international shipments
+  dutiesAndTaxes    Float?    // Calculated duties and taxes
+  invoiceNumber     String?   // Commercial invoice number
   
   // Payment & Pricing
   shippingCost      Float
@@ -175,119 +290,556 @@ model Package {
   tax               Float     @default(0)
   discount          Float     @default(0)
   totalAmount       Float
-  paymentMethod     String    // 'cash', 'card', 'online', 'cod'
-  paymentStatus     String    @default("pending") // 'pending', 'paid', 'refunded'
+  paymentMethod     String    // 'cash', 'card', 'online', 'cod', 'account'
+  paymentStatus     String    @default("pending") // 'pending', 'paid', 'partially_paid', 'refunded', 'cancelled'
+  paymentDueDate    DateTime? // For credit terms
   
   // Status & Tracking
-  status            String    @default("pending") // 'pending', 'picked_up', 'in_transit', 'out_for_delivery', 'delivered', 'failed', 'returned'
+  status            String    @default("pending") // 'pending', 'received', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'lost', 'damaged'
+  statusReason      String?   // Reason for status change
   currentLocation   String?
+  lastScan          DateTime? // Last scan time
   estimatedDelivery DateTime?
   actualDelivery    DateTime?
   pickupDate        DateTime?
   
   // Additional Information
-  specialInstructions String?
-  signature         String?   // signature URL
-  proofOfDelivery   String?   // image URL
-  notes             String?
+  specialInstructions String?   @db.String(1000)
+  signatureRequired  Boolean   @default(false)
+  signatureImage    String?   // URL to signature image
+  proofOfDelivery   String?   // URL to delivery proof image
+  damageNotes       String?   // Notes about any damage
+  returnReason      String?   // If package was returned
+  
+  // Flags
   isFragile         Boolean   @default(false)
-  requiresSignature Boolean   @default(false)
+  isHazardous       Boolean   @default(false)
+  isPerishable      Boolean   @default(false)
   isInsured         Boolean   @default(false)
+  isSignatureRequired Boolean @default(false)
+  isAgeVerificationRequired Boolean @default(false)
   
   // Foreign Keys
-  userId            String    @db.ObjectId
   manifestId        String?   @db.ObjectId
+  preAlertId        String?   @db.ObjectId
   
+  // Timestamps
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime? // For soft delete
 
   // Relations
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  manifest          Manifest? @relation(fields: [manifestId], references: [id])
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manifest          Manifest?         @relation(fields: [manifestId], references: [id])
+  preAlert          PreAlert?         @relation(fields: [preAlertId], references: [id])
   audits            Audit[]
   postTransactions  PostTransaction[]
+  bills             Bill[]
+  trackingHistory   TrackingHistory[]
+  documents         Document[]
+  
+  // Consolidated packages relation (for consolidated shipments)
+  parentPackage     Package?          @relation("PackageConsolidation", fields: [consolidationId], references: [id])
+  childPackages     Package[]         @relation("PackageConsolidation")
 
   // Indexes
+  @@index([trackingNumber])
+  @@index([referenceNumber])
   @@index([status])
   @@index([userId])
+  @@index([manifestId])
   @@index([createdAt])
+  @@index([isConsolidated])
   @@map("packages")
 }
 
-// Audit model - for tracking package status changes
-model Audit {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  packageId   String   @db.ObjectId
-  status      String
-  location    String?
-  description String?
-  performedBy String?  // admin/staff who performed the action
-  timestamp   DateTime @default(now())
+// TrackingHistory model - for tracking package status changes
+model TrackingHistory {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  packageId    String   @db.ObjectId
+  status       String
+  statusCode   String?  // Standardized status code
+  location     String?
+  latitude     Float?
+  longitude    Float?
+  description  String?  @db.String(1000)
+  scanType     String?  // 'pickup', 'in_transit', 'out_for_delivery', 'delivered', 'exception'
+  scanLocation String?  // Facility/warehouse name
+  deviceId     String?  // ID of the scanning device
+  performedById String? @db.ObjectId // Staff/admin who performed the action
+  performedByType String? // 'admin', 'system', 'courier', 'customer'
+  metadata     Json?    // Additional data
+  timestamp    DateTime @default(now())
   
   // Relations
-  package     Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  package      Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  performedBy  Admin?   @relation(fields: [performedById], references: [id])
 
-  @@map("audits")
+  // Indexes
+  @@index([packageId])
+  @@index([status])
+  @@index([timestamp])
+  @@map("tracking_history")
+}
+
+// Audit model - for system audit trail
+model Audit {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  action       String   // 'create', 'update', 'delete', 'login', 'logout', 'export', etc.
+  entityType   String   // 'package', 'user', 'invoice', etc.
+  entityId     String   // ID of the affected entity
+  userId       String?  @db.ObjectId // User who performed the action
+  userType     String?  // 'admin', 'customer', 'system'
+  ipAddress    String?
+  userAgent    String?
+  oldValues    Json?    // Previous values (for updates)
+  newValues    Json?    // New values
+  affectedFields String[]? // Which fields were changed
+  status       String   @default("success") // 'success', 'failed', 'pending'
+  error        String?  // Error message if action failed
+  timestamp    DateTime @default(now())
+
+  // Indexes
+  @@index([action])
+  @@index([entityType])
+  @@index([entityId])
+  @@index([userId])
+  @@index([timestamp])
+  @@map("audit_logs")
 }
 
 // Payment model - for payment transactions
 model Payment {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  paymentNumber   String   @unique // Human-readable payment reference
   userId          String   @db.ObjectId
-  transactionId   String   @unique
+  invoiceId       String?  @db.ObjectId
+  packageId       String?  @db.ObjectId
+  
+  // Payment Details
   amount          Float
-  currency        String   @default("PKR")
-  paymentMethod   String   // 'cash', 'card', 'online', 'bank_transfer'
-  paymentGateway  String?  // 'stripe', 'paypal', 'jazzcash', 'easypaisa'
-  status          String   @default("pending") // 'pending', 'processing', 'completed', 'failed', 'refunded'
+  currency        String   @default("JMD")
+  paymentMethod   String   // 'cash', 'card', 'online', 'bank_transfer', 'check', 'money_order', 'mobile_money'
+  paymentGateway  String?  // 'stripe', 'paypal', 'paystack', 'flutterwave', 'offline'
+  gatewayId       String?  // Transaction ID from payment gateway
+  
+  // Status
+  status          String   @default("pending") // 'pending', 'processing', 'completed', 'failed', 'declined', 'refunded', 'partially_refunded', 'cancelled'
+  failureReason   String?  // If payment failed
+  
+  // Billing Information
+  billingName     String?
+  billingEmail    String?
+  billingPhone    String?
+  billingAddress  Json?    // Billing address details
+  
+  // Metadata
   description     String?
-  metadata        Json?    // additional payment data
+  notes           String?  @db.String(1000)
+  metadata        Json?    // Additional payment data from gateway
+  
+  // Timestamps
   paidAt          DateTime?
+  refundedAt      DateTime?
+  refundAmount    Float?   @default(0)
+  refundReason    String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   // Relations
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoice         Invoice? @relation(fields: [invoiceId], references: [id])
+  package         Package? @relation(fields: [packageId], references: [id])
+  refunds         Refund[]
 
   // Indexes
   @@index([userId])
   @@index([status])
+  @@index([paymentNumber])
+  @@index([gatewayId])
+  @@index([createdAt])
+  @@index([paidAt])
   @@map("payments")
+}
+
+// Refund model - for payment refunds
+model Refund {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  paymentId       String   @db.ObjectId
+  amount          Float
+  reason          String?  @db.String(500)
+  status          String   @default("pending") // 'pending', 'processing', 'completed', 'failed'
+  gatewayId       String?  // Refund ID from payment gateway
+  processedById   String?  @db.ObjectId // Admin who processed the refund
+  processedAt     DateTime?
+  notes           String?  @db.String(1000)
+  metadata        Json?    // Additional refund data
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  payment         Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  processedBy     Admin?   @relation(fields: [processedById], references: [id])
+
+  // Indexes
+  @@index([paymentId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("refunds")
 }
 
 // PostTransaction model - for post-delivery transactions
 model PostTransaction {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  transactionId   String   @unique // External reference ID
   packageId       String   @db.ObjectId
-  transactionType String   // 'delivery_confirmation', 'payment_collection', 'return', 'exchange'
-  amount          Float?
-  notes           String?
-  performedBy     String?  // staff member
-  performedAt     DateTime @default(now())
+  transactionType String   // 'delivery_confirmation', 'payment_collection', 'return', 'exchange', 'redelivery', 'hold', 'cancel'
+  status          String   @default("pending") // 'pending', 'in_progress', 'completed', 'failed', 'cancelled'
+  
+  // Transaction Details
+  amount          Float?   // For payment collections
+  currency        String   @default("JMD")
+  paymentMethod   String?  // If collecting payment
+  receiptNumber   String?  // For cash receipts
+  
+  // Location & Contact
+  location        String?  // Where transaction occurred
+  contactName     String?
+  contactPhone    String?
+  
+  // Additional Information
+  reason          String?  // For returns/cancellations
+  notes           String?  @db.String(1000)
+  images          String[] // Array of image URLs
+  
+  // Performed By
+  performedById   String?  @db.ObjectId // Staff/Admin ID
+  performedByType String?  // 'admin', 'courier', 'customer', 'system'
+  
+  // Timestamps
+  scheduledAt     DateTime? // For future actions
+  startedAt       DateTime? // When work began
+  completedAt     DateTime? // When work was completed
+  cancelledAt     DateTime? // If cancelled
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   // Relations
   package         Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  performedBy     Admin?   @relation(fields: [performedById], references: [id])
 
-  @@map("posttransactions")
+  // Indexes
+  @@index([packageId])
+  @@index([transactionType])
+  @@index([status])
+  @@index([createdAt])
+  @@map("post_transactions")
+}
+
+// Invoice model - for billing and invoicing
+model Invoice {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceNumber   String   @unique
+  invoiceType     String   @default("shipping") // 'shipping', 'storage', 'service', 'adjustment'
+  status          String   @default("draft") // 'draft', 'sent', 'paid', 'overdue', 'cancelled', 'refunded'
+  
+  // Customer Information
+  userId          String   @db.ObjectId
+  customerName    String
+  customerEmail   String?
+  customerPhone   String?
+  billingAddress  Json?    // Billing address details
+  
+  // Invoice Details
+  issueDate       DateTime @default(now())
+  dueDate         DateTime
+  currency        String   @default("JMD")
+  taxRate         Float    @default(0)
+  taxAmount       Float    @default(0)
+  discountAmount  Float    @default(0)
+  subtotal        Float
+  total           Float
+  amountPaid      Float    @default(0)
+  balance         Float
+  
+  // Payment Information
+  paymentTerms    String?  @default("due_on_receipt") // 'due_on_receipt', 'net_7', 'net_15', 'net_30'
+  paymentMethod   String?  // 'cash', 'card', 'bank_transfer', 'online', 'check', 'other'
+  paymentDate     DateTime?
+  
+  // Package/Service Details
+  packages        Package[]
+  lineItems       Json[]   // Array of line items with description, quantity, unitPrice, amount
+  
+  // Notes & Metadata
+  notes           String?  @db.String(1000)
+  termsAndConditions String? @db.String(2000)
+  footerText      String?  // Text to display at bottom of invoice
+  
+  // Attachments
+  documentUrl     String?  // URL to PDF version
+  
+  // Audit Fields
+  createdById     String   @db.ObjectId // Admin who created the invoice
+  sentAt          DateTime? // When invoice was sent to customer
+  viewedAt        DateTime? // When customer viewed the invoice
+  paidAt          DateTime? // When invoice was fully paid
+  cancelledAt     DateTime? // If invoice was cancelled
+  cancelledReason String?  // Reason for cancellation
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdBy       Admin    @relation(fields: [createdById], references: [id])
+  payments        Payment[]
+  creditNotes     CreditNote[]
+
+  // Indexes
+  @@index([userId])
+  @@index([invoiceNumber])
+  @@index([status])
+  @@index([issueDate])
+  @@index([dueDate])
+  @@index([createdAt])
+  @@map("invoices")
+}
+
+// Credit Note model - for refunds and adjustments
+model CreditNote {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  creditNoteNumber String   @unique
+  invoiceId       String   @db.ObjectId
+  reason          String   @db.String(500)
+  status          String   @default("draft") // 'draft', 'applied', 'cancelled'
+  amount          Float
+  balance         Float    @default(0) // Remaining credit
+  currency        String   @default("JMD")
+  notes           String?  @db.String(1000)
+  createdById     String   @db.ObjectId // Admin who created the credit note
+  appliedAt       DateTime? // When credit was applied
+  cancelledAt     DateTime? // If credit note was cancelled
+  cancelledReason String?  // Reason for cancellation
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  invoice         Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  createdBy       Admin    @relation(fields: [createdById], references: [id])
+  applications    CreditApplication[]
+
+  // Indexes
+  @@index([invoiceId])
+  @@index([creditNoteNumber])
+  @@index([status])
+  @@index([createdAt])
+  @@map("credit_notes")
+}
+
+// Credit Application model - tracks where credits are applied
+model CreditApplication {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  creditNoteId  String     @db.ObjectId
+  invoiceId     String     @db.ObjectId
+  amount        Float
+  appliedById   String     @db.ObjectId // Admin who applied the credit
+  appliedAt     DateTime   @default(now())
+  notes         String?    @db.String(500)
+
+  // Relations
+  creditNote    CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  invoice       Invoice    @relation(fields: [invoiceId], references: [id])
+  appliedBy     Admin      @relation(fields: [appliedById], references: [id])
+
+  // Indexes
+  @@index([creditNoteId])
+  @@index([invoiceId])
+  @@map("credit_applications")
 }
 
 // PreAlert model - for advance shipment notifications
 model PreAlert {
   id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  trackingNumber   String   @unique
-  estimatedArrival DateTime
+  preAlertNumber   String   @unique // Custom formatted number (e.g., PA-2023-001)
+  userId           String   @db.ObjectId
+  
+  // Shipment Details
+  trackingNumber   String
+  carrier          String?  // Shipping carrier (DHL, FedEx, etc.)
   shipperName      String
+  shipperContact   String?  // Shipper contact info
+  
+  // Shipment Information
   origin           String
   destination      String
-  weight           Float
-  pieces           Int
-  description      String?
-  status           String   @default("pending") // 'pending', 'received', 'processed', 'cancelled'
-  notifiedAt       DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  expectedDate     DateTime
+  actualArrival    DateTime? // When package actually arrived
+  
+  // Package Details
+  weight           Float?   // in kg
+  weightUnit       String   @default("kg")
+  pieces           Int      @default(1)
+  description      String?  @db.String(1000)
+  itemValue        Float?   // Declared value
+  currency         String   @default("USD")
+  
+  // Status & Processing
+  status           String   @default("pending") // 'pending', 'received', 'in_transit', 'arrived', 'processed', 'cancelled'
+  statusReason     String?  // Reason for status change
+  isHighValue      Boolean  @default(false)
+  isHazardous      Boolean  @default(false)
+  requiresInspection Boolean @default(false)
+  
+  // Warehouse Information
+  warehouseLocation String?  // Assigned location in warehouse
+  receivedBy       String?   @db.ObjectId // Staff who received the package
+  processedBy      String?   @db.ObjectId // Staff who processed the pre-alert
+  
+  // Notifications
+  isNotified      Boolean   @default(false)
+  notifiedAt      DateTime? // When customer was notified
+  notificationMethod String? // 'email', 'sms', 'both'
+  
+  // Additional Information
+  notes           String?   @db.String(2000)
+  attachments     String[]  // Array of file URLs (commercial invoice, etc.)
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  packages        Package[]
+  receivedByStaff Admin?    @relation("PreAlertReceivedBy", fields: [receivedBy], references: [id])
+  processedByStaff Admin?   @relation("PreAlertProcessedBy", fields: [processedBy], references: [id])
+
+  // Indexes
+  @@index([userId])
+  @@index([trackingNumber])
+  @@index([status])
+  @@index([expectedDate])
+  @@index([createdAt])
   @@map("prealerts")
+}
+
+// Document model - for storing package documents
+model Document {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  type        String   // 'invoice', 'packing_slip', 'customs_declaration', 'photo', 'other'
+  fileUrl     String   // URL to the stored file
+  size        Int      // File size in bytes
+  mimeType    String   // MIME type of the file
+  
+  // Relations
+  packageId   String?  @db.ObjectId
+  preAlertId  String?  @db.ObjectId
+  invoiceId   String?  @db.ObjectId
+  uploadedById String  @db.ObjectId
+  
+  // Metadata
+  description String?
+  isPublic    Boolean  @default(false)
+  metadata    Json?    // Additional metadata
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  package     Package? @relation(fields: [packageId], references: [id])
+  preAlert    PreAlert? @relation(fields: [preAlertId], references: [id])
+  invoice     Invoice? @relation(fields: [invoiceId], references: [id])
+  uploadedBy  Admin    @relation(fields: [uploadedById], references: [id])
+
+  // Indexes
+  @@index([packageId])
+  @@index([preAlertId])
+  @@index([invoiceId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("documents")
+}
+
+// Warehouse model - for warehouse locations
+model Warehouse {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  code        String   @unique // Short code for the warehouse
+  name        String
+  address     String
+  city        String
+  state       String
+  zipCode     String
+  country     String   @default("Jamaica")
+  phone       String?
+  email       String?
+  contactPerson String?
+  isActive    Boolean  @default(true)
+  isDefault   Boolean  @default(false)
+  location    Json?    // GeoJSON for mapping
+  capacity    Json?    // Storage capacity information
+  operatingHours Json? // Operating hours
+  notes       String?  @db.String(1000)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Indexes
+  @@index([code])
+  @@index([isActive])
+  @@map("warehouses")
+}
+
+// Rate model - for shipping rates and pricing
+model Rate {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  description     String?  @db.String(500)
+  rateType        String   // 'domestic', 'international', 'special'
+  origin          String?  // Origin location/country
+  destination     String?  // Destination location/country
+  
+  // Rate Details
+  baseRate        Float    // Base rate amount
+  ratePerKg       Float?   // Rate per kilogram
+  ratePerVolume   Float?   // Rate per cubic meter/volume
+  minCharge       Float?   // Minimum charge
+  maxWeight       Float?   // Maximum weight for this rate
+  maxDimensions   Json?    // Maximum dimensions {length, width, height}
+  
+  // Surcharges
+  fuelSurcharge   Float?   // Percentage
+  securitySurcharge Float? // Percentage
+  remoteAreaSurcharge Float? // Percentage
+  residentialSurcharge Float? // Percentage
+  
+  // Service Level
+  serviceLevel    String?  // 'economy', 'standard', 'express', 'overnight'
+  estimatedTransitTime String? // e.g., '2-3 business days'
+  
+  // Validity
+  effectiveFrom   DateTime @default(now())
+  effectiveUntil  DateTime?
+  isActive        Boolean  @default(true)
+  
+  // Additional Information
+  carrier         String?  // If using carrier rates
+  carrierService  String?  // Specific carrier service
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdBy       String   @db.ObjectId // Admin who created the rate
+
+  // Relations
+  admin           Admin    @relation(fields: [createdBy], references: [id])
+
+  // Indexes
+  @@index([rateType])
+  @@index([origin, destination])
+  @@index([isActive])
+  @@index([effectiveFrom, effectiveUntil])
+  @@map("rates")
 }

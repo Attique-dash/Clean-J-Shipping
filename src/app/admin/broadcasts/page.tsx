@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Send, Calendar, Mail, Globe, Users, CheckCircle, XCircle, Clock, RefreshCw } from "lucide-react";
+import { Send, Calendar, Mail, Globe, Users, CheckCircle, XCircle, Clock, RefreshCw, Loader2 } from "lucide-react";
 
 type Broadcast = {
   id: string;
@@ -23,6 +23,8 @@ export default function BroadcastsPage() {
   const [portal, setPortal] = useState(true);
   const [email, setEmail] = useState(false);
   const [schedule, setSchedule] = useState<string>("");
+  const [audience, setAudience] = useState<"all" | "active" | "inactive">("all");
+  const [priority, setPriority] = useState<"low" | "normal" | "high">("normal");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -57,10 +59,12 @@ export default function BroadcastsPage() {
       if (portal) channels.push("portal");
       if (email) channels.push("email");
       if (channels.length === 0) channels.push("portal");
-      const payload: { title: string; body: string; channels: ("email" | "portal")[]; scheduled_at?: string } = {
+      const payload: { title: string; body: string; channels: ("email" | "portal")[]; scheduled_at?: string; audience?: string; priority?: string } = {
         title,
         body,
         channels,
+        audience,
+        priority,
       };
       if (schedule) payload.scheduled_at = new Date(schedule).toISOString();
       const res = await fetch("/api/admin/broadcast-messages", {
@@ -75,6 +79,8 @@ export default function BroadcastsPage() {
       setPortal(true);
       setEmail(false);
       setSchedule("");
+      setAudience("all");
+      setPriority("normal");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
@@ -90,63 +96,80 @@ export default function BroadcastsPage() {
   }), { recipients: 0, delivered: 0, failed: 0 });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#0f4d8a] to-[#E67919] bg-clip-text text-transparent">
-              Broadcast Messages
-            </h1>
-            <p className="text-slate-600 mt-1">Send announcements to your users via email and portal</p>
-          </div>
-          <button 
-            onClick={load}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 transition-colors shadow-sm"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>Refresh</span>
-          </button>
-        </div>
+        {/* Header Section */}
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-white/10" />
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl p-5 shadow-md border border-slate-200">
-            <div className="flex items-center justify-between">
+          <div className="relative flex flex-col gap-6">
+            
+            {/* Top Row */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <p className="text-sm text-slate-600 font-medium">Total Broadcasts</p>
-                <p className="text-3xl font-bold text-[#0f4d8a] mt-1">{items.length}</p>
+                <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-200">
+                  Broadcast Messages
+                </h1>
+                <p className="mt-1 text-sm text-blue-100">
+                  Send announcements to your users via email and portal
+                </p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#0f4d8a] to-[#0f4d8a]/70 flex items-center justify-center">
-                <Send className="w-6 h-6 text-white" />
+
+              {/* Refresh Button */}
+              <button 
+                onClick={load}
+                className="inline-flex items-center gap-2 rounded-2xl bg-white/15 px-5 py-3 text-sm font-semibold shadow-md backdrop-blur transition hover:bg-white/25 hover:shadow-xl hover:scale-105 active:scale-95"
+              >
+                <RefreshCw className="h-5 w-5" />
+                Refresh
+              </button>
+            </div>
+
+            {/* Stats Cards inside header */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
+              {/* Total Broadcasts */}
+              <div className="group relative overflow-hidden rounded-xl bg-white/10 p-5 shadow-md backdrop-blur">
+                <div className="relative flex items-center gap-4">
+                  <div className="rounded-lg bg-white/20 p-3">
+                    <Send className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-100">Total Broadcasts</p>
+                    <p className="mt-1 text-2xl font-bold">{items.length}</p>
+                  </div>
+                </div>
               </div>
+
+              {/* Total Recipients */}
+              <div className="group relative overflow-hidden rounded-xl bg-orange-500/20 p-5 shadow-md backdrop-blur">
+                <div className="relative flex items-center gap-4">
+                  <div className="rounded-lg bg-white/20 p-3">
+                    <Users className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-orange-100">Total Recipients</p>
+                    <p className="mt-1 text-2xl font-bold">{totalStats.recipients}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Delivered */}
+              <div className="group relative overflow-hidden rounded-xl bg-green-500/20 p-5 shadow-md backdrop-blur">
+                <div className="relative flex items-center gap-4">
+                  <div className="rounded-lg bg-white/20 p-3">
+                    <CheckCircle className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-green-100">Delivered</p>
+                    <p className="mt-1 text-2xl font-bold">{totalStats.delivered}</p>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
-          
-          <div className="bg-white rounded-xl p-5 shadow-md border border-slate-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 font-medium">Total Recipients</p>
-                <p className="text-3xl font-bold text-[#E67919] mt-1">{totalStats.recipients}</p>
-              </div>
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#E67919] to-[#E67919]/70 flex items-center justify-center">
-                <Users className="w-6 h-6 text-white" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-xl p-5 shadow-md border border-slate-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 font-medium">Delivered</p>
-                <p className="text-3xl font-bold text-green-600 mt-1">{totalStats.delivered}</p>
-              </div>
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-white" />
-              </div>
-            </div>
-          </div>
-        </div>
+        </header>
 
         {/* Create Broadcast Form */}
         <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
@@ -198,6 +221,38 @@ export default function BroadcastsPage() {
                 onChange={(e) => setBody(e.target.value)} 
                 required 
               />
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Select Audience
+                </label>
+                <select
+                  value={audience}
+                  onChange={(e) => setAudience(e.target.value as "all" | "active" | "inactive")}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#0f4d8a] focus:border-transparent transition-shadow"
+                >
+                  <option value="all">All Customers</option>
+                  <option value="active">Active Customers</option>
+                  <option value="inactive">Inactive Customers</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Priority
+                </label>
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as "low" | "normal" | "high")}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#0f4d8a] focus:border-transparent transition-shadow"
+                >
+                  <option value="low">Low</option>
+                  <option value="normal">Normal</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
             </div>
             
             <div>
@@ -258,8 +313,8 @@ export default function BroadcastsPage() {
           
           <div className="overflow-x-auto">
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <RefreshCw className="w-8 h-8 text-[#0f4d8a] animate-spin" />
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
               </div>
             ) : items.length === 0 ? (
               <div className="text-center py-12">

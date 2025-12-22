@@ -29,8 +29,12 @@ export async function POST(req: Request) {
   const pkg = await Package.findOneAndUpdate(
     { trackingNumber },
     {
-      $set: { status: "Deleted", updatedAt: now },
-      $push: { history: { status: "Deleted", at: now, note: "Deleted by warehouse" } },
+      $set: { 
+        status: "returned", 
+        statusReason: "Deleted by warehouse",
+        updatedAt: now 
+      },
+      $push: { history: { status: "returned", at: now, note: "Deleted by warehouse" } },
     },
     { new: true }
   );

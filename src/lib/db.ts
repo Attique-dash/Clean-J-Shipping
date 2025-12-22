@@ -12,11 +12,10 @@ interface CachedMongoose {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var mongoose: CachedMongoose;
 }
 
-let cached: CachedMongoose = global.mongoose || { conn: null, promise: null };
+const cached: CachedMongoose = global.mongoose || { conn: null, promise: null };
 
 if (!global.mongoose) {
   global.mongoose = cached;
@@ -49,3 +48,6 @@ export async function dbConnect(): Promise<typeof mongoose> {
 }
 
 export default dbConnect;
+
+// Alias for backward compatibility
+export const connectToDatabase = dbConnect;

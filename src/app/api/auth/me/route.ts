@@ -1,11 +1,11 @@
 // src/app/api/auth/me/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth-config';
 import { dbConnect } from '@/lib/db';
 import { User } from '@/models/User';
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     
@@ -43,12 +43,18 @@ export async function GET(req: NextRequest) {
         );
       }
 
+      // Get name from firstName/lastName or name field
+      const fullName = user.firstName && user.lastName 
+        ? `${user.firstName} ${user.lastName}`
+        : user.name || user.email;
+      
       userData = {
         id: user._id.toString(),
         email: user.email,
-        name: user.firstName && user.lastName 
-          ? `${user.firstName} ${user.lastName}` 
-          : user.email,
+        name: fullName,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        userCode: user.userCode,
         phone: user.phone,
         address: user.address?.street,
         city: user.address?.city,
@@ -58,6 +64,7 @@ export async function GET(req: NextRequest) {
         isActive: user.accountStatus === 'active',
         isVerified: user.emailVerified || false,
         createdAt: user.createdAt,
+        lastLogin: user.lastLogin || null,
         role: user.role,
       };
     }

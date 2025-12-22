@@ -1,234 +1,356 @@
-"use client";
+// src/app/warehouse/packages/page.tsx
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import { generateTrackingNumber } from "@/lib/tracking";
+import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'react-toastify';
+import { FaSearch, FaPlus, FaBox, FaBoxes, FaUser, FaBarcode, FaRuler, FaWeight, FaInfoCircle, FaEdit, FaTrash } from 'react-icons/fa';
+import Link from 'next/link';
+
+interface Package {
+  _id: string;
+  trackingNumber: string;
+  status: 'received' | 'in_transit' | 'delivered' | 'unknown';
+  sender: string;
+  recipient: {
+    name: string;
+    email: string;
+    shippingId: string;
+  };
+  dimensions: {
+    length: number;
+    width: number;
+    height: number;
+    unit: 'cm' | 'in';
+    weight: number;
+    weightUnit: 'kg' | 'lb';
+  };
+  receivedAt: string;
+  notes?: string;
+}
 
 export default function WarehousePackagesPage() {
-  // Add package form
-  const [add, setAdd] = useState({ trackingNumber: "", userCode: "", weight: "", shipper: "", description: "", entryDate: new Date().toISOString().slice(0, 10) });
-  const [tnExists, setTnExists] = useState<boolean | null>(null);
-  const [tnChecking, setTnChecking] = useState(false);
-  const checkTimer = useRef<number | null>(null);
-  const [addMsg, setAddMsg] = useState<string | null>(null);
-  const [addLoading, setAddLoading] = useState(false);
-
-  // Update status form
-  const [upd, setUpd] = useState({ trackingNumber: "", status: "At Warehouse", note: "", weight: "", shipper: "", userCode: "", manifestId: "", description: "" });
-  const [updMsg, setUpdMsg] = useState<string | null>(null);
-  const [updLoading, setUpdLoading] = useState(false);
-
-  // Delete form
-  const [del, setDel] = useState({ trackingNumber: "" });
-  const [delMsg, setDelMsg] = useState<string | null>(null);
-  const [delLoading, setDelLoading] = useState(false);
-
-  function toMessage(err: unknown, fallback: string) {
-    if (typeof err === "string") return err;
-    if (err && typeof err === "object") {
-      const e = err as {
-        error?: unknown;
-        formErrors?: unknown;
-        fieldErrors?: Record<string, unknown> | unknown;
-        message?: unknown;
-      };
-      if (typeof e.error !== "undefined") return toMessage(e.error, fallback);
-      if (Array.isArray(e.formErrors) && e.formErrors.length) return e.formErrors.join(", ");
-      if (e.fieldErrors && typeof e.fieldErrors === "object") {
-        const fe = e.fieldErrors as Record<string, unknown>;
-        const msgs: string[] = [];
-        for (const k in fe) {
-          const v = fe[k];
-          if (Array.isArray(v)) msgs.push(`${k}: ${(v as unknown[]).join("; ")}`);
-        }
-        if (msgs.length) return msgs.join(" | ");
-      }
-      if (typeof e.message !== "undefined") return String(e.message);
-    }
-    return fallback;
-  }
-
-  // Strong tracking generator provided by lib/tracking
-
-  function refreshTracking() {
-    const v = generateTrackingNumber("TAS");
-    setAdd((s) => ({ ...s, trackingNumber: v }));
-    // trigger check
-    void checkExists(v);
-  }
-
-  async function checkExists(tracking: string) {
-    const t = tracking.trim();
-    if (!t) { setTnExists(null); return; }
-    setTnChecking(true);
-    try {
-      const r = await fetch(`/api/warehouse/packages/exist?tracking=${encodeURIComponent(t)}`, { cache: "no-store" });
-      const d = await r.json();
-      setTnExists(Boolean(d?.exists));
-    } catch {
-      setTnExists(null);
-    } finally {
-      setTnChecking(false);
-    }
-  }
-
-  // On mount, if tracking number empty, generate one
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [packages, setPackages] = useState<Package[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [userCodeFilter, setUserCodeFilter] = useState('');
+  
+  // Get userCode from URL params on mount
   useEffect(() => {
-    if (!add.trackingNumber) {
-      const v = generateTrackingNumber("TAS");
-      setAdd((s) => ({ ...s, trackingNumber: v }));
-      void checkExists(v);
+    const params = new URLSearchParams(window.location.search);
+    const userCode = params.get('userCode');
+    if (userCode) {
+      setUserCodeFilter(userCode);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function onAdd(e: React.FormEvent) {
-    e.preventDefault();
-    setAddLoading(true);
-    setAddMsg(null);
-    // Block if duplicate
-    if (tnExists) {
-      setAddMsg("Tracking number already exists. Click Refresh to generate a new one.");
-      setAddLoading(false);
+  // Redirect if not authenticated or not warehouse staff
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/warehouse/login');
+    }
+  }, [status, router]);
+
+  // Load packages
+  useEffect(() => {
+    const fetchPackages = async () => {
+      try {
+        const params = new URLSearchParams();
+        if (userCodeFilter) params.set('userCode', userCodeFilter);
+        if (searchTerm) params.set('q', searchTerm);
+        
+        const res = await fetch(`/api/warehouse/packages/search?${params.toString()}`);
+        const data = await res.json();
+        if (res.ok) {
+          setPackages(data.packages || []);
+        } else {
+          throw new Error(data.message || 'Failed to load packages');
+        }
+      } catch (error) {
+        console.error('Error loading packages:', error);
+        toast.error('Failed to load packages');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (status === 'authenticated') {
+      fetchPackages();
+    }
+  }, [status, userCodeFilter, searchTerm]);
+
+  // Filter packages based on search term (already filtered by API, but keep for client-side filtering if needed)
+  const filteredPackages = packages;
+
+  // Handle package status update
+  const updatePackageStatus = async (packageId: string, status: string) => {
+    try {
+      const pkg = packages.find(p => p._id === packageId);
+      if (!pkg) return;
+
+      const statusMap: Record<string, string> = {
+        'received': 'At Warehouse',
+        'in_processing': 'In Processing',
+        'ready_to_ship': 'Ready to Ship',
+        'shipped': 'Shipped',
+        'in_transit': 'In Transit',
+        'delivered': 'Delivered',
+        'unknown': 'Unknown'
+      };
+      
+      const res = await fetch('/api/warehouse/packages/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          trackingNumber: pkg.trackingNumber,
+          status: statusMap[status] || 'At Warehouse',
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to update package status');
+      }
+
+      // Update local state
+      setPackages(packages.map(p => 
+        p._id === packageId ? { ...p, status } : p
+      ));
+
+      toast.success('Package status updated successfully');
+    } catch (error) {
+      console.error('Error updating package status:', error);
+      toast.error('Failed to update package status');
+    }
+  };
+
+  // Handle package delete
+  const handleDeletePackage = async (pkg: Package) => {
+    if (!confirm(`Are you sure you want to delete package ${pkg.trackingNumber}? This action cannot be undone.`)) {
       return;
     }
-    const payload = {
-      trackingNumber: add.trackingNumber.trim(),
-      userCode: add.userCode.trim(),
-      weight: add.weight ? Number(add.weight) : undefined,
-      shipper: add.shipper || undefined,
-      description: add.description || undefined,
-      entryDate: add.entryDate ? new Date(add.entryDate).toISOString() : undefined,
-    };
-    const r = await fetch("/api/warehouse/packages/add", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    const d = await r.json();
-    setAddMsg(r.ok ? "Package saved" : toMessage(d, "Failed to add package"));
-    if (r.ok) {
-      // Generate a new tracking for next entry
-      const next = generateTrackingNumber("TAS");
-      setAdd({ trackingNumber: next, userCode: "", weight: "", shipper: "", description: "", entryDate: new Date().toISOString().slice(0, 10) });
-      setTnExists(null);
-      void checkExists(next);
+
+    try {
+      const res = await fetch('/api/warehouse/packages/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackingNumber: pkg.trackingNumber }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to delete package');
+      }
+
+      // Remove from local state
+      setPackages(packages.filter(p => p._id !== pkg._id));
+      toast.success('Package deleted successfully');
+    } catch (error) {
+      console.error('Error deleting package:', error);
+      toast.error('Failed to delete package');
     }
-    setAddLoading(false);
-  }
+  };
 
-  async function onUpd(e: React.FormEvent) {
-    e.preventDefault();
-    setUpdLoading(true);
-    setUpdMsg(null);
-    const payload = {
-      trackingNumber: upd.trackingNumber.trim(),
-      status: upd.status,
-      note: upd.note || undefined,
-      weight: upd.weight ? Number(upd.weight) : undefined,
-      shipper: upd.shipper || undefined,
-      userCode: upd.userCode || undefined,
-      manifestId: upd.manifestId || undefined,
-      description: upd.description || undefined,
-    };
-    const r = await fetch("/api/warehouse/packages/update-status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    const d = await r.json();
-    setUpdMsg(r.ok ? "Package updated" : toMessage(d, "Failed to update package"));
-    setUpdLoading(false);
-  }
-
-  async function onDel(e: React.FormEvent) {
-    e.preventDefault();
-    setDelLoading(true);
-    setDelMsg(null);
-    const r = await fetch("/api/warehouse/packages/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ trackingNumber: del.trackingNumber.trim() }) });
-    const d = await r.json();
-    setDelMsg(r.ok ? "Package deleted" : toMessage(d, "Failed to delete package"));
-    if (r.ok) setDel({ trackingNumber: "" });
-    setDelLoading(false);
+  if (status === 'loading' || loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-2xl font-semibold">Packages</h1>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-4 md:mb-0">Package Management</h1>
+        <div className="flex space-x-4 w-full md:w-auto">
+          <Link
+            href="/warehouse/add-package"
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <FaPlus className="mr-2" /> Add Package
+          </Link>
+          <Link
+            href="/warehouse/bulk-upload"
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <FaBoxes className="mr-2" /> Bulk Upload
+          </Link>
+        </div>
+      </div>
 
-      <section className="rounded-xl border p-5 space-y-3">
-        <h2 className="font-medium">Add Package</h2>
-        <form className="grid gap-2 max-w-2xl" onSubmit={onAdd}>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex items-center gap-2">
-              <input
-                className={`border rounded px-2 py-1 ${tnExists ? "border-red-500" : ""}`}
-                placeholder="Tracking number (10 chars: letters, numbers, '-', not at start/end)"
-                value={add.trackingNumber}
-                onChange={(e) => {
-                  let v = e.target.value.replace(/\s+/g, "").slice(0, 10);
-                  // Ensure '-' not at start/end; replace with alnum if present there
-                  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-                  const numbers = "23456789";
-                  const alnum = letters + numbers;
-                  const pick = () => alnum[Math.floor(Math.random() * alnum.length)];
-                  if (v.startsWith("-")) v = pick() + v.slice(1);
-                  if (v.endsWith("-")) v = v.slice(0, -1) + pick();
-                  setAdd({ ...add, trackingNumber: v });
-                  // debounce exists check
-                  if (checkTimer.current) window.clearTimeout(checkTimer.current);
-                  checkTimer.current = window.setTimeout(() => { void checkExists(v); }, 300);
-                }}
-                required
-              />
-              <button type="button" onClick={refreshTracking} className="rounded border px-2 py-1 text-sm hover:bg-neutral-50">Refresh</button>
-            </div>
-            <input className="border rounded px-2 py-1" placeholder="Customer code" value={add.userCode} onChange={(e) => setAdd({ ...add, userCode: e.target.value })} required />
+      {/* Search Bar */}
+      <div className="mb-6 space-y-3">
+        <div className="relative rounded-md shadow-sm">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <FaSearch className="h-5 w-5 text-gray-400" />
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            <input className="border rounded px-2 py-1" placeholder="Weight (kg)" value={add.weight} onChange={(e) => setAdd({ ...add, weight: e.target.value })} />
-            <input className="border rounded px-2 py-1" placeholder="Shipper" value={add.shipper} onChange={(e) => setAdd({ ...add, shipper: e.target.value })} />
-            <input className="border rounded px-2 py-1" type="date" value={add.entryDate} onChange={(e) => setAdd({ ...add, entryDate: e.target.value })} />
+          <input
+            type="text"
+            className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 pr-12 sm:text-sm border-gray-300 rounded-md p-3 border"
+            placeholder="Search by tracking #, customer name, or ID"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                // Trigger reload via useEffect
+              }
+            }}
+          />
+        </div>
+        {userCodeFilter && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Filtered by customer:</span>
+            <code className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm font-mono">{userCodeFilter}</code>
+            <button
+              onClick={() => {
+                setUserCodeFilter('');
+                router.push('/warehouse/packages');
+              }}
+              className="text-sm text-red-600 hover:text-red-800"
+            >
+              Clear filter
+            </button>
           </div>
-          <input className="border rounded px-2 py-1" placeholder="Description" value={add.description} onChange={(e) => setAdd({ ...add, description: e.target.value })} />
-          {tnExists && <div className="text-sm text-red-600">Tracking number already exists. Click Refresh to generate a new one.</div>}
-          <div className="flex items-center gap-3">
-            <button disabled={addLoading || !!tnExists || !add.trackingNumber} className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{addLoading ? "Saving..." : "Add / Save"}</button>
-            {tnChecking && <span className="text-sm text-neutral-600">Checking...</span>}
-            {addMsg && <span className="text-sm text-neutral-600">{addMsg}</span>}
-          </div>
-        </form>
-      </section>
+        )}
+      </div>
 
-      <section className="rounded-xl border p-5 space-y-3">
-        <h2 className="font-medium">Update Status</h2>
-        <form className="grid gap-2 max-w-2xl" onSubmit={onUpd}>
-          <div className="grid grid-cols-2 gap-2">
-            <input className="border rounded px-2 py-1" placeholder="Tracking number" value={upd.trackingNumber} onChange={(e) => setUpd({ ...upd, trackingNumber: e.target.value })} required />
-            <select className="border rounded px-2 py-1" value={upd.status} onChange={(e) => setUpd({ ...upd, status: e.target.value })}>
-              {["Unknown", "At Warehouse", "In Transit", "At Local Port", "Delivered", "Deleted"].map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <input className="border rounded px-2 py-1" placeholder="Note (optional)" value={upd.note} onChange={(e) => setUpd({ ...upd, note: e.target.value })} />
-            <input className="border rounded px-2 py-1" placeholder="Weight (kg)" value={upd.weight} onChange={(e) => setUpd({ ...upd, weight: e.target.value })} />
-            <input className="border rounded px-2 py-1" placeholder="Shipper" value={upd.shipper} onChange={(e) => setUpd({ ...upd, shipper: e.target.value })} />
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <input className="border rounded px-2 py-1" placeholder="Customer code (optional)" value={upd.userCode} onChange={(e) => setUpd({ ...upd, userCode: e.target.value })} />
-            <input className="border rounded px-2 py-1" placeholder="Manifest ID (optional)" value={upd.manifestId} onChange={(e) => setUpd({ ...upd, manifestId: e.target.value })} />
-            <input className="border rounded px-2 py-1" placeholder="Description (optional)" value={upd.description} onChange={(e) => setUpd({ ...upd, description: e.target.value })} />
-          </div>
-          <div className="flex items-center gap-3">
-            <button disabled={updLoading} className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{updLoading ? "Updating..." : "Update Status"}</button>
-            {updMsg && <span className="text-sm text-neutral-600">{updMsg}</span>}
-          </div>
-        </form>
-      </section>
-
-      <section className="rounded-xl border p-5 space-y-3">
-        <h2 className="font-medium">Delete Package</h2>
-        <form className="grid gap-2 max-w-xl" onSubmit={onDel}>
-          <div className="grid grid-cols-2 gap-2">
-            <input className="border rounded px-2 py-1" placeholder="Tracking number" value={del.trackingNumber} onChange={(e) => setDel({ trackingNumber: e.target.value })} required />
-            <button disabled={delLoading} className="rounded bg-red-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{delLoading ? "Deleting..." : "Delete"}</button>
-          </div>
-          {delMsg && <span className="text-sm text-neutral-600">{delMsg}</span>}
-        </form>
-      </section>
+      {/* Packages List */}
+      <div className="bg-white shadow overflow-hidden sm:rounded-md">
+        <ul className="divide-y divide-gray-200">
+          {filteredPackages.length === 0 ? (
+            <li className="p-4 text-center text-gray-500">
+              {searchTerm ? 'No packages match your search' : 'No packages found'}
+            </li>
+          ) : (
+            filteredPackages.map((pkg) => (
+              <li key={pkg._id} className="p-4 hover:bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0 h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                        <FaBox className="h-6 w-6 text-blue-600" />
+                      </div>
+                      <div className="ml-4">
+                        <div className="flex items-center">
+                          <p className="text-sm font-medium text-blue-600 truncate">
+                            {pkg.trackingNumber}
+                          </p>
+                          <span className={`ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            pkg.status === 'received' ? 'bg-green-100 text-green-800' :
+                            pkg.status === 'in_processing' ? 'bg-purple-100 text-purple-800' :
+                            pkg.status === 'ready_to_ship' ? 'bg-orange-100 text-orange-800' :
+                            pkg.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
+                            pkg.status === 'in_transit' ? 'bg-yellow-100 text-yellow-800' :
+                            pkg.status === 'delivered' ? 'bg-blue-100 text-blue-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {pkg.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-sm text-gray-500">
+                          <div className="flex items-center">
+                            <FaUser className="mr-1" />
+                            <span>{pkg.recipient?.name || 'Unknown'}</span>
+                            {pkg.recipient?.shippingId && (
+                              <span className="ml-2 px-2 bg-gray-100 text-xs rounded">
+                                ID: {pkg.recipient.shippingId}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 flex items-center text-xs text-gray-400">
+                            <FaRuler className="mr-1" />
+                            <span className="mr-3">
+                              {pkg.dimensions.length}x{pkg.dimensions.width}x{pkg.dimensions.height} {pkg.dimensions.unit}
+                            </span>
+                            <FaWeight className="mr-1" />
+                            <span>
+                              {pkg.dimensions.weight} {pkg.dimensions.weightUnit}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ml-4 flex-shrink-0">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          href={`/warehouse/scan?tracking=${pkg.trackingNumber}`}
+                          className="inline-flex items-center px-3 py-1 border border-blue-300 shadow-sm text-sm leading-4 font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          title="Scan Barcode"
+                        >
+                          <FaBarcode className="mr-1" /> Scan
+                        </Link>
+                        <Link
+                          href={`/warehouse/add-package?edit=${pkg._id}`}
+                          className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          <FaEdit className="mr-1" /> Edit
+                        </Link>
+                        <button
+                          onClick={async () => {
+                            const userCode = prompt("Enter customer user code to assign this package:");
+                            if (userCode && userCode.trim()) {
+                              try {
+                                const res = await fetch('/api/warehouse/packages/assign', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ 
+                                    trackingNumber: pkg.trackingNumber,
+                                    userCode: userCode.trim()
+                                  }),
+                                });
+                                if (res.ok) {
+                                  toast.success('Package assigned successfully');
+                                  window.location.reload();
+                                } else {
+                                  const data = await res.json();
+                                  toast.error(data?.error || 'Failed to assign package');
+                                }
+                              } catch (error) {
+                                toast.error('Failed to assign package');
+                              }
+                            }
+                          }}
+                          className="inline-flex items-center px-3 py-1 border border-green-300 shadow-sm text-sm leading-4 font-medium rounded-md text-green-700 bg-white hover:bg-green-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                          title="Assign to Customer"
+                        >
+                          <FaUser className="mr-1" /> Assign
+                        </button>
+                        <button
+                          onClick={() => handleDeletePackage(pkg)}
+                          className="inline-flex items-center px-3 py-1 border border-red-300 shadow-sm text-sm leading-4 font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                        >
+                          <FaTrash className="mr-1" /> Delete
+                        </button>
+                        <select
+                          value={pkg.status}
+                          onChange={(e) => updatePackageStatus(pkg._id, e.target.value)}
+                          className="block pl-3 pr-10 py-1 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                        >
+                          <option value="received">Received</option>
+                          <option value="in_processing">In Processing</option>
+                          <option value="ready_to_ship">Ready to Ship</option>
+                          <option value="shipped">Shipped</option>
+                          <option value="in_transit">In Transit</option>
+                          <option value="delivered">Delivered</option>
+                          {pkg.status === 'unknown' && <option value="unknown">Unknown</option>}
+                        </select>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Received: {new Date(pkg.receivedAt).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </li>
+            ))
+          )}
+        </ul>
+      </div>
     </div>
   );
 }

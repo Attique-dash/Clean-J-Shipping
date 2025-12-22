@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Archive, Package, MessageSquare, Calendar, FileText, CheckCircle, XCircle, Clock, Loader2, Search, Filter, X } from "lucide-react";
 
 type ArchivedPackage = {
   tracking_number: string;
@@ -17,23 +18,24 @@ type ArchivedBill = {
   currency?: string;
   amount_due: number;
   payment_status: string;
-  document_url?: string;
   last_updated?: string;
 };
 
 type ArchivedMessage = {
-  subject?: string | null;
+  subject: string | null;
   body: string;
   sender: string;
   created_at?: string;
 };
 
 export default function CustomerArchivesPage() {
+  const [activeTab, setActiveTab] = useState<"packages" | "messages">("packages");
   const [packages, setPackages] = useState<ArchivedPackage[]>([]);
   const [bills, setBills] = useState<ArchivedBill[]>([]);
   const [messages, setMessages] = useState<ArchivedMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   async function load() {
     setLoading(true);
@@ -56,106 +58,259 @@ export default function CustomerArchivesPage() {
     load();
   }, []);
 
+  const filteredPackages = packages.filter((p) =>
+    !searchQuery ||
+    p.tracking_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p.description || "").toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredMessages = messages.filter((m) =>
+    !searchQuery ||
+    (m.subject || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    m.body.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  function getStatusInfo(status: string) {
+    switch (status.toLowerCase()) {
+      case "delivered":
+        return {
+          label: "Delivered",
+          icon: CheckCircle,
+          bgColor: "bg-green-100 text-green-800 border-green-200",
+          iconColor: "text-green-600",
+        };
+      case "deleted":
+        return {
+          label: "Deleted",
+          icon: XCircle,
+          bgColor: "bg-red-100 text-red-800 border-red-200",
+          iconColor: "text-red-600",
+        };
+      default:
+        return {
+          label: status,
+          icon: Clock,
+          bgColor: "bg-gray-100 text-gray-800 border-gray-200",
+          iconColor: "text-gray-600",
+        };
+    }
+  }
+
+  function getPaymentStatusInfo(status: string) {
+    switch (status.toLowerCase()) {
+      case "paid":
+        return {
+          label: "Paid",
+          icon: CheckCircle,
+          bgColor: "bg-green-100 text-green-800 border-green-200",
+        };
+      case "submitted":
+        return {
+          label: "Submitted",
+          icon: Clock,
+          bgColor: "bg-blue-100 text-blue-800 border-blue-200",
+        };
+      case "rejected":
+        return {
+          label: "Rejected",
+          icon: XCircle,
+          bgColor: "bg-red-100 text-red-800 border-red-200",
+        };
+      default:
+        return {
+          label: "Pending",
+          icon: Clock,
+          bgColor: "bg-gray-100 text-gray-800 border-gray-200",
+        };
+    }
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Blue header */}
-      <div className="overflow-hidden rounded-xl border shadow-sm">
-        <div className="bg-[#153e75] px-6 py-3 text-white">
-          <h1 className="text-lg font-semibold">Archived Records</h1>
-        </div>
-        <div className="space-y-6 bg-white p-6">
-          {error && <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-
-          {/* Archived Packages */}
-          <section className="rounded-xl border">
-            <div className="border-b px-4 py-3 text-sm font-semibold">Archived Packages</div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50/80">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Tracking</th>
-                    <th className="px-3 py-2 text-left">Description</th>
-                    <th className="px-3 py-2 text-left">Status</th>
-                    <th className="px-3 py-2 text-left">Updated</th>
-                    <th className="px-3 py-2 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr><td className="px-3 py-4" colSpan={5}>Loading...</td></tr>
-                  ) : packages.length === 0 ? (
-                    <tr><td className="px-3 py-4" colSpan={5}>No completed packages</td></tr>
-                  ) : (
-                    packages.map((p) => (
-                      <tr key={p.tracking_number}>
-                        <td className="px-3 py-2 font-medium">{p.tracking_number}</td>
-                        <td className="px-3 py-2">{p.description || '-'}</td>
-                        <td className="px-3 py-2">{p.status}</td>
-                        <td className="px-3 py-2">{p.last_updated ? new Date(p.last_updated).toLocaleString() : '-'}</td>
-                        <td className="px-3 py-2 text-right">
-                          <a className="rounded-md border px-3 py-1 text-xs hover:bg-gray-50" href={`/dashboard/packages?tracking=${encodeURIComponent(p.tracking_number)}`}>View Details</a>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+          <div className="flex items-center space-x-3">
+            <div className="p-3 bg-gradient-to-br from-[#0f4d8a] to-[#1e6bb8] rounded-xl shadow-lg">
+              <Archive className="h-6 w-6 text-white" />
             </div>
-          </section>
+            <div>
+              <h1 className="text-2xl font-bold text-[#0f4d8a]">Archived Records</h1>
+              <p className="text-sm text-gray-600 mt-1">
+                View your historical packages and messages
+              </p>
+            </div>
+          </div>
+        </div>
 
-          {/* Lower grid: bills + messages */}
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Bills */}
-            <section className="rounded-xl border">
-              <div className="border-b px-4 py-3 text-sm font-semibold">Archived Bills</div>
-              <div className="divide-y">
-                {loading ? (
-                  <div className="p-4 text-sm text-gray-600">Loading...</div>
-                ) : bills.length === 0 ? (
-                  <div className="p-4 text-sm text-gray-600">No bills</div>
+        {/* Tabs */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="flex border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab("packages")}
+              className={`flex-1 px-6 py-4 text-sm font-semibold transition-all duration-200 ${
+                activeTab === "packages"
+                  ? "bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <Package className="h-4 w-4" />
+                <span>Packages ({packages.length})</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab("messages")}
+              className={`flex-1 px-6 py-4 text-sm font-semibold transition-all duration-200 ${
+                activeTab === "messages"
+                  ? "bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <MessageSquare className="h-4 w-4" />
+                <span>Messages ({messages.length})</span>
+              </div>
+            </button>
+          </div>
+
+          {/* Search Bar */}
+          <div className="p-4 border-b border-gray-200">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                className="w-full pl-10 pr-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
+                placeholder={`Search ${activeTab}...`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="p-6">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-12 w-12 text-[#0f4d8a] animate-spin mb-4" />
+                <p className="text-sm text-gray-600">Loading archived records...</p>
+              </div>
+            ) : error ? (
+              <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-start space-x-3">
+                <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm font-medium text-red-800">{error}</p>
+              </div>
+            ) : activeTab === "packages" ? (
+              <div className="space-y-4">
+                {filteredPackages.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Package className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No archived packages</h3>
+                    <p className="text-sm text-gray-500">Delivered or canceled packages will appear here</p>
+                  </div>
                 ) : (
-                  bills.map((b) => (
-                    <div key={`${b.tracking_number}-${b.invoice_number||'doc'}`} className="flex items-center justify-between gap-3 p-4">
-                      <div className="text-sm">
-                        <div className="font-medium">Invoice {b.invoice_number || 'N/A'}</div>
-                        <div className="text-gray-600">{b.invoice_date ? new Date(b.invoice_date).toLocaleDateString() : '-'}</div>
-                        <div className="text-gray-600">{(b.amount_due||0).toLocaleString(undefined,{style:'currency',currency:b.currency||'USD'})} • <span className="capitalize">{b.payment_status.replaceAll('_',' ')}</span></div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8]">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                            Tracking Number
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                            Description
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                            Last Updated
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-100">
+                        {filteredPackages.map((pkg, idx) => {
+                          const statusInfo = getStatusInfo(pkg.status);
+                          const StatusIcon = statusInfo.icon;
+                          return (
+                            <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className="font-mono text-sm font-semibold text-gray-900">
+                                  {pkg.tracking_number}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-sm text-gray-700">
+                                  {pkg.description || "No description"}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full border ${statusInfo.bgColor}`}>
+                                  <StatusIcon className={`h-3 w-3 mr-1 ${statusInfo.iconColor}`} />
+                                  {statusInfo.label}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                {pkg.last_updated
+                                  ? new Date(pkg.last_updated).toLocaleDateString()
+                                  : "N/A"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredMessages.length === 0 ? (
+                  <div className="text-center py-12">
+                    <MessageSquare className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No archived messages</h3>
+                    <p className="text-sm text-gray-500">Past messages will appear here</p>
+                  </div>
+                ) : (
+                  filteredMessages.map((msg, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl p-6 border border-gray-200 hover:shadow-md transition-all"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center space-x-3">
+                          <div className={`p-2 rounded-lg ${
+                            msg.sender === "customer"
+                              ? "bg-blue-100 text-blue-600"
+                              : "bg-orange-100 text-orange-600"
+                          }`}>
+                            <MessageSquare className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-900">
+                              {msg.subject || "Support Team"}
+                            </h4>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {msg.sender === "customer" ? "You" : "Support Team"} •{" "}
+                              {msg.created_at
+                                ? new Date(msg.created_at).toLocaleString()
+                                : "Unknown date"}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      <div className="shrink-0">
-                        {b.document_url ? (
-                          <a href={b.document_url} target="_blank" className="rounded-md border px-3 py-1 text-xs hover:bg-gray-50">View PDF</a>
-                        ) : (
-                          <span className="rounded-md border px-3 py-1 text-xs text-gray-400">No PDF</span>
-                        )}
-                      </div>
+                      <p className="text-sm text-gray-700 ml-12">{msg.body}</p>
                     </div>
                   ))
                 )}
               </div>
-            </section>
-
-            {/* Messages */}
-            <section className="rounded-xl border">
-              <div className="border-b px-4 py-3 text-sm font-semibold">Archived Messages</div>
-              <div className="divide-y">
-                {loading ? (
-                  <div className="p-4 text-sm text-gray-600">Loading...</div>
-                ) : messages.length === 0 ? (
-                  <div className="p-4 text-sm text-gray-600">No messages</div>
-                ) : (
-                  messages.map((m, idx) => (
-                    <div key={idx} className="flex items-center justify-between gap-3 p-4">
-                      <div className="text-sm">
-                        <div className="font-medium">{m.subject || 'Support Team'}</div>
-                        <div className="text-gray-600">{m.sender} • {m.created_at ? new Date(m.created_at).toLocaleString() : '-'}</div>
-                        <div className="line-clamp-1 text-gray-700">{m.body}</div>
-                      </div>
-                      <a className="rounded-md border px-3 py-1 text-xs hover:bg-gray-50" href="/dashboard/messages">View Details</a>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
+            )}
           </div>
         </div>
       </div>

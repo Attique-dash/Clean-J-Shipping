@@ -4,17 +4,54 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { Package, TrendingUp, FileText, Bell } from "lucide-react";
+import { Package, TrendingUp, FileText, Bell, ChevronRight, Clock, CheckCircle, AlertCircle, Loader2, MapPin, Search, X } from "lucide-react";
+import dynamic from "next/dynamic";
+
+const PackageTracker = dynamic(() => import("@/components/tracking/PackageTracker"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
+    </div>
+  ),
+});
+
+interface Stats {
+  totalPackages: number;
+  activeShipments: number;
+  pendingBills: number;
+  unreadMessages: number;
+}
+
+interface PackageData {
+  id: string;
+  status: string;
+  tracking_number?: string;
+  destination?: string;
+  [key: string]: any;
+}
+
+interface BillData {
+  id: string;
+  payment_status: string;
+  [key: string]: any;
+}
 
 export default function CustomerDashboardPage() {
   const { data: session } = useSession();
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<Stats>({
     totalPackages: 0,
     activeShipments: 0,
     pendingBills: 0,
     unreadMessages: 0,
   });
+  const [recentPackages, setRecentPackages] = useState<PackageData[]>([]);
+  const [upcomingShipments, setUpcomingShipments] = useState<PackageData[]>([]);
+  const [pendingPayments, setPendingPayments] = useState<BillData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [trackingNumber, setTrackingNumber] = useState("");
+  const [showTracker, setShowTracker] = useState(false);
+  const [trackingError, setTrackingError] = useState<string | null>(null);
 
   useEffect(() => {
     loadStats();
@@ -34,14 +71,35 @@ export default function CustomerDashboardPage() {
       
       setStats({
         totalPackages: packages.length,
-        activeShipments: packages.filter((p: any) => 
+        activeShipments: packages.filter((p: PackageData) => 
           p.status === 'in_transit' || p.status === 'ready_for_pickup'
         ).length,
-        pendingBills: bills.filter((b: any) => 
+        pendingBills: bills.filter((b: BillData) => 
           b.payment_status === 'submitted' || b.payment_status === 'none'
         ).length,
         unreadMessages: 0,
       });
+
+      // Set recent packages (latest 3)
+      setRecentPackages(packages.slice(0, 3));
+      
+      // Set upcoming shipments (in transit or ready for pickup, latest 5)
+      setUpcomingShipments(
+        packages
+          .filter((p: PackageData) => 
+            p.status === 'in_transit' || p.status === 'ready_for_pickup'
+          )
+          .slice(0, 5)
+      );
+      
+      // Set pending payments (latest 5)
+      setPendingPayments(
+        bills
+          .filter((b: BillData) => 
+            b.payment_status === 'submitted' || b.payment_status === 'none'
+          )
+          .slice(0, 5)
+      );
     } catch (error) {
       console.error("Error loading stats:", error);
     } finally {
@@ -49,111 +107,361 @@ export default function CustomerDashboardPage() {
     }
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Welcome Section */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">
-          Welcome back, {session?.user?.name || 'Customer'}!
-        </h1>
-        <p className="mt-1 text-gray-500">
-          Here's what's happening with your shipments and orders.
-        </p>
-      </div>
+  async function handleTrackPackage() {
+    if (!trackingNumber.trim()) {
+      setTrackingError("Please enter a tracking number");
+      return;
+    }
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total Packages"
-          value={stats.totalPackages}
-          icon={Package}
-          color="from-blue-500 to-blue-600"
-          href="/customer/packages"
-        />
-        <StatCard
-          title="Active Shipments"
-          value={stats.activeShipments}
-          icon={TrendingUp}
-          color="from-emerald-500 to-emerald-600"
-          href="/customer/packages"
-        />
-        <StatCard
-          title="Pending Bills"
-          value={stats.pendingBills}
-          icon={FileText}
-          color="from-amber-500 to-amber-600"
-          href="/customer/bills"
-        />
-        <StatCard
-          title="Messages"
-          value={stats.unreadMessages}
-          icon={Bell}
-          color="from-purple-500 to-purple-600"
-          href="/customer/messages"
-        />
-      </div>
+    setTrackingError(null);
+    setShowTracker(true);
+  }
 
-      {/* Quick Actions */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-        <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
-            Quick Actions
-          </h3>
+  const getStatusInfo = (status: string) => {
+    switch (status) {
+      case 'delivered':
+        return {
+          label: 'Delivered',
+          icon: CheckCircle,
+          bgColor: 'bg-green-100',
+          iconColor: 'text-green-600',
+          badgeColor: 'bg-green-100 text-green-800'
+        };
+      case 'in_transit':
+        return {
+          label: 'In Transit',
+          icon: TrendingUp,
+          bgColor: 'bg-blue-100',
+          iconColor: 'text-blue-600',
+          badgeColor: 'bg-blue-100 text-blue-800'
+        };
+      case 'ready_for_pickup':
+        return {
+          label: 'Ready',
+          icon: AlertCircle,
+          bgColor: 'bg-orange-100',
+          iconColor: 'text-orange-600',
+          badgeColor: 'bg-orange-100 text-orange-800'
+        };
+      default:
+        return {
+          label: 'Processing',
+          icon: Clock,
+          bgColor: 'bg-gray-100',
+          iconColor: 'text-gray-600',
+          badgeColor: 'bg-gray-100 text-gray-800'
+        };
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 text-[#0f4d8a] animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 font-medium">Loading your dashboard...</p>
         </div>
-        <div className="px-4 py-5 sm:p-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Link
-              href="/customer/packages"
-              className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm flex items-center space-x-3 hover:border-gray-400"
-            >
-              <div className="flex-shrink-0">
-                <Package className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="absolute inset-0" aria-hidden="true" />
-                <p className="text-sm font-medium text-gray-900">
-                  View Packages
-                </p>
-                <p className="text-sm text-gray-500 truncate">
-                  Track your shipments
-                </p>
-              </div>
-            </Link>
+      </div>
+    );
+  }
 
-            <Link
-              href="/customer/bills"
-              className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm flex items-center space-x-3 hover:border-gray-400"
-            >
-              <div className="flex-shrink-0">
-                <FileText className="h-6 w-6 text-amber-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="absolute inset-0" aria-hidden="true" />
-                <p className="text-sm font-medium text-gray-900">
-                  Pay Bills
-                </p>
-                <p className="text-sm text-gray-500 truncate">
-                  Manage payments
-                </p>
-              </div>
-            </Link>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header Section */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-[#0f4d8a]">
+                Welcome back, {session?.user?.name || 'Customer'}!
+              </h1>
+              <p className="mt-2 text-gray-600">
+                Here's what's happening with your shipments today
+              </p>
+            </div>
+            <div className="hidden md:flex items-center space-x-2 bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200">
+              <Clock className="h-4 w-4 text-[#E67919]" />
+              <span className="text-sm text-gray-600">Last updated: Just now</span>
+            </div>
+          </div>
+        </div>
 
-            <Link
-              href="/customer/contact"
-              className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm flex items-center space-x-3 hover:border-gray-400"
+        {/* Real-Time Tracking Section */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-gradient-to-br from-[#E67919] to-[#f59e42] rounded-xl shadow-lg">
+                <MapPin className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-[#0f4d8a]">Real-Time Package Tracking</h2>
+                <p className="text-sm text-gray-600 mt-1">Enter your package ID to track location on map</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                value={trackingNumber}
+                onChange={(e) => setTrackingNumber(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && trackingNumber.trim()) {
+                    handleTrackPackage();
+                  }
+                }}
+                placeholder="Enter Package ID / Tracking Number"
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0f4d8a] focus:border-transparent"
+              />
+            </div>
+            <button
+              onClick={handleTrackPackage}
+              disabled={!trackingNumber.trim()}
+              className="px-6 py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-lg font-semibold hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              <div className="flex-shrink-0">
-                <Bell className="h-6 w-6 text-purple-600" />
+              <MapPin className="h-5 w-5" />
+              Track
+            </button>
+            {showTracker && (
+              <button
+                onClick={() => {
+                  setShowTracker(false);
+                  setTrackingNumber("");
+                  setTrackingError(null);
+                }}
+                className="px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+          </div>
+          
+          {trackingError && (
+            <div className="mt-4 bg-red-50 border-2 border-red-200 rounded-lg p-3 flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+              <p className="text-sm text-red-800">{trackingError}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Package Tracker Display */}
+        {showTracker && trackingNumber && (
+          <PackageTracker
+            trackingNumber={trackingNumber.trim()}
+            onClose={() => {
+              setShowTracker(false);
+              setTrackingNumber("");
+              setTrackingError(null);
+            }}
+          />
+        )}
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+          <StatCard
+            title="Total Packages"
+            value={stats.totalPackages}
+            icon={Package}
+            gradient="from-[#0f4d8a] to-[#1e6bb8]"
+            href="/customer/packages"
+            trend="+12%"
+          />
+          <StatCard
+            title="Active Shipments"
+            value={stats.activeShipments}
+            icon={TrendingUp}
+            gradient="from-[#E67919] to-[#f59e42]"
+            href="/customer/packages"
+            trend={`${stats.activeShipments} Active`}
+          />
+          <StatCard
+            title="Pending Bills"
+            value={stats.pendingBills}
+            icon={FileText}
+            gradient="from-[#0891b2] to-[#06b6d4]"
+            href="/customer/bills"
+            trend={stats.pendingBills > 0 ? "Due soon" : "All clear"}
+          />
+          <StatCard
+            title="Messages"
+            value={stats.unreadMessages}
+            icon={Bell}
+            gradient="from-[#7c3aed] to-[#9333ea]"
+            href="/customer/messages"
+            trend={stats.unreadMessages > 0 ? "New" : "No new"}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Recent Activity - Upcoming Shipments */}
+          <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8]">
+              <h3 className="text-lg font-semibold text-white flex items-center">
+                <TrendingUp className="h-5 w-5 mr-2" />
+                Upcoming Shipments
+              </h3>
+            </div>
+            <div className="p-6">
+              {upcomingShipments.length > 0 ? (
+                <div className="space-y-4">
+                  {upcomingShipments.map((pkg, index) => {
+                    const statusInfo = getStatusInfo(pkg.status);
+                    const StatusIcon = statusInfo.icon;
+                    
+                    return (
+                      <div
+                        key={pkg.id || `upcoming-${index}`}
+                        className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-slate-50 to-blue-50 hover:from-slate-100 hover:to-blue-100 transition-all duration-200 border border-gray-200"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <div className={`p-3 rounded-lg ${statusInfo.bgColor}`}>
+                            <StatusIcon className={`h-5 w-5 ${statusInfo.iconColor}`} />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-900">
+                              {pkg.tracking_number || pkg.id}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {pkg.destination || 'Destination not set'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusInfo.badgeColor}`}>
+                            {statusInfo.label}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No upcoming shipments</p>
+                  <p className="text-sm text-gray-400 mt-1">Your active shipments will appear here</p>
+                </div>
+              )}
+              <Link
+                href="/customer/packages"
+                className="mt-6 w-full py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-lg font-medium hover:shadow-lg transition-all duration-200 flex items-center justify-center"
+              >
+                View All Packages
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </Link>
+            </div>
+          </div>
+
+          {/* Pending Payments */}
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-[#E67919] to-[#f59e42]">
+              <h3 className="text-lg font-semibold text-white flex items-center">
+                <FileText className="h-5 w-5 mr-2" />
+                Pending Payments
+              </h3>
+            </div>
+            <div className="p-6">
+              {pendingPayments.length > 0 ? (
+                <div className="space-y-3">
+                  {pendingPayments.map((bill, index) => (
+                    <Link
+                      key={bill.id || `pending-${index}`}
+                      href="/customer/bills"
+                      className="block p-3 rounded-lg border-2 border-gray-200 hover:border-[#E67919] hover:bg-orange-50 transition-all duration-200"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {bill.invoice_number || 'Invoice'}
+                        </p>
+                        <span className="text-xs font-medium text-[#E67919]">
+                          {typeof bill.amount_due === 'number' 
+                            ? `$${bill.amount_due.toFixed(2)}`
+                            : 'N/A'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {bill.tracking_number || 'No tracking'}
+                      </p>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <CheckCircle className="h-10 w-10 text-green-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">All payments up to date</p>
+                </div>
+              )}
+              <Link
+                href="/customer/bills"
+                className="mt-4 w-full py-2.5 bg-gradient-to-r from-[#E67919] to-[#f59e42] text-white rounded-lg font-medium hover:shadow-lg transition-all duration-200 flex items-center justify-center text-sm"
+              >
+                View All Bills
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Packages Section */}
+        {recentPackages.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-[#0891b2] to-[#06b6d4]">
+              <h3 className="text-lg font-semibold text-white flex items-center">
+                <Package className="h-5 w-5 mr-2" />
+                Recent Activity
+              </h3>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                {recentPackages.map((pkg, index) => {
+                  const statusInfo = getStatusInfo(pkg.status);
+                  const StatusIcon = statusInfo.icon;
+                  
+                  return (
+                    <div
+                      key={pkg.id || `recent-${index}`}
+                      className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-slate-50 to-blue-50 hover:from-slate-100 hover:to-blue-100 transition-all duration-200 border border-gray-200"
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className={`p-3 rounded-lg ${statusInfo.bgColor}`}>
+                          <StatusIcon className={`h-5 w-5 ${statusInfo.iconColor}`} />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900">
+                            {pkg.tracking_number || pkg.id}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {pkg.destination || 'Destination not set'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusInfo.badgeColor}`}>
+                          {statusInfo.label}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="flex-1 min-w-0">
-                <span className="absolute inset-0" aria-hidden="true" />
-                <p className="text-sm font-medium text-gray-900">
-                  Contact Support
-                </p>
-                <p className="text-sm text-gray-500 truncate">
-                  Get help
-                </p>
-              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bottom Banner */}
+        <div className="mt-8 bg-gradient-to-r from-[#0f4d8a] via-[#1e6bb8] to-[#E67919] rounded-2xl p-8 text-white shadow-xl">
+          <div className="flex flex-col md:flex-row items-center justify-between">
+            <div className="mb-4 md:mb-0">
+              <h3 className="text-xl font-bold mb-2">Need help with shipping?</h3>
+              <p className="text-blue-100">Our support team is available 24/7 to assist you</p>
+            </div>
+            <Link
+              href="/customer/support"
+              className="bg-white text-[#0f4d8a] px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors duration-200"
+            >
+              Contact Support
             </Link>
           </div>
         </div>
@@ -166,43 +474,77 @@ function StatCard({
   title,
   value,
   icon: Icon,
-  color,
+  gradient,
   href,
+  trend,
 }: {
   title: string;
   value: number;
   icon: any;
-  color: string;
+  gradient: string;
   href: string;
+  trend: string;
 }) {
   return (
     <Link
       href={href}
-      className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow duration-200"
+      className="group bg-white overflow-hidden shadow-lg rounded-2xl hover:shadow-2xl transition-all duration-300 border border-gray-100 transform hover:-translate-y-1"
     >
-      <div className="p-5">
-        <div className="flex items-center">
-          <div className="flex-shrink-0">
-            <div
-              className={`flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br ${color}`}
-            >
-              <Icon className="h-6 w-6 text-white" />
-            </div>
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className={`flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br ${gradient} shadow-lg`}>
+            <Icon className="h-7 w-7 text-white" />
           </div>
-          <div className="ml-5 w-0 flex-1">
-            <dl>
-              <dt className="text-sm font-medium text-gray-500 truncate">
-                {title}
-              </dt>
-              <dd className="flex items-baseline">
-                <div className="text-2xl font-semibold text-gray-900">
-                  {value}
-                </div>
-              </dd>
-            </dl>
-          </div>
+          <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+            {trend}
+          </span>
+        </div>
+        <div>
+          <p className="text-sm font-medium text-gray-600 mb-1">
+            {title}
+          </p>
+          <p className="text-3xl font-bold text-gray-900">
+            {value}
+          </p>
         </div>
       </div>
+      <div className={`h-1 bg-gradient-to-r ${gradient}`}></div>
+    </Link>
+  );
+}
+
+function QuickActionButton({
+  href,
+  icon: Icon,
+  title,
+  description,
+  color,
+}: {
+  href: string;
+  icon: any;
+  title: string;
+  description: string;
+  color: string;
+}) {
+  const colorClasses: Record<string, string> = {
+    blue: 'bg-blue-50 text-[#0f4d8a] group-hover:bg-blue-100',
+    orange: 'bg-orange-50 text-[#E67919] group-hover:bg-orange-100',
+    cyan: 'bg-cyan-50 text-cyan-600 group-hover:bg-cyan-100',
+  };
+
+  return (
+    <Link
+      href={href}
+      className="group flex items-center p-4 rounded-xl border-2 border-gray-200 hover:border-gray-300 transition-all duration-200 hover:shadow-md"
+    >
+      <div className={`flex-shrink-0 p-3 rounded-lg ${colorClasses[color]} transition-colors duration-200`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="ml-4 flex-1">
+        <p className="text-sm font-semibold text-gray-900">{title}</p>
+        <p className="text-xs text-gray-500">{description}</p>
+      </div>
+      <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-gray-600 transition-colors duration-200" />
     </Link>
   );
 }

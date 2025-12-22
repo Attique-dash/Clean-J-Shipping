@@ -14,10 +14,11 @@ export async function GET(req: Request) {
   const userId = pl.uid || pl._id;
   const user = userId
     ? await User.findById(userId)
-        .select("firstName lastName email phone address userCode role accountStatus createdAt lastLogin")
+        .select("firstName lastName email phone address userCode role accountStatus createdAt lastLogin name")
         .lean<{
           firstName?: string;
           lastName?: string;
+          name?: string;
           email: string;
           phone?: string;
           userCode: string;
@@ -29,7 +30,8 @@ export async function GET(req: Request) {
     : null;
   if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const full_name = [user.firstName, user.lastName].filter(Boolean).join(" ");
+  // Get name from firstName/lastName or name field
+  const full_name = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.name || "";
   const address = user.address
     ? {
         street: user.address.street,

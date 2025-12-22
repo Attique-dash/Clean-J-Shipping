@@ -52,7 +52,12 @@ export default async function AdminPackagesPage({
   const unknownOnly = (typeof params?.unknownOnly === "string" ? params.unknownOnly : "").toLowerCase() === "true";
 
   const query: Record<string, unknown> = {};
-  if (statusParam) query.status = statusParam === "Ready" ? "At Warehouse" : statusParam;
+  // Exclude deleted packages (marked as 'returned')
+  query.status = { $ne: "returned" };
+  
+  if (statusParam) {
+    query.status = statusParam === "Ready" ? "At Warehouse" : statusParam;
+  }
   if (userCodeParam) query.userCode = { $regex: new RegExp(userCodeParam, "i") };
   if (q) query.$or = [
     { trackingNumber: { $regex: new RegExp(q, "i") } },
@@ -60,9 +65,17 @@ export default async function AdminPackagesPage({
   ];
   if (unknownOnly) query.$or = [{ status: "Unknown" }, { customer: { $exists: false } }, { customer: null }];
 
+  // Add pagination
+  const pageParam = (typeof params?.page === "string" ? parseInt(params.page, 10) : 1) || 1;
+  const perPage = 50; // Reduced from 500 to prevent memory issues
+  const skip = (pageParam - 1) * perPage;
+
+  // Only select fields we need - don't load large arrays
   const raw = await Package.find(query)
+    .select("_id trackingNumber status userCode weight length width height firstName lastName branch createdAt updatedAt description serviceTypeName")
     .sort([["updatedAt", (sortParam === "oldest" ? 1 : -1) as 1 | -1]])
-    .limit(500)
+    .skip(skip)
+    .limit(perPage)
     .lean<{
       _id: unknown;
       trackingNumber: string;
@@ -79,9 +92,36 @@ export default async function AdminPackagesPage({
       updatedAt?: Date | string;
       description?: string;
       serviceTypeName?: string;
-      invoiceRecords?: unknown[];
-      invoiceDocuments?: unknown[];
     }[]>();
+
+  // Get total count for pagination (separate query, more efficient)
+  const totalCount = await Package.countDocuments(query);
+  
+  // Check for invoices separately (only count, don't load data)
+  const invoiceMap = new Map<string, boolean>();
+  if (raw.length > 0) {
+    const packageIds = raw.map(p => p._id);
+    try {
+      const invoiceCounts = await Package.aggregate([
+        { $match: { _id: { $in: packageIds } } },
+        { $project: { 
+          _id: 1, 
+          hasInvoice: { 
+            $or: [
+              { $gt: [{ $size: { $ifNull: ["$invoiceRecords", []] } }, 0] },
+              { $gt: [{ $size: { $ifNull: ["$invoiceDocuments", []] } }, 0] }
+            ]
+          }
+        }}
+      ]);
+      invoiceCounts.forEach((ic: any) => {
+        invoiceMap.set(String(ic._id), ic.hasInvoice || false);
+      });
+    } catch (err) {
+      console.error("Error checking invoices:", err);
+      // If aggregation fails, assume no invoices
+    }
+  }
 
   const packages: AdminPackage[] = raw.map((p) => ({
     _id: String(p._id),
@@ -105,45 +145,109 @@ export default async function AdminPackagesPage({
     height: p.height,
     serviceTypeName: p.serviceTypeName,
     description: p.description,
-    hasInvoice: Boolean((Array.isArray(p.invoiceRecords) && p.invoiceRecords.length > 0) || (Array.isArray(p.invoiceDocuments) && p.invoiceDocuments.length > 0)),
+    hasInvoice: invoiceMap.get(String(p._id)) || false,
   }));
 
-  // Calculate stats
+  // Calculate stats (use separate efficient queries instead of filtering all packages)
+  const [totalStats, atWarehouseStats, inTransitStats, deliveredStats] = await Promise.all([
+    Package.countDocuments({ status: { $nin: ["failed", "returned"] } }),
+    Package.countDocuments({ status: "At Warehouse" }),
+    Package.countDocuments({ status: "In Transit" }),
+    Package.countDocuments({ status: "Delivered" }),
+  ]);
+
   const stats = {
-    total: packages.length,
-    atWarehouse: packages.filter(p => p.status === 'At Warehouse').length,
-    inTransit: packages.filter(p => p.status === 'In Transit').length,
-    delivered: packages.filter(p => p.status === 'Delivered').length,
+    total: totalStats,
+    atWarehouse: atWarehouseStats,
+    inTransit: inTransitStats,
+    delivered: deliveredStats,
   };
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       {/* Header */}
-      <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 shadow-xl">
-        <div className="absolute inset-0 bg-grid-white/10" />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/20">
-                <PackageIcon className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-white">Package Management</h1>
-                <p className="mt-1 text-sm text-blue-100">Track and manage all packages</p>
-              </div>
-            </div>
-          </div>
-          <AddForm />
+      <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl">
+  <div className="absolute inset-0 bg-white/10" />
+
+  <div className="relative flex flex-col gap-6">
+    {/* Top Row */}
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex items-center gap-4">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
+          <PackageIcon className="h-7 w-7 text-white" />
         </div>
 
-        {/* Stats Row */}
-        <div className="relative mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="Total" value={stats.total} icon={PackageIcon} />
-          <StatCard label="At Warehouse" value={stats.atWarehouse} icon={Warehouse} />
-          <StatCard label="In Transit" value={stats.inTransit} icon={Truck} />
-          <StatCard label="Delivered" value={stats.delivered} icon={CheckCircle2} />
+        <div>
+          <p className="text-sm uppercase tracking-widest text-blue-100">Packages</p>
+          <h1 className="text-3xl font-bold leading-tight md:text-4xl">
+            Package Management
+          </h1>
         </div>
       </div>
+
+      {/* RIGHT SECTION – ADD BUTTON */}
+      <div className="flex items-center">
+        <AddForm />
+      </div>
+    </div>
+
+    {/* Stats Cards inside header */}
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Total */}
+      <div className="group relative overflow-hidden rounded-xl bg-white/10 p-5 shadow-md backdrop-blur">
+        <div className="relative flex items-center gap-4">
+          <div className="rounded-lg bg-white/20 p-3">
+            <PackageIcon className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <p className="text-sm text-blue-100">Total</p>
+            <p className="mt-1 text-2xl font-bold">{stats.total}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* at Warehouse */}
+      <div className="group relative overflow-hidden rounded-xl bg-emerald-500/20 p-5 shadow-md backdrop-blur">
+        <div className="relative flex items-center gap-4">
+          <div className="rounded-lg bg-white/20 p-3">
+            <Warehouse className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <p className="text-sm text-emerald-100">at Warehouse</p>
+            <p className="mt-1 text-2xl font-bold">{stats.atWarehouse}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* in Transit */}
+      <div className="group relative overflow-hidden rounded-xl bg-blue-500/20 p-5 shadow-md backdrop-blur">
+        <div className="relative flex items-center gap-4">
+          <div className="rounded-lg bg-white/20 p-3">
+            <Truck className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <p className="text-sm text-blue-100">in Transit</p>
+            <p className="mt-1 text-2xl font-bold">{stats.inTransit}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Delivered */}
+      <div className="group relative overflow-hidden rounded-xl bg-purple-500/20 p-5 shadow-md backdrop-blur">
+        <div className="relative flex items-center gap-4">
+          <div className="rounded-lg bg-white/20 p-3">
+            <CheckCircle2 className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <p className="text-sm text-purple-100">Delivered</p>
+            <p className="mt-1 text-2xl font-bold">{stats.delivered}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
 
       {/* Filter Bar */}
       <FilterBar />
@@ -156,11 +260,40 @@ export default async function AdminPackagesPage({
           <p className="mt-2 text-sm text-gray-500">Try adjusting your filters or add a new package</p>
         </div>
       ) : (
-        <div className="grid gap-4">
-          {packages.map((p) => (
-            <PackageCard key={p._id} package={p} />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4">
+            {packages.map((p) => (
+              <PackageCard key={p._id} package={p} />
+            ))}
+          </div>
+          
+          {/* Pagination */}
+          {totalCount > perPage && (
+            <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="text-sm text-gray-600">
+                Showing {skip + 1} to {Math.min(skip + perPage, totalCount)} of {totalCount} packages
+              </div>
+              <div className="flex gap-2">
+                {pageParam > 1 && (
+                  <a
+                    href={`?${new URLSearchParams({ ...params, page: String(pageParam - 1) } as any).toString()}`}
+                    className="rounded-xl border-2 border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-all hover:border-[#0f4d8a] hover:text-[#0f4d8a]"
+                  >
+                    Previous
+                  </a>
+                )}
+                {skip + perPage < totalCount && (
+                  <a
+                    href={`?${new URLSearchParams({ ...params, page: String(pageParam + 1) } as any).toString()}`}
+                    className="rounded-xl border-2 border-[#0f4d8a] bg-[#0f4d8a] px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-[#0e447d]"
+                  >
+                    Next
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -192,6 +325,7 @@ function FilterBar() {
           <Pill name="In Transit" value="In Transit" />
           <Pill name="Ready for Pickup" value="Ready" />
           <Pill name="Delivered" value="Delivered" />
+          <Pill name="Unknown Packages" value="unknown" isUnknown />
         </div>
 
         {/* Search and Sort */}
@@ -220,8 +354,8 @@ function FilterBar() {
   );
 }
 
-function Pill({ name, value, active }: { name: string; value: string; active?: boolean }) {
-  const href = value ? `?status=${encodeURIComponent(value)}` : `?`;
+function Pill({ name, value, active, isUnknown }: { name: string; value: string; active?: boolean; isUnknown?: boolean }) {
+  const href = isUnknown ? `?unknownOnly=true` : (value ? `?status=${encodeURIComponent(value)}` : `?`);
   return (
     <a 
       href={href} 

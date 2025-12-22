@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
+import SharedModal from "@/components/admin/SharedModal";
+import AddButton from "@/components/admin/AddButton";
+import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
 
 type Staff = {
   _id: string;
@@ -20,6 +24,7 @@ export default function StaffPageClient() {
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Staff | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; staff: Staff | null }>({ open: false, staff: null });
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "", branch: "" });
 
   async function load() {
@@ -30,8 +35,8 @@ export default function StaffPageClient() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load");
       setItems(data.items || []);
-    } catch (e: any) {
-      setError(e.message || String(e));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -56,7 +61,7 @@ export default function StaffPageClient() {
   async function submitForm(e: React.FormEvent) {
     e.preventDefault();
     const method = editing ? "PUT" : "POST";
-    const body: any = { ...form };
+    const body: { firstName: string; lastName: string; email: string; password: string; branch: string; id?: string } = { ...form };
     if (editing) body.id = editing._id;
     if (!editing && !form.password) {
       alert("Password is required for new staff");
@@ -76,8 +81,13 @@ export default function StaffPageClient() {
     await load();
   }
 
-  async function deleteItem(id: string) {
-    if (!confirm("Delete this staff account?")) return;
+  function openDelete(s: Staff) {
+    setDeleteConfirm({ open: true, staff: s });
+  }
+
+  async function deleteItem() {
+    if (!deleteConfirm.staff) return;
+    const id = deleteConfirm.staff._id;
     const res = await fetch("/api/admin/staff", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -88,6 +98,7 @@ export default function StaffPageClient() {
       alert(data?.error || "Delete failed");
       return;
     }
+    setDeleteConfirm({ open: false, staff: null });
     await load();
   }
 
@@ -107,72 +118,78 @@ export default function StaffPageClient() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        {/* Header Section */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#0f4d8a] to-[#E67919] bg-clip-text text-transparent">
-              Warehouse Staff
-            </h1>
-            <p className="mt-1 text-sm text-gray-600">Manage your warehouse team members</p>
-          </div>
-          <button
-            onClick={openAdd}
-            className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#0f4d8a] to-[#0f4d8a]/90 px-4 py-2.5 text-sm font-medium text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            Add Staff Member
-          </button>
+      <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl mb-8">
+  {/* Soft overlay */}
+  <div className="absolute inset-0 bg-white/10" />
+
+  {/* Main Layout */}
+  <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+    {/* Left Side */}
+    <div>
+      <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">
+        Staff Management
+      </h1>
+      <p className="mt-1 text-sm text-blue-100">
+        Manage your warehouse team members
+      </p>
+    </div>
+
+    {/* Add Button */}
+    <AddButton onClick={openAdd} label="Add Staff Member" className="bg-white/15 text-white hover:bg-white/25" />
+  </div>
+
+  {/* Stats Cards inside Header */}
+  <div className="relative mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    {/* Total Staff */}
+    <div className="group relative overflow-hidden rounded-xl bg-white/10 backdrop-blur p-6 text-white shadow-lg transition-all hover:shadow-xl hover:scale-105">
+      <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10"></div>
+      <div className="relative flex items-center gap-4">
+        <div className="rounded-lg bg-white/20 p-3">
+          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
         </div>
-
-        {/* Stats Cards */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0f4d8a] to-[#0f4d8a]/80 p-6 text-white shadow-lg transition-all hover:shadow-xl hover:scale-105">
-            <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10"></div>
-            <div className="relative flex items-center gap-4">
-              <div className="rounded-lg bg-white/20 p-3">
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-blue-100">Total Staff</p>
-                <p className="mt-1 text-3xl font-bold">{items.length}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#E67919] to-[#E67919]/80 p-6 text-white shadow-lg transition-all hover:shadow-xl hover:scale-105">
-            <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10"></div>
-            <div className="relative flex items-center gap-4">
-              <div className="rounded-lg bg-white/20 p-3">
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-orange-100">Branches</p>
-                <p className="mt-1 text-3xl font-bold">{branches.length}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 p-6 text-white shadow-lg transition-all hover:shadow-xl hover:scale-105">
-            <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10"></div>
-            <div className="relative flex items-center gap-4">
-              <div className="rounded-lg bg-white/20 p-3">
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-purple-100">Active Today</p>
-                <p className="mt-1 text-3xl font-bold">{items.length}</p>
-              </div>
-            </div>
-          </div>
+        <div>
+          <p className="text-sm font-medium text-blue-100">Total Staff</p>
+          <p className="mt-1 text-3xl font-bold">{items.length}</p>
         </div>
+      </div>
+    </div>
+
+    {/* Branches */}
+    <div className="group relative overflow-hidden rounded-xl bg-white/10 backdrop-blur p-6 text-white shadow-lg transition-all hover:shadow-xl hover:scale-105">
+      <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10"></div>
+      <div className="relative flex items-center gap-4">
+        <div className="rounded-lg bg-white/20 p-3">
+          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
+          </svg>
+        </div>
+        <div>
+          <p className="text-sm font-medium text-blue-100">Branches</p>
+          <p className="mt-1 text-3xl font-bold">{branches.length}</p>
+        </div>
+      </div>
+    </div>
+
+    {/* Active Today */}
+    <div className="group relative overflow-hidden rounded-xl bg-white/10 backdrop-blur p-6 text-white shadow-lg transition-all hover:shadow-xl hover:scale-105">
+      <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10"></div>
+      <div className="relative flex items-center gap-4">
+        <div className="rounded-lg bg-white/20 p-3">
+          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+          </svg>
+        </div>
+        <div>
+          <p className="text-sm font-medium text-blue-100">Active Today</p>
+          <p className="mt-1 text-3xl font-bold">{items.length}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
 
         {/* Search Bar */}
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-lg">
@@ -205,9 +222,10 @@ export default function StaffPageClient() {
         {/* Staff Cards */}
         <div className="grid gap-4 lg:grid-cols-2">
           {loading ? (
-            <div className="lg:col-span-2 rounded-xl border border-gray-200 bg-white p-12 text-center shadow-lg">
-              <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-[#0f4d8a]"></div>
-              <p className="mt-4 text-sm text-gray-600">Loading staff members...</p>
+            <div className="lg:col-span-2">
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
+              </div>
             </div>
           ) : filtered.length === 0 ? (
             <div className="lg:col-span-2 rounded-xl border border-gray-200 bg-white p-12 text-center shadow-lg">
@@ -300,7 +318,7 @@ export default function StaffPageClient() {
                       </button>
 
                       <button
-                        onClick={() => deleteItem(s._id)}
+                        onClick={() => openDelete(s)}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition-all hover:bg-red-600 hover:text-white"
                       >
                         <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -319,41 +337,34 @@ export default function StaffPageClient() {
 
       {/* Add/Edit Staff Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-[#0f4d8a]/5 to-[#E67919]/5 px-6 py-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-gradient-to-r from-[#0f4d8a] to-[#E67919] p-2">
-                  {editing ? (
-                    <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  ) : (
-                    <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                    </svg>
-                  )}
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    {editing ? "Edit Staff Member" : "Add New Staff Member"}
-                  </h2>
-                  <p className="text-xs text-gray-500">
-                    {editing ? `Updating ${editing.userCode}` : "Create a new warehouse staff account"}
-                  </p>
-                </div>
-              </div>
+        <SharedModal
+          open={showForm}
+          title={editing ? "Edit Staff Member" : "Add New Staff Member"}
+          onClose={() => setShowForm(false)}
+          footer={
+            <>
               <button
+                type="button"
                 onClick={() => setShowForm(false)}
-                className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
               >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                Cancel
               </button>
-            </div>
+              <button
+                type="submit"
+                form="staff-form"
+                className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#0f4d8a] to-[#0f4d8a]/90 px-4 py-2 text-sm font-medium text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                {editing ? "Update Staff Member" : "Create Staff Member"}
+              </button>
+            </>
+          }
+        >
 
-            <form onSubmit={submitForm} className="px-6 py-6 space-y-4">
+            <form id="staff-form" onSubmit={submitForm} className="space-y-4">
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="rounded-lg bg-[#0f4d8a]/10 p-1.5">
@@ -459,29 +470,19 @@ export default function StaffPageClient() {
                   <p className="mt-1 text-xs text-gray-500">Optional: Assign staff member to a specific branch</p>
                 </div>
               </div>
-
-              <div className="flex items-center justify-between border-t border-gray-200 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#0f4d8a] to-[#0f4d8a]/90 px-4 py-2 text-sm font-medium text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95"
-                >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  {editing ? "Update Staff Member" : "Create Staff Member"}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
+        </SharedModal>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={deleteConfirm.open}
+        onClose={() => setDeleteConfirm({ open: false, staff: null })}
+        onConfirm={deleteItem}
+        title="Delete Staff Member"
+        message="Are you sure you want to delete this staff member? This action cannot be undone and will permanently remove all associated data."
+        itemName={deleteConfirm.staff ? `${deleteConfirm.staff.firstName} ${deleteConfirm.staff.lastName} (${deleteConfirm.staff.userCode})` : undefined}
+      />
     </div>
   );
 }

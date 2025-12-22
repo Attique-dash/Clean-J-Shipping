@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const payload = getAuthFromRequest(req);
+  const payload = await getAuthFromRequest(req);
   const isAuthed = Boolean(payload && (payload.role === "customer" || payload.role === "admin"));
 
   // If unauthenticated, require name+email

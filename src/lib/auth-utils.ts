@@ -1,20 +1,18 @@
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth-config';
 import { NextResponse } from 'next/server';
 import { NextApiRequest, NextApiResponse } from 'next';
 
-interface UserSession {
-  user?: {
-    id: string;
-    email: string;
-    name: string;
-    role: string;
-  };
+interface User {
+  id: string;
+  email?: string | null | undefined;
+  name?: string | null | undefined;
+  role: string;
 }
 
 export async function getCurrentUser() {
   try {
-    const session = (await getServerSession(authOptions)) as UserSession | null;
+    const session = await getServerSession(authOptions);
     return session?.user || null;
   } catch (error) {
     console.error('Error getting user session:', error);
@@ -33,7 +31,7 @@ export function withAuth(handler: AuthMiddleware): AuthMiddleware {
     }
 
     // Add user to request object
-    (req as any).user = user;
+    (req as NextApiRequest & { user: User }).user = user;
     
     return handler(req, res);
   };
@@ -53,7 +51,7 @@ export function withRole(roles: string[]) {
       }
 
       // Add user to request object
-      (req as any).user = user;
+      (req as NextApiRequest & { user: User }).user = user;
       
       return handler(req, res);
     };

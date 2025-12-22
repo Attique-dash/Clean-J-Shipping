@@ -169,7 +169,7 @@ export default function LoginPage() {
                 <FaPlane className="text-[#E67919] text-2xl" />
               </div>
               <div>
-                <h2 className="text-white font-bold text-2xl">Clean JS Shipping</h2>
+                <h2 className="text-white font-bold text-2xl">Clean J Shipping</h2>
                 <p className="text-cyan-100 text-xs">Logistics & Delivery</p>
               </div>
             </div>
@@ -178,7 +178,7 @@ export default function LoginPage() {
               <div className="relative w-48 h-48">
                 <Image 
                   src="/images/Logo.png" 
-                  alt="Clean JS Shipping Logo" 
+                  alt="Clean J Shipping Logo" 
                   fill
                   priority 
                   sizes="(max-width: 768px) 100vw, 50vw"
@@ -202,13 +202,13 @@ export default function LoginPage() {
           </div>
 
           {/* Right: form */}
-          <div className="bg-white px-8 py-10 md:px-10 md:py-12">
+          <div className="bg-white px-8 py-8 md:px-10 md:py-10">
             <div className="flex md:hidden items-center gap-3 justify-center mb-6">
               <div className="w-10 h-10 bg-gradient-to-br from-[#0E7893] to-[#1a9bb8] rounded-xl flex items-center justify-center shadow-lg">
                 <FaPlane className="text-white text-xl" />
               </div>
               <div>
-                <h2 className="font-bold text-xl text-[#E67919]">Clean JS Shipping</h2>
+                <h2 className="font-bold text-xl text-[#E67919]">Clean J Shipping</h2>
               </div>
             </div>
 
@@ -313,18 +313,6 @@ export default function LoginPage() {
                   )}
                 </button>
               </form>
-
-              <div className="mt-6 text-center">
-                <p className="text-sm text-gray-600">
-                  Don&apos;t have an account?{" "}
-                  <Link 
-                    href="/register" 
-                    className="text-[#0E7893] hover:text-[#E67919] font-semibold transition-colors hover:underline"
-                  >
-                    Register now
-                  </Link>
-                </p>
-              </div>
 
               <div className="mt-8 relative">
                 <div className="absolute inset-0 flex items-center">

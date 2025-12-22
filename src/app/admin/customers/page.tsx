@@ -1,4 +1,4 @@
-import CustomersPageClient from "./customers-client";
+import CustomersPageClient from "./customers-client-new";
 
 export const dynamic = "force-dynamic";
 

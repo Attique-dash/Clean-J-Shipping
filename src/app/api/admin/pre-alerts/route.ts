@@ -6,7 +6,7 @@ import { User } from "@/models/User";
 
 export async function GET(req: Request) {
   await dbConnect();
-  const payload = getAuthFromRequest(req);
+  const payload = await getAuthFromRequest(req);
   if (!payload || payload.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
 
 export async function PUT(req: Request) {
   await dbConnect();
-  const payload = getAuthFromRequest(req);
+  const payload = await getAuthFromRequest(req);
   if (!payload || payload.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

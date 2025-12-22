@@ -70,7 +70,6 @@ export default function TopHeader() {
   // Define routes where header should be hidden
   const hideHeaderRoutes = [
     '/login',
-    '/register',
     '/admin',
     '/customer',
     '/warehouse',
@@ -157,7 +156,7 @@ export default function TopHeader() {
               href="/login"
               className="hidden md:inline-flex rounded-md bg-[#E67919] md:px-4 md:py-2 md:text-sm lg:px-5 lg:py-2.5 lg:text-sm font-semibold text-white shadow-sm hover:bg-gray-900"
             >
-              Login | Register
+              Login
             </Link>
 
             <button
@@ -253,7 +252,7 @@ export default function TopHeader() {
               onClick={() => setIsDrawerOpen(false)}
               className="mt-3 block rounded-md bg-[#E67919] px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-[#cf6912]"
             >
-              Login | Register
+              Login
             </Link>
           </div>
         </div>

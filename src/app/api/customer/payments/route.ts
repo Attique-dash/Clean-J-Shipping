@@ -1,31 +1,41 @@
+// src/app/api/customer/payments/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthFromRequest } from "@/lib/rbac";
-import { stripe } from "@/lib/stripe";
 
 export async function GET(req: Request) {
+  // ✅ FIX: Added await
   const payload = await getAuthFromRequest(req);
+  
   if (!payload || payload.role !== "customer") {
+    console.log('[Payments API] Unauthorized:', payload);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
+    console.log('[Payments API] Fetching payments for user:', payload.id);
+    
     const payments = await prisma.payment.findMany({
       where: { userId: payload.id },
       orderBy: { createdAt: 'desc' },
       take: 100
     });
 
+    console.log('[Payments API] Found payments:', payments.length);
+
     return NextResponse.json({ payments });
   } catch (error) {
-    console.error("Error fetching payments:", error);
+    console.error("[Payments API] Error:", error);
     return NextResponse.json({ error: "Failed to fetch payments" }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
+  // ✅ FIX: Added await
   const payload = await getAuthFromRequest(req);
+  
   if (!payload || payload.role !== "customer") {
+    console.log('[Payments API] Unauthorized:', payload);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -37,44 +47,44 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
-    const { amount, currency = "USD", method = "card" } = raw as any;
+    const { amount, currency = "USD", method = "card", package_id, invoice_number } = raw as any;
 
     if (!amount || amount < 0.5) {
       return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
     }
 
-    // Create Stripe PaymentIntent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100),
-      currency: currency.toLowerCase(),
-      metadata: {
-        userId: payload.id,
-      },
-    });
+    console.log('[Payments API] Creating payment for user:', payload.id, 'amount:', amount, 'package:', package_id);
 
-    // Create payment record
+    // Generate a unique payment ID for PayPal tracking
+    const paymentId = `PAY-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Create payment record with PayPal payment ID
     const created = await prisma.payment.create({
       data: {
         userId: payload.id,
-        transactionId: paymentIntent.id,
+        transactionId: paymentId,
         amount,
         currency,
-        paymentMethod: method,
+        paymentMethod: "paypal",
         status: "pending",
         metadata: {
-          clientSecret: paymentIntent.client_secret
+          paymentId,
+          package_id,
+          invoice_number,
         }
       }
     });
 
+    console.log('[Payments API] Payment created:', created.id);
+
     return NextResponse.json({
       payment_id: created.id,
-      client_secret: paymentIntent.client_secret,
+      payment_id_paypal: paymentId,
       amount,
       currency,
     });
   } catch (error) {
-    console.error("Error creating payment:", error);
+    console.error("[Payments API] Error:", error);
     return NextResponse.json({ error: "Failed to create payment" }, { status: 500 });
   }
 }

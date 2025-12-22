@@ -67,7 +67,7 @@ const invoiceSchema = new Schema<IInvoice>(
   {
     invoiceNumber: { 
       type: String, 
-      required: true, 
+      required: false, // Pre-save hook will generate this, so it's not required at creation
       unique: true,
       index: true 
     },
@@ -77,7 +77,7 @@ const invoiceSchema = new Schema<IInvoice>(
       default: 'draft'
     },
     issueDate: { type: Date, default: Date.now },
-    dueDate: { type: Date, required: true },
+    dueDate: { type: Date, required: false }, // Pre-save hook will set this if not provided
     paymentTerms: { type: Number, default: 15 }, // 15 days
     currency: { type: String, default: 'USD' },
     exchangeRate: { type: Number, default: 1 },
@@ -117,7 +117,7 @@ const invoiceSchema = new Schema<IInvoice>(
     package: {
       type: Schema.Types.ObjectId,
       ref: 'Package',
-      required: true
+      required: false // Made optional to support invoices created from generator
     },
     shipment: {
       type: Schema.Types.ObjectId,
@@ -164,33 +164,49 @@ invoiceSchema.pre('save', async function(next) {
 invoiceSchema.methods.calculateTotals = function() {
   // Calculate items total
   this.subtotal = this.items.reduce((sum, item) => {
-    const amount = item.quantity * item.unitPrice;
-    const taxAmount = amount * (item.taxRate / 100);
-    item.amount = amount;
-    item.taxAmount = taxAmount;
-    item.total = amount + taxAmount;
+    const qty = Number(item.quantity) || 0;
+    const price = Number(item.unitPrice) || 0;
+    const taxRate = Number(item.taxRate) || 0;
+    const amount = qty * price;
+    const taxAmount = amount * (taxRate / 100);
+    item.amount = Number(amount) || 0;
+    item.taxAmount = Number(taxAmount) || 0;
+    item.total = Number(amount + taxAmount) || 0;
     return sum + item.total;
   }, 0);
+  this.subtotal = Number(this.subtotal) || 0;
 
   // Calculate discount
   let discountAmount = 0;
   if (this.discount) {
     if (this.discount.type === 'percentage') {
-      discountAmount = this.subtotal * (this.discount.value / 100);
+      const discountValue = Number(this.discount.value) || 0;
+      discountAmount = this.subtotal * (discountValue / 100);
     } else {
-      discountAmount = Math.min(this.discount.value, this.subtotal);
+      const discountValue = Number(this.discount.value) || 0;
+      discountAmount = Math.min(discountValue, this.subtotal);
     }
   }
-  this.discountAmount = discountAmount;
+  // Use existing discountAmount if already set and valid
+  if (this.discountAmount && !isNaN(this.discountAmount) && isFinite(this.discountAmount)) {
+    discountAmount = Number(this.discountAmount);
+  }
+  this.discountAmount = Number(discountAmount) || 0;
 
   // Calculate tax total
-  this.taxTotal = this.items.reduce((sum, item) => sum + item.taxAmount, 0);
+  this.taxTotal = this.items.reduce((sum, item) => {
+    return sum + (Number(item.taxAmount) || 0);
+  }, 0);
+  this.taxTotal = Number(this.taxTotal) || 0;
   
   // Calculate grand total
   this.total = this.subtotal + this.taxTotal - this.discountAmount;
+  this.total = Number(this.total) || 0;
   
   // Update balance due
-  this.balanceDue = this.total - (this.amountPaid || 0);
+  const amountPaid = Number(this.amountPaid) || 0;
+  this.balanceDue = this.total - amountPaid;
+  this.balanceDue = Number(this.balanceDue) || 0;
   
   // Update status based on payment
   if (this.balanceDue <= 0 && this.total > 0) {
@@ -209,3 +225,4 @@ invoiceSchema.index({
 });
 
 export default mongoose.models.Invoice || mongoose.model<IInvoice>('Invoice', invoiceSchema);
+

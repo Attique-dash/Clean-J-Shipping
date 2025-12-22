@@ -1,127 +1,132 @@
-import { NextResponse } from "next/server";
-import { dbConnect } from "@/lib/db";
-import { Package } from "@/models/Package";
-import { PreAlert } from "@/models/PreAlert";
-import { Payment } from "@/models/Payment";
-import { User } from "@/models/User";
-import { getAuthFromRequest } from "@/lib/rbac";
+'use client';
 
-export async function GET(req: Request) {
-  // Check authentication
-  const payload = getAuthFromRequest(req);
-  if (!payload || payload.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+import { useState, useEffect } from 'react';
+import { Card } from '@/components/ui/card';
+import { Package, DollarSign, Users, AlertTriangle } from 'lucide-react';
+
+interface DashboardStats {
+  totalPackages: number;
+  newToday: number;
+  pendingAlerts: number;
+  revenueToday: number;
+  recentActivity: Array<{
+    time: string;
+    text: string;
+    right?: string;
+  }>;
+  preAlerts: Array<{
+    trackingNumber: string;
+    status: string;
+    createdAt: string;
+  }>;
+}
+
+export default function AdminStatusPage() {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/admin/status')
+      .then(res => res.json())
+      .then(data => {
+        setStats(data);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Failed to fetch stats:', error);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return <div className="p-6">Loading...</div>;
   }
 
-  try {
-    await dbConnect();
-
-    // Define time ranges
-    const now = new Date();
-    const startOfToday = new Date(now);
-    startOfToday.setHours(0, 0, 0, 0);
-    const endOfToday = new Date(now);
-    endOfToday.setHours(23, 59, 59, 999);
-
-    // Fetch all data in parallel
-    const [
-      totalPackages,
-      newToday,
-      pendingAlerts,
-      revenueAgg,
-      recentPackages,
-      recentPayments,
-      recentCustomers,
-      preAlertsList,
-    ] = await Promise.all([
-      Package.countDocuments({}),
-      Package.countDocuments({ createdAt: { $gte: startOfToday, $lt: endOfToday } }),
-      PreAlert.countDocuments({ status: "submitted" }),
-      Payment.aggregate([
-        { $match: { status: "captured", createdAt: { $gte: startOfToday, $lt: endOfToday } } },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
-      ]),
-      Package.find({})
-        .select("trackingNumber status updatedAt userCode")
-        .sort({ updatedAt: -1 })
-        .limit(5)
-        .lean(),
-      Payment.find({ status: "captured" })
-        .select("amount userCode createdAt")
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .lean(),
-      User.find({ role: "customer" })
-        .select("email createdAt")
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .lean(),
-      PreAlert.find({})
-        .select("trackingNumber status createdAt")
-        .sort({ createdAt: -1 })
-        .limit(6)
-        .lean(),
-    ]);
-
-    const revenueToday = Number(revenueAgg?.[0]?.total || 0);
-
-    // Build recent activity
-    type Activity = { time: Date; text: string; right?: string };
-    const activities: Activity[] = [];
-
-    recentPackages.forEach((p: any) => {
-      activities.push({ 
-        time: new Date(p.updatedAt), 
-        text: `Package ${p.trackingNumber} ${p.status}` 
-      });
-    });
-
-    recentPayments.forEach((pay: any) => {
-      activities.push({ 
-        time: new Date(pay.createdAt), 
-        text: `Payment captured $${pay.amount.toFixed(2)}`, 
-        right: pay.userCode 
-      });
-    });
-
-    recentCustomers.forEach((u: any) => {
-      activities.push({ 
-        time: new Date(u.createdAt), 
-        text: `New customer registered`, 
-        right: u.email 
-      });
-    });
-
-    // Sort by time and take top 8
-    activities.sort((a, b) => b.time.getTime() - a.time.getTime());
-    const recentActivity = activities.slice(0, 8).map(a => ({
-      time: a.time.toISOString(),
-      text: a.text,
-      right: a.right,
-    }));
-
-    // Format pre-alerts
-    const preAlerts = preAlertsList.map((p: any) => ({
-      trackingNumber: p.trackingNumber,
-      status: p.status,
-      createdAt: p.createdAt.toISOString(),
-    }));
-
-    // Return all stats
-    return NextResponse.json({
-      totalPackages,
-      newToday,
-      pendingAlerts,
-      revenueToday,
-      recentActivity,
-      preAlerts,
-    });
-
-  } catch (error) {
-    console.error("Dashboard stats error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch dashboard stats" },
-      { status: 500 }
-    );
+  if (!stats) {
+    return <div className="p-6">Failed to load dashboard data</div>;
   }
+
+  return (
+    <div className="p-6 space-y-6">
+      <h1 className="text-3xl font-bold">Dashboard Status</h1>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Packages</p>
+              <p className="text-2xl font-bold">{stats.totalPackages}</p>
+            </div>
+            <Package className="h-8 w-8 text-blue-600" />
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">New Today</p>
+              <p className="text-2xl font-bold">{stats.newToday}</p>
+            </div>
+            <Package className="h-8 w-8 text-green-600" />
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Pending Alerts</p>
+              <p className="text-2xl font-bold">{stats.pendingAlerts}</p>
+            </div>
+            <AlertTriangle className="h-8 w-8 text-yellow-600" />
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Revenue Today</p>
+              <p className="text-2xl font-bold">${stats.revenueToday.toFixed(2)}</p>
+            </div>
+            <DollarSign className="h-8 w-8 text-green-600" />
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="p-6">
+          <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
+          <div className="space-y-3">
+            {stats.recentActivity.map((activity, index) => (
+              <div key={index} className="flex justify-between items-center text-sm">
+                <span>{activity.text}</span>
+                <div className="text-right">
+                  <div className="text-gray-500">{activity.right}</div>
+                  <div className="text-gray-400">
+                    {new Date(activity.time).toLocaleTimeString()}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h2 className="text-xl font-semibold mb-4">Recent Pre-Alerts</h2>
+          <div className="space-y-3">
+            {stats.preAlerts.map((alert, index) => (
+              <div key={index} className="flex justify-between items-center text-sm">
+                <span>{alert.trackingNumber}</span>
+                <div className="text-right">
+                  <div className="font-medium">{alert.status}</div>
+                  <div className="text-gray-400">
+                    {new Date(alert.createdAt).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
 }

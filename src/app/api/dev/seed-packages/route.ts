@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     const u = await User.findOne({ email: emailParam }).select("userCode");
     userCode = u?.userCode;
   } else {
-    const payload = getAuthFromRequest(req);
+    const payload = await getAuthFromRequest(req);
     if (payload?.userCode) userCode = String(payload.userCode);
     if (!userCode && payload?._id) {
       const u = await User.findById(payload._id).select("userCode");

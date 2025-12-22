@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Package, Truck, MapPin, Calendar, Search, Filter, ChevronDown, ChevronRight, CheckCircle, Clock, AlertCircle, Box, ArrowRight, User } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Package, Truck, MapPin, Calendar, Search, Filter, ChevronDown, ChevronRight, CheckCircle, Clock, AlertCircle, Box, ArrowRight, User, RefreshCw, Loader2 } from "lucide-react";
 
 type ReceivalStatus = "pending" | "in_transit" | "received" | "delayed";
 
@@ -20,77 +20,88 @@ type Receival = {
   trackingNumber?: string;
 };
 
-// Demo data
-const demoReceivalsData: Receival[] = [
-  {
-    id: "1",
-    receivalNumber: "RCV-2024-001",
-    fromWarehouse: "Main Warehouse - Karachi",
-    toBranch: "Lahore Branch",
-    items: [
-      { name: "Product A", quantity: 50, sku: "SKU-001" },
-      { name: "Product B", quantity: 30, sku: "SKU-002" },
-    ],
-    totalItems: 80,
-    status: "received",
-    shippedDate: "2024-11-10",
-    expectedDate: "2024-11-12",
-    receivedDate: "2024-11-12",
-    receivedBy: "Ahmed Khan",
-    trackingNumber: "TRK-123456",
-  },
-  {
-    id: "2",
-    receivalNumber: "RCV-2024-002",
-    fromWarehouse: "Main Warehouse - Karachi",
-    toBranch: "Islamabad Branch",
-    items: [
-      { name: "Product C", quantity: 100, sku: "SKU-003" },
-      { name: "Product D", quantity: 75, sku: "SKU-004" },
-      { name: "Product E", quantity: 25, sku: "SKU-005" },
-    ],
-    totalItems: 200,
-    status: "in_transit",
-    shippedDate: "2024-11-11",
-    expectedDate: "2024-11-14",
-    trackingNumber: "TRK-123457",
-  },
-  {
-    id: "3",
-    receivalNumber: "RCV-2024-003",
-    fromWarehouse: "Secondary Warehouse - Lahore",
-    toBranch: "Faisalabad Branch",
-    items: [
-      { name: "Product F", quantity: 40, sku: "SKU-006" },
-    ],
-    totalItems: 40,
-    status: "delayed",
-    shippedDate: "2024-11-08",
-    expectedDate: "2024-11-11",
-    trackingNumber: "TRK-123458",
-  },
-  {
-    id: "4",
-    receivalNumber: "RCV-2024-004",
-    fromWarehouse: "Main Warehouse - Karachi",
-    toBranch: "Multan Branch",
-    items: [
-      { name: "Product G", quantity: 60, sku: "SKU-007" },
-      { name: "Product H", quantity: 40, sku: "SKU-008" },
-    ],
-    totalItems: 100,
-    status: "pending",
-    shippedDate: "2024-11-13",
-    expectedDate: "2024-11-15",
-    trackingNumber: "TRK-123459",
-  },
-];
-
 export default function ReceivalsPage() {
-  const [receivals] = useState<Receival[]>(demoReceivalsData);
+  const [receivals, setReceivals] = useState<Receival[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<ReceivalStatus | "all">("all");
+
+  async function loadReceivals() {
+    setLoading(true);
+    setError(null);
+    try {
+      // Load packages with authentication (NextAuth handles auth via cookies)
+      const res = await fetch("/api/admin/packages?per_page=100", { 
+        cache: "no-store",
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      const data = await res.json();
+      if (!res.ok) {
+        const errorMsg = data?.error || "Failed to load receivals";
+        console.error("Receivals API error:", errorMsg, data);
+        throw new Error(errorMsg);
+      }
+      
+      const packages = data.packages || [];
+      const mapped: Receival[] = packages.map((pkg: {
+        _id: string;
+        trackingNumber: string;
+        status: string;
+        createdAt: string;
+        updatedAt: string;
+        currentLocation: string;
+        estimatedDelivery: string;
+      }, idx: number) => {
+        const statusMap: Record<string, ReceivalStatus> = {
+          "At Warehouse": "received",
+          "In Transit": "in_transit",
+          "Delivered": "received",
+          "pending": "pending",
+          "picked_up": "in_transit",
+          "out_for_delivery": "in_transit",
+          "failed": "delayed",
+          "returned": "delayed",
+        };
+        
+        // Parse received_date to get dates
+        const receivedDate = pkg.createdAt ? new Date(pkg.createdAt) : new Date();
+        const expectedDate = new Date(receivedDate);
+        expectedDate.setDate(expectedDate.getDate() + 3); // Add 3 days for expected delivery
+        
+        return {
+          id: pkg._id || pkg.trackingNumber || String(idx),
+          receivalNumber: pkg.trackingNumber || `RCV-${idx + 1}`,
+          fromWarehouse: pkg.currentLocation || "Main Warehouse",
+          toBranch: pkg.currentLocation || "Main Branch",
+          items: [],
+          totalItems: 1,
+          status: statusMap[pkg.status] || "pending",
+          shippedDate: receivedDate.toISOString().split('T')[0],
+          expectedDate: expectedDate.toISOString().split('T')[0],
+          receivedDate: statusMap[pkg.status] === "received" ? receivedDate.toISOString().split('T')[0] : undefined,
+          receivedBy: undefined,
+          trackingNumber: pkg.trackingNumber || undefined,
+        };
+      });
+      
+      setReceivals(mapped);
+    } catch (e) {
+      console.error("Error loading receivals:", e);
+      setError(e instanceof Error ? e.message : "Failed to load receivals");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadReceivals();
+  }, []);
 
   const getStatusColor = (status: ReceivalStatus) => {
     switch (status) {
@@ -122,58 +133,118 @@ export default function ReceivalsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#0f4d8a] to-[#E67919] bg-clip-text text-transparent">
-            Receivals Management
-          </h1>
-          <p className="text-slate-600">Track and manage inventory receivals from warehouses to branches</p>
-        </div>
+        {/* Header Section */}
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-white/10" />
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="bg-white rounded-xl p-5 shadow-md border border-slate-200">
-            <div className="flex items-center justify-between mb-2">
-              <Package className="w-8 h-8 text-[#0f4d8a]" />
+          <div className="relative flex flex-col gap-6">
+            
+            {/* Top Row */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-200">
+                  Receivals Management
+                </h1>
+                <p className="mt-1 text-sm text-blue-100">
+                  Track and manage inventory receivals from warehouses to branches
+                </p>
+              </div>
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={loadReceivals}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-white/15 px-5 py-3 text-sm font-semibold shadow-md backdrop-blur transition hover:bg-white/25 hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </button>
+                <button 
+                  onClick={() => {
+                    // TODO: Open new receival form modal
+                    alert("New Receival functionality - Coming soon!");
+                  }}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-[#0f4d8a] shadow-md backdrop-blur transition hover:bg-blue-50 hover:shadow-xl hover:scale-105 active:scale-95"
+                >
+                  <Package className="h-5 w-5" />
+                  New Receival
+                </button>
+              </div>
             </div>
-            <p className="text-sm text-slate-600 font-medium">Total Receivals</p>
-            <p className="text-3xl font-bold text-[#0f4d8a] mt-1">{stats.total}</p>
-          </div>
 
-          <div className="bg-white rounded-xl p-5 shadow-md border border-slate-200">
-            <div className="flex items-center justify-between mb-2">
-              <CheckCircle className="w-8 h-8 text-green-600" />
-            </div>
-            <p className="text-sm text-slate-600 font-medium">Received</p>
-            <p className="text-3xl font-bold text-green-600 mt-1">{stats.received}</p>
-          </div>
+            {/* Stats Cards inside header */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
 
-          <div className="bg-white rounded-xl p-5 shadow-md border border-slate-200">
-            <div className="flex items-center justify-between mb-2">
-              <Truck className="w-8 h-8 text-blue-600" />
-            </div>
-            <p className="text-sm text-slate-600 font-medium">In Transit</p>
-            <p className="text-3xl font-bold text-blue-600 mt-1">{stats.inTransit}</p>
-          </div>
+              {/* Total Receivals */}
+              <div className="group relative overflow-hidden rounded-xl bg-white/10 p-5 shadow-md backdrop-blur">
+                <div className="relative flex items-center gap-4">
+                  <div className="rounded-lg bg-white/20 p-3">
+                    <Package className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-100">Total Receivals</p>
+                    <p className="mt-1 text-2xl font-bold">{stats.total}</p>
+                  </div>
+                </div>
+              </div>
 
-          <div className="bg-white rounded-xl p-5 shadow-md border border-slate-200">
-            <div className="flex items-center justify-between mb-2">
-              <Clock className="w-8 h-8 text-yellow-600" />
-            </div>
-            <p className="text-sm text-slate-600 font-medium">Pending</p>
-            <p className="text-3xl font-bold text-yellow-600 mt-1">{stats.pending}</p>
-          </div>
+              {/* Received */}
+              <div className="group relative overflow-hidden rounded-xl bg-green-500/20 p-5 shadow-md backdrop-blur">
+                <div className="relative flex items-center gap-4">
+                  <div className="rounded-lg bg-white/20 p-3">
+                    <CheckCircle className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-green-100">Received</p>
+                    <p className="mt-1 text-2xl font-bold">{stats.received}</p>
+                  </div>
+                </div>
+              </div>
 
-          <div className="bg-white rounded-xl p-5 shadow-md border border-slate-200">
-            <div className="flex items-center justify-between mb-2">
-              <AlertCircle className="w-8 h-8 text-red-600" />
+              {/* In Transit */}
+              <div className="group relative overflow-hidden rounded-xl bg-blue-500/20 p-5 shadow-md backdrop-blur">
+                <div className="relative flex items-center gap-4">
+                  <div className="rounded-lg bg-white/20 p-3">
+                    <Truck className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-100">In Transit</p>
+                    <p className="mt-1 text-2xl font-bold">{stats.inTransit}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pending */}
+              <div className="group relative overflow-hidden rounded-xl bg-orange-500/20 p-5 shadow-md backdrop-blur">
+                <div className="relative flex items-center gap-4">
+                  <div className="rounded-lg bg-white/20 p-3">
+                    <Clock className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-orange-100">Pending</p>
+                    <p className="mt-1 text-2xl font-bold">{stats.pending}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Delayed */}
+              <div className="group relative overflow-hidden rounded-xl bg-red-500/20 p-5 shadow-md backdrop-blur">
+                <div className="relative flex items-center gap-4">
+                  <div className="rounded-lg bg-white/20 p-3">
+                    <AlertCircle className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-red-100">Delayed</p>
+                    <p className="mt-1 text-2xl font-bold">{stats.delayed}</p>
+                  </div>
+                </div>
+              </div>
+
             </div>
-            <p className="text-sm text-slate-600 font-medium">Delayed</p>
-            <p className="text-3xl font-bold text-red-600 mt-1">{stats.delayed}</p>
           </div>
-        </div>
+        </header>
 
         {/* Search and Filter */}
         <div className="bg-white rounded-xl shadow-md border border-slate-200 p-5">
@@ -213,7 +284,24 @@ export default function ReceivalsPage() {
           </div>
 
           <div className="divide-y divide-slate-200">
-            {filteredReceivalsData.length === 0 ? (
+            {loading ? (
+              <div className="p-12">
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
+                </div>
+              </div>
+            ) : error ? (
+              <div className="text-center py-12">
+                <AlertCircle className="w-12 h-12 text-red-300 mx-auto mb-3" />
+                <p className="text-red-500 font-medium">{error}</p>
+                <button 
+                  onClick={loadReceivals}
+                  className="mt-4 px-4 py-2 rounded-lg bg-[#0f4d8a] text-white hover:bg-[#0e447d] transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : filteredReceivalsData.length === 0 ? (
               <div className="text-center py-12">
                 <Package className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                 <p className="text-slate-500 font-medium">No receivals found</p>
@@ -346,6 +434,42 @@ export default function ReceivalsPage() {
                             <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                               <p className="text-sm font-medium text-slate-700">Tracking Number</p>
                               <p className="text-lg font-mono font-bold text-[#0f4d8a] mt-1">{receival.trackingNumber}</p>
+                            </div>
+                          )}
+
+                          {/* Record Received Action */}
+                          {receival.status !== "received" && (
+                            <div className="mt-4 pt-4 border-t border-slate-200">
+                              <button
+                                onClick={async () => {
+                                  if (!confirm(`Mark receival ${receival.receivalNumber} as received?`)) return;
+                                  try {
+                                    // Update package status to "At Warehouse" (received)
+                                    const res = await fetch(`/api/admin/packages`, {
+                                      method: "PUT",
+                                      headers: { "Content-Type": "application/json" },
+                                      credentials: 'include',
+                                      body: JSON.stringify({
+                                        id: receival.id,
+                                        status: "At Warehouse",
+                                      }),
+                                    });
+                                    if (res.ok) {
+                                      alert("Receival recorded successfully!");
+                                      loadReceivals();
+                                    } else {
+                                      const data = await res.json();
+                                      alert(data?.error || "Failed to record receival");
+                                    }
+                                  } catch (e) {
+                                    alert("Error recording receival: " + (e instanceof Error ? e.message : "Unknown error"));
+                                  }
+                                }}
+                                className="w-full flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                                Record as Received
+                              </button>
                             </div>
                           )}
                         </div>
