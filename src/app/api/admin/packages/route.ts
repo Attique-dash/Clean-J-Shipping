@@ -54,7 +54,7 @@ export async function GET(req: Request) {
     const formattedPackages = packages.map(p => ({
       id: p._id,
       tracking_number: p.trackingNumber,
-      customer_name: (p.userId as { name?: string; email: string })?.name || 'Unknown',
+      customer_name: (p.userId as unknown as { name?: string; email: string })?.name || 'Unknown',
       customer_id: p.userId,
       status: p.status,
       current_location: p.currentLocation || undefined,
@@ -236,6 +236,10 @@ export async function PUT(req: Request) {
     }
 
     const updated = await Package.findByIdAndUpdate(id, updateData, { new: true });
+
+    if (!updated) {
+      return NextResponse.json({ error: "Package not found" }, { status: 404 });
+    }
 
     return NextResponse.json({ 
       ok: true, 

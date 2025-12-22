@@ -152,7 +152,6 @@ const countryPhoneCodes: Record<string, string> = {
   'MP': '+1670',
   'GU': '+1671',
   'VI': '+1340',
-  'PR': '+1787',
   'KY': '+1345',
   'BM': '+1441',
   'AI': '+1264',

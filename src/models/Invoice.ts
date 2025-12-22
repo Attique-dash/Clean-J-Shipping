@@ -161,9 +161,9 @@ invoiceSchema.pre('save', async function(next) {
 });
 
 // Calculate invoice totals
-invoiceSchema.methods.calculateTotals = function() {
+invoiceSchema.methods.calculateTotals = function(this: IInvoice) {
   // Calculate items total
-  this.subtotal = this.items.reduce((sum, item) => {
+  this.subtotal = this.items.reduce((sum: number, item: IInvoiceItem) => {
     const qty = Number(item.quantity) || 0;
     const price = Number(item.unitPrice) || 0;
     const taxRate = Number(item.taxRate) || 0;
@@ -194,7 +194,7 @@ invoiceSchema.methods.calculateTotals = function() {
   this.discountAmount = Number(discountAmount) || 0;
 
   // Calculate tax total
-  this.taxTotal = this.items.reduce((sum, item) => {
+  this.taxTotal = this.items.reduce((sum: number, item: IInvoiceItem) => {
     return sum + (Number(item.taxAmount) || 0);
   }, 0);
   this.taxTotal = Number(this.taxTotal) || 0;

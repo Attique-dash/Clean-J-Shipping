@@ -6,7 +6,7 @@ export interface InvoiceItem {
   description?: string;
 }
 
-export interface Invoice extends Omit<InvoiceData, 'items'> {
+export interface Invoice extends Omit<InvoiceItem, 'quantity' | 'price' | 'total'> {
   _id?: string;
   items: InvoiceItem[];
   status?: 'draft' | 'sent' | 'paid' | 'overdue';

@@ -14,7 +14,7 @@ export interface IPackage extends Document {
   barcode?: string;
   
   // Customer Information
-  userId: string;
+  userId: mongoose.Types.ObjectId;
   customerNotes?: string;
   
   // Sender Information

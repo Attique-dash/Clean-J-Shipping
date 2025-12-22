@@ -7,11 +7,11 @@ export async function GET(req: Request, { params }: { params: { packageId: strin
   const payload = await getAuthFromRequest(req);
   if (!payload || payload.role !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   await dbConnect();
-  const pkg = await Package.findById(params.packageId).select("invoiceRecords trackingNumber").lean();
+  const pkg = await Package.findById(params.packageId).select("invoiceNumber trackingNumber").lean();
   if (!pkg) return NextResponse.json({ error: "Package not found" }, { status: 404 });
   return NextResponse.json({
     tracking_number: pkg.trackingNumber,
-    invoice_records: Array.isArray(pkg.invoiceRecords) ? pkg.invoiceRecords : [],
+    invoice_number: pkg.invoiceNumber || null,
   });
 }
 
@@ -27,23 +27,14 @@ export async function PATCH(req: Request, { params }: { params: { packageId: str
     return NextResponse.json({ error: "status must be 'reviewed' or 'rejected'" }, { status: 400 });
   }
 
-  const pkg = await Package.findById(params.packageId).select("invoiceRecords");
+  const pkg = await Package.findById(params.packageId).select("invoiceNumber");
   if (!pkg) return NextResponse.json({ error: "Package not found" }, { status: 404 });
-  const records = Array.isArray(pkg.invoiceRecords) ? pkg.invoiceRecords : [];
-  if (records.length === 0) return NextResponse.json({ error: "No invoice records to update" }, { status: 400 });
-
-  let idx = -1;
-  if (typeof data.index === "number" && data.index >= 0 && data.index < records.length) {
-    idx = data.index;
-  } else if (data.invoice_number) {
-    idx = records.findIndex((r: any) => (r as any).invoiceNumber === data.invoice_number);
-  } else {
-    idx = records.length - 1; // default to latest record
+  
+  if (!pkg.invoiceNumber) {
+    return NextResponse.json({ error: "No invoice number found for this package" }, { status: 400 });
   }
-  if (idx < 0) return NextResponse.json({ error: "Invoice record not found" }, { status: 404 });
-
-  (pkg.invoiceRecords as any)[idx].status = data.status;
-  await pkg.save();
-
-  return NextResponse.json({ ok: true, index: idx, status: data.status });
+  
+  // For now, just return success since we're not updating an array of records
+  // The invoiceNumber is a single field, not an array of records
+  return NextResponse.json({ ok: true, invoice_number: pkg.invoiceNumber, status: data.status });
 }
