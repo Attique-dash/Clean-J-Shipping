@@ -78,6 +78,8 @@ export async function POST(req: Request) {
             createdAt: now,
           },
           $set: {
+            userCode: customer.userCode,
+            customer: customer._id,
             weight: typeof item.weight === "number" ? item.weight : undefined,
             shipper: typeof item.shipper === "string" ? item.shipper : undefined,
             description: typeof item.description === "string" ? item.description : undefined,

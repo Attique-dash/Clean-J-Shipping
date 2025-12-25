@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { HelpCircle, Search, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Loader2 } from "lucide-react";
+import { HelpCircle, Search, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Loader2, X } from "lucide-react";
 
 interface FAQItem {
   _id: string;
@@ -91,55 +91,87 @@ export default function CustomerFAQPage() {
   const displayFaqs = faqs?.flat || [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-          <div className="flex items-center space-x-3">
-            <div className="p-3 bg-gradient-to-br from-[#0f4d8a] to-[#1e6bb8] rounded-xl shadow-lg">
-              <HelpCircle className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-[#0f4d8a]">Frequently Asked Questions</h1>
-              <p className="text-sm text-gray-600 mt-1">
-                Find answers to common questions about shipping, rates, and policies
-              </p>
-            </div>
-          </div>
+        {/* Animated Background Pattern */}
+        <div className="fixed inset-0 z-0 opacity-30 pointer-events-none">
+          <div className="absolute inset-0" style={{
+            backgroundImage: 'radial-gradient(circle at 1px 1px, rgb(99 102 241 / 0.15) 1px, transparent 0)',
+            backgroundSize: '40px 40px'
+          }}></div>
         </div>
 
-        {/* Search and Filter */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search FAQs..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all"
-              />
+        <div className="relative z-10 space-y-6">
+          {/* Header Section */}
+          <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl">
+            <div className="absolute inset-0 bg-white/10" />
+            <div className="relative flex flex-col gap-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
+                    <HelpCircle className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <p className="text-sm uppercase tracking-widest text-blue-100">Customer Portal</p>
+                    <h1 className="text-3xl font-bold leading-tight md:text-4xl">Frequently Asked Questions</h1>
+                    <p className="text-blue-100 mt-1 flex items-center gap-2">
+                      <HelpCircle className="h-4 w-4" />
+                      Find answers to common questions about shipping, rates, and policies
+                      <span className="ml-2 rounded-full bg-green-100/20 backdrop-blur-sm px-2 py-0.5 text-xs font-medium text-green-100">
+                        Data Loaded
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all"
-            >
-              <option value="all">All Categories</option>
-              {faqs?.categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {categoryLabels[cat] || cat}
-                </option>
-              ))}
-            </select>
+          </header>
+
+          {/* Search and Filter Section */}
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
+              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <Search className="w-5 h-5" />
+                Search & Filter FAQs
+              </h2>
+            </div>
+            <div className="p-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search FAQs..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all"
+                  />
+                </div>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all"
+                >
+                  <option value="all">All Categories</option>
+                  {faqs?.categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {categoryLabels[cat] || cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
-        </div>
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 text-red-800">
-            {error}
+          <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <X className="h-5 w-5 text-red-600" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-800">{error}</p>
+            </div>
           </div>
         )}
 
@@ -220,6 +252,7 @@ export default function CustomerFAQPage() {
             <p className="text-gray-500">Try adjusting your search or category filter</p>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

@@ -9,7 +9,7 @@ import User from '@/models/User';
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!session?.user || !['admin', 'warehouse'].includes(session.user.role)) {
       return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 

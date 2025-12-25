@@ -4,6 +4,40 @@ import { dbConnect } from '@/lib/db';
 import { comparePassword } from '@/lib/auth';
 import { User } from '@/models/User';
 
+// Extend the built-in types
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string;
+      email: string;
+      name?: string | null;
+      image?: string | null;
+      role: string;
+      isVerified?: boolean;
+      userCode?: string;
+    };
+  }
+
+  interface User {
+    id: string;
+    email: string;
+    name?: string | null;
+    image?: string | null;
+    role: string;
+    isVerified?: boolean;
+    userCode?: string;
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT {
+    id: string;
+    role: string;
+    userCode?: string;
+    updated?: number;
+  }
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({

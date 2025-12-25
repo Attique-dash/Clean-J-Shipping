@@ -5,23 +5,21 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   FaBox,
   FaBoxes,
   FaSearch,
-  FaUserCog,
   FaUsers,
-  FaChartBar,
   FaCog,
   FaSignOutAlt,
-  FaBars,
-  FaTimes,
   FaHome,
   FaExclamationTriangle,
   FaFileUpload,
   FaBarcode,
   FaWarehouse,
 } from 'react-icons/fa';
+import { ChevronRight, Menu, X } from 'lucide-react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -34,29 +32,6 @@ export default function WarehouseLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [unknownPackagesCount, setUnknownPackagesCount] = useState(0);
-
-  // Check for unknown packages
-  useEffect(() => {
-    const checkUnknownPackages = async () => {
-      try {
-        const res = await fetch('/api/warehouse/packages/unknown/count');
-        const data = await res.json();
-        if (res.ok) {
-          setUnknownPackagesCount(data.count);
-        }
-      } catch (error) {
-        console.error('Error checking unknown packages:', error);
-      }
-    };
-
-    if (status === 'authenticated') {
-      checkUnknownPackages();
-      const interval = setInterval(checkUnknownPackages, 300000); // Check every 5 minutes
-
-      return () => clearInterval(interval);
-    }
-  }, [status]);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -74,186 +49,276 @@ export default function WarehouseLayout({
   }
 
   const navigation = [
-    { name: 'Dashboard', href: '/warehouse', icon: FaHome },
-    { name: 'Packages', href: '/warehouse/packages', icon: FaBox },
-    { name: 'Scan', href: '/warehouse/scan', icon: FaBarcode },
-    { name: 'Search', href: '/warehouse/search', icon: FaSearch },
     {
-      name: 'Unknown Packages',
-      href: '/warehouse/unknown-packages',
-      icon: FaExclamationTriangle,
-      count: unknownPackagesCount,
+      href: "/warehouse",
+      label: "Dashboard",
+      icon: FaHome,
+      description: "Warehouse dashboard overview",
+      color: "from-blue-500 to-blue-600",
     },
-    { name: 'Bulk Upload', href: '/warehouse/bulk-upload', icon: FaFileUpload },
-    { name: 'Manifests', href: '/warehouse/manifests', icon: FaBoxes },
-    { name: 'Inventory', href: '/warehouse/inventory', icon: FaWarehouse },
-    { name: 'Settings', href: '/warehouse/settings', icon: FaCog },
+    {
+      href: "/warehouse/packages",
+      label: "Packages",
+      icon: FaBox,
+      description: "Manage all packages",
+      color: "from-indigo-500 to-indigo-600",
+    },
+    {
+      href: "/warehouse/bulk-upload",
+      label: "Bulk Upload",
+      icon: FaFileUpload,
+      description: "Upload multiple packages",
+      color: "from-yellow-500 to-yellow-600",
+    },
+    {
+      href: "/warehouse/manifests",
+      label: "Manifests",
+      icon: FaBoxes,
+      description: "Create shipment manifests",
+      color: "from-purple-500 to-purple-600",
+    },
+    {
+      href: "/warehouse/inventory",
+      label: "Inventory",
+      icon: FaWarehouse,
+      description: "Track packing materials",
+      color: "from-orange-500 to-orange-600",
+    },
+    {
+      href: "/warehouse/customers",
+      label: "Customers",
+      icon: FaUsers,
+      description: "Customer management",
+      color: "from-pink-500 to-pink-600",
+    },
+    {
+      href: "/warehouse/settings",
+      label: "Settings",
+      icon: FaCog,
+      description: "Warehouse settings",
+      color: "from-slate-500 to-slate-600",
+    },
   ];
 
   return (
-    <div className="h-screen flex overflow-hidden bg-gray-100">
-      {/* Mobile sidebar */}
-      <div
-        className={`${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } md:hidden fixed inset-y-0 left-0 flex flex-col w-64 bg-gray-800 transition-transform duration-300 ease-in-out z-50`}
-      >
-        <div className="flex items-center justify-between h-16 px-4 bg-gray-900">
-          <div className="flex items-center">
-            <FaBox className="h-8 w-8 text-blue-500" />
-            <span className="ml-2 text-xl font-semibold text-white">
-              Warehouse Portal
-            </span>
-          </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="text-gray-400 hover:text-white"
-          >
-            <FaTimes className="h-6 w-6" />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          <nav className="px-2 py-4">
-            {navigation.map((item) => (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-                  pathname === item.href
-                    ? 'bg-gray-900 text-white'
-                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                }`}
-              >
-                <item.icon
-                  className={`mr-3 h-6 w-6 ${
-                    pathname === item.href
-                      ? 'text-blue-400'
-                      : 'text-gray-400 group-hover:text-gray-300'
-                  }`}
+    <div className="flex h-screen w-full overflow-hidden bg-gray-50">
+      {/* Desktop Sidebar - Fixed */}
+      <aside className="hidden md:flex md:flex-shrink-0">
+        <div className="flex w-72 flex-col bg-gradient-to-b from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] text-white shadow-2xl">
+          {/* Header */}
+          <div className="border-b border-white/10 bg-gradient-to-r from-[#0e447d] to-[#0c3a6b] px-6 py-5">
+            <div className="flex items-center gap-3">
+              {/* Logo Box */}
+              <div className="flex h-12 w-12 items-center justify-center rounded-md bg-white/10 backdrop-blur-sm">
+                <Image
+                  src="/images/Logo.png"
+                  alt="Clean J Shipping"
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 object-contain"
                 />
-                {item.name}
-                {item.count ? (
-                  <span className="ml-auto inline-block py-0.5 px-3 text-xs font-medium rounded-full bg-red-600 text-white">
-                    {item.count}
-                  </span>
-                ) : null}
-              </Link>
-            ))}
-          </nav>
-        </div>
-        <div className="p-4 border-t border-gray-700">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <img
-                className="h-10 w-10 rounded-full"
-                src={session.user?.image || '/images/avatar-placeholder.png'}
-                alt="User avatar"
-              />
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-white">
-                {session.user?.name}
-              </p>
-              <p className="text-xs font-medium text-gray-400">
-                {session.user?.email}
-              </p>
+              </div>
+              {/* Title */}
+              <div>
+                <div className="text-xl font-bold tracking-tight">
+                  Clean J Shipping
+                </div>
+                <div className="text-xs text-amber-400 font-medium">
+                  Warehouse Portal
+                </div>
+              </div>
             </div>
           </div>
-            <form action="/api/auth/logout" method="POST" className="mt-4">
-              <button
-                type="submit"
-                className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
-              >
-                <FaSignOutAlt className="mr-2" /> Sign out
-              </button>
-            </form>
-        </div>
-      </div>
 
-      {/* Desktop sidebar */}
-      <div className="hidden md:flex md:flex-shrink-0">
-        <div className="flex flex-col w-64 bg-gray-800">
-          <div className="flex items-center h-16 px-4 bg-gray-900">
-            <FaBox className="h-8 w-8 text-blue-500" />
-            <span className="ml-2 text-xl font-semibold text-white">
-              Warehouse Portal
-            </span>
-          </div>
-          <div className="flex-1 flex flex-col overflow-y-auto">
-            <nav className="flex-1 px-2 py-4 space-y-1">
-              {navigation.map((item) => (
+          {/* Navigation - Scrollable */}
+          <style jsx global>{`
+            /* Custom scrollbar for WebKit browsers */
+            .sidebar-scrollbar {
+              overflow-y: auto;
+            }
+            .sidebar-scrollbar::-webkit-scrollbar {
+              width: 6px;
+            }
+            .sidebar-scrollbar::-webkit-scrollbar-track {
+              background: transparent;
+              margin: 8px 0;
+            }
+            .sidebar-scrollbar::-webkit-scrollbar-thumb {
+              background: rgba(255, 255, 255, 0.2);
+              border-radius: 3px;
+              transition: background 0.2s ease-in-out;
+            }
+            .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+              background: rgba(255, 255, 255, 0.4);
+            }
+            /* Custom scrollbar for Firefox */
+            .sidebar-scrollbar {
+              scrollbar-width: thin;
+              scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+            }
+          `}</style>
+          <nav className="flex-1 overflow-y-auto space-y-1 p-4 pr-2 sidebar-scrollbar">
+            {navigation.map((item) => {
+              const Icon = item.icon;
+              const currentPath = pathname || "";
+              const isActive = item.href === "/warehouse"
+                ? currentPath === "/warehouse"
+                : (currentPath === item.href || currentPath.startsWith(item.href + "/"));
+
+              return (
                 <Link
-                  key={item.name}
+                  key={item.href}
                   href={item.href}
-                  className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-                    pathname === item.href
-                      ? 'bg-gray-900 text-white'
-                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                  className={`group relative w-full flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 cursor-pointer ${
+                    isActive
+                      ? "bg-white/15 text-white shadow-lg backdrop-blur-sm"
+                      : "text-blue-100 hover:bg-white/10 hover:text-white"
                   }`}
+                  title={item.description}
                 >
-                  <item.icon
-                    className={`mr-3 h-6 w-6 ${
-                      pathname === item.href
-                        ? 'text-blue-400'
-                        : 'text-gray-400 group-hover:text-gray-300'
+                  <div
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br ${
+                      item.color
+                    } shadow-md transition-transform duration-200 ${
+                      isActive ? "scale-110" : "group-hover:scale-105"
                     }`}
-                  />
-                  {item.name}
-                  {item.count ? (
+                  >
+                    <Icon className="h-5 w-5 text-white" strokeWidth={2.5} />
+                  </div>
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {item.count && (
                     <span className="ml-auto inline-block py-0.5 px-3 text-xs font-medium rounded-full bg-red-600 text-white">
                       {item.count}
                     </span>
-                  ) : null}
+                  )}
+                  {isActive && (
+                    <>
+                      <div className="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-white shadow-lg" />
+                      <ChevronRight className="h-4 w-4 text-white" />
+                    </>
+                  )}
+                  {!isActive && !item.count && (
+                    <ChevronRight className="h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100" />
+                  )}
                 </Link>
-              ))}
-            </nav>
-          </div>
-          <div className="p-4 border-t border-gray-700">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <img
-                  className="h-10 w-10 rounded-full"
-                  src={session.user?.image || '/images/avatar-placeholder.png'}
-                  alt="User avatar"
-                />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-white">
-                  {session.user?.name}
-                </p>
-                <p className="text-xs font-medium text-gray-400">
-                  {session.user?.email}
-                </p>
-              </div>
-            </div>
-            <form action="/api/auth/logout" method="POST" className="mt-4">
-              <button
-                type="submit"
-                className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
-              >
-                <FaSignOutAlt className="mr-2" /> Sign out
+              );
+            })}
+          </nav>
+
+          {/* Sidebar footer with user info and Logout button */}
+          <div className="border-t border-white/10 p-4">
+            
+            <form action="/api/auth/logout" method="POST">
+              <button className="w-full rounded-md bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20 transition">
+                <FaSignOutAlt className="inline mr-2" />
+                Logout
               </button>
             </form>
           </div>
         </div>
-      </div>
+      </aside>
 
-      {/* Main content */}
-      <div className="flex flex-col w-0 flex-1 overflow-hidden">
-        <div className="md:hidden pl-1 pt-1 sm:pl-3 sm:pt-3">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
-          >
-            <span className="sr-only">Open sidebar</span>
-            <FaBars className="h-6 w-6" />
-          </button>
-        </div>
-        <main className="flex-1 relative z-0 overflow-y-auto focus:outline-none">
-          <div className="py-6">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-              {children}
+      {/* Main Content Area */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Mobile header */}
+        <div className="sticky top-0 z-20 border-b border-gray-200 bg-white/90 backdrop-blur md:hidden">
+          <div className="relative flex items-center justify-between px-3 py-2">
+            {/* Left: Logo */}
+            <div className="flex items-center">
+              <Image src="/images/Logo.png" alt="Clean J Shipping" width={70} height={36} />
             </div>
+
+            {/* Center: Title */}
+            <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-base font-semibold text-gray-900">
+              Warehouse Portal
+            </div>
+
+            {/* Right: Toggle */}
+            <button
+              aria-label="Open sidebar"
+              onClick={() => setSidebarOpen(true)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md ring-1 ring-gray-200 hover:bg-gray-50"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Drawer */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-40 md:hidden">
+            <div
+              className="absolute inset-0 bg-black/40"
+              onClick={() => setSidebarOpen(false)}
+            />
+            <div className="absolute left-0 top-0 h-full w-72 transform bg-gradient-to-b from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] text-white shadow-2xl transition-transform">
+              <div className="flex items-center justify-between border-b border-white/10 px-4 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 backdrop-blur-sm">
+                    <Image src="/images/Logo.png" alt="Clean J Shipping" width={36} height={36} />
+                  </div>
+                  <div className="text-sm font-semibold">Warehouse Portal</div>
+                </div>
+                <button
+                  aria-label="Close sidebar"
+                  onClick={() => setSidebarOpen(false)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md ring-1 ring-white/20 hover:bg-white/10"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <nav className="space-y-1 p-4 overflow-y-auto h-[calc(100vh-140px)] sidebar-scrollbar">
+                {navigation.map((item) => {
+                  const Icon = item.icon;
+                  const currentPath = pathname || "";
+                  const isActive = item.href === "/warehouse"
+                    ? currentPath === "/warehouse"
+                    : (currentPath === item.href || currentPath.startsWith(item.href + "/"));
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setSidebarOpen(false)}
+                      className={`group relative w-full flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 cursor-pointer ${
+                        isActive
+                          ? "bg-white/15 text-white shadow-lg backdrop-blur-sm"
+                          : "text-blue-100 hover:bg-white/10 hover:text-white"
+                      }`}
+                      title={item.description}
+                    >
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br ${item.color} shadow-md`}>
+                        <Icon className="h-5 w-5 text-white" strokeWidth={2.5} />
+                      </div>
+                      <span className="flex-1 text-left">{item.label}</span>
+                      {item.count && (
+                        <span className="ml-auto inline-block py-0.5 px-3 text-xs font-medium rounded-full bg-red-600 text-white">
+                          {item.count}
+                        </span>
+                      )}
+                      <ChevronRight className="h-4 w-4 opacity-60" />
+                    </Link>
+                  );
+                })}
+              </nav>
+
+              <div className="border-t border-white/10 p-4">
+                
+                <form action="/api/auth/logout" method="POST">
+                  <button className="w-full rounded-md bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20 transition">
+                    <FaSignOutAlt className="inline mr-2" />
+                    Logout
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Main content area - Scrollable */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          <div className="mx-auto w-full max-w-7xl">
+            {children}
           </div>
         </main>
       </div>

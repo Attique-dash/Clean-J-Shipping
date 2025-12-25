@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import SharedModal from "@/components/admin/SharedModal";
 import AddButton from "@/components/admin/AddButton";
 import { generateTrackingNumber } from "@/lib/tracking";
+import { toast } from "react-toastify";
 import { 
   Package, 
   User, 
@@ -33,6 +34,40 @@ export default function AddForm() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedUserCode, setSelectedUserCode] = useState("");
   const [loadingCustomers, setLoadingCustomers] = useState(false);
+  
+  // Extended form state for additional package details
+  const [form, setForm] = useState({
+    weight: "",
+    shipper: "",
+    description: "",
+    entryDate: new Date().toISOString().slice(0, 10),
+    dimensions: {
+      length: "",
+      width: "",
+      height: "",
+      unit: "cm"
+    },
+    recipient: {
+      name: "",
+      email: "",
+      shippingId: "",
+      phone: "",
+      address: "",
+      country: ""
+    },
+    sender: {
+      name: "",
+      email: "",
+      phone: "",
+      address: "",
+      country: ""
+    },
+    contents: "",
+    value: "",
+    specialInstructions: "",
+    status: "received",
+    branch: ""
+  });
 
   // Load customers when modal opens
   useEffect(() => {
@@ -99,13 +134,50 @@ export default function AddForm() {
     }
   }
 
+  // Handle customer selection
+  const selectCustomer = async (customer: Customer) => {
+    try {
+      // Fetch complete customer data including phone and address
+      const res = await fetch(`/api/customers/${customer.userCode}`, {
+        credentials: 'include'
+      });
+      
+      if (res.ok) {
+        const fullCustomerData = await res.json();
+        
+        setForm(prev => ({
+          ...prev,
+          recipient: {
+            ...prev.recipient,
+            name: customer.name,
+            email: customer.email || '',
+            phone: fullCustomerData.phone || '',
+            address: fullCustomerData.address ? 
+              `${fullCustomerData.address.street || ''}${fullCustomerData.address.street ? ', ' : ''}${fullCustomerData.address.city || ''}${fullCustomerData.address.city ? ', ' : ''}${fullCustomerData.address.state || ''}${fullCustomerData.address.state ? ' ' : ''}${fullCustomerData.address.zipCode || ''}`.replace(/, $/, '').replace(/ $/, '') : 
+              '',
+            country: fullCustomerData.address?.country || ''
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching customer details:', error);
+    }
+  };
+
+  // Generate unique shipping ID
+  const generateShippingId = () => {
+    const prefix = 'SHIP';
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+    return `${prefix}${timestamp}${random}`;
+  };
+
   function generateNewTrackingNumber() {
     // Generate instantly without API calls - check uniqueness only on submit
     const newTn = generateTrackingNumber("TAS", true); // Use short format: TAS-XXXXXX
-      setTrackingNumber(newTn);
-      setTrackingError(null);
+    setTrackingNumber(newTn);
+    setTrackingError(null);
   }
-
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget as HTMLFormElement;
@@ -127,15 +199,39 @@ export default function AddForm() {
     }
 
     const payload: Record<string, unknown> = {
-      tracking_number: tn,
-      user_code: userCode,
+      trackingNumber: tn,
+      userCode: userCode,
+      weight: form.weight ? Number(form.weight) : undefined,
+      shipper: form.shipper,
+      description: form.description,
+      entryDate: form.entryDate,
+      status: form.status,
+      dimensions: {
+        length: form.dimensions.length ? Number(form.dimensions.length) : undefined,
+        width: form.dimensions.width ? Number(form.dimensions.width) : undefined,
+        height: form.dimensions.height ? Number(form.dimensions.height) : undefined,
+        unit: form.dimensions.unit
+      },
+      recipient: {
+        name: form.recipient.name,
+        email: form.recipient.email,
+        shippingId: form.recipient.shippingId || generateShippingId(),
+        phone: form.recipient.phone,
+        address: form.recipient.address,
+        country: form.recipient.country
+      },
+      sender: {
+        name: form.sender.name,
+        email: form.sender.email,
+        phone: form.sender.phone,
+        address: form.sender.address,
+        country: form.sender.country
+      },
+      contents: form.contents,
+      value: form.value ? Number(form.value) : undefined,
+      specialInstructions: form.specialInstructions,
+      branch: form.branch || "Main Warehouse"
     };
-    const weight = String(data.get("weight") || "").trim();
-    const description = String(data.get("description") || "").trim();
-    const branch = String(data.get("branch") || "").trim();
-    if (weight) payload["weight"] = Number(weight);
-    if (description) payload["description"] = description;
-    if (branch) payload["branch"] = branch;
 
     setSubmitting(true);
     setTrackingError(null);
@@ -174,6 +270,7 @@ export default function AddForm() {
       setTrackingNumber("");
       setSelectedUserCode("");
       setTrackingError(null);
+      toast.success("Package created successfully");
       // Use soft refresh to maintain session
       window.location.href = window.location.pathname + window.location.search;
     } finally {
@@ -282,7 +379,13 @@ export default function AddForm() {
               <select
                 name="user_code"
                 value={selectedUserCode}
-                onChange={(e) => setSelectedUserCode(e.target.value)}
+                onChange={(e) => {
+                  setSelectedUserCode(e.target.value);
+                  const customer = customers.find(c => c.userCode === e.target.value);
+                  if (customer) {
+                    selectCustomer(customer);
+                  }
+                }}
                 required
                 disabled={loadingCustomers}
                 className="w-full appearance-none rounded-xl border-2 border-gray-200 bg-white px-4 py-3 pr-10 text-sm font-medium text-gray-900 transition-all focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20 disabled:opacity-50"
@@ -317,17 +420,194 @@ export default function AddForm() {
               />
             </div>
 
-            {/* Branch */}
+            {/* Shipper */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <Package className="h-4 w-4 text-gray-500" />
+                Shipper
+              </label>
+              <input 
+                name="shipper" 
+                placeholder="Shipper name"
+                value={form.shipper}
+                onChange={(e) => setForm({ ...form, shipper: e.target.value })}
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-900 transition-all focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" 
+              />
+            </div>
+          </div>
+
+          {/* Entry Date and Status */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <Package className="h-4 w-4 text-gray-500" />
+                Entry Date
+              </label>
+              <input 
+                name="entryDate" 
+                type="date"
+                value={form.entryDate}
+                onChange={(e) => setForm({ ...form, entryDate: e.target.value })}
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-900 transition-all focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" 
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <Package className="h-4 w-4 text-gray-500" />
+                Status
+              </label>
+              <select
+                name="status"
+                value={form.status}
+                onChange={(e) => setForm({ ...form, status: e.target.value })}
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-900 transition-all focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+              >
+                <option value="received">Received</option>
+                <option value="in_processing">In Processing</option>
+                <option value="ready_to_ship">Ready to Ship</option>
+                <option value="shipped">Shipped</option>
+                <option value="in_transit">In Transit</option>
+                <option value="delivered">Delivered</option>
+                <option value="unknown">Unknown</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Recipient Details */}
+          <div className="space-y-4">
+            <h4 className="text-md font-semibold text-gray-900">Recipient Details</h4>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <User className="h-4 w-4 text-gray-500" />
+                  Name
+                </label>
+                <input 
+                  name="recipient_name" 
+                  placeholder="Recipient name"
+                  value={form.recipient.name}
+                  onChange={(e) => setForm({ ...form, recipient: { ...form.recipient, name: e.target.value } })}
+                  className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-900 transition-all focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <Hash className="h-4 w-4 text-gray-500" />
+                  Shipping ID
+                </label>
+                <div className="flex gap-2">
+                  <input 
+                    name="shipping_id" 
+                    placeholder="Auto-generated shipping ID"
+                    value={form.recipient.shippingId}
+                    onChange={(e) => setForm({ ...form, recipient: { ...form.recipient, shippingId: e.target.value } })}
+                    className="flex-1 rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-900 transition-all focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, recipient: { ...form.recipient, shippingId: generateShippingId() } })}
+                    className="flex items-center gap-2 rounded-xl border-2 border-[#0f4d8a] bg-[#0f4d8a] px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-[#0e447d]"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Generate
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <User className="h-4 w-4 text-gray-500" />
+                  Email
+                </label>
+                <input 
+                  name="recipient_email" 
+                  type="email"
+                  placeholder="email@example.com"
+                  value={form.recipient.email}
+                  onChange={(e) => setForm({ ...form, recipient: { ...form.recipient, email: e.target.value } })}
+                  className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-900 transition-all focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <Hash className="h-4 w-4 text-gray-500" />
+                  Phone
+                </label>
+                <input 
+                  name="recipient_phone" 
+                  placeholder="Phone number"
+                  value={form.recipient.phone}
+                  onChange={(e) => setForm({ ...form, recipient: { ...form.recipient, phone: e.target.value } })}
+                  className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-900 transition-all focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" 
+                />
+              </div>
+            </div>
+            
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                 <MapPin className="h-4 w-4 text-gray-500" />
-                Branch Location
+                Address
               </label>
-              <input 
-                name="branch" 
-                placeholder="e.g., Main Warehouse"
-                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-900 transition-all focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" 
+              <textarea 
+                name="recipient_address" 
+                rows={2}
+                placeholder="Delivery address"
+                value={form.recipient.address}
+                onChange={(e) => setForm({ ...form, recipient: { ...form.recipient, address: e.target.value } })}
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-900 transition-all focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20 resize-none" 
               />
+            </div>
+          </div>
+
+          {/* Package Contents */}
+          <div className="space-y-4">
+            <h4 className="text-md font-semibold text-gray-900">Package Contents</h4>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <FileText className="h-4 w-4 text-gray-500" />
+                Contents Description
+              </label>
+              <textarea 
+                name="contents" 
+                rows={3}
+                placeholder="Describe the package contents..."
+                value={form.contents}
+                onChange={(e) => setForm({ ...form, contents: e.target.value })}
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-900 transition-all focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20 resize-none" 
+              />
+            </div>
+            
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <Hash className="h-4 w-4 text-gray-500" />
+                  Value ($)
+                </label>
+                <input 
+                  name="value" 
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={form.value}
+                  onChange={(e) => setForm({ ...form, value: e.target.value })}
+                  className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-900 transition-all focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <MapPin className="h-4 w-4 text-gray-500" />
+                  Branch Location
+                </label>
+                <input 
+                  name="branch" 
+                  placeholder="e.g., Main Warehouse"
+                  value={form.branch}
+                  onChange={(e) => setForm({ ...form, branch: e.target.value })}
+                  className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-900 transition-all focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" 
+                />
+              </div>
             </div>
           </div>
 

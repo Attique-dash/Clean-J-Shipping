@@ -96,12 +96,12 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // Warehouse routes - only warehouse staff can access
+    // Warehouse routes - warehouse staff and admins can access
     if (pathname.startsWith('/warehouse')) {
-      if (userRole !== 'warehouse') {
-        const dashboardUrl = userRole === 'admin'
-          ? new URL('/admin', request.url)
-          : new URL('/customer/dashboard', request.url);
+      if (!['warehouse', 'admin'].includes(userRole)) {
+        const dashboardUrl = userRole === 'customer'
+          ? new URL('/customer/dashboard', request.url)
+          : new URL('/admin', request.url);
         return NextResponse.redirect(dashboardUrl);
       }
       return NextResponse.next();

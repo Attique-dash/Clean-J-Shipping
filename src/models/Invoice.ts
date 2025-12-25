@@ -154,7 +154,7 @@ invoiceSchema.pre('save', async function(next) {
     }
     
     // Calculate totals
-    this.calculateTotals();
+    (this as any).calculateTotals();
   }
   
   next();

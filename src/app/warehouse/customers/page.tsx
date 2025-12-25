@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Users, Search, Trash2, Copy, CheckCircle, Package, Mail, Phone, MapPin, AlertCircle, Loader2 } from "lucide-react";
 
 type Customer = {
@@ -13,6 +15,8 @@ type Customer = {
 };
 
 export default function WarehouseCustomersPage() {
+  const { status } = useSession();
+  const router = useRouter();
   const [q, setQ] = useState("");
   const [items, setItems] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
@@ -20,13 +24,20 @@ export default function WarehouseCustomersPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
+  // Redirect if not authenticated or not warehouse staff
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/warehouse/login');
+    }
+  }, [status, router]);
+
   async function load() {
     setLoading(true);
     setErr(null);
     try {
       const url = new URL("/api/warehouse/customers", window.location.origin);
       if (q.trim()) url.searchParams.set("q", q.trim());
-      const r = await fetch(url.toString(), { cache: "no-store" });
+      const r = await fetch(url.toString(), { cache: "no-store", credentials: 'include' });
       const d = await r.json();
       if (!r.ok) throw new Error(d?.error || "Failed to load");
       setItems(d.customers || []);
@@ -40,7 +51,7 @@ export default function WarehouseCustomersPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [status]);
 
   async function remove(user_code: string) {
     if (!user_code) return;
@@ -50,6 +61,7 @@ export default function WarehouseCustomersPage() {
       const r = await fetch("/api/warehouse/customers", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({ user_code }),
       });
       const d = await r.json();
@@ -68,23 +80,44 @@ export default function WarehouseCustomersPage() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0f4d8a] via-[#0a3a6b] to-[#062844] p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Section */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 bg-[#E67919] rounded-lg shadow-lg">
-              <Users className="w-8 h-8 text-white" />
-            </div>
-            <div>
-              <h1 className="text-4xl font-bold text-white">Customers</h1>
-              <p className="text-blue-200 text-sm mt-1">Manage and view all warehouse customer accounts</p>
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-white/10" />
+          <div className="relative flex flex-col gap-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
+                  <Users className="h-7 w-7" />
+                </div>
+                <div>
+                  <p className="text-sm uppercase tracking-widest text-blue-100">Customer Management</p>
+                  <h1 className="text-3xl font-bold leading-tight md:text-4xl">Customers</h1>
+                </div>
+              </div>
             </div>
           </div>
+        </header>
 
-          {/* Search Bar Card */}
-          <div className="bg-white rounded-xl shadow-lg p-5">
+          {/* Search Section */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
+            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+              <Search className="w-5 h-5" />
+              Search Customers
+            </h2>
+          </div>
+          <div className="p-6">
             <div className="flex items-center gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -116,22 +149,24 @@ export default function WarehouseCustomersPage() {
               </button>
             </div>
           </div>
-
-          {/* Error Message */}
-          {err && (
-            <div className="mt-4 flex items-start gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <span className="text-sm font-medium text-red-800">{err}</span>
-            </div>
-          )}
         </div>
 
-        {/* Customers Table Card */}
-        <div className="bg-white rounded-xl shadow-2xl overflow-hidden">
-          {/* Table Header */}
-          <div className="bg-gradient-to-r from-[#0f4d8a] to-[#0a3a6b] px-6 py-4 border-b-4 border-[#E67919]">
+        {/* Error Message */}
+        {err && (
+          <div className="flex items-start gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <span className="text-sm font-medium text-red-800">{err}</span>
+          </div>
+        )}
+
+        {/* Customers Table */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">Customer List</h2>
+              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Customer List
+              </h2>
               <div className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-lg">
                 <span className="text-white text-sm font-medium">{items.length} {items.length === 1 ? 'Customer' : 'Customers'}</span>
               </div>

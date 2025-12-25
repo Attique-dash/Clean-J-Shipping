@@ -1,7 +1,7 @@
 // src/models/Package.ts
 import mongoose, { Document, Schema } from 'mongoose';
 
-export type PackageStatus = 'pending' | 'received' | 'in_transit' | 'out_for_delivery' | 'delivered' | 'exception' | 'returned' | 'lost' | 'damaged';
+export type PackageStatus = 'pending' | 'received' | 'in_transit' | 'out_for_delivery' | 'delivered' | 'exception' | 'returned' | 'lost' | 'damaged' | 'At Warehouse' | 'In Transit' | 'At Local Port' | 'Delivered' | 'Unknown' | 'Deleted';
 export type PackageType = 'document' | 'parcel' | 'freight' | 'pallet';
 export type ServiceType = 'standard' | 'express' | 'overnight' | 'same_day';
 export type DeliveryType = 'pickup' | 'delivery' | 'door_to_door' | 'warehouse_pickup';
@@ -108,6 +108,69 @@ export interface IPackage extends Document {
   isHazardous: boolean;
   requiresSignature: boolean;
   isPriority: boolean;
+  
+  // Missing fields from errors
+  userCode?: string;
+  customer?: mongoose.Types.ObjectId;
+  entryDate?: Date;
+  description?: string;
+  origin?: {
+    coordinates?: {
+      type: string;
+      coordinates: [number, number];
+    };
+    address?: string;
+  };
+  destination?: {
+    coordinates?: {
+      type: string;
+      coordinates: [number, number];
+    };
+    address?: string;
+  };
+  carrier?: string;
+  shipper?: string;
+  invoiceRecords?: Array<{
+    invoiceNumber?: string;
+    invoiceDate?: Date | string;
+    currency?: string;
+    totalValue?: number;
+    status?: string;
+    amountPaid?: number;
+  }>;
+  invoiceDocuments?: unknown[];
+  packagePayments?: string;
+  history?: Array<{
+    status: string;
+    at: Date;
+    note?: string;
+  }>;
+  recipient?: {
+    name: string;
+    email?: string;
+    shippingId?: string;
+    phone?: string;
+    address?: string;
+  };
+  sender?: {
+    name: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+  };
+  dimensions?: {
+    length?: number;
+    width?: number;
+    height?: number;
+    unit?: string;
+    weight?: number;
+    weightUnit?: string;
+  };
+  contents?: string;
+  value?: number;
+  manifestId?: string;
+  branch?: string;
+  entryStaff?: string;
   
   createdAt: Date;
   updatedAt: Date;
@@ -226,6 +289,44 @@ const PackageSchema = new Schema<IPackage>(
     isHazardous: { type: Boolean, default: false },
     requiresSignature: { type: Boolean, default: false },
     isPriority: { type: Boolean, default: false },
+    
+    // Additional fields for warehouse form
+    userCode: { type: String, trim: true },
+    customer: { type: Schema.Types.ObjectId, ref: 'User' },
+    entryDate: { type: Date },
+    description: { type: String, trim: true },
+    shipper: { type: String, trim: true },
+    history: [{
+      status: { type: String, required: true },
+      at: { type: Date, required: true },
+      note: { type: String, trim: true }
+    }],
+    recipient: {
+      name: { type: String, trim: true },
+      email: { type: String, trim: true, lowercase: true },
+      shippingId: { type: String, trim: true },
+      phone: { type: String, trim: true },
+      address: { type: String, trim: true }
+    },
+    sender: {
+      name: { type: String, trim: true },
+      email: { type: String, trim: true, lowercase: true },
+      phone: { type: String, trim: true },
+      address: { type: String, trim: true }
+    },
+    dimensions: {
+      length: { type: Number, min: 0 },
+      width: { type: Number, min: 0 },
+      height: { type: Number, min: 0 },
+      unit: { type: String, enum: ['cm', 'in'], default: 'cm' },
+      weight: { type: Number, min: 0 },
+      weightUnit: { type: String, enum: ['kg', 'lb'], default: 'kg' }
+    },
+    contents: { type: String, trim: true },
+    value: { type: Number, min: 0 },
+    manifestId: { type: Schema.Types.ObjectId, ref: 'Manifest' },
+    branch: { type: String, trim: true },
+    entryStaff: { type: String, trim: true },
   },
   { timestamps: true }
 );

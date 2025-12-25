@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { User, IUser } from "@/models/User";
 import { Package } from "@/models/Package";
-import { isWarehouseAuthorized } from "@/lib/rbac";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { FilterQuery } from "mongoose";
 
 export async function GET(req: Request) {
-  if (!isWarehouseAuthorized(req)) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || !['admin', 'warehouse'].includes(session.user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   await dbConnect();
@@ -36,7 +38,7 @@ export async function GET(req: Request) {
     .lean();
 
   const userCodes = customers.map((c) => c.userCode);
-  const activeStatuses = ["Unknown", "At Warehouse", "In Transit", "At Local Port"];
+  const activeStatuses = ["pending", "received", "in_processing", "ready_to_ship", "shipped", "in_transit", "out_for_delivery"];
   const agg = await Package.aggregate<{ _id: string; count: number }>([
     { $match: { userCode: { $in: userCodes }, status: { $in: activeStatuses } } },
     { $group: { _id: "$userCode", count: { $sum: 1 } } },
@@ -64,7 +66,8 @@ export async function GET(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  if (!isWarehouseAuthorized(req)) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || !['admin', 'warehouse'].includes(session.user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

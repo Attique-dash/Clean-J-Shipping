@@ -23,13 +23,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     switch (req.method) {
       case 'GET':
         // Example: Get data from database
-        const data = await prisma.someModel.findMany();
+        const data = await prisma.admin.findMany({
+          select: { id: true, email: true, name: true, isActive: true }
+        });
         return res.status(200).json(data);
 
       case 'POST':
         // Example: Create new record
-        const newRecord = await prisma.someModel.create({
-          data: req.body,
+        const { email, name } = req.body;
+        const newRecord = await prisma.admin.create({
+          data: { email, name, password: 'temp-password' }, // In production, hash the password
+          select: { id: true, email: true, name: true, isActive: true }
         });
         return res.status(201).json(newRecord);
 
@@ -41,7 +45,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error('API Error:', error);
     return res.status(500).json({ 
       message: 'Internal server error',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : undefined,
     });
   } finally {
     await prisma.$disconnect();

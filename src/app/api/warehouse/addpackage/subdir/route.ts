@@ -91,6 +91,7 @@ export async function POST(req: Request) {
       const initial = {
         trackingNumber,
         userCode: customer.userCode,
+        userId: customer._id,
         customer: customer._id as unknown as string,
         weight,
         shipper,
@@ -103,11 +104,11 @@ export async function POST(req: Request) {
         externalStatusLabel,
         firstName: typeof item?.FirstName === "string" ? item.FirstName : undefined,
         lastName: typeof item?.LastName === "string" ? item.LastName : undefined,
-        cubes: Number.isFinite(Number(item?.Cubes)) ? Number(item?.Cubes) : undefined,
-        length: Number.isFinite(Number(item?.Length)) ? Number(item?.Length) : undefined,
-        width: Number.isFinite(Number(item?.Width)) ? Number(item?.Width) : undefined,
-        height: Number.isFinite(Number(item?.Height)) ? Number(item?.Height) : undefined,
-        pieces: Number.isFinite(Number(item?.Pieces)) ? Number(item?.Pieces) : undefined,
+        cubes: Number.isFinite(Number(item?.Cubes)) ? Number(item.Cubes) : undefined,
+        length: Number.isFinite(Number(item?.Length)) ? Number(item.Length) : undefined,
+        width: Number.isFinite(Number(item?.Width)) ? Number(item.Width) : undefined,
+        height: Number.isFinite(Number(item?.Height)) ? Number(item.Height) : undefined,
+        pieces: Number.isFinite(Number(item?.Pieces)) ? Number(item.Pieces) : undefined,
       };
 
       await Package.findOneAndUpdate(
@@ -119,6 +120,7 @@ export async function POST(req: Request) {
           },
           $set: {
             userCode: initial.userCode,
+            userId: initial.userId,
             customer: initial.customer,
             weight: typeof weight === "number" ? weight : undefined,
             shipper: typeof shipper === "string" ? shipper : undefined,

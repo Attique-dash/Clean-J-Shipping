@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Package, Plus, RefreshCw, Loader2, AlertCircle, CheckCircle, Edit, Trash2, TrendingDown, TrendingUp, Box } from "lucide-react";
 import { toast } from "react-toastify";
 
@@ -19,6 +21,8 @@ type InventoryItem = {
 };
 
 export default function WarehouseInventoryPage() {
+  const { status } = useSession();
+  const router = useRouter();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,15 +42,22 @@ export default function WarehouseInventoryPage() {
   const [saving, setSaving] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>("");
 
+  // Redirect if not authenticated or not warehouse staff
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/warehouse/login');
+    }
+  }, [status, router]);
+
   useEffect(() => {
     loadInventory();
-  }, []);
+  }, [status]);
 
   async function loadInventory() {
     setLoading(true);
     setRefreshing(true);
     try {
-      const res = await fetch("/api/warehouse/inventory", { cache: "no-store" });
+      const res = await fetch("/api/warehouse/inventory", { cache: "no-store", credentials: 'include' });
       const data = await res.json();
       if (res.ok) {
         setItems(data.items || []);
@@ -73,6 +84,7 @@ export default function WarehouseInventoryPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify(form),
       });
       const data = await res.json();
@@ -105,6 +117,7 @@ export default function WarehouseInventoryPage() {
     try {
       const res = await fetch(`/api/warehouse/inventory/${id}`, {
         method: "DELETE",
+        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to delete item");
@@ -112,6 +125,8 @@ export default function WarehouseInventoryPage() {
       loadInventory();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete item");
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -159,6 +174,14 @@ export default function WarehouseInventoryPage() {
     if (item.currentStock >= item.maxStock * 0.9) return { color: "text-green-600", bg: "bg-green-100", label: "Well Stocked" };
     return { color: "text-yellow-600", bg: "bg-yellow-100", label: "Normal" };
   };
+
+  if (status === 'loading' || loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">

@@ -1,7 +1,8 @@
 // AdminPackagesPage.tsx
 import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
-import AddForm from "./AddForm";
+import Link from "next/link";
+import { Plus } from "lucide-react";
 import Actions from "./Actions";
 import { 
   Package as PackageIcon, 
@@ -58,11 +59,28 @@ export default async function AdminPackagesPage({
   if (statusParam) {
     query.status = statusParam === "Ready" ? "At Warehouse" : statusParam;
   }
-  if (userCodeParam) query.userCode = { $regex: new RegExp(userCodeParam, "i") };
-  if (q) query.$or = [
-    { trackingNumber: { $regex: new RegExp(q, "i") } },
-    { userCode: { $regex: new RegExp(q, "i") } },
-  ];
+  if (userCodeParam) {
+    // Find user by shippingId (userCode) and get their packages
+    const { User } = await import("@/models/User");
+    const user = await User.findOne({ shippingId: { $regex: new RegExp(userCodeParam, "i") } }).select('_id').lean();
+    if (user) {
+      query.userId = user._id;
+    } else {
+      // If no user found, return empty results
+      query.userId = null; // This will return no results
+    }
+  }
+  if (q) {
+    // Search by tracking number or find users by shippingId and include their packages
+    const { User } = await import("@/models/User");
+    const users = await User.find({ shippingId: { $regex: new RegExp(q, "i") } }).select('_id').lean();
+    const userIds = users.map(u => u._id);
+    
+    query.$or = [
+      { trackingNumber: { $regex: new RegExp(q, "i") } },
+      ...(userIds.length > 0 ? [{ userId: { $in: userIds } }] : [])
+    ];
+  }
   if (unknownOnly) query.$or = [{ status: "Unknown" }, { customer: { $exists: false } }, { customer: null }];
 
   // Add pagination
@@ -72,7 +90,7 @@ export default async function AdminPackagesPage({
 
   // Only select fields we need - don't load large arrays
   const raw = await Package.find(query)
-    .select("_id trackingNumber status userCode weight length width height firstName lastName branch createdAt updatedAt description serviceTypeName")
+    .select("_id trackingNumber status userId weight length width height firstName lastName branch createdAt updatedAt description serviceTypeName")
     .sort([["updatedAt", (sortParam === "oldest" ? 1 : -1) as 1 | -1]])
     .skip(skip)
     .limit(perPage)
@@ -80,7 +98,7 @@ export default async function AdminPackagesPage({
       _id: unknown;
       trackingNumber: string;
       status: string;
-      userCode: string;
+      userId: string;
       weight?: number;
       length?: number; 
       width?: number; 
@@ -92,7 +110,7 @@ export default async function AdminPackagesPage({
       updatedAt?: Date | string;
       description?: string;
       serviceTypeName?: string;
-    }[]>();
+    }>();
 
   // Get total count for pagination (separate query, more efficient)
   const totalCount = await Package.countDocuments(query);
@@ -123,11 +141,22 @@ export default async function AdminPackagesPage({
     }
   }
 
+  // Get user information for all packages to display shippingId (userCode)
+  const userIds = raw.map(p => p.userId).filter(Boolean);
+  const userMap = new Map<string, string>();
+  if (userIds.length > 0) {
+    const { User } = await import("@/models/User");
+    const users = await User.find({ _id: { $in: userIds } }).select('_id shippingId').lean();
+    users.forEach((user: { _id: string; shippingId: string }) => {
+      userMap.set(String(user._id), user.shippingId || '');
+    });
+  }
+
   const packages: AdminPackage[] = raw.map((p) => ({
     _id: String(p._id),
     trackingNumber: p.trackingNumber,
     status: p.status,
-    userCode: p.userCode,
+    userCode: userMap.get(String(p.userId)) || '', // Get shippingId from userMap
     weight: p.weight,
     firstName: p.firstName,
     lastName: p.lastName,
@@ -187,7 +216,13 @@ export default async function AdminPackagesPage({
 
       {/* RIGHT SECTION – ADD BUTTON */}
       <div className="flex items-center">
-        <AddForm />
+        <Link
+          href="/admin/add-package"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/15 text-white hover:bg-white/25 rounded-lg transition-all"
+        >
+          <Plus className="h-4 w-4" />
+          Add Package
+        </Link>
       </div>
     </div>
 

@@ -41,6 +41,7 @@ export async function POST(req: Request) {
   const initial: Partial<IPackage> = {
     trackingNumber,
     userCode: customer.userCode,
+    userId: customer._id,
     customer: customer._id,
     weight,
     shipper,
@@ -53,11 +54,12 @@ export async function POST(req: Request) {
     branch: warehouse,
   };
 
-  const pkg = await Package.findOneAndUpdate(
+  await Package.findOneAndUpdate(
     { trackingNumber },
     {
       $setOnInsert: {
         userCode: initial.userCode,
+        userId: initial.userId,
         customer: initial.customer,
         createdAt: now,
       },

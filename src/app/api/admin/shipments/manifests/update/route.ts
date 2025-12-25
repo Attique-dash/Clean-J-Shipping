@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { getAuthFromRequest } from "@/lib/rbac";
-import { Manifest } from "@/models/Manifest";
+import ShipmentManifest from "@/models/ShipmentManifest";
 import { z } from "zod";
 
 const shipmentItemSchema = z.object({

@@ -4,6 +4,24 @@ import { prisma } from "@/lib/prisma";
 import { dbConnect } from "@/lib/db";
 import { Payment } from "@/models/Payment";
 import * as paypal from "@paypal/checkout-server-sdk";
+import { OrdersCaptureRequest } from "@paypal/checkout-server-sdk";
+
+// PayPal response types
+interface PayPalCaptureResult {
+  id: string;
+  purchase_units?: Array<{
+    custom_id?: string;
+    payments?: {
+      captures?: Array<{
+        amount?: {
+          value?: string;
+          currency_code?: string;
+        };
+        id?: string;
+      }>;
+    };
+  }>;
+}
 
 // PayPal client setup
 function paypalClient() {
@@ -42,7 +60,7 @@ export async function POST(req: Request) {
     }
 
     // Capture the PayPal order
-    const request = new paypal.orders.OrdersCaptureRequest(orderId);
+    const request = new OrdersCaptureRequest(orderId);
     request.requestBody({});
 
     const capture = await client.execute(request);
@@ -50,13 +68,15 @@ export async function POST(req: Request) {
     if (capture.statusCode === 201 && capture.result) {
       await dbConnect();
       
-      const captureId = capture.result.id;
-      const amount = parseFloat(capture.result.purchase_units[0]?.payments?.captures[0]?.amount?.value || "0");
-      const currency = capture.result.purchase_units[0]?.payments?.captures[0]?.amount?.currency_code || "USD";
+      const result = capture.result as PayPalCaptureResult;
+      const captureId = result.id;
+      const amount = parseFloat(result.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.value || "0");
+      const currency = result.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.currency_code || "USD";
+      const userCode = result.purchase_units?.[0]?.custom_id || `PAYPAL-${Date.now()}`;
 
       // Create Payment record in MongoDB
       const payment = new Payment({
-        userCode: capture.result.purchase_units[0]?.custom_id || `PAYPAL-${Date.now()}`,
+        userCode: userCode,
         amount: amount,
         currency: currency,
         method: "wallet" as const, // PayPal is a wallet method
@@ -80,10 +100,10 @@ export async function POST(req: Request) {
           data: {
             status: "completed",
             paidAt: new Date(),
-            metadata: {
+            metadata: JSON.stringify({
               captureId,
               paypalOrderId: orderId,
-            },
+            }),
           },
         });
       } catch (prismaError) {

@@ -11,17 +11,17 @@ export async function sendNotification(
   
   // Send email if email is provided
   if (email) {
-    await sendEmail(type, { to: email, ...data }).catch(console.error);
+    await sendEmail(type, { to: email, data }).catch(console.error);
   }
   
   // Send SMS if phone is provided and SMS is enabled
   if (phone && process.env.TWILIO_ENABLED === 'true') {
-    await sendSms(type, { to: phone, ...data }).catch(console.error);
+    await sendSms(type, { to: phone, data }).catch(console.error);
   }
   
   // Send push notification if token is provided
   if (pushToken) {
-    await sendPushNotification(type, { to: pushToken, ...data }).catch(console.error);
+    await sendPushNotification(type, { to: pushToken, data }).catch(console.error);
   }
 }
 
@@ -29,7 +29,7 @@ export async function sendNotification(
 export const notifications = {
   async orderConfirmation(user: { email?: string; phone?: string; pushToken?: string }, orderData: any) {
     return sendNotification('order_confirmation', {
-      userId: user.email,
+      userId: user.email || '',
       email: user.email,
       phone: user.phone,
       pushToken: user.pushToken,
@@ -39,7 +39,7 @@ export const notifications = {
   
   async shipmentPickedUp(user: { email?: string; phone?: string; pushToken?: string }, shipmentData: any) {
     return sendNotification('shipment_picked_up', {
-      userId: user.email,
+      userId: user.email || '',
       email: user.email,
       phone: user.phone,
       pushToken: user.pushToken,
@@ -49,7 +49,7 @@ export const notifications = {
   
   async inTransitUpdate(user: { email?: string; phone?: string; pushToken?: string }, updateData: any) {
     return sendNotification('in_transit_update', {
-      userId: user.email,
+      userId: user.email || '',
       email: user.email,
       phone: user.phone,
       pushToken: user.pushToken,
@@ -59,7 +59,7 @@ export const notifications = {
   
   async deliveryConfirmation(user: { email?: string; phone?: string; pushToken?: string }, deliveryData: any) {
     return sendNotification('delivery_confirmation', {
-      userId: user.email,
+      userId: user.email || '',
       email: user.email,
       phone: user.phone,
       pushToken: user.pushToken,
@@ -69,7 +69,7 @@ export const notifications = {
   
   async invoiceSent(user: { email?: string; phone?: string; pushToken?: string }, invoiceData: any) {
     return sendNotification('invoice_sent', {
-      userId: user.email,
+      userId: user.email || '',
       email: user.email,
       phone: user.phone,
       pushToken: user.pushToken,
@@ -79,7 +79,7 @@ export const notifications = {
   
   async paymentReceived(user: { email?: string; phone?: string; pushToken?: string }, paymentData: any) {
     return sendNotification('payment_received', {
-      userId: user.email,
+      userId: user.email || '',
       email: user.email,
       phone: user.phone,
       pushToken: user.pushToken,

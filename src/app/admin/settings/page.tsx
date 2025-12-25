@@ -125,12 +125,6 @@ export default function SettingsPage() {
             <div className="absolute inset-0 bg-white/10" />
             <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-200">
-                  System Settings
-                </h1>
-                <p className="mt-1 text-sm text-blue-100">
-                  Configure system-wide settings, currency, tax rates, and shipping rules
-                </p>
               <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-200">
                 System Settings
               </h1>

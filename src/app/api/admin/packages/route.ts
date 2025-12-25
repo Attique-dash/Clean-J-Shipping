@@ -54,8 +54,9 @@ export async function GET(req: Request) {
     const formattedPackages = packages.map(p => ({
       id: p._id,
       tracking_number: p.trackingNumber,
-      customer_name: (p.userId as unknown as { name?: string; email: string })?.name || 'Unknown',
+      customer_name: (p.userId as unknown as { name?: string; email: string; shippingId?: string })?.name || 'Unknown',
       customer_id: p.userId,
+      user_code: (p.userId as unknown as { shippingId?: string })?.shippingId || '',
       status: p.status,
       current_location: p.currentLocation || undefined,
       branch: p.currentLocation || undefined,
@@ -98,27 +99,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
-    const { tracking_number, user_id, user_code, weight, description, branch } = body;
+    const { 
+      trackingNumber, 
+      userCode, 
+      weight, 
+      shipper,
+      description, 
+      entryDate,
+      status,
+      dimensions,
+      recipient,
+      sender,
+      contents,
+      value,
+      specialInstructions,
+      branch
+    } = body;
 
-    if (!tracking_number || (!user_id && !user_code)) {
+    if (!trackingNumber || !userCode) {
       return NextResponse.json(
-        { error: "tracking_number and either user_id or user_code are required" }, 
+        { error: "trackingNumber and userCode are required" }, 
         { status: 400 }
       );
     }
 
-    let user;
-    if (user_id) {
-      user = await User.findById(user_id);
-    } else if (user_code) {
-      user = await User.findOne({ userCode: user_code });
-    }
+    // Find user by userCode
+    const user = await User.findOne({ shippingId: userCode });
     
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const existing = await Package.findOne({ trackingNumber: tracking_number });
+    const existing = await Package.findOne({ trackingNumber: trackingNumber });
     if (existing) {
       return NextResponse.json(
         { error: "Tracking number already exists" }, 
@@ -126,38 +138,69 @@ export async function POST(req: Request) {
       );
     }
 
-    const created = await Package.create({
-      trackingNumber: tracking_number,
+    // Create package with extended information
+    const packageData: Record<string, unknown> = {
+      trackingNumber: trackingNumber,
       userId: user._id,
+      userCode: userCode,
       weight: weight || 0,
+      shipper: shipper || "Unknown Shipper",
+      description: description || "Package description",
+      entryDate: entryDate || new Date(),
+      status: status || "received",
+      dimensions: dimensions || {
+        length: 0,
+        width: 0,
+        height: 0,
+        unit: "cm"
+      },
+      recipient: {
+        name: recipient?.name || user.name,
+        email: recipient?.email || user.email,
+        shippingId: recipient?.shippingId || user.shippingId,
+        phone: recipient?.phone || user.phone,
+        address: recipient?.address || user.address?.street,
+        country: recipient?.country || user.address?.country
+      },
+      sender: sender || {
+        name: "Warehouse",
+        email: "warehouse@shipping.com",
+        phone: "0000000000",
+        address: branch || "Main Warehouse",
+        country: "Jamaica"
+      },
+      contents: contents || "",
+      value: value || 0,
+      specialInstructions: specialInstructions || "",
+      branch: branch || "Main Warehouse",
+      // Legacy fields for compatibility
       itemDescription: description || "Package description",
-      status: "pending",
-      // Use customer info as receiver since admin is creating the package
-      senderName: user.name || "Shipper",
-      senderPhone: user.phone || "0000000000",
-      senderAddress: user.address?.street || "Shipper Address",
-      senderCity: user.address?.city || "Shipper City", 
-      senderState: user.address?.state || "Shipper State",
-      senderZipCode: user.address?.zipCode || "00000",
-      receiverName: user.name || "Receiver",
-      receiverPhone: user.phone || "0000000000",
-      receiverAddress: user.address?.street || "Receiver Address",
-      receiverCity: user.address?.city || "Receiver City",
-      receiverState: user.address?.state || "Receiver State",
-      receiverZipCode: user.address?.zipCode || "00000",
+      itemValue: value || 0,
+      senderName: sender?.name || "Warehouse",
+      senderPhone: sender?.phone || "0000000000",
+      senderAddress: sender?.address || branch || "Main Warehouse",
+      receiverName: recipient?.name || user.name,
+      receiverPhone: recipient?.phone || user.phone,
+      receiverAddress: recipient?.address || user.address?.street,
+      receiverEmail: recipient?.email || user.email,
+      currentLocation: branch || "Main Warehouse",
       packageType: "parcel",
       serviceType: "standard",
       deliveryType: "door_to_door",
       shippingCost: 0,
       totalAmount: 0,
       paymentMethod: "cash",
-      currentLocation: branch || "Main Warehouse",
-    });
+      receivedAt: new Date()
+    };
+
+    const created = await Package.create(packageData);
 
     return NextResponse.json({ 
       ok: true, 
       id: created._id, 
-      tracking_number: created.trackingNumber 
+      trackingNumber: created.trackingNumber,
+      userCode: created.userCode,
+      package: created
     });
   } catch (error) {
     console.error("Error creating package:", error);

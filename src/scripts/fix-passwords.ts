@@ -1,3 +1,10 @@
+import { dbConnect } from '@/lib/db';
+import User from '@/models/User';
+import { hashPassword } from '@/lib/auth';
+
+// Export the function so it can be called
+export { fixExistingPasswords };
+
 async function fixExistingPasswords() {
   console.log('🔧 Fixing existing user passwords...\n');
 

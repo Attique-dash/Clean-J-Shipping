@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthFromRequest } from "@/lib/rbac";
 import * as paypal from "@paypal/checkout-server-sdk";
+import { OrdersCreateRequest } from "@paypal/checkout-server-sdk";
 
 // PayPal client setup
 function paypalClient() {
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
     }
 
     // Create PayPal order
-    const request = new paypal.orders.OrdersCreateRequest();
+    const request = new OrdersCreateRequest();
     request.prefer("return=representation");
     request.requestBody({
       intent: "CAPTURE",
@@ -67,7 +68,7 @@ export async function POST(req: Request) {
 
     if (order.statusCode === 201 && order.result) {
       const orderId = order.result.id;
-      const approvalUrl = order.result.links?.find((link: any) => link.rel === "approve")?.href;
+      const approvalUrl = (order.result as Record<string, unknown>).links?.find((link: Record<string, unknown>) => (link as Record<string, unknown>).rel === "approve")?.href as string;
 
       return NextResponse.json({
         success: true,

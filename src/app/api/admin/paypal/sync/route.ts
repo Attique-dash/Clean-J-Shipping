@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getAuthFromRequest } from "@/lib/rbac";
-import { prisma } from "@/lib/prisma";
 import * as paypal from "@paypal/checkout-server-sdk";
 
 // PayPal client setup
@@ -33,12 +32,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { startDate, endDate } = body;
-
-    // Fetch transactions from PayPal
-    const request = new paypal.orders.OrdersGetRequest();
-    // Note: This is a simplified version. In production, you'd use the Transactions API
-    // to fetch all transactions within the date range
+    const { } = body;
 
     // For now, we'll return a success message
     // In production, implement proper PayPal transaction fetching

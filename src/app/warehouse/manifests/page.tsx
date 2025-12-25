@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Package, FileText, CheckCircle, AlertCircle, Loader2, Printer, Plus, RefreshCw, Calendar, Truck, Download, FileDown } from "lucide-react";
 import { toast } from "react-toastify";
 
@@ -18,6 +20,8 @@ type Manifest = {
 };
 
 export default function WarehouseManifestsPage() {
+  const { status } = useSession();
+  const router = useRouter();
   const [form, setForm] = useState({ manifestId: "", description: "", data: "{}" });
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -26,14 +30,21 @@ export default function WarehouseManifestsPage() {
   const [loadingManifests, setLoadingManifests] = useState(true);
   const [showForm, setShowForm] = useState(false);
 
+  // Redirect if not authenticated or not warehouse staff
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/warehouse/login');
+    }
+  }, [status, router]);
+
   useEffect(() => {
     loadManifests();
-  }, []);
+  }, [status]);
 
   async function loadManifests() {
     setLoadingManifests(true);
     try {
-      const res = await fetch("/api/warehouse/manifests", { cache: "no-store" });
+      const res = await fetch("/api/warehouse/manifests", { cache: "no-store", credentials: 'include' });
       const data = await res.json();
       if (res.ok) {
         setManifests(data.manifests || []);
@@ -63,6 +74,7 @@ export default function WarehouseManifestsPage() {
     const r = await fetch("/api/warehouse/manifests/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: 'include',
       body: JSON.stringify({ 
         manifestId: form.manifestId.trim(), 
         description: form.description || undefined, 
@@ -109,6 +121,14 @@ export default function WarehouseManifestsPage() {
     URL.revokeObjectURL(url);
     toast.success("Manifest exported successfully");
   };
+
+  if (status === 'loading' || loadingManifests) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">

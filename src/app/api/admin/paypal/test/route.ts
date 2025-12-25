@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthFromRequest } from "@/lib/rbac";
 import * as paypal from "@paypal/checkout-server-sdk";
+import { OrdersCreateRequest } from "@paypal/checkout-server-sdk";
 
 // PayPal client setup
 function paypalClient() {
@@ -36,7 +37,7 @@ export async function GET(req: Request) {
     }
 
     // Test PayPal connection by creating a test order
-    const request = new paypal.orders.OrdersCreateRequest();
+    const request = new OrdersCreateRequest();
     request.prefer("return=representation");
     request.requestBody({
       intent: "CAPTURE",

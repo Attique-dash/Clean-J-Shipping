@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Inventory } from "@/models/Inventory";
-import { isWarehouseAuthorized } from "@/lib/rbac";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -11,7 +12,8 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    if (!isWarehouseAuthorized(req)) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user || !['admin', 'warehouse'].includes(session.user.role)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -56,7 +58,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    if (!isWarehouseAuthorized(req)) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user || !['admin', 'warehouse'].includes(session.user.role)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

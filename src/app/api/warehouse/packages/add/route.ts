@@ -1,33 +1,17 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
-import { Package, type IPackage } from "@/models/Package";
+import { Package } from "@/models/Package";
 import { User } from "@/models/User";
 import { PreAlert } from "@/models/PreAlert";
-import { isWarehouseAuthorized, getAuthFromRequest, verifyWarehouseApiKey } from "@/lib/rbac";
+import { getAuthFromRequest } from "@/lib/rbac";
 import { addPackageSchema } from "@/lib/validators";
 import { sendNewPackageEmail } from "@/lib/email";
 import { startSession } from "mongoose";
-import { rateLimit } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
-  if (!isWarehouseAuthorized(req)) {
+  const auth = await getAuthFromRequest(req);
+  if (!auth || auth.role !== "warehouse") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Per-identifier rate limit: 100 req/min
-  let identifier = "warehouse";
-  try {
-    const { valid, keyInfo } = await verifyWarehouseApiKey(req);
-    if (valid && keyInfo?.keyPrefix) identifier = keyInfo.keyPrefix;
-    else {
-      const payload = await getAuthFromRequest(req);
-      const fromCookie = (payload?.uid as string | undefined) || (payload?.email as string | undefined) || (payload?.userCode as string | undefined);
-      if (fromCookie) identifier = `wh_${fromCookie}`;
-    }
-  } catch {}
-  const rl = rateLimit(identifier, { windowMs: 60_000, maxRequests: 100 });
-  if (!rl.allowed) {
-    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429, headers: { "Retry-After": String(rl.retryAfter ?? 60) } });
   }
 
   await dbConnect();
@@ -44,7 +28,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { trackingNumber, userCode, weight, shipper, description, entryDate, length, width, height, receivedBy, warehouse } = parsed.data;
+  const { trackingNumber, userCode, weight, shipper, description, entryDate, status, dimensions, recipient, sender, contents, value, specialInstructions, receivedBy, warehouse } = parsed.data;
 
   // Normalize received date to start of day UTC if a date-only string is supplied
   let now = new Date(entryDate ?? Date.now());
@@ -72,25 +56,58 @@ export async function POST(req: Request) {
         // Keep insert-only fields in $setOnInsert
         $setOnInsert: {
           userCode: customer.userCode,
+          userId: customer._id,
           customer: customer._id,
           createdAt: now,
         },
         // Updatable fields in $set
         $set: {
+          // Essential package information
+          userCode: customer.userCode,
+          userId: customer._id,
+          customer: customer._id,
           weight: typeof weight === "number" ? weight : undefined,
           shipper: typeof shipper === "string" ? shipper : undefined,
           description: typeof description === "string" ? description : undefined,
-          status: "At Warehouse",
+          status: status || "received",
           updatedAt: now,
-          length: typeof length === "number" ? length : undefined,
-          width: typeof width === "number" ? width : undefined,
-          height: typeof height === "number" ? height : undefined,
+          // Recipient information
+          receiverName: recipient?.name || undefined,
+          receiverEmail: recipient?.email || undefined,
+          receiverPhone: recipient?.phone || undefined,
+          receiverAddress: recipient?.address || undefined,
+          receiverCountry: recipient?.country || undefined,
+          // Sender information
+          senderName: sender?.name || undefined,
+          senderEmail: sender?.email || undefined,
+          senderPhone: sender?.phone || undefined,
+          senderAddress: sender?.address || undefined,
+          senderCountry: sender?.country || undefined,
+          // Package dimensions
+          length: dimensions?.length ? Number(dimensions.length) : undefined,
+          width: dimensions?.width ? Number(dimensions.width) : undefined,
+          height: dimensions?.height ? Number(dimensions.height) : undefined,
+          dimensionUnit: dimensions?.unit || "cm",
+          weightUnit: "kg",
+          // Package details
+          itemDescription: typeof description === "string" ? description : undefined,
+          itemValue: typeof value === "number" ? value : undefined,
+          itemQuantity: 1,
+          // Service defaults
+          packageType: "parcel",
+          serviceType: "standard",
+          deliveryType: "door_to_door",
+          // Special instructions
+          specialInstructions: typeof specialInstructions === "string" ? specialInstructions : undefined,
+          contents: typeof contents === "string" ? contents : undefined,
+          value: typeof value === "number" ? value : undefined,
           entryStaff: typeof receivedBy === "string" ? receivedBy : undefined,
           branch: typeof warehouse === "string" ? warehouse : undefined,
+          entryDate: entryDate ? new Date(entryDate) : undefined,
         },
         $push: {
           history: {
-            status: "At Warehouse",
+            status: status || "received",
             at: now,
             note: receivedBy ? `Received at ${warehouse || "warehouse"} by ${receivedBy}` : "Received at warehouse",
           },
@@ -104,6 +121,7 @@ export async function POST(req: Request) {
     const existingPreAlert = await PreAlert.findOne({ trackingNumber }).session(session);
     if (!existingPreAlert && pkg) {
       await PreAlert.create([{
+        userId: customer._id,
         userCode: customer.userCode,
         customer: customer._id,
         trackingNumber,
@@ -138,11 +156,13 @@ export async function POST(req: Request) {
       customer_id: String((await User.findOne({ userCode, role: "customer" }).select("_id"))?._id || ""),
       description: description ?? null,
       weight: typeof weight === "number" ? weight : null,
-      dimensions: {
-        length: typeof length === "number" ? length : null,
-        width: typeof width === "number" ? width : null,
-        height: typeof height === "number" ? height : null,
-      },
+      status: status || "At Warehouse",
+      dimensions: dimensions || null,
+      recipient: recipient || null,
+      sender: sender || null,
+      contents: contents || null,
+      value: typeof value === "number" ? value : null,
+      specialInstructions: specialInstructions || null,
       received_date: new Date(now).toISOString(),
       received_by: receivedBy ?? null,
       warehouse: warehouse ?? null,

@@ -51,7 +51,15 @@ export default function CustomerPackagesPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/customer/packages", { cache: "no-store" });
+      const res = await fetch("/api/customer/packages", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include", // Include cookies for authentication
+        cache: "no-store",
+      });
+      
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load packages");
       const list: UIPackage[] = Array.isArray(data?.packages) ? data.packages : [];
@@ -172,34 +180,58 @@ export default function CustomerPackagesPage() {
   const hasActiveFilters = query || locationQuery || statusFilter || dateFrom || dateTo || weightMin || weightMax;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center space-x-3">
-              <div className="p-3 bg-gradient-to-br from-[#0f4d8a] to-[#1e6bb8] rounded-xl shadow-lg">
-                <Package className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-[#0f4d8a]">My Packages</h1>
-                <p className="text-sm text-gray-600 mt-1">
-                  Showing {filtered.length} of {total} packages
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => load()}
-              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-lg hover:shadow-lg transition-all duration-200"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
-            </button>
-          </div>
+        {/* Animated Background Pattern */}
+        <div className="fixed inset-0 z-0 opacity-30 pointer-events-none">
+          <div className="absolute inset-0" style={{
+            backgroundImage: 'radial-gradient(circle at 1px 1px, rgb(99 102 241 / 0.15) 1px, transparent 0)',
+            backgroundSize: '40px 40px'
+          }}></div>
         </div>
 
-        {/* Filters */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+        <div className="relative z-10 space-y-6">
+        {/* Header Section */}
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl">
+          <div className="absolute inset-0 bg-white/10" />
+          <div className="relative flex flex-col gap-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
+                  <Package className="h-7 w-7" />
+                </div>
+                <div>
+                  <p className="text-sm uppercase tracking-widest text-blue-100">Customer Portal</p>
+                  <h1 className="text-3xl font-bold leading-tight md:text-4xl">My Packages</h1>
+                  <p className="text-blue-100 mt-1 flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    Showing {filtered.length} of {total} packages
+                    <span className="ml-2 rounded-full bg-green-100/20 backdrop-blur-sm px-2 py-0.5 text-xs font-medium text-green-100">
+                      Data Loaded
+                    </span>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => load()}
+                className="flex items-center space-x-2 px-6 py-3 bg-white/15 backdrop-blur-sm border border-white/20 text-white rounded-lg hover:bg-white/25 transition-all duration-200 font-medium"
+              >
+                <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Filters Section */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
+            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+              <Filter className="w-5 h-5" />
+              Search & Filters
+            </h2>
+          </div>
+          <div className="p-6">
           <div className="space-y-4">
             {/* Main Filters Row */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -345,8 +377,14 @@ export default function CustomerPackagesPage() {
           </div>
         )}
 
-        {/* Table */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        {/* Packages Table Section */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] px-6 py-4">
+            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+              <Package className="w-5 h-5" />
+              Package List
+            </h2>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead>
@@ -383,7 +421,7 @@ export default function CustomerPackagesPage() {
                     <td className="px-6 py-12 text-center" colSpan={7}>
                       <div className="flex flex-col items-center justify-center space-y-3">
                         <Loader2 className="h-8 w-8 text-[#0f4d8a] animate-spin" />
-                        <p className="text-sm text-gray-600">Loading packages...</p>
+                        <p className="text-sm text-gray-600 font-medium">Loading packages...</p>
                       </div>
                     </td>
                   </tr>
@@ -401,12 +439,12 @@ export default function CustomerPackagesPage() {
                   paged.map((p) => (
                     <tr
                       key={p.tracking_number}
-                      className="hover:bg-gradient-to-r hover:from-slate-50 hover:to-blue-50 transition-colors duration-150"
+                      className="hover:bg-gradient-to-r hover:from-slate-50 hover:to-blue-50 transition-all duration-200 border-b border-gray-100"
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-[#0f4d8a] to-[#1e6bb8] rounded-lg flex items-center justify-center">
-                            <Package className="h-5 w-5 text-white" />
+                          <div className="flex-shrink-0 h-12 w-12 bg-gradient-to-br from-[#0f4d8a] to-[#1e6bb8] rounded-xl flex items-center justify-center shadow-lg">
+                            <Package className="h-6 w-6 text-white" />
                           </div>
                           <div className="ml-4">
                             <div className="text-sm font-bold text-gray-900">
@@ -421,7 +459,7 @@ export default function CustomerPackagesPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getStatusColor(p.status)}`}>
+                        <span className={`inline-flex px-3 py-1.5 text-xs font-semibold rounded-full border ${getStatusColor(p.status)}`}>
                           {statusLabel(p.status)}
                         </span>
                       </td>
@@ -454,21 +492,21 @@ export default function CustomerPackagesPage() {
                             href={`/track?q=${encodeURIComponent(p.tracking_number)}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center px-3 py-1.5 border border-[#0891b2] text-[#0891b2] rounded-lg hover:bg-cyan-50 transition-all text-xs font-medium"
+                            className="inline-flex items-center px-3 py-2 border border-[#0891b2] text-[#0891b2] rounded-lg hover:bg-cyan-50 transition-all text-sm font-medium"
                           >
-                            <ExternalLink className="h-3 w-3 mr-1" />
+                            <ExternalLink className="h-4 w-4 mr-1" />
                             Track
                           </a>
                           {p.id && (
-                            <label className="inline-flex items-center px-3 py-1.5 border border-[#E67919] text-[#E67919] rounded-lg hover:bg-orange-50 transition-all text-xs font-medium cursor-pointer">
+                            <label className="inline-flex items-center px-3 py-2 border border-[#E67919] text-[#E67919] rounded-lg hover:bg-orange-50 transition-all text-sm font-medium cursor-pointer">
                               {uploadingId === p.id ? (
                                 <>
-                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                                   Uploading...
                                 </>
                               ) : (
                                 <>
-                                  <Upload className="h-3 w-3 mr-1" />
+                                  <Upload className="h-4 w-4 mr-1" />
                                   Invoice
                                 </>
                               )}
@@ -527,6 +565,8 @@ export default function CustomerPackagesPage() {
               </div>
             </div>
           )}
+          </div>
+        </div>
         </div>
       </div>
     </div>

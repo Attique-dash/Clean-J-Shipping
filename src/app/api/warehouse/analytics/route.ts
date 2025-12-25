@@ -3,10 +3,11 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
 import { User } from "@/models/User";
-import { isWarehouseAuthorized } from "@/lib/rbac";
+import { getAuthFromRequest } from "@/lib/rbac";
 
 export async function GET(req: Request) {
-  if (!isWarehouseAuthorized(req)) {
+  const auth = await getAuthFromRequest(req);
+  if (!auth || !['admin', 'warehouse'].includes(auth.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -74,10 +75,10 @@ export async function GET(req: Request) {
         _id: null,
         total: { $sum: 1 },
         delivered: {
-          $sum: { $cond: [{ $eq: ["$status", "Delivered"] }, 1, 0] }
+          $sum: { $cond: [{ $eq: ["$status", "delivered"] }, 1, 0] }
         },
         inTransit: {
-          $sum: { $cond: [{ $eq: ["$status", "In Transit"] }, 1, 0] }
+          $sum: { $cond: [{ $eq: ["$status", "in_transit"] }, 1, 0] }
         }
       }
     }
@@ -99,11 +100,11 @@ export async function GET(req: Request) {
   // Total customers
   const totalCustomers = await User.countDocuments({ role: "customer" });
 
-  // Calculate average processing time (time from "At Warehouse" to "In Transit" or "At Local Port")
+  // Calculate average processing time (time from "received" to "in_transit")
   const processingTimeData = await Package.aggregate([
     {
       $match: {
-        status: { $in: ["In Transit", "At Local Port", "Delivered"] },
+        status: { $in: ["in_transit", "delivered"] },
         history: { $exists: true, $ne: [] }
       }
     },
@@ -120,8 +121,8 @@ export async function GET(req: Request) {
 
   processingTimeData.forEach((pkg) => {
     const history = (pkg.history || []) as Array<{ status: string; at: Date }>;
-    const receivedAt = history.find(h => h.status === "At Warehouse" || h.status === "Unknown")?.at;
-    const shippedAt = history.find(h => h.status === "In Transit" || h.status === "At Local Port")?.at;
+    const receivedAt = history.find(h => h.status === "received" || h.status === "pending")?.at;
+    const shippedAt = history.find(h => h.status === "in_transit")?.at;
     
     if (receivedAt && shippedAt) {
       const diff = new Date(shippedAt).getTime() - new Date(receivedAt).getTime();
@@ -135,8 +136,8 @@ export async function GET(req: Request) {
 
   const avgProcessingTime = processingCount > 0 ? (totalProcessingTime / processingCount).toFixed(1) : "0";
 
-  // Packages ready to ship (At Local Port)
-  const readyToShip = statusCounts.find(item => item._id === "At Local Port")?.count || 0;
+  // Packages ready to ship (ready_to_ship)
+  const readyToShip = statusCounts.find(item => item._id === "ready_to_ship")?.count || 0;
 
   return NextResponse.json({
     statusCounts: statusCounts.reduce((acc, item) => {

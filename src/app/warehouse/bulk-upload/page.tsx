@@ -186,44 +186,68 @@ export default function BulkUploadPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-[#0f4d8a] to-[#0a3d6e] text-white mb-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-[#E67919] rounded-lg flex items-center justify-center">
-              <Upload className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold">Bulk Package Upload</h1>
-              <p className="text-blue-100 mt-1">Upload multiple packages at once using JSON format</p>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header Section */}
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-white/10" />
+          <div className="relative flex flex-col gap-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
+                  <Upload className="h-7 w-7" />
+                </div>
+                <div>
+                  <p className="text-sm uppercase tracking-widest text-blue-100">Package Management</p>
+                  <h1 className="text-3xl font-bold leading-tight md:text-4xl">Bulk Upload</h1>
+                  <p className="text-blue-100 mt-1">Upload multiple packages at once using CSV or JSON format</p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </header>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {/* Instructions */}
-        <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
-          <div className="flex items-start gap-3">
-            <FileText className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-blue-900 mb-2">Upload Instructions</h3>
-              <ul className="text-sm text-blue-800 space-y-1">
-                <li>• Upload a CSV or JSON file with package data</li>
-                <li>• Required fields: trackingNumber, userCode</li>
-                <li>• Optional fields: weight, shipper, description, length, width, height, warehouse, receivedBy</li>
-                <li>• Download the template below to see the correct format</li>
-                <li>• CSV files will be validated and previewed before upload</li>
-              </ul>
-            </div>
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
+            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              Upload Instructions
+            </h2>
+          </div>
+          <div className="p-6">
+            <ul className="text-sm text-gray-700 space-y-2">
+              <li className="flex items-start gap-2">
+                <span className="text-blue-500 mt-1">•</span>
+                <span>Upload a CSV or JSON file with package data</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-500 mt-1">•</span>
+                <span>Required fields: trackingNumber, userCode</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-500 mt-1">•</span>
+                <span>Optional fields: weight, shipper, description, length, width, height, warehouse, receivedBy</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-500 mt-1">•</span>
+                <span>Download the template below to see the correct format</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-500 mt-1">•</span>
+                <span>CSV files will be validated and previewed before upload</span>
+              </li>
+            </ul>
           </div>
         </div>
 
         {/* Upload Section */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mb-6">
-          <div className="bg-gradient-to-r from-[#0f4d8a] to-[#0a3d6e] px-6 py-4">
-            <h2 className="text-xl font-semibold text-white">Upload File</h2>
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
+            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+              <Upload className="w-5 h-5" />
+              Upload File
+            </h2>
           </div>
 
           <div className="p-6 space-y-4">

@@ -1,16 +1,15 @@
 // src/app/api/warehouse/packages/route.ts
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { connectToDatabase } from '@/lib/db';
 import Package from '@/models/Package';
-import { v4 as uuidv4 } from 'uuid';
 
 // Get all packages
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!session?.user || !['admin', 'warehouse'].includes(session.user.role)) {
       return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
@@ -23,7 +22,7 @@ export async function GET() {
     const limit = parseInt(url.searchParams.get('limit') || '50');
     const page = parseInt(url.searchParams.get('page') || '1');
 
-    const query: any = {};
+    const query: Record<string, string | RegExp | { $regex: string; $options: string }[]> = {};
 
     if (status) {
       query.status = status;
@@ -62,10 +61,10 @@ export async function GET() {
 }
 
 // Create a new package
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!session?.user || !['admin', 'warehouse'].includes(session.user.role)) {
       return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 

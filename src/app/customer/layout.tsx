@@ -137,8 +137,16 @@ export default function CustomerLayout({
   ];
 
   return (
-    <div className="h-screen w-full overflow-x-hidden bg-gray-50 text-gray-900">
-      <div className="flex h-full w-full">
+    <div className="h-screen w-full overflow-x-hidden bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 text-gray-900">
+      {/* Animated Background Pattern */}
+      <div className="fixed inset-0 z-0 opacity-30 pointer-events-none">
+        <div className="absolute inset-0" style={{
+          backgroundImage: 'radial-gradient(circle at 1px 1px, rgb(99 102 241 / 0.15) 1px, transparent 0)',
+          backgroundSize: '40px 40px'
+        }}></div>
+      </div>
+
+      <div className="relative z-10 flex h-full w-full">
         {/* Desktop Sidebar */}
         <aside className="hidden md:flex w-72 h-screen bg-gradient-to-b from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] text-white shadow-2xl overflow-hidden flex-col">
           {/* Header */}
