@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { trackingNumber, userCode, weight, shipper, description, entryDate, status, dimensions, recipient, sender, contents, value, specialInstructions, receivedBy, warehouse } = parsed.data;
+  const { trackingNumber, userCode, weight, shipper, description, itemDescription, entryDate, status, dimensions, recipient, sender, contents, value, specialInstructions, receivedBy, warehouse } = parsed.data;
 
   // Normalize received date to start of day UTC if a date-only string is supplied
   let now = new Date(entryDate ?? Date.now());
@@ -60,12 +60,8 @@ export async function POST(req: Request) {
           customer: customer._id,
           createdAt: now,
         },
-        // Updatable fields in $set
+        // Updatable fields in $set - remove duplicates from $setOnInsert
         $set: {
-          // Essential package information
-          userCode: customer.userCode,
-          userId: customer._id,
-          customer: customer._id,
           weight: typeof weight === "number" ? weight : undefined,
           shipper: typeof shipper === "string" ? shipper : undefined,
           description: typeof description === "string" ? description : undefined,
@@ -90,7 +86,7 @@ export async function POST(req: Request) {
           dimensionUnit: dimensions?.unit || "cm",
           weightUnit: "kg",
           // Package details
-          itemDescription: typeof description === "string" ? description : undefined,
+          itemDescription: typeof itemDescription === "string" ? itemDescription : undefined,
           itemValue: typeof value === "number" ? value : undefined,
           itemQuantity: 1,
           // Service defaults

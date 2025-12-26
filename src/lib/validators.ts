@@ -108,6 +108,7 @@ export const addPackageSchema = z.object({
   weight: z.number().min(0).optional(),
   shipper: z.string().optional(),
   description: z.string().max(500).optional(),
+  itemDescription: z.string().max(500).optional(),
   entryDate: z.string().optional(),
   status: z.string().optional(),
   dimensions: z.object({

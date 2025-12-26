@@ -107,13 +107,6 @@ export default function CustomerLayout({
       color: "from-purple-500 to-purple-600",
     },
     {
-      href: "/customer/referral",
-      label: "Referral",
-      icon: Gift,
-      description: "Refer friends and earn rewards",
-      color: "from-pink-500 to-pink-600",
-    },
-    {
       href: "/customer/pre-alerts",
       label: "Pre-Alerts",
       icon: Bell,

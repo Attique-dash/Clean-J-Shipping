@@ -265,8 +265,8 @@ const PackageSchema = new Schema<IPackage>(
     // Status & Tracking
     status: { 
       type: String, 
-      enum: ['pending', 'received', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'lost', 'damaged'],
-      default: 'pending',
+      enum: ['pending', 'received', 'in_processing', 'ready_to_ship', 'shipped', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'lost', 'damaged', 'unknown'],
+      default: 'received',
       required: true 
     },
     statusReason: { type: String, trim: true },

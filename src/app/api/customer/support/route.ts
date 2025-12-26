@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getAuthFromRequest } from "@/lib/rbac";
+import { dbConnect } from "@/lib/db";
+import { Message } from "@/models/Message";
+import { User } from "@/models/User";
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -21,29 +23,42 @@ export async function GET(req: Request) {
     const status = url.searchParams.get("status");
     const category = url.searchParams.get("category");
 
+    // Connect to database
+    await dbConnect();
+
+    // Get user information to include userCode
+    const user = await User.findById(userId).select('userCode').lean();
+    const userCode = user?.userCode;
+    
+    if (!userCode) {
+      console.error('User code not found for user:', userId);
+      return NextResponse.json({ tickets: [] });
+    }
+
+    // Build query for messages
     const where: Record<string, unknown> = {
-      userId: userId,
+      userCode: userCode,
+      sender: "customer" // Only get customer-created support tickets
     };
 
     if (status) where.status = status;
     if (category) where.category = category;
 
-    const tickets = await prisma.message.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    });
+    const tickets = await Message.find(where)
+      .sort({ createdAt: 'desc' })
+      .limit(200)
+      .lean();
 
     // Format tickets for frontend
     const formattedTickets = tickets.map((ticket) => ({
-      _id: ticket.id,
-      subject: ticket.subject,
-      message: ticket.message,
-      status: ticket.status,
-      category: ticket.category,
-      priority: ticket.priority,
-      createdAt: ticket.createdAt.toISOString(),
-      updatedAt: ticket.updatedAt.toISOString(),
+      _id: ticket._id,
+      subject: ticket.subject || "Support Request",
+      message: ticket.body,
+      status: ticket.status || "open",
+      category: ticket.category || "inquiry",
+      priority: ticket.priority || "normal",
+      createdAt: ticket.createdAt?.toISOString(),
+      updatedAt: ticket.updatedAt?.toISOString(),
     }));
 
     return NextResponse.json({ tickets: formattedTickets });
@@ -69,7 +84,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { subject, message, category, priority, relatedTo, relatedType } = body;
+    const { subject, message, category, priority } = body;
 
     if (!subject || !message) {
       return NextResponse.json(
@@ -78,34 +93,41 @@ export async function POST(req: Request) {
       );
     }
 
-    const ticket = await prisma.message.create({
-      data: {
-        userId: userId,
-        subject,
-        message,
-        category: category || "inquiry",
-        priority: priority || "normal",
-        status: "open",
-        relatedTo,
-        relatedType,
-        isRead: false,
-        isCustomerRead: true,
-        isAdminRead: false,
-      },
+    // Connect to database
+    await dbConnect();
+
+    // Get user information to include userCode
+    const user = await User.findById(userId).select('userCode').lean();
+    const userCode = user?.userCode;
+    
+    if (!userCode) {
+      console.error('User code not found for user:', userId);
+      return NextResponse.json({ error: "User code not found" }, { status: 400 });
+    }
+
+    const ticket = await Message.create({
+      userCode: userCode,
+      customer: userId,
+      subject,
+      body: message,
+      category: category || "inquiry",
+      priority: priority || "normal",
+      sender: "customer",
+      read: false,
     });
 
     return NextResponse.json(
       {
         success: true,
         ticket: {
-          _id: ticket.id,
+          _id: ticket._id,
           subject: ticket.subject,
-          message: ticket.message,
-          status: ticket.status,
-          category: ticket.category,
-          priority: ticket.priority,
-          createdAt: ticket.createdAt.toISOString(),
-          updatedAt: ticket.updatedAt.toISOString(),
+          message: ticket.body,
+          status: ticket.status || "open",
+          category: ticket.category || "inquiry",
+          priority: ticket.priority || "normal",
+          createdAt: ticket.createdAt?.toISOString(),
+          updatedAt: ticket.updatedAt?.toISOString(),
         },
       },
       { status: 201 }

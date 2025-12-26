@@ -36,49 +36,61 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   try {
     const body = await req.json();
     
+    // Get existing package to preserve required fields that aren't in the form
+    const existingPackage = await Package.findById(params.id);
+    if (!existingPackage) {
+      return NextResponse.json({ error: "Package not found" }, { status: 404 });
+    }
+    
     // Create update object with proper field mapping
     const updateData: any = {
       updatedAt: new Date(),
-      // Basic fields
-      trackingNumber: body.trackingNumber,
-      userCode: body.userCode,
-      weight: typeof body.weight === "number" ? body.weight : undefined,
-      shipper: body.shipper,
-      description: body.description,
-      status: body.status,
+      // Basic fields - only update if provided
+      ...(body.trackingNumber && { trackingNumber: body.trackingNumber }),
+      ...(body.userCode && { userCode: body.userCode }),
+      ...(body.weight !== undefined && { weight: typeof body.weight === "number" ? body.weight : Number(body.weight) || existingPackage.weight }),
+      ...(body.shipper !== undefined && { shipper: body.shipper }),
+      ...(body.description !== undefined && { description: body.description }),
+      ...(body.status && { status: body.status }),
+      ...(body.entryDate && { entryDate: new Date(body.entryDate) }),
+      
       // New warehouse form fields
-      dimensions: body.dimensions,
-      recipient: body.recipient,
-      sender: body.sender,
-      contents: body.contents,
-      value: typeof body.value === "number" ? body.value : undefined,
-      specialInstructions: body.specialInstructions,
-      entryStaff: body.entryStaff,
-      branch: body.branch,
+      ...(body.dimensions && { dimensions: body.dimensions }),
+      ...(body.recipient && { recipient: body.recipient }),
+      ...(body.sender && { sender: body.sender }),
+      ...(body.contents !== undefined && { contents: body.contents }),
+      ...(body.value !== undefined && { value: typeof body.value === "number" ? body.value : Number(body.value) || existingPackage.value }),
+      ...(body.specialInstructions !== undefined && { specialInstructions: body.specialInstructions }),
+      ...(body.entryStaff !== undefined && { entryStaff: body.entryStaff }),
+      ...(body.branch !== undefined && { branch: body.branch }),
+      
       // Map to existing fields for compatibility
-      itemDescription: body.description,
-      itemValue: body.value,
+      ...(body.itemDescription !== undefined && { itemDescription: body.itemDescription }),
+      ...(body.value !== undefined && { itemValue: body.value }),
+      
       // Map recipient object to flat fields
-      receiverName: body.recipient?.name || body.receiverName,
-      receiverEmail: body.recipient?.email || body.receiverEmail,
-      receiverPhone: body.recipient?.phone || body.receiverPhone,
-      receiverAddress: body.recipient?.address || body.receiverAddress,
-      receiverCountry: body.recipient?.country || body.receiverCountry,
+      ...(body.recipient?.name && { receiverName: body.recipient.name }),
+      ...(body.recipient?.email && { receiverEmail: body.recipient.email }),
+      ...(body.recipient?.phone && { receiverPhone: body.recipient.phone }),
+      ...(body.recipient?.address && { receiverAddress: body.recipient.address }),
+      ...(body.recipient?.country && { receiverCountry: body.recipient.country }),
+      
       // Map sender object to flat fields
-      senderName: body.sender?.name || body.senderName,
-      senderEmail: body.sender?.email || body.senderEmail,
-      senderPhone: body.sender?.phone || body.senderPhone,
-      senderAddress: body.sender?.address || body.senderAddress,
-      senderCountry: body.sender?.country || body.senderCountry,
+      ...(body.sender?.name && { senderName: body.sender.name }),
+      ...(body.sender?.email && { senderEmail: body.sender.email }),
+      ...(body.sender?.phone && { senderPhone: body.sender.phone }),
+      ...(body.sender?.address && { senderAddress: body.sender.address }),
+      ...(body.sender?.country && { senderCountry: body.sender.country }),
+      
       // Map dimensions to flat fields
-      length: body.dimensions?.length ? Number(body.dimensions.length) : body.length,
-      width: body.dimensions?.width ? Number(body.dimensions.width) : body.width,
-      height: body.dimensions?.height ? Number(body.dimensions.height) : body.height,
-      dimensionUnit: body.dimensions?.unit || body.dimensionUnit || "cm",
+      ...(body.dimensions?.length !== undefined && { length: Number(body.dimensions.length) || existingPackage.length }),
+      ...(body.dimensions?.width !== undefined && { width: Number(body.dimensions.width) || existingPackage.width }),
+      ...(body.dimensions?.height !== undefined && { height: Number(body.dimensions.height) || existingPackage.height }),
+      ...(body.dimensions?.unit && { dimensionUnit: body.dimensions.unit }),
     };
 
     // Add to history if status changed
-    if (body.status) {
+    if (body.status && body.status !== existingPackage.status) {
       updateData.$push = {
         history: {
           status: body.status,
@@ -91,7 +103,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const packageData = await Package.findByIdAndUpdate(
       params.id,
       updateData,
-      { new: true, runValidators: true }
+      { new: true, runValidators: false } // Disable validators for partial updates
     );
 
     if (!packageData) {
@@ -101,7 +113,27 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json(packageData);
   } catch (error) {
     console.error("Error updating package:", error);
-    return NextResponse.json({ error: "Failed to update package" }, { status: 500 });
+    
+    // Provide more specific error messages
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map((err: any) => err.message);
+      return NextResponse.json({ 
+        error: "Validation failed: " + validationErrors.join(", "),
+        details: validationErrors 
+      }, { status: 400 });
+    }
+    
+    if (error.name === 'CastError') {
+      return NextResponse.json({ 
+        error: "Invalid data format provided",
+        details: error.message 
+      }, { status: 400 });
+    }
+    
+    return NextResponse.json({ 
+      error: "Failed to update package. Please check your data and try again.",
+      details: error.message 
+    }, { status: 500 });
   }
 }
 
