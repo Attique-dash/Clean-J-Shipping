@@ -1,4 +1,5 @@
-import mongoose, { Document, Schema } from 'mongoose';
+// my-app/src/models/Invoice.ts
+import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IInvoiceItem {
   description: string;
@@ -8,221 +9,246 @@ export interface IInvoiceItem {
   amount: number;
   taxAmount: number;
   total: number;
+  packageId?: string;
+  trackingNumber?: string;
+  serviceType?: string;
 }
 
 export interface IInvoice extends Document {
+  userId?: string; // Add userId field for easier querying
   invoiceNumber: string;
-  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
-  issueDate: Date;
-  dueDate: Date;
-  paymentTerms: number; // in days
-  currency: string;
-  exchangeRate?: number;
   customer: {
     id: string;
     name: string;
     email: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    country?: string;
     phone?: string;
-    address: string;
-    city: string;
-    country: string;
-    taxId?: string;
   };
   items: IInvoiceItem[];
+  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  issueDate: Date;
+  dueDate: Date;
+  paymentTerms: number;
+  currency: string;
+  exchangeRate: number;
   subtotal: number;
   taxTotal: number;
-  discount?: {
-    type: 'percentage' | 'fixed';
-    value: number;
-  };
   discountAmount: number;
   total: number;
   amountPaid: number;
   balanceDue: number;
   notes?: string;
-  terms?: string;
-  paymentInstructions?: string;
-  signature?: {
-    url: string;
-    signedAt: Date;
-    signedBy: string;
+  discount?: {
+    type: 'percentage' | 'fixed';
+    value: number;
   };
-  package: mongoose.Types.ObjectId;
+  package?: mongoose.Types.ObjectId;
   shipment?: mongoose.Types.ObjectId;
+  paymentHistory?: Array<{
+    amount: number;
+    date: Date;
+    method: string;
+    reference?: string;
+  }>;
   createdAt: Date;
   updatedAt: Date;
+  calculateTotals(): void;
 }
 
-const invoiceItemSchema = new Schema<IInvoiceItem>({
+const InvoiceItemSchema = new Schema<IInvoiceItem>({
   description: { type: String, required: true },
-  quantity: { type: Number, required: true, min: 0.01 },
+  quantity: { type: Number, required: true, min: 0 },
   unitPrice: { type: Number, required: true, min: 0 },
   taxRate: { type: Number, default: 0, min: 0, max: 100 },
-  amount: { type: Number, required: true },
-  taxAmount: { type: Number, required: true },
-  total: { type: Number, required: true }
+  amount: { type: Number, required: true, default: 0 },
+  taxAmount: { type: Number, required: true, default: 0 },
+  total: { type: Number, required: true, default: 0 },
+  packageId: { type: String },
+  trackingNumber: { type: String },
+  serviceType: { type: String }
 }, { _id: false });
 
-const invoiceSchema = new Schema<IInvoice>(
-  {
-    invoiceNumber: { 
-      type: String, 
-      required: false, // Pre-save hook will generate this, so it's not required at creation
-      unique: true,
-      index: true 
-    },
-    status: {
-      type: String,
-      enum: ['draft', 'sent', 'paid', 'overdue', 'cancelled'],
-      default: 'draft'
-    },
-    issueDate: { type: Date, default: Date.now },
-    dueDate: { type: Date, required: false }, // Pre-save hook will set this if not provided
-    paymentTerms: { type: Number, default: 15 }, // 15 days
-    currency: { type: String, default: 'USD' },
-    exchangeRate: { type: Number, default: 1 },
-    customer: {
-      id: { type: String, required: true },
-      name: { type: String, required: true },
-      email: { type: String, required: true },
-      phone: String,
-      address: { type: String, required: true },
-      city: { type: String, required: true },
-      country: { type: String, required: true },
-      taxId: String
-    },
-    items: [invoiceItemSchema],
-    subtotal: { type: Number, required: true, min: 0 },
-    taxTotal: { type: Number, required: true, min: 0 },
-    discount: {
-      type: {
-        type: String,
-        enum: ['percentage', 'fixed'],
-        required: false
+const InvoiceSchema = new Schema<IInvoice>({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', index: true }, // Add userId field
+  invoiceNumber: { 
+    type: String, 
+    required: true, 
+    unique: true,
+    index: true
+  },
+  customer: {
+    id: { type: String, required: true },
+    name: { type: String, required: true },
+    email: { type: String, required: true },
+    address: String,
+    city: String,
+    state: String,
+    zipCode: String,
+    country: String,
+    phone: String
+  },
+  items: {
+    type: [InvoiceItemSchema],
+    required: true,
+    validate: {
+      validator: function(items: IInvoiceItem[]) {
+        return items && items.length > 0;
       },
-      value: { type: Number, min: 0, required: false }
-    },
-    discountAmount: { type: Number, default: 0, min: 0 },
-    total: { type: Number, required: true, min: 0 },
-    amountPaid: { type: Number, default: 0, min: 0 },
-    balanceDue: { type: Number, required: true, min: 0 },
-    notes: String,
-    terms: String,
-    paymentInstructions: String,
-    signature: {
-      url: String,
-      signedAt: Date,
-      signedBy: String
-    },
-    package: {
-      type: Schema.Types.ObjectId,
-      ref: 'Package',
-      required: false // Made optional to support invoices created from generator
-    },
-    shipment: {
-      type: Schema.Types.ObjectId,
-      ref: 'Shipment',
-      required: false
+      message: 'At least one item is required'
     }
   },
-  { timestamps: true }
-);
+  status: {
+    type: String,
+    enum: ['draft', 'sent', 'paid', 'overdue', 'cancelled'],
+    default: 'draft'
+  },
+  issueDate: { type: Date, required: true, default: Date.now },
+  dueDate: { type: Date, required: true },
+  paymentTerms: { type: Number, default: 30 },
+  currency: { type: String, default: 'USD' },
+  exchangeRate: { type: Number, default: 1 },
+  subtotal: { type: Number, required: true, default: 0 },
+  taxTotal: { type: Number, required: true, default: 0 },
+  discountAmount: { type: Number, default: 0 },
+  total: { type: Number, required: true, default: 0 },
+  amountPaid: { type: Number, default: 0 },
+  balanceDue: { type: Number, required: true, default: 0 },
+  notes: String,
+  discount: {
+    type: {
+      type: String,
+      enum: ['percentage', 'fixed']
+    },
+    value: Number
+  },
+  package: { type: Schema.Types.ObjectId, ref: 'Package' },
+  shipment: { type: Schema.Types.ObjectId, ref: 'Shipment' },
+  paymentHistory: [{
+    amount: { type: Number, required: true },
+    date: { type: Date, required: true },
+    method: { type: String, required: true },
+    reference: String
+  }]
+}, {
+  timestamps: true
+});
 
-// Generate invoice number before saving
-invoiceSchema.pre('save', async function(next) {
-  if (this.isNew) {
-    const prefix = 'INV';
+// Index for text search
+InvoiceSchema.index({ 
+  invoiceNumber: 'text', 
+  'customer.name': 'text', 
+  'customer.email': 'text' 
+});
+
+// Method to calculate totals
+InvoiceSchema.methods.calculateTotals = function() {
+  // Calculate item totals
+  this.items.forEach((item: IInvoiceItem) => {
+    item.amount = item.quantity * item.unitPrice;
+    item.taxAmount = item.amount * (item.taxRate / 100);
+    item.total = item.amount + item.taxAmount;
+  });
+
+  // Calculate subtotal (sum of all item amounts before tax)
+  this.subtotal = this.items.reduce((sum: number, item: IInvoiceItem) => sum + item.amount, 0);
+
+  // Calculate tax total
+  this.taxTotal = this.items.reduce((sum: number, item: IInvoiceItem) => sum + item.taxAmount, 0);
+
+  // Calculate discount amount if discount is set
+  if (this.discount) {
+    if (this.discount.type === 'percentage') {
+      this.discountAmount = this.subtotal * (this.discount.value / 100);
+    } else if (this.discount.type === 'fixed') {
+      this.discountAmount = this.discount.value;
+    }
+  }
+
+  // Ensure discountAmount is valid
+  this.discountAmount = Number(this.discountAmount) || 0;
+
+  // Calculate total
+  this.total = this.subtotal + this.taxTotal - this.discountAmount;
+
+  // Calculate balance due
+  this.balanceDue = this.total - this.amountPaid;
+};
+
+// Pre-save hook to generate invoice number and calculate totals
+InvoiceSchema.pre('save', async function(next) {
+  if (this.isNew && !this.invoiceNumber) {
     const year = new Date().getFullYear();
-    const lastInvoice = await mongoose.model('Invoice')
-      .findOne({ invoiceNumber: new RegExp(`^${prefix}-${year}-\\d{4}$`) })
-      .sort({ invoiceNumber: -1 })
-      .limit(1);
+    const InvoiceModel = this.constructor as Model<IInvoice>;
+    
+    // Find the last invoice number for this year
+    const lastInvoice = await InvoiceModel.findOne({
+      invoiceNumber: new RegExp(`^INV-${year}-`)
+    }).sort({ invoiceNumber: -1 }).limit(1);
 
-    let sequence = 1;
-    if (lastInvoice) {
-      const lastNumber = parseInt(lastInvoice.invoiceNumber.split('-').pop() || '0', 10);
-      sequence = lastNumber + 1;
+    let nextNumber = 1;
+    if (lastInvoice && lastInvoice.invoiceNumber) {
+      const match = lastInvoice.invoiceNumber.match(/INV-\d{4}-(\d{4})/);
+      if (match && match[1]) {
+        nextNumber = parseInt(match[1], 10) + 1;
+      }
     }
-    
-    this.invoiceNumber = `${prefix}-${year}-${sequence.toString().padStart(4, '0')}`;
-    
-    // Set default due date if not set
-    if (!this.dueDate) {
-      const dueDate = new Date(this.issueDate);
-      dueDate.setDate(dueDate.getDate() + (this.paymentTerms || 15));
-      this.dueDate = dueDate;
+
+    this.invoiceNumber = `INV-${year}-${String(nextNumber).padStart(4, '0')}`;
+  }
+
+  // Always calculate totals before saving
+  this.calculateTotals();
+  
+  next();
+});
+
+// Pre-update hook to recalculate totals
+InvoiceSchema.pre('findOneAndUpdate', function(next) {
+  const update = this.getUpdate() as any;
+  
+  if (update.$set && update.$set.items) {
+    // Calculate item totals
+    update.$set.items.forEach((item: IInvoiceItem) => {
+      item.amount = item.quantity * item.unitPrice;
+      item.taxAmount = item.amount * (item.taxRate / 100);
+      item.total = item.amount + item.taxAmount;
+    });
+
+    // Calculate subtotal
+    const subtotal = update.$set.items.reduce((sum: number, item: IInvoiceItem) => sum + item.amount, 0);
+    update.$set.subtotal = subtotal;
+
+    // Calculate tax total
+    const taxTotal = update.$set.items.reduce((sum: number, item: IInvoiceItem) => sum + item.taxAmount, 0);
+    update.$set.taxTotal = taxTotal;
+
+    // Calculate discount
+    let discountAmount = 0;
+    if (update.$set.discount) {
+      if (update.$set.discount.type === 'percentage') {
+        discountAmount = subtotal * (update.$set.discount.value / 100);
+      } else if (update.$set.discount.type === 'fixed') {
+        discountAmount = update.$set.discount.value;
+      }
     }
-    
-    // Calculate totals
-    (this as any).calculateTotals();
+    update.$set.discountAmount = discountAmount;
+
+    // Calculate total
+    const total = subtotal + taxTotal - discountAmount;
+    update.$set.total = total;
+
+    // Calculate balance due
+    const amountPaid = update.$set.amountPaid || 0;
+    update.$set.balanceDue = total - amountPaid;
   }
   
   next();
 });
 
-// Calculate invoice totals
-invoiceSchema.methods.calculateTotals = function(this: IInvoice) {
-  // Calculate items total
-  this.subtotal = this.items.reduce((sum: number, item: IInvoiceItem) => {
-    const qty = Number(item.quantity) || 0;
-    const price = Number(item.unitPrice) || 0;
-    const taxRate = Number(item.taxRate) || 0;
-    const amount = qty * price;
-    const taxAmount = amount * (taxRate / 100);
-    item.amount = Number(amount) || 0;
-    item.taxAmount = Number(taxAmount) || 0;
-    item.total = Number(amount + taxAmount) || 0;
-    return sum + item.total;
-  }, 0);
-  this.subtotal = Number(this.subtotal) || 0;
+const Invoice = mongoose.models.Invoice || mongoose.model<IInvoice>('Invoice', InvoiceSchema);
 
-  // Calculate discount
-  let discountAmount = 0;
-  if (this.discount) {
-    if (this.discount.type === 'percentage') {
-      const discountValue = Number(this.discount.value) || 0;
-      discountAmount = this.subtotal * (discountValue / 100);
-    } else {
-      const discountValue = Number(this.discount.value) || 0;
-      discountAmount = Math.min(discountValue, this.subtotal);
-    }
-  }
-  // Use existing discountAmount if already set and valid
-  if (this.discountAmount && !isNaN(this.discountAmount) && isFinite(this.discountAmount)) {
-    discountAmount = Number(this.discountAmount);
-  }
-  this.discountAmount = Number(discountAmount) || 0;
-
-  // Calculate tax total
-  this.taxTotal = this.items.reduce((sum: number, item: IInvoiceItem) => {
-    return sum + (Number(item.taxAmount) || 0);
-  }, 0);
-  this.taxTotal = Number(this.taxTotal) || 0;
-  
-  // Calculate grand total
-  this.total = this.subtotal + this.taxTotal - this.discountAmount;
-  this.total = Number(this.total) || 0;
-  
-  // Update balance due
-  const amountPaid = Number(this.amountPaid) || 0;
-  this.balanceDue = this.total - amountPaid;
-  this.balanceDue = Number(this.balanceDue) || 0;
-  
-  // Update status based on payment
-  if (this.balanceDue <= 0 && this.total > 0) {
-    this.status = 'paid';
-  } else if (this.status === 'sent' && new Date() > this.dueDate) {
-    this.status = 'overdue';
-  }
-};
-
-// Create a text index for search
-invoiceSchema.index({
-  'invoiceNumber': 'text',
-  'customer.name': 'text',
-  'customer.email': 'text',
-  'customer.taxId': 'text'
-});
-
-export default mongoose.models.Invoice || mongoose.model<IInvoice>('Invoice', invoiceSchema);
-
+export default Invoice;

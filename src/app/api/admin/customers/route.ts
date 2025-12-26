@@ -13,7 +13,16 @@ export async function GET(req: Request) {
   if (!payload || payload.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const customers = await User.find({ role: "customer" })
+
+  const url = new URL(req.url);
+  const userCode = url.searchParams.get("userCode")?.trim();
+
+  const query: { role: string; userCode?: string } = { role: "customer" };
+  if (userCode) {
+    query.userCode = userCode;
+  }
+
+  const customers = await User.find(query)
     .select("firstName lastName email phone userCode address accountStatus emailVerified createdAt")
     .sort({ createdAt: -1 })
     .limit(500);

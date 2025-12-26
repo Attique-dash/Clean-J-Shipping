@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Package, Search, MapPin, Filter, X, Calendar, Weight, Upload, ExternalLink, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Package, Search, MapPin, Filter, X, Calendar, Weight, Download, ExternalLink, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 
 type UIPackage = {
   id?: string;
@@ -17,6 +17,8 @@ type UIPackage = {
   ready_since?: string;
   updated_at?: string;
   weight_kg?: number;
+  hasInvoice?: boolean;
+  invoiceNumber?: string;
 };
 
 export default function CustomerPackagesPage() {
@@ -112,17 +114,23 @@ export default function CustomerPackagesPage() {
       case "received":
         return "Received";
       case "pending":
+      case "in_processing":
         return "Processing";
       case "in_transit":
+      case "shipped":
         return "Shipped";
       case "ready_for_pickup":
+      case "ready_to_ship":
         return "Ready for Pickup";
       case "delivered":
         return "Delivered";
       case "archived":
         return "Archived";
-      default:
+      case "unknown":
         return "Unknown";
+      default:
+        // Handle any other status by capitalizing and replacing underscores
+        return s ? s.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : "Unknown";
     }
   }
 
@@ -131,36 +139,44 @@ export default function CustomerPackagesPage() {
       case "received":
         return "bg-purple-100 text-purple-800 border-purple-200";
       case "pending":
+      case "in_processing":
         return "bg-yellow-100 text-yellow-800 border-yellow-200";
       case "in_transit":
+      case "shipped":
         return "bg-blue-100 text-blue-800 border-blue-200";
       case "ready_for_pickup":
+      case "ready_to_ship":
         return "bg-orange-100 text-orange-800 border-orange-200";
       case "delivered":
         return "bg-green-100 text-green-800 border-green-200";
       case "archived":
+        return "bg-gray-100 text-gray-800 border-gray-200";
+      case "unknown":
         return "bg-gray-100 text-gray-800 border-gray-200";
       default:
         return "bg-gray-100 text-gray-800 border-gray-200";
     }
   }
 
-  async function uploadInvoice(pkg: UIPackage, files: FileList | null) {
-    if (!pkg?.id || !files || files.length === 0) return;
+  async function downloadInvoice(pkg: UIPackage, format: 'pdf' | 'excel' = 'pdf') {
+    if (!pkg?.invoiceNumber) {
+      setError("No invoice available for this package");
+      return;
+    }
+    
     setUploadingId(pkg.id);
     setError(null);
     try {
-      const fd = new FormData();
-      Array.from(files).forEach((f) => fd.append("files", f));
-      const res = await fetch(`/api/customer/packages/${encodeURIComponent(pkg.id)}/invoice`, {
-        method: "POST",
-        body: fd,
+      const res = await fetch(`/api/customer/invoices/${encodeURIComponent(pkg.invoiceNumber)}/download?format=${format}`, {
+        method: "GET",
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Upload failed");
-      await load();
+      if (!res.ok) throw new Error(data?.error || "Download failed");
+      
+      // Success message - the actual download is handled by ExportService
+      setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+      setError(e instanceof Error ? e.message : "Download failed");
     } finally {
       setUploadingId(null);
     }
@@ -399,9 +415,6 @@ export default function CustomerPackagesPage() {
                     Status
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
-                    Location
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                     Weight
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
@@ -418,7 +431,7 @@ export default function CustomerPackagesPage() {
               <tbody className="bg-white divide-y divide-gray-100">
                 {loading ? (
                   <tr>
-                    <td className="px-6 py-12 text-center" colSpan={7}>
+                    <td className="px-6 py-12 text-center" colSpan={6}>
                       <div className="flex flex-col items-center justify-center space-y-3">
                         <Loader2 className="h-8 w-8 text-[#0f4d8a] animate-spin" />
                         <p className="text-sm text-gray-600 font-medium">Loading packages...</p>
@@ -427,7 +440,7 @@ export default function CustomerPackagesPage() {
                   </tr>
                 ) : paged.length === 0 ? (
                   <tr>
-                    <td className="px-6 py-12 text-center" colSpan={7}>
+                    <td className="px-6 py-12 text-center" colSpan={6}>
                       <div className="flex flex-col items-center justify-center space-y-3">
                         <Package className="h-12 w-12 text-gray-300" />
                         <p className="text-sm font-medium text-gray-600">No packages found</p>
@@ -463,12 +476,6 @@ export default function CustomerPackagesPage() {
                           {statusLabel(p.status)}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center text-sm text-gray-900">
-                          <MapPin className="h-4 w-4 text-[#E67919] mr-1.5" />
-                          {p.current_location || <span className="text-gray-400">Unknown</span>}
-                        </div>
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {p.weight || <span className="text-gray-400">-</span>}
                       </td>
@@ -497,28 +504,39 @@ export default function CustomerPackagesPage() {
                             <ExternalLink className="h-4 w-4 mr-1" />
                             Track
                           </a>
-                          {p.id && (
-                            <label className="inline-flex items-center px-3 py-2 border border-[#E67919] text-[#E67919] rounded-lg hover:bg-orange-50 transition-all text-sm font-medium cursor-pointer">
-                              {uploadingId === p.id ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                  Uploading...
-                                </>
-                              ) : (
-                                <>
-                                  <Upload className="h-4 w-4 mr-1" />
-                                  Invoice
-                                </>
-                              )}
-                              <input
-                                type="file"
-                                accept="application/pdf,image/jpeg,image/png,image/webp"
-                                multiple
-                                className="hidden"
-                                onChange={(e) => uploadInvoice(p, e.target.files)}
+                          {p.hasInvoice && p.invoiceNumber && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => downloadInvoice(p, 'pdf')}
                                 disabled={uploadingId === p.id}
-                              />
-                            </label>
+                                className="inline-flex items-center px-3 py-2 border border-[#E67919] text-[#E67919] rounded-lg hover:bg-orange-50 transition-all text-sm font-medium disabled:opacity-50"
+                                title="Download PDF"
+                              >
+                                {uploadingId === p.id ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                    Downloading...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Download className="h-4 w-4 mr-1" />
+                                    PDF
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                onClick={() => downloadInvoice(p, 'excel')}
+                                disabled={uploadingId === p.id}
+                                className="inline-flex items-center px-3 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 transition-all text-sm font-medium disabled:opacity-50"
+                                title="Download Excel"
+                              >
+                                {uploadingId === p.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Download className="h-4 w-4" />
+                                )}
+                              </button>
+                            </div>
                           )}
                         </div>
                       </td>

@@ -3,9 +3,6 @@
 :root {
   --background: #ffffff;
   --foreground: #171717; /* dark text for light background */
-}
-
-@theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
@@ -48,5 +45,29 @@ body {
 .scrollbar-orange::-webkit-scrollbar-button {
   display: none;
   width: 0;
-  height: 0;
+}
+
+/* Custom scrollbar for admin sidebar */
+.sidebar-scrollbar {
+  overflow-y: auto;
+}
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 8px 0;
+}
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  transition: background 0.2s ease-in-out;
+}
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+/* Custom scrollbar for Firefox */
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }

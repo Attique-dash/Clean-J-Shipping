@@ -4,6 +4,8 @@ import { getAuthFromRequest, requireRole } from '@/lib/rbac';
 import { dbConnect } from '@/lib/db';
 import { Package } from '@/models/Package';
 import { User } from '@/models/User';
+import Invoice from '@/models/Invoice';
+import { Types } from 'mongoose';
 
 export async function GET(req: NextRequest) {
   try {
@@ -39,45 +41,69 @@ export async function GET(req: NextRequest) {
     // Connect to database
     await dbConnect();
 
-    // Fetch packages for this customer using userId
-    const packages = await Package.find({
-      userId: userId,
-    })
-    .select('trackingNumber status itemDescription weight senderName currentLocation receiverName updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery')
-    .sort({ createdAt: -1 })
-    .limit(100)
-    .lean();
+    // Fetch both packages and invoices for this customer
+    const [packages, invoices] = await Promise.all([
+      Package.find({
+        userId: userId,
+      })
+      .select('trackingNumber status itemDescription weight senderName currentLocation receiverName updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery')
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean(),
+      Invoice.find({ userId: new Types.ObjectId(userId) })
+        .populate('package', 'trackingNumber')
+        .select('invoiceNumber package status')
+        .sort({ createdAt: -1 })
+        .lean()
+    ]);
 
-    console.log(`Found ${packages.length} packages for user ${userId}`);
+    console.log(`Found ${packages.length} packages and ${invoices.length} invoices for user ${userId}`);
 
     // Get user information to include shippingId (userCode) in response
     const user = await User.findById(userId).select('shippingId').lean();
     const userCode = user?.shippingId || '';
 
+    // Create a map of invoice numbers to package tracking numbers
+    const invoiceMap = new Map();
+    invoices.forEach((invoice: any) => {
+      if (invoice.package?.trackingNumber) {
+        invoiceMap.set(invoice.package.trackingNumber, {
+          hasInvoice: true,
+          invoiceNumber: invoice.invoiceNumber
+        });
+      }
+    });
+
     // Map to response format
-    const mapped = packages.map((p) => ({
-      id: p._id,
-      tracking_number: p.trackingNumber,
-      trackingNumber: p.trackingNumber,
-      status: p.status,
-      description: p.itemDescription,
-      weight_kg: p.weight,
-      weight: p.weight ? `${p.weight} kg` : undefined,
-      userCode: userCode,
-      shipper: p.senderName,
-      current_location: p.currentLocation,
-      destination: p.receiverName || 'Receiver name only available',
-      updated_at: p.updatedAt?.toISOString(),
-      updatedAt: p.updatedAt?.toISOString(),
-      created_at: p.createdAt?.toISOString(),
-      createdAt: p.createdAt?.toISOString(),
-      estimated_delivery: p.estimatedDelivery?.toISOString(),
-      invoice_status: 'pending', // Default since paymentStatus field not available
-      shipping_cost: p.shippingCost,
-      total_amount: p.totalAmount,
-      last_scan: p.lastScan?.toISOString(),
-      actual_delivery: p.actualDelivery?.toISOString(),
-    }));
+    const mapped = packages.map((p) => {
+      const invoiceInfo = invoiceMap.get(p.trackingNumber) || { hasInvoice: false, invoiceNumber: null };
+      
+      return {
+        id: p._id,
+        tracking_number: p.trackingNumber,
+        trackingNumber: p.trackingNumber,
+        status: p.status,
+        description: p.itemDescription,
+        weight_kg: p.weight,
+        weight: p.weight ? `${p.weight} kg` : undefined,
+        userCode: userCode,
+        shipper: p.senderName,
+        current_location: p.currentLocation,
+        destination: p.receiverName || 'Receiver name only available',
+        updated_at: p.updatedAt?.toISOString(),
+        updatedAt: p.updatedAt?.toISOString(),
+        created_at: p.createdAt?.toISOString(),
+        createdAt: p.createdAt?.toISOString(),
+        estimated_delivery: p.estimatedDelivery?.toISOString(),
+        invoice_status: invoiceInfo.hasInvoice ? 'available' : 'pending',
+        hasInvoice: invoiceInfo.hasInvoice,
+        invoiceNumber: invoiceInfo.invoiceNumber,
+        shipping_cost: p.shippingCost,
+        total_amount: p.totalAmount,
+        last_scan: p.lastScan?.toISOString(),
+        actual_delivery: p.actualDelivery?.toISOString(),
+      };
+    });
 
     console.log('Successfully mapped packages and sending response');
 

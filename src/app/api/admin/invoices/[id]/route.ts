@@ -1,106 +1,12 @@
+// my-app/src/app/api/admin/invoices/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { dbConnect } from '@/lib/db';
-import Invoice, { IInvoice } from '@/models/Invoice';
+import Invoice from '@/models/Invoice';
 import { Types } from 'mongoose';
 
-// Get invoice by ID
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    await dbConnect();
-    const session = await getServerSession(authOptions);
-    
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    if (!Types.ObjectId.isValid(params.id)) {
-      return NextResponse.json({ error: 'Invalid invoice ID' }, { status: 400 });
-    }
-
-    const invoice = await Invoice.findById(params.id)
-      .populate('package', 'tracking_number user_code description weight')
-      .populate('shipment', 'trackingNumber status currentLocation');
-
-    if (!invoice) {
-      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
-    }
-
-    return NextResponse.json(invoice);
-  } catch (error) {
-    console.error('Error fetching invoice:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch invoice' },
-      { status: 500 }
-    );
-  }
-}
-
-// Update invoice
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    await dbConnect();
-    const session = await getServerSession(authOptions);
-    
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    if (!Types.ObjectId.isValid(params.id)) {
-      return NextResponse.json({ error: 'Invalid invoice ID' }, { status: 400 });
-    }
-
-    const data = await req.json();
-    const updates: Partial<IInvoice> = { ...data };
-
-    // If items are being updated, recalculate totals
-    if (data.items) {
-      const invoice = await Invoice.findById(params.id);
-      if (!invoice) {
-        return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
-      }
-      
-      invoice.items = data.items;
-      invoice.calculateTotals();
-      
-      // Only update the fields that were changed
-      updates.subtotal = invoice.subtotal;
-      updates.taxTotal = invoice.taxTotal;
-      updates.discountAmount = invoice.discountAmount;
-      updates.total = invoice.total;
-      updates.balanceDue = invoice.balanceDue;
-    }
-
-    const updatedInvoice = await Invoice.findByIdAndUpdate(
-      params.id,
-      { $set: updates },
-      { new: true, runValidators: true }
-    )
-      .populate('package', 'tracking_number user_code')
-      .populate('shipment', 'trackingNumber status');
-
-    if (!updatedInvoice) {
-      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
-    }
-
-    return NextResponse.json(updatedInvoice);
-  } catch (error) {
-    console.error('Error updating invoice:', error);
-    return NextResponse.json(
-      { error: 'Failed to update invoice' },
-      { status: 500 }
-    );
-  }
-}
-
-// Delete invoice
+// Delete an invoice
 export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -113,21 +19,117 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!Types.ObjectId.isValid(params.id)) {
+    const invoiceId = params.id;
+
+    if (!invoiceId) {
+      return NextResponse.json({ error: 'Invoice ID is required' }, { status: 400 });
+    }
+
+    // Validate ObjectId
+    if (!Types.ObjectId.isValid(invoiceId)) {
       return NextResponse.json({ error: 'Invalid invoice ID' }, { status: 400 });
     }
 
-    const deletedInvoice = await Invoice.findByIdAndDelete(params.id);
-
-    if (!deletedInvoice) {
+    // Find and delete the invoice
+    const invoice = await Invoice.findByIdAndDelete(invoiceId);
+    
+    if (!invoice) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ message: 'Invoice deleted successfully' });
+    return NextResponse.json({ 
+      message: 'Invoice deleted successfully',
+      invoiceNumber: invoice.invoiceNumber 
+    });
   } catch (error) {
     console.error('Error deleting invoice:', error);
     return NextResponse.json(
       { error: 'Failed to delete invoice' },
+      { status: 500 }
+    );
+  }
+}
+
+// Get a single invoice
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    await dbConnect();
+    const session = await getServerSession(authOptions);
+    
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const invoiceId = params.id;
+
+    if (!invoiceId || !Types.ObjectId.isValid(invoiceId)) {
+      return NextResponse.json({ error: 'Invalid invoice ID' }, { status: 400 });
+    }
+
+    const invoice = await Invoice.findById(invoiceId)
+      .populate('package', 'trackingNumber userCode')
+      .populate('shipment', 'trackingNumber status')
+      .lean();
+    
+    if (!invoice) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    }
+
+    // Format invoice with all fields
+    const formattedInvoice = {
+      _id: invoice._id?.toString() || '',
+      invoiceNumber: (invoice as any).invoiceNumber || '',
+      status: (invoice as any).status || 'draft',
+      issueDate: (invoice as any).issueDate ? new Date((invoice as any).issueDate).toISOString() : new Date().toISOString(),
+      dueDate: (invoice as any).dueDate ? new Date((invoice as any).dueDate).toISOString() : new Date().toISOString(),
+      currency: (invoice as any).currency || 'USD',
+      subtotal: Number((invoice as any).subtotal) || 0,
+      taxTotal: Number((invoice as any).taxTotal) || 0,
+      discountAmount: Number((invoice as any).discountAmount) || 0,
+      total: Number((invoice as any).total) || 0,
+      amountPaid: Number((invoice as any).amountPaid) || 0,
+      balanceDue: Number((invoice as any).balanceDue) || 0,
+      customer: (invoice as any).customer ? {
+        id: (invoice as any).customer.id || '',
+        name: (invoice as any).customer.name || '',
+        email: (invoice as any).customer.email || '',
+        address: (invoice as any).customer.address || '',
+        phone: (invoice as any).customer.phone || '',
+        city: (invoice as any).customer.city || '',
+        country: (invoice as any).customer.country || ''
+      } : undefined,
+      items: Array.isArray((invoice as any).items) ? (invoice as any).items.map((item: any) => ({
+        description: item.description || '',
+        quantity: Number(item.quantity) || 0,
+        unitPrice: Number(item.unitPrice) || 0,
+        taxRate: Number(item.taxRate) || 0,
+        amount: Number(item.amount) || 0,
+        taxAmount: Number(item.taxAmount) || 0,
+        total: Number(item.total) || 0
+      })) : [],
+      package: (invoice as any).package ? {
+        trackingNumber: (invoice as any).package.trackingNumber || (invoice as any).package.tracking_number,
+        userCode: (invoice as any).package.userCode || (invoice as any).package.user_code
+      } : undefined,
+      paymentHistory: Array.isArray((invoice as any).paymentHistory) ? (invoice as any).paymentHistory.map((payment: any) => ({
+        amount: Number(payment.amount) || 0,
+        date: payment.date ? new Date(payment.date).toISOString() : new Date().toISOString(),
+        method: payment.method || '',
+        reference: payment.reference || ''
+      })) : [],
+      notes: (invoice as any).notes || '',
+      createdAt: (invoice as any).createdAt ? new Date((invoice as any).createdAt).toISOString() : new Date().toISOString(),
+      updatedAt: (invoice as any).updatedAt ? new Date((invoice as any).updatedAt).toISOString() : new Date().toISOString()
+    };
+
+    return NextResponse.json(formattedInvoice);
+  } catch (error) {
+    console.error('Error fetching invoice:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch invoice' },
       { status: 500 }
     );
   }

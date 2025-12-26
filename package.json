@@ -39,6 +39,7 @@
     "framer-motion": "^12.23.24",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
+    "jspdf": "^3.0.4",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.552.0",
     "mongoose": "^8.6.3",

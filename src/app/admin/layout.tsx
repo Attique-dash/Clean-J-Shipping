@@ -6,15 +6,12 @@ import Image from "next/image";
 import { LogoutButton } from "@/components/LogoutButton";   
 import {
   Home,
-  ShoppingCart,
   Package,
-  HelpCircle,
   Bell,
   Users,
   Wrench,
   Truck,
   Radio,
-  Inbox,
   CreditCard,
   BarChart3,
   ChevronRight,
@@ -130,20 +127,6 @@ export default function AdminLayout({
       color: "from-slate-500 to-slate-600",
     },
     {
-      href: "/admin/logs",
-      label: "Logs",
-      icon: FileSearch,
-      description: "Audit log and system events",
-      color: "from-amber-500 to-amber-600",
-    },
-    {
-      href: "/admin/integrations",
-      label: "Integrations",
-      icon: Plug,
-      description: "Manage third-party integrations",
-      color: "from-emerald-500 to-emerald-600",
-    },
-    {
       href: "/admin/profile",
       label: "Profile",
       icon: UserCircle,
@@ -182,34 +165,7 @@ export default function AdminLayout({
             </div>
           </div>
 
-          {/* Navigation - Scrollable */}
-          <style jsx global>{`
-            /* Custom scrollbar for WebKit browsers */
-            .sidebar-scrollbar {
-              overflow-y: auto;
-            }
-            .sidebar-scrollbar::-webkit-scrollbar {
-              width: 6px;
-            }
-            .sidebar-scrollbar::-webkit-scrollbar-track {
-              background: transparent;
-              margin: 8px 0;
-            }
-            .sidebar-scrollbar::-webkit-scrollbar-thumb {
-              background: rgba(255, 255, 255, 0.2);
-              border-radius: 3px;
-              transition: background 0.2s ease-in-out;
-            }
-            .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
-              background: rgba(255, 255, 255, 0.4);
-            }
-            /* Custom scrollbar for Firefox */
-            .sidebar-scrollbar {
-              scrollbar-width: thin;
-              scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
-            }
-          `}</style>
-          <nav className="flex-1 overflow-y-auto space-y-1 p-4 pr-2 sidebar-scrollbar">
+                    <nav className="flex-1 overflow-y-auto space-y-1 p-4 pr-2 sidebar-scrollbar">
             {navItems.map((item) => {
               const Icon = item.icon;
               const currentPath = pathname || "";

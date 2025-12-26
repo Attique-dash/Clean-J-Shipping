@@ -306,7 +306,7 @@ export default function CustomerBillsPage() {
                   <div className="mt-4">
                     <p className="text-sm font-medium text-gray-600">Balance Due</p>
                     <p className="mt-1 text-3xl font-bold text-gray-900">
-                      {totalDue.toLocaleString(undefined, { style: 'currency', currency })}
+                      ${totalDue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
                     </p>
                   </div>
                 </div>
@@ -374,7 +374,7 @@ export default function CustomerBillsPage() {
                   <div>
                     <p className="font-semibold">{cart.size} item{cart.size !== 1 ? 's' : ''} in cart</p>
                     <p className="text-sm text-orange-100">
-                      Total: {cartTotal.toLocaleString(undefined, { style: 'currency', currency })}
+                      Total: ${cartTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
                     </p>
                   </div>
                 </div>
@@ -461,10 +461,7 @@ export default function CustomerBillsPage() {
                           <div className="flex items-center justify-between pb-4 border-b border-gray-100">
                             <span className="text-sm font-medium text-gray-600">Amount Due</span>
                             <span className="text-2xl font-bold text-[#E67919]">
-                              {(bill.amount_due || 0).toLocaleString(undefined, { 
-                                style: 'currency', 
-                                currency: bill.currency || currency 
-                              })}
+                              ${(bill.amount_due || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {bill.currency || currency}
                             </span>
                           </div>
 

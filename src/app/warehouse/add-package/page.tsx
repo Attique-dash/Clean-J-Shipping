@@ -97,7 +97,7 @@ export default function WarehouseAddPackagePage() {
       } else {
         setSelectedCustomer(customer);
       }
-    } catch (error) {
+    } catch {
       setSelectedCustomer(customer);
     }
   };

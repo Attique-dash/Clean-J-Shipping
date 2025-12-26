@@ -1,0 +1,131 @@
+import { NextResponse } from "next/server";
+import { dbConnect } from "@/lib/db";
+import Invoice from "@/models/Invoice";
+import { getAuthFromRequest } from "@/lib/rbac";
+import { ExportService } from "@/lib/export-service";
+import { Types } from "mongoose";
+
+export async function GET(
+  req: Request,
+  { params }: { params: { invoiceNumber: string } }
+) {
+  try {
+    const payload = await getAuthFromRequest(req);
+    if (!payload || (payload.role !== "customer" && payload.role !== "admin")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    await dbConnect();
+
+    // Get user ID
+    const userId = (payload as { id?: string; _id?: string; uid?: string }).id || 
+                  (payload as { id?: string; _id?: string; uid?: string })._id || 
+                  (payload as { id?: string; _id?: string; uid?: string }).uid;
+    
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Find the invoice
+    const invoice = await Invoice.findOne({ 
+      invoiceNumber: params.invoiceNumber,
+      userId: new Types.ObjectId(userId) 
+    }).lean();
+
+    if (!invoice) {
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+    }
+
+    // Get format from query params
+    const { searchParams } = new URL(req.url);
+    const format = searchParams.get('format') || 'pdf';
+
+    // Prepare invoice data for export
+    const invoiceData = {
+      invoiceNumber: invoice.invoiceNumber,
+      issueDate: invoice.issueDate ? new Date(invoice.issueDate).toISOString() : new Date().toISOString(),
+      dueDate: invoice.dueDate ? new Date(invoice.dueDate).toISOString() : new Date().toISOString(),
+      status: invoice.status || 'draft',
+      customer: {
+        name: invoice.customer?.name || 'N/A',
+        email: invoice.customer?.email || 'N/A',
+        address: invoice.customer?.address || '',
+        phone: invoice.customer?.phone || ''
+      },
+      items: (invoice.items || []).map((item: any) => ({
+        description: item.description || 'Service',
+        quantity: Number(item.quantity) || 1,
+        unitPrice: Number(item.unitPrice) || 0,
+        taxRate: Number(item.taxRate) || 0,
+        amount: Number(item.amount) || 0,
+        taxAmount: Number(item.taxAmount) || 0,
+        total: Number(item.total) || 0
+      })),
+      subtotal: Number(invoice.subtotal) || 0,
+      taxTotal: Number(invoice.taxTotal) || 0,
+      discountAmount: Number(invoice.discountAmount) || 0,
+      total: Number(invoice.total) || 0,
+      amountPaid: Number(invoice.amountPaid) || 0,
+      balanceDue: Number(invoice.balanceDue) || 0,
+      currency: invoice.currency || 'USD',
+      notes: invoice.notes || '',
+      paymentHistory: (invoice.paymentHistory || []).map((payment: any) => ({
+        amount: Number(payment.amount) || 0,
+        date: payment.date ? new Date(payment.date).toISOString() : new Date().toISOString(),
+        method: payment.method || 'Unknown',
+        reference: payment.reference || ''
+      }))
+    };
+
+    if (format === 'excel') {
+      // Excel export
+      const invoiceSummary = {
+        'Invoice Number': invoiceData.invoiceNumber,
+        'Customer Name': invoiceData.customer.name,
+        'Customer Email': invoiceData.customer.email,
+        'Customer Phone': invoiceData.customer.phone,
+        'Customer Address': invoiceData.customer.address,
+        'Issue Date': new Date(invoiceData.issueDate).toLocaleDateString(),
+        'Due Date': new Date(invoiceData.dueDate).toLocaleDateString(),
+        'Status': invoiceData.status.toUpperCase(),
+        'Currency': invoiceData.currency,
+        'Subtotal': `$${invoiceData.subtotal.toFixed(2)}`,
+        'Tax Total': `$${invoiceData.taxTotal.toFixed(2)}`,
+        'Discount': `$${invoiceData.discountAmount.toFixed(2)}`,
+        'Total Amount': `$${invoiceData.total.toFixed(2)}`,
+        'Amount Paid': `$${invoiceData.amountPaid.toFixed(2)}`,
+        'Balance Due': `$${invoiceData.balanceDue.toFixed(2)}`,
+        'Notes': invoiceData.notes || 'N/A'
+      };
+
+      const itemsData = invoiceData.items.map((item, index) => ({
+        'Item #': index + 1,
+        'Description': item.description,
+        'Quantity': item.quantity,
+        'Unit Price': `$${item.unitPrice.toFixed(2)}`,
+        'Amount': `$${item.amount.toFixed(2)}`,
+        'Tax Rate': `${item.taxRate}%`,
+        'Tax Amount': `$${item.taxAmount.toFixed(2)}`,
+        'Line Total': `$${item.total.toFixed(2)}`
+      }));
+
+      ExportService.toExcelMultiSheet([
+        { name: 'Invoice Summary', data: [invoiceSummary] },
+        { name: 'Invoice Items', data: itemsData }
+      ], `invoice_${invoiceData.invoiceNumber}_complete`);
+
+      return NextResponse.json({ success: true, message: 'Excel download started' });
+    } else {
+      // PDF export
+      ExportService.toInvoicePDF(invoiceData, `invoice_${invoiceData.invoiceNumber}`);
+      return NextResponse.json({ success: true, message: 'PDF download started' });
+    }
+
+  } catch (error) {
+    console.error("Error downloading invoice:", error);
+    return NextResponse.json(
+      { error: "Failed to download invoice" },
+      { status: 500 }
+    );
+  }
+}

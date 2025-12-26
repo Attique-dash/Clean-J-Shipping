@@ -17,6 +17,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const q = (url.searchParams.get("q") || "").trim();
     const status = (url.searchParams.get("status") || "").trim();
+    const userCode = (url.searchParams.get("userCode") || "").trim();
     const page = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
     const per_page = Math.min(Math.max(parseInt(url.searchParams.get("per_page") || "20", 10), 1), 100);
 
@@ -24,14 +25,35 @@ export async function GET(req: Request) {
     const filter: Record<string, unknown> = {};
     
     if (q) {
+      const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
       filter.$or = [
-        { trackingNumber: { $regex: q, $options: 'i' } },
-        { referenceNumber: { $regex: q, $options: 'i' } },
+        { trackingNumber: regex },
+        { description: regex },
+        { shipper: regex },
+        { controlNumber: regex },
+        { manifestId: regex }
       ];
     }
 
     if (status) {
       filter.status = status;
+    }
+
+    if (userCode) {
+      // Find user by userCode and get their packages
+      const user = await User.findOne({ userCode: userCode }).select('_id').lean();
+      if (user) {
+        filter.userId = user._id;
+      } else {
+        // If no user found with this userCode, return empty results
+        return NextResponse.json({
+          packages: [],
+          total_count: 0,
+          status_counts: {},
+          page, 
+          per_page 
+        });
+      }
     }
 
     const [packages, total_count, status_counts] = await Promise.all([
@@ -51,27 +73,50 @@ export async function GET(req: Request) {
       return acc;
     }, {} as Record<string, number>);
 
-    const formattedPackages = packages.map(p => ({
-      id: p._id,
-      tracking_number: p.trackingNumber,
-      customer_name: (p.userId as unknown as { name?: string; email: string; shippingId?: string })?.name || 'Unknown',
-      customer_id: p.userId,
-      user_code: (p.userId as unknown as { shippingId?: string })?.shippingId || '',
+    // Get user information for all packages to include shippingId (userCode) in response
+    const userIds = packages.map(p => p.userId).filter(Boolean);
+    const userMap = new Map<string, string>();
+    if (userIds.length > 0) {
+      const users = await User.find({ _id: { $in: userIds } }).select('_id shippingId').lean();
+      users.forEach((user: { _id: string; shippingId: string }) => {
+        userMap.set(String(user._id), user.shippingId || '');
+      });
+    }
+
+    // Add userCode to each package
+    const packagesWithUserCode = packages.map((p: { userId: string; [key: string]: unknown }) => ({
+      _id: p._id,
+      trackingNumber: p.trackingNumber,
+      userCode: userMap.get(String(p.userId)) || '',
       status: p.status,
-      current_location: p.currentLocation || undefined,
-      branch: p.currentLocation || undefined,
       weight: p.weight,
+      shipper: p.shipper,
+      description: p.description,
       dimensions: p.length && p.width && p.height 
         ? `${p.length}×${p.width}×${p.height} cm` 
         : undefined,
-      description: p.itemDescription || undefined,
-      received_date: p.createdAt?.toISOString(),
-      created_at: p.createdAt?.toISOString(),
-      updated_at: p.updatedAt?.toISOString(),
+      itemDescription: p.itemDescription,
+      createdAt: p.createdAt?.toISOString(),
+      updatedAt: p.updatedAt?.toISOString(),
+      // Include additional fields for frontend compatibility
+      length: p.length,
+      width: p.width,
+      height: p.height,
+      dimensionUnit: p.dimensionUnit,
+      receiverName: p.receiverName,
+      receiverEmail: p.receiverEmail,
+      receiverPhone: p.receiverPhone,
+      receiverAddress: p.receiverAddress,
+      receiverCountry: p.receiverCountry,
+      senderName: p.senderName,
+      senderEmail: p.senderEmail,
+      senderPhone: p.senderPhone,
+      senderAddress: p.senderAddress,
+      senderCountry: p.senderCountry,
     }));
 
     return NextResponse.json({ 
-      packages: formattedPackages, 
+      packages: packagesWithUserCode, 
       total_count,
       status_counts: statusCountsMap,
       page, 

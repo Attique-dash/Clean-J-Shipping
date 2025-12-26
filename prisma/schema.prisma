@@ -25,6 +25,7 @@ model Admin {
   messages    Message[]  @relation("AdminMessages")
   broadcasts  Broadcast[]
   manifests   Manifest[]
+  services    Service[]
 
   @@map("admins")
 }
@@ -790,6 +791,36 @@ model Warehouse {
   @@index([code])
   @@index([isActive])
   @@map("warehouses")
+}
+
+// Service model - for configurable services in admin settings
+model Service {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  description     String   @db.String(1000)
+  serviceType     String   // 'storage', 'shipping', 'customs', 'delivery', 'handling', 'other'
+  unitPrice       Float
+  isActive        Boolean  @default(true)
+  isDefault       Boolean  @default(false)
+  calculationMethod String @default("fixed") // 'fixed', 'per_kg', 'per_day', 'per_package'
+  
+  // Service conditions (stored as JSON)
+  conditions      Json?    // Package status, weight range, branch, days in storage conditions
+  
+  // Audit Fields
+  createdById     String   @db.ObjectId // Admin who created the service
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  // Relations
+  createdBy       Admin    @relation(fields: [createdById], references: [id])
+
+  // Indexes
+  @@index([serviceType])
+  @@index([isActive])
+  @@index([isDefault])
+  @@index([createdById])
+  @@map("services")
 }
 
 // Rate model - for shipping rates and pricing
