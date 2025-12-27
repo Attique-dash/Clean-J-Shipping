@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import type { ChangeEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { toast } from 'react-toastify';
@@ -60,7 +61,8 @@ interface Package {
 }
 
 export default function PackageDetailsPage() {
-  const { id } = useParams();
+  const params = useParams() as { id?: string } | null;
+  const id = params?.id;
   const router = useRouter();
   const { data: session, status } = useSession();
   const [pkg, setPackage] = useState<Package | null>(null);
@@ -101,7 +103,7 @@ export default function PackageDetailsPage() {
   }, [id]);
 
   // Handle form input changes
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -367,12 +369,18 @@ export default function PackageDetailsPage() {
                         value={formData.sender?.name || ''}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,
-                          sender: { ...prev.sender, name: e.target.value }
+                          sender: {
+                            name: e.target.value,
+                            email: prev.sender?.email,
+                            phone: prev.sender?.phone,
+                            address: prev.sender?.address,
+                          }
                         }))}
                         className="block w-full shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 border-gray-300 rounded-md"
                       />
                     ) : (
                       pkg.sender?.name || 'Unknown'
+
                     )}
                   </dd>
                 </div>
@@ -386,9 +394,15 @@ export default function PackageDetailsPage() {
                         value={formData.sender?.email || ''}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,
-                          sender: { ...prev.sender, email: e.target.value }
+                          sender: {
+                            name: prev.sender?.name ?? pkg.sender?.name ?? '',
+                            email: e.target.value,
+                            phone: prev.sender?.phone,
+                            address: prev.sender?.address,
+                          }
                         }))}
                         className="block w-full shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 border-gray-300 rounded-md"
+
                       />
                     ) : (
                       pkg.sender?.email || 'Not provided'
@@ -405,9 +419,15 @@ export default function PackageDetailsPage() {
                         value={formData.sender?.phone || ''}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,
-                          sender: { ...prev.sender, phone: e.target.value }
+                          sender: {
+                            name: prev.sender?.name ?? pkg.sender?.name ?? '',
+                            email: prev.sender?.email,
+                            phone: e.target.value,
+                            address: prev.sender?.address,
+                          }
                         }))}
                         className="block w-full shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 border-gray-300 rounded-md"
+
                       />
                     ) : (
                       pkg.sender?.phone || 'Not provided'
@@ -424,9 +444,15 @@ export default function PackageDetailsPage() {
                         value={formData.sender?.address || ''}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,
-                          sender: { ...prev.sender, address: e.target.value }
+                          sender: {
+                            name: prev.sender?.name ?? pkg.sender?.name ?? '',
+                            email: prev.sender?.email,
+                            phone: prev.sender?.phone,
+                            address: e.target.value,
+                          }
                         }))}
                         className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md"
+
                       />
                     ) : (
                       pkg.sender?.address || 'Not provided'
@@ -456,7 +482,13 @@ export default function PackageDetailsPage() {
                         value={formData.recipient?.name || ''}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,
-                          recipient: { ...prev.recipient, name: e.target.value }
+                          recipient: {
+                            name: e.target.value,
+                            email: prev.recipient?.email ?? '',
+                            shippingId: prev.recipient?.shippingId ?? '',
+                            phone: prev.recipient?.phone,
+                            address: prev.recipient?.address,
+                          }
                         }))}
                         className="block w-full shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 border-gray-300 rounded-md"
                       />
@@ -475,7 +507,13 @@ export default function PackageDetailsPage() {
                         value={formData.recipient?.email || ''}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,
-                          recipient: { ...prev.recipient, email: e.target.value }
+                          recipient: {
+                            name: prev.recipient?.name ?? '',
+                            email: e.target.value,
+                            shippingId: prev.recipient?.shippingId ?? '',
+                            phone: prev.recipient?.phone,
+                            address: prev.recipient?.address,
+                          }
                         }))}
                         className="block w-full shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 border-gray-300 rounded-md"
                       />
@@ -494,7 +532,13 @@ export default function PackageDetailsPage() {
                         value={formData.recipient?.shippingId || ''}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,
-                          recipient: { ...prev.recipient, shippingId: e.target.value }
+                          recipient: {
+                            name: prev.recipient?.name ?? '',
+                            email: prev.recipient?.email ?? '',
+                            shippingId: e.target.value,
+                            phone: prev.recipient?.phone,
+                            address: prev.recipient?.address,
+                          }
                         }))}
                         className="block w-full shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 border-gray-300 rounded-md"
                       />
@@ -513,7 +557,13 @@ export default function PackageDetailsPage() {
                         value={formData.recipient?.phone || ''}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,
-                          recipient: { ...prev.recipient, phone: e.target.value }
+                          recipient: {
+                            name: prev.recipient?.name ?? '',
+                            email: prev.recipient?.email ?? '',
+                            shippingId: prev.recipient?.shippingId ?? '',
+                            phone: e.target.value,
+                            address: prev.recipient?.address,
+                          }
                         }))}
                         className="block w-full shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500 border-gray-300 rounded-md"
                       />
@@ -532,7 +582,13 @@ export default function PackageDetailsPage() {
                         value={formData.recipient?.address || ''}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,
-                          recipient: { ...prev.recipient, address: e.target.value }
+                          recipient: {
+                            name: prev.recipient?.name ?? '',
+                            email: prev.recipient?.email ?? '',
+                            shippingId: prev.recipient?.shippingId ?? '',
+                            phone: prev.recipient?.phone,
+                            address: e.target.value,
+                          }
                         }))}
                         className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border border-gray-300 rounded-md"
                       />

@@ -17,6 +17,7 @@ interface FAQResponse {
   faqs: Record<string, FAQItem[]>;
   flat: FAQItem[];
   categories: string[];
+  error?: string;
 }
 
 const categoryLabels: Record<string, string> = {

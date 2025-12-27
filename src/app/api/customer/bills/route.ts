@@ -35,7 +35,7 @@ export async function GET(req: Request) {
 
     
     // Fetch admin invoices separately with error handling
-    let invoices = [];
+    let invoices: any[] = [];
     try {
       invoices = await Invoice.find({ userId: new Types.ObjectId(userId) })
         .populate('package', 'trackingNumber')
@@ -102,11 +102,11 @@ export async function GET(req: Request) {
         tracking_number: inv.package?.trackingNumber || inv.invoiceNumber,
         description: inv.items?.[0]?.description || inv.notes || `Invoice ${inv.invoiceNumber}`,
         invoice_number: inv.invoiceNumber,
-        invoice_date: inv.issueDate ? new Date(inv.issueDate).toISOString() : inv.createdAt,
+        invoice_date: inv.issueDate ? new Date(inv.issueDate).toISOString() : (inv.createdAt ? new Date(inv.createdAt).toISOString() : undefined),
         currency: inv.currency || "USD",
         amount_due: Math.max(0, balanceDue),
         payment_status: paymentStatus,
-        last_updated: inv.updatedAt ? new Date(inv.updatedAt).toISOString() : inv.createdAt,
+        last_updated: inv.updatedAt ? new Date(inv.updatedAt).toISOString() : (inv.createdAt ? new Date(inv.createdAt).toISOString() : undefined),
       };
     });
 

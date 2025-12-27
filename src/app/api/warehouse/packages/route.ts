@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(url.searchParams.get('limit') || '50');
     const page = parseInt(url.searchParams.get('page') || '1');
 
-    const query: Record<string, string | RegExp | { $regex: string; $options: string }[]> = {};
+    const query: Record<string, any> = {};
 
     if (status) {
       query.status = status;

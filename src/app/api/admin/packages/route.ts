@@ -41,8 +41,8 @@ export async function GET(req: Request) {
 
     if (userCode) {
       // Find user by userCode and get their packages
-      const user = await User.findOne({ userCode: userCode }).select('_id').lean();
-      if (user) {
+      const user = (await User.findOne({ userCode: userCode }).select('_id').lean()) as unknown as { _id?: unknown } | null;
+      if (user?._id) {
         filter.userId = user._id;
       } else {
         // If no user found with this userCode, return empty results
@@ -74,20 +74,22 @@ export async function GET(req: Request) {
     }, {} as Record<string, number>);
 
     // Get user information for all packages to include shippingId (userCode) in response
-    const userIds = packages.map(p => p.userId).filter(Boolean);
+    const userIds = packages
+      .map((p: any) => p?.userId?._id || p?.userId)
+      .filter(Boolean);
     const userMap = new Map<string, string>();
     if (userIds.length > 0) {
-      const users = await User.find({ _id: { $in: userIds } }).select('_id shippingId').lean();
-      users.forEach((user: { _id: string; shippingId: string }) => {
+      const users = (await User.find({ _id: { $in: userIds } }).select('_id shippingId').lean()) as unknown as Array<{ _id?: unknown; shippingId?: string }>;
+      users.forEach((user) => {
         userMap.set(String(user._id), user.shippingId || '');
       });
     }
 
     // Add userCode to each package
-    const packagesWithUserCode = packages.map((p: { userId: string; [key: string]: unknown }) => ({
+    const packagesWithUserCode = packages.map((p: any) => ({
       _id: p._id,
       trackingNumber: p.trackingNumber,
-      userCode: userMap.get(String(p.userId)) || '',
+      userCode: userMap.get(String(p?.userId?._id || p?.userId)) || '',
       status: p.status,
       weight: p.weight,
       shipper: p.shipper,
@@ -96,8 +98,8 @@ export async function GET(req: Request) {
         ? `${p.length}×${p.width}×${p.height} cm` 
         : undefined,
       itemDescription: p.itemDescription,
-      createdAt: p.createdAt?.toISOString(),
-      updatedAt: p.updatedAt?.toISOString(),
+      createdAt: p.createdAt ? (p.createdAt instanceof Date ? p.createdAt.toISOString() : new Date(p.createdAt).toISOString()) : undefined,
+      updatedAt: p.updatedAt ? (p.updatedAt instanceof Date ? p.updatedAt.toISOString() : new Date(p.updatedAt).toISOString()) : undefined,
       // Include additional fields for frontend compatibility
       length: p.length,
       width: p.width,
@@ -200,12 +202,12 @@ export async function POST(req: Request) {
         unit: "cm"
       },
       recipient: {
-        name: recipient?.name || user.name,
-        email: recipient?.email || user.email,
-        shippingId: recipient?.shippingId || user.shippingId,
-        phone: recipient?.phone || user.phone,
-        address: recipient?.address || user.address?.street,
-        country: recipient?.country || user.address?.country
+        name: (recipient as any)?.name || (user as any).name || "",
+        email: (recipient as any)?.email || (user as any).email,
+        shippingId: (recipient as any)?.shippingId || (user as any).userCode,
+        phone: (recipient as any)?.phone || (user as any).phone || "",
+        address: (recipient as any)?.address || (user as any).address?.street || "",
+        country: (recipient as any)?.country || (user as any).address?.country || "Jamaica",
       },
       sender: sender || {
         name: "Warehouse",
@@ -221,13 +223,13 @@ export async function POST(req: Request) {
       // Legacy fields for compatibility
       itemDescription: description || "Package description",
       itemValue: value || 0,
-      senderName: sender?.name || "Warehouse",
-      senderPhone: sender?.phone || "0000000000",
-      senderAddress: sender?.address || branch || "Main Warehouse",
-      receiverName: recipient?.name || user.name,
-      receiverPhone: recipient?.phone || user.phone,
-      receiverAddress: recipient?.address || user.address?.street,
-      receiverEmail: recipient?.email || user.email,
+      senderName: (sender as any)?.name || "Warehouse",
+      senderPhone: (sender as any)?.phone || "0000000000",
+      senderAddress: (sender as any)?.address || branch || "Main Warehouse",
+      receiverName: (recipient as any)?.name || (user as any).name || "",
+      receiverPhone: (recipient as any)?.phone || (user as any).phone || "",
+      receiverAddress: (recipient as any)?.address || (user as any).address?.street || "",
+      receiverEmail: (recipient as any)?.email || (user as any).email,
       currentLocation: branch || "Main Warehouse",
       packageType: "parcel",
       serviceType: "standard",

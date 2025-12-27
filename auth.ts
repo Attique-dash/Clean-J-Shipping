@@ -29,7 +29,8 @@ export const authOptions: NextAuthOptions = {
             id: user._id.toString(),
             email: user.email,
             name: `${user.firstName} ${user.lastName}`,
-            role: user.role
+            role: user.role,
+            userCode: user.userCode
           };
         } catch (error) {
           console.error('Auth error:', error);
@@ -46,6 +47,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.role = user.role;
+        token.userCode = user.userCode;
       }
       return token;
     },

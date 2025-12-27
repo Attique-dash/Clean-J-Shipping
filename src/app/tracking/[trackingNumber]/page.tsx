@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import type { ReactNode } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, MapPin, Clock, Package, CheckCircle2, X } from 'lucide-react';
@@ -38,7 +39,7 @@ interface ShipmentData {
   };
 }
 
-const statusConfig: Record<Status, { label: string; color: string; icon: React.ReactNode }> = {
+const statusConfig: Record<Status, { label: string; color: string; icon: ReactNode }> = {
   pending: { label: 'Pending', color: 'bg-yellow-100 text-yellow-800', icon: <Clock className="h-5 w-5" /> },
   picked_up: { label: 'Picked Up', color: 'bg-blue-100 text-blue-800', icon: <Package className="h-5 w-5" /> },
   in_transit: { label: 'In Transit', color: 'bg-indigo-100 text-indigo-800', icon: <Package className="h-5 w-5" /> },
@@ -48,19 +49,23 @@ const statusConfig: Record<Status, { label: string; color: string; icon: React.R
 };
 
 export default function TrackingResultPage() {
-  const params = useParams();
+  const params = useParams() as { trackingNumber?: string | string[] } | null;
   const router = useRouter();
   const [shipment, setShipment] = useState<ShipmentData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const trackingNumber = Array.isArray(params?.trackingNumber)
+    ? params?.trackingNumber[0]
+    : params?.trackingNumber;
+
   useEffect(() => {
     const fetchShipment = async () => {
       try {
         setIsLoading(true);
-        const trackingNumber = Array.isArray(params.trackingNumber) 
-          ? params.trackingNumber[0] 
-          : params.trackingNumber;
+        if (!trackingNumber) {
+          return;
+        }
         
         const response = await fetch(`/api/tracking/${encodeURIComponent(trackingNumber)}`);
         
@@ -78,10 +83,10 @@ export default function TrackingResultPage() {
       }
     };
 
-    if (params.trackingNumber) {
+    if (trackingNumber) {
       fetchShipment();
     }
-  }, [params.trackingNumber]);
+  }, [trackingNumber]);
 
   const getStatusColor = (status: Status) => {
     return statusConfig[status]?.color || 'bg-gray-100 text-gray-800';

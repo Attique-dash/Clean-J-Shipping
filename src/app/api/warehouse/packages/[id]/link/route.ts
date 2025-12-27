@@ -59,10 +59,11 @@ export async function POST(
     pkg.status = 'received';
 
     // Add to history
+    if (!Array.isArray(pkg.history)) pkg.history = [];
     pkg.history.push({
       status: 'received',
-      notes: 'Package linked to customer',
-      updatedBy: session.user?.name || 'system',
+      at: new Date(),
+      note: 'Package linked to customer',
     });
 
     await pkg.save();

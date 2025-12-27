@@ -8,14 +8,27 @@ type UIPackage = {
   id?: string;
   tracking_number: string;
   description?: string;
-  status: "in_transit" | "ready_for_pickup" | "delivered" | "pending" | "received" | "archived";
+  status:
+    | "pending"
+    | "received"
+    | "in_processing"
+    | "ready_to_ship"
+    | "shipped"
+    | "in_transit"
+    | "ready_for_pickup"
+    | "delivered"
+    | "archived"
+    | "unknown";
   current_location?: string;
   estimated_delivery?: string;
   weight?: string;
   invoice_status?: string;
   actions_available?: string[];
   ready_since?: string;
+  created_at?: string;
+  createdAt?: string;
   updated_at?: string;
+  updatedAt?: string;
   weight_kg?: number;
   hasInvoice?: boolean;
   invoiceNumber?: string;
@@ -109,7 +122,7 @@ export default function CustomerPackagesPage() {
   const pageClamped = Math.min(Math.max(1, page), totalPages);
   const paged = filtered.slice((pageClamped - 1) * pageSize, pageClamped * pageSize);
 
-  function statusLabel(s: UIPackage["status"]) {
+  function statusLabel(s: UIPackage["status"] | string): string {
     switch (s) {
       case "received":
         return "Received";
@@ -129,12 +142,11 @@ export default function CustomerPackagesPage() {
       case "unknown":
         return "Unknown";
       default:
-        // Handle any other status by capitalizing and replacing underscores
-        return s ? s.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : "Unknown";
+        return s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : "Unknown";
     }
   }
 
-  function getStatusColor(s: UIPackage["status"]) {
+  function getStatusColor(s: UIPackage["status"] | string) {
     switch (s) {
       case "received":
         return "bg-purple-100 text-purple-800 border-purple-200";
@@ -164,7 +176,7 @@ export default function CustomerPackagesPage() {
       return;
     }
     
-    setUploadingId(pkg.id);
+    setUploadingId(pkg.id ?? null);
     setError(null);
     try {
       const res = await fetch(`/api/customer/invoices/${encodeURIComponent(pkg.invoiceNumber)}/download?format=${format}`, {
@@ -480,9 +492,12 @@ export default function CustomerPackagesPage() {
                         {p.weight || <span className="text-gray-400">-</span>}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {p.created_at || p.createdAt || p.updated_at || p.updatedAt
-                          ? new Date(p.created_at || p.createdAt || p.updated_at || p.updatedAt).toLocaleDateString()
-                          : <span className="text-gray-400">N/A</span>}
+                        {(() => {
+                          const dateStr = p.created_at || p.createdAt || p.updated_at || p.updatedAt;
+                          return dateStr
+                            ? new Date(dateStr).toLocaleDateString()
+                            : <span className="text-gray-400">N/A</span>;
+                        })()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs rounded ${

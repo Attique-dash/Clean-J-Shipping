@@ -2,7 +2,6 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
-import { User } from "@/models/User";
 import { isWarehouseAuthorized } from "@/lib/rbac";
 
 export async function GET(req: Request) {
@@ -124,7 +123,7 @@ export async function GET(req: Request) {
     case "shipper": {
       // Shipper performance report
       const shipperStats = await Package.aggregate([
-        { $match: { ...filter, shipper: { $ne: null, $ne: "" } } },
+        { $match: { ...filter, shipper: { $nin: [null, ""] } } },
         {
           $group: {
             _id: "$shipper",

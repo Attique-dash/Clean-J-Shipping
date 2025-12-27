@@ -60,9 +60,9 @@ export default function PreAlertsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tracking_number: form.tracking_number,
-          carrier: form.carrier || undefined,
-          origin: form.origin || undefined,
-          expected_date: form.expected_date || undefined,
+          carrier: form.carrier,
+          origin: form.origin,
+          expected_date: form.expected_date,
           notes: form.notes || undefined,
         }),
       });
@@ -78,25 +78,7 @@ export default function PreAlertsPage() {
     }
   }
 
-  async function handleConfirmReject(id: string, action: "approved" | "rejected") {
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/customer/pre-alerts/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: action }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || `Failed to ${action} pre-alert`);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : `Failed to ${action} pre-alert`);
-    } finally {
-      setSaving(false);
-    }
-  }
-
+  
   function getStatusInfo(status?: PreAlert["status"]) {
     switch (status) {
       case "approved":
@@ -281,7 +263,7 @@ export default function PreAlertsPage() {
                   {/* Carrier */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Carrier
+                      Carrier <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
                       <Plane className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -290,6 +272,7 @@ export default function PreAlertsPage() {
                         placeholder="e.g., DHL, FedEx, UPS" 
                         value={form.carrier} 
                         onChange={(e) => setForm({ ...form, carrier: e.target.value })}
+                        required
                       />
                     </div>
                   </div>
@@ -297,7 +280,7 @@ export default function PreAlertsPage() {
                   {/* Origin */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Origin
+                      Origin <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
                       <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -306,6 +289,7 @@ export default function PreAlertsPage() {
                         placeholder="Country or city of origin" 
                         value={form.origin} 
                         onChange={(e) => setForm({ ...form, origin: e.target.value })}
+                        required
                       />
                     </div>
                   </div>
@@ -313,7 +297,7 @@ export default function PreAlertsPage() {
                   {/* Expected Date */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Expected Arrival Date
+                      Expected Arrival Date <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
                       <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -322,6 +306,7 @@ export default function PreAlertsPage() {
                         className="w-full pl-10 pr-3 py-3 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
                         value={form.expected_date} 
                         onChange={(e) => setForm({ ...form, expected_date: e.target.value })}
+                        required
                       />
                     </div>
                   </div>
@@ -519,28 +504,6 @@ export default function PreAlertsPage() {
                                   </p>
                                 </div>
                               </div>
-                            </div>
-                          )}
-
-                          {/* Action Buttons - Confirm/Reject for pending pre-alerts */}
-                          {(item.status === "submitted" || !item.status) && (
-                            <div className="mt-6 pt-6 border-t border-gray-100 flex items-center justify-end gap-3">
-                              <button
-                                onClick={() => handleConfirmReject(item._id, "rejected")}
-                                disabled={saving}
-                                className="inline-flex items-center gap-2 px-4 py-2.5 border-2 border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <XCircle className="h-4 w-4" />
-                                Reject
-                              </button>
-                              <button
-                                onClick={() => handleConfirmReject(item._id, "approved")}
-                                disabled={saving}
-                                className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <CheckCircle className="h-4 w-4" />
-                                Confirm
-                              </button>
                             </div>
                           )}
                         </div>

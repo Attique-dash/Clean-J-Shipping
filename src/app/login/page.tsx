@@ -23,8 +23,8 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   
-  const redirect = searchParams.get("redirect") || "/";
-  const tracking = searchParams.get("tracking") || "";
+  const redirect = searchParams?.get("redirect") || "/";
+  const tracking = searchParams?.get("tracking") || "";
 
   const [form, setForm] = useState<FormData>({ 
     email: "", 

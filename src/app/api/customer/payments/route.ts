@@ -1,6 +1,7 @@
 // src/app/api/customer/payments/route.ts
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { dbConnect } from "@/lib/db";
+import { Payment } from "@/models/Payment";
 import { getAuthFromRequest } from "@/lib/rbac";
 
 export async function GET(req: Request) {
@@ -15,11 +16,11 @@ export async function GET(req: Request) {
   try {
     console.log('[Payments API] Fetching payments for user:', payload.id);
     
-    const payments = await prisma.payment.findMany({
-      where: { userId: payload.id },
-      orderBy: { createdAt: 'desc' },
-      take: 100
-    });
+    await dbConnect();
+    
+    const payments = await Payment.find({ userId: payload.id })
+      .sort({ createdAt: -1 })
+      .limit(100);
 
     console.log('[Payments API] Found payments:', payments.length);
 
@@ -55,23 +56,24 @@ export async function POST(req: Request) {
 
     console.log('[Payments API] Creating payment for user:', payload.id, 'amount:', amount, 'package:', package_id);
 
+    await dbConnect();
+
     // Generate a unique payment ID for PayPal tracking
     const paymentId = `PAY-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substr(2, 9)}`;
 
     // Create payment record with PayPal payment ID
-    const created = await prisma.payment.create({
-      data: {
-        userId: payload.id,
-        transactionId: paymentId,
-        amount,
-        currency,
-        paymentMethod: "paypal",
-        status: "pending",
-        metadata: {
-          paymentId,
-          package_id,
-          invoice_number,
-        }
+    const created = await Payment.create({
+      userId: payload.id,
+      paymentNumber: paymentId,
+      gatewayId: paymentId,
+      amount,
+      currency,
+      paymentMethod: "paypal",
+      status: "pending",
+      metadata: {
+        paymentId,
+        package_id,
+        invoice_number,
       }
     });
 

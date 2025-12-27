@@ -23,14 +23,14 @@ interface Customer {
 
 export default function AdminAddPackagePage() {
   const searchParams = useSearchParams();
-  const editId = searchParams.get('edit');
+  const editId = searchParams?.get('edit') || null;
   const [submitting, setSubmitting] = useState(false);
   const [trackingNumber, setTrackingNumber] = useState("");
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const [trackingSuccess, setTrackingSuccess] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [isEditing, setIsEditing] = useState(!!editId);
+  const [isEditing, setIsEditing] = useState(() => !!editId);
   
   const [form, setForm] = useState({
     weight: "",
@@ -105,7 +105,7 @@ export default function AdminAddPackagePage() {
 
   // Initialize - load customers and check for edit mode
   useEffect(() => {
-    const editId = searchParams.get('edit');
+    const editId = searchParams?.get('edit');
     
     if (editId) {
       const loadEditData = async () => {
@@ -245,7 +245,7 @@ export default function AdminAddPackagePage() {
         branch: undefined
       };
 
-      const editId = searchParams.get('edit');
+      const editId = searchParams?.get('edit') || null;
       const url = editId ? `/api/admin/packages/${editId}` : "/api/admin/packages";
       const method = editId ? "PUT" : "POST";
 

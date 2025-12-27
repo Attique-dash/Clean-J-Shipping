@@ -33,13 +33,26 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
+    console.log('Received body:', JSON.stringify(body, null, 2)); // Debug log
     const validated = manifestSchema.parse(body);
 
     const { manifestId, description, data } = validated;
+    console.log('Validated data:', { manifestId, description, data }); // Debug log
 
     // Calculate totals
     const totalItems = data.shipments.length;
     const totalWeight = data.shipments.reduce((sum, s) => sum + (s.weight || 0), 0);
+
+    // Debug the data before saving
+    console.log('Data before save:', {
+      title: data.title,
+      description: description,
+      titleOrDesc: data.title || description,
+      shipments: data.shipments.map(s => ({
+        trackingNumber: s.tracking_number,
+        notes: s.notes
+      }))
+    });
 
     // Upsert manifest
     const manifest = await ShipmentManifest.findOneAndUpdate(
@@ -68,6 +81,8 @@ export async function POST(req: Request) {
       },
       { upsert: true, new: true }
     );
+
+    console.log('Saved manifest:', manifest); // Debug log
 
     return NextResponse.json({
       ok: true,
@@ -116,11 +131,62 @@ export async function GET(req: Request) {
       .limit(100)
       .lean();
 
-    return NextResponse.json({ manifests });
+    // Migrate existing manifests to include new fields
+    const migratedManifests = manifests.map(manifest => {
+      // Ensure all required fields exist
+      const migrated = {
+        ...manifest,
+        title: manifest.title || null,
+        mode: manifest.mode || 'air',
+        batchDate: manifest.batchDate || null,
+        shipments: (manifest.shipments || []).map((shipment: any) => ({
+          ...shipment,
+          notes: shipment.notes || null
+        }))
+      };
+      return migrated;
+    });
+
+    return NextResponse.json({ manifests: migratedManifests });
   } catch (error) {
     console.error("Error fetching manifests:", error);
     return NextResponse.json(
       { error: "Failed to fetch manifests" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(req: Request) {
+  const payload = await getAuthFromRequest(req);
+  if (!payload || payload.role !== "admin") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  await dbConnect();
+
+  try {
+    const url = new URL(req.url);
+    const manifestId = url.searchParams.get("manifestId");
+
+    if (!manifestId) {
+      return NextResponse.json({ error: "Manifest ID is required" }, { status: 400 });
+    }
+
+    const manifest = await ShipmentManifest.findOneAndDelete({ manifestId });
+    if (!manifest) {
+      return NextResponse.json({ error: "Manifest not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      message: "Manifest deleted successfully",
+      manifest_id: manifestId
+    });
+  } catch (error) {
+    console.error("Error deleting manifest:", error);
+    return NextResponse.json(
+      { error: "Failed to delete manifest" },
       { status: 500 }
     );
   }

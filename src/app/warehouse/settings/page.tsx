@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import type { FormEvent } from "react";
 import { useSession } from "next-auth/react";
 import { User, Package, BarChart3, Users, TrendingUp, Calendar, DollarSign, CheckCircle, Clock, Key, Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "react-toastify";
@@ -46,17 +47,28 @@ export default function WarehouseSettingsPage() {
       });
       
       if (analyticsRes.ok) {
-        const analyticsData = await analyticsRes.json();
-        const statusCounts = analyticsData.statusCounts || {};
+        const analyticsData: {
+          statusCounts?: Record<string, unknown>;
+          totalCustomers?: unknown;
+          today?: { packages?: unknown };
+        } = await analyticsRes.json();
+
+        const statusCountsRaw: Record<string, unknown> = analyticsData.statusCounts || {};
+        const statusCounts: Record<string, number> = Object.fromEntries(
+          Object.entries(statusCountsRaw).map(([key, value]) => [
+            key,
+            typeof value === 'number' ? value : Number(value) || 0,
+          ])
+        );
         
         setStats(prev => ({
           ...prev,
-          totalPackages: Object.values(statusCounts).reduce((sum: number, count: number) => sum + count, 0),
+          totalPackages: Object.values(statusCounts).reduce((sum, count) => sum + count, 0),
           pendingPackages: (statusCounts["Unknown"] || 0) + (statusCounts["At Warehouse"] || 0),
           inTransitPackages: statusCounts["In Transit"] || 0,
           deliveredPackages: statusCounts["Delivered"] || 0,
-          totalCustomers: analyticsData.totalCustomers || 0,
-          todayPackages: analyticsData.today?.packages || 0,
+          totalCustomers: typeof analyticsData.totalCustomers === 'number' ? analyticsData.totalCustomers : Number(analyticsData.totalCustomers) || 0,
+          todayPackages: typeof analyticsData.today?.packages === 'number' ? analyticsData.today?.packages : Number(analyticsData.today?.packages) || 0,
           monthlyRevenue: 0 // This would need revenue calculation from payments
         }));
       }
@@ -82,7 +94,7 @@ export default function WarehouseSettingsPage() {
     }
   };
 
-  const handlePasswordChange = async (e: React.FormEvent) => {
+  const handlePasswordChange = async (e: FormEvent) => {
     e.preventDefault();
     
     // Validate passwords

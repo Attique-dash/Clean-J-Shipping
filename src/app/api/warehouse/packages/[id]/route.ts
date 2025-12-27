@@ -112,27 +112,28 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
     return NextResponse.json(packageData);
   } catch (error) {
-    console.error("Error updating package:", error);
+    const err = error as any;
+    console.error("Error updating package:", err);
     
     // Provide more specific error messages
-    if (error.name === 'ValidationError') {
-      const validationErrors = Object.values(error.errors).map((err: any) => err.message);
+    if (err.name === 'ValidationError') {
+      const validationErrors = Object.values(err.errors || {}).map((e: any) => e.message);
       return NextResponse.json({ 
         error: "Validation failed: " + validationErrors.join(", "),
         details: validationErrors 
       }, { status: 400 });
     }
     
-    if (error.name === 'CastError') {
+    if (err.name === 'CastError') {
       return NextResponse.json({ 
         error: "Invalid data format provided",
-        details: error.message 
+        details: err.message 
       }, { status: 400 });
     }
     
     return NextResponse.json({ 
       error: "Failed to update package. Please check your data and try again.",
-      details: error.message 
+      details: err.message 
     }, { status: 500 });
   }
 }

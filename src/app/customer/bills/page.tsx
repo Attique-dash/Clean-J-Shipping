@@ -1,7 +1,7 @@
 // src/app/customer/bills/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { FileText, DollarSign, Calendar, CheckCircle, XCircle, Clock, ExternalLink, CreditCard, RefreshCw, Loader2, TrendingUp, Download, X, ShoppingCart } from "lucide-react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { toast } from "react-toastify";
@@ -30,6 +30,19 @@ export default function CustomerBillsPage() {
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [processing, setProcessing] = useState(false);
   const [cart, setCart] = useState<Set<string>>(new Set());
+  const [usePayPal, setUsePayPal] = useState(false);
+  const [paypalOrderId, setPaypalOrderId] = useState<string | null>(null);
+
+  // Payment form state
+  const [paymentForm, setPaymentForm] = useState({
+    firstName: "",
+    lastName: "",
+    cardNumber: "",
+    expiry: "",
+    cvv: "",
+    email: "",
+    phone: "",
+  });
 
   async function load() {
     setLoading(true);
@@ -39,9 +52,19 @@ export default function CustomerBillsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load bills");
       const list: Bill[] = Array.isArray(data?.bills) ? data.bills : [];
-      setItems(list);
-      const ccy = list.find((b: Bill) => b.currency)?.currency || "USD";
+
+      // Process data in chunks to reduce memory usage
+      const processedList = list.slice(0, 100); // Limit initial load
+      setItems(processedList);
+      const ccy = processedList.find((b: Bill) => b.currency)?.currency || "USD";
       setCurrency(ccy);
+
+      // Load remaining data asynchronously if needed
+      if (list.length > 100) {
+        setTimeout(() => {
+          setItems(list);
+        }, 1000);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
     } finally {
@@ -67,11 +90,11 @@ export default function CustomerBillsPage() {
   const pendingBills = items.filter(b => b.payment_status === 'submitted' || b.payment_status === 'none');
   const reviewedBills = items.filter(b => b.payment_status === 'reviewed');
   const rejectedBills = items.filter(b => b.payment_status === 'rejected');
-  
+
   // Cart functionality
   const cartItems = items.filter(bill => cart.has(bill.tracking_number));
   const cartTotal = cartItems.reduce((sum, bill) => sum + (Number(bill.amount_due) || 0), 0);
-  
+
   const toggleCartItem = (trackingNumber: string) => {
     setCart(prev => {
       const newCart = new Set(prev);
@@ -85,9 +108,9 @@ export default function CustomerBillsPage() {
       return newCart;
     });
   };
-  
+
   const addAllToCart = () => {
-    const payableBills = items.filter(b => 
+    const payableBills = items.filter(b =>
       b.payment_status !== 'paid' && b.amount_due > 0
     );
     const trackingNumbers = payableBills.map(b => b.tracking_number);
@@ -95,7 +118,7 @@ export default function CustomerBillsPage() {
     localStorage.setItem('customer_cart', JSON.stringify(trackingNumbers));
     toast.success(`${payableBills.length} items added to cart`);
   };
-  
+
   const clearCart = () => {
     setCart(new Set());
     localStorage.removeItem('customer_cart');
@@ -107,9 +130,57 @@ export default function CustomerBillsPage() {
     setShowPaymentModal(true);
   };
 
+  const handlePayment = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!selectedBill) return;
+
+    if (usePayPal) {
+      // PayPal payment will be handled by PayPalButtons
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const res = await fetch("/api/customer/payments/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trackingNumber: selectedBill.tracking_number,
+          amount: selectedBill.amount_due,
+          currency: selectedBill.currency || "JMD",
+          paymentMethod: "card",
+          cardDetails: paymentForm,
+          usePayPal: false,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Payment failed");
+
+      setShowPaymentModal(false);
+      setSelectedBill(null);
+      setUsePayPal(false);
+      setPaymentForm({
+        firstName: "",
+        lastName: "",
+        cardNumber: "",
+        expiry: "",
+        cvv: "",
+        email: "",
+        phone: "",
+      });
+      await load();
+      toast.success("Payment processed successfully!");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Payment failed");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   async function handlePayPalCreateOrder() {
     if (!selectedBill) return "";
-    
+
     try {
       const res = await fetch("/api/customer/payments/create-paypal-order", {
         method: "POST",
@@ -123,6 +194,7 @@ export default function CustomerBillsPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to create PayPal order");
+      setPaypalOrderId(data.orderId);
       return data.orderId;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "PayPal order creation failed");
@@ -168,6 +240,8 @@ export default function CustomerBillsPage() {
 
       setShowPaymentModal(false);
       setSelectedBill(null);
+      setUsePayPal(false);
+      setPaypalOrderId(null);
       await load();
       toast.success("Payment processed successfully! A confirmation email has been sent.");
     } catch (e) {
@@ -443,7 +517,7 @@ export default function CustomerBillsPage() {
                                   Invoice #{bill.invoice_number || 'N/A'}
                                 </p>
                                 <p className="text-xs text-blue-100">
-                                  {bill.invoice_date 
+                                  {bill.invoice_date
                                     ? new Date(bill.invoice_date).toLocaleDateString()
                                     : 'Date not set'}
                                 </p>
@@ -495,8 +569,8 @@ export default function CustomerBillsPage() {
                                 Due Date
                               </span>
                               <span className={`text-sm font-semibold ${
-                                new Date(bill.due_date) < new Date() 
-                                  ? 'text-red-600' 
+                                new Date(bill.due_date) < new Date()
+                                  ? 'text-red-600'
                                   : new Date(bill.due_date) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
                                   ? 'text-orange-600'
                                   : 'text-gray-900'
@@ -616,68 +690,215 @@ export default function CustomerBillsPage() {
 
       {/* Payment Modal */}
       {showPaymentModal && selectedBill && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-semibold text-gray-900">Complete Payment</h3>
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          onClick={() => {
+            setShowPaymentModal(false);
+            setUsePayPal(false);
+            setPaypalOrderId(null);
+          }}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-gradient-to-r from-[#0f4d8a] to-[#E67919] px-6 py-4 flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-white">{usePayPal ? "Pay with PayPal" : "Pay With Credit/Debit Card"}</h3>
+              <button
+                onClick={() => {
+                  setShowPaymentModal(false);
+                  setUsePayPal(false);
+                  setPaypalOrderId(null);
+                }}
+                className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Total Due</p>
+                <p className="text-2xl font-bold text-[#0f4d8a]">
+                  ${(selectedBill.amount_due || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {selectedBill.currency || currency || "JMD"}
+                </p>
+              </div>
+
+              {!usePayPal && (
+                <div className="mb-6 flex items-center justify-center gap-4">
+                  <div className="text-3xl">💳</div>
+                  <div className="text-2xl font-bold">Testing</div>
+                </div>
+              )}
+
+              {/* Payment Method Toggle */}
+              <div className="mb-6 flex gap-2 p-1 bg-gray-100 rounded-lg">
                 <button
-                  onClick={() => setShowPaymentModal(false)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  type="button"
+                  onClick={() => setUsePayPal(false)}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    !usePayPal
+                      ? "bg-white text-[#0f4d8a] shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
                 >
-                  <X className="h-5 w-5 text-gray-500" />
+                  💳 Card
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUsePayPal(true)}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    usePayPal
+                      ? "bg-white text-[#0f4d8a] shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  🅿️ PayPal
                 </button>
               </div>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="font-medium text-gray-900 mb-2">Invoice Details</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Invoice #:</span>
-                    <span className="font-medium">{selectedBill.invoice_number || 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Tracking #:</span>
-                    <span className="font-medium">{selectedBill.tracking_number}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Amount:</span>
-                    <span className="font-bold text-lg text-[#E67919]">
-                      {(selectedBill.amount_due || 0).toLocaleString(undefined, { 
-                        style: 'currency', 
-                        currency: selectedBill.currency || currency 
-                      })}
-                    </span>
-                  </div>
+
+              {usePayPal ? (
+                <div className="space-y-4">
+                  <PayPalScriptProvider
+                    options={{
+                      clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "",
+                      currency: selectedBill.currency || currency || "JMD",
+                      intent: "capture",
+                    }}
+                  >
+                    <PayPalButtons
+                      forceReRender={[selectedBill, processing, paypalOrderId]}
+                      createOrder={handlePayPalCreateOrder}
+                      onApprove={handlePayPalApprove}
+                      onError={(err) => {
+                        console.error("PayPal error:", err);
+                        toast.error("PayPal payment failed. Please try again.");
+                      }}
+                      onCancel={() => {
+                        toast.error("PayPal payment cancelled");
+                      }}
+                      style={{
+                        layout: "vertical",
+                        color: "blue",
+                        shape: "rect",
+                        label: "paypal",
+                      }}
+                    />
+                  </PayPalScriptProvider>
                 </div>
-              </div>
-              
-              <PayPalScriptProvider
-                options={{
-                  "client-id": process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "",
-                  currency: selectedBill.currency || "JMD",
-                }}
-              >
-                <PayPalButtons
-                  style={{
-                    layout: "vertical",
-                    color: "gold",
-                    shape: "rectangular",
-                    label: "paypal",
-                  }}
-                  disabled={processing}
-                  forceReRender={[selectedBill, processing]}
-                  createOrder={handlePayPalCreateOrder}
-                  onApprove={handlePayPalApprove}
-                />
-              </PayPalScriptProvider>
-              
-              {processing && (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-6 w-6 text-[#0f4d8a] animate-spin mr-2" />
-                  <span className="text-gray-600">Processing payment...</span>
-                </div>
+              ) : (
+                <form onSubmit={handlePayment} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                      <input
+                        type="text"
+                        required
+                        value={paymentForm.firstName}
+                        onChange={(e) => setPaymentForm({ ...paymentForm, firstName: e.target.value })}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                      <input
+                        type="text"
+                        required
+                        value={paymentForm.lastName}
+                        onChange={(e) => setPaymentForm({ ...paymentForm, lastName: e.target.value })}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Card Number</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={19}
+                      value={paymentForm.cardNumber}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\s/g, '').replace(/\D/g, '');
+                        const formatted = value.match(/.{1,4}/g)?.join(' ') || value;
+                        setPaymentForm({ ...paymentForm, cardNumber: formatted });
+                      }}
+                      placeholder="1234 5678 9012 3456"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Expiry</label>
+                      <input
+                        type="text"
+                        required
+                        maxLength={5}
+                        value={paymentForm.expiry}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '');
+                          const formatted = value.length >= 2 ? `${value.slice(0, 2)}/${value.slice(2, 4)}` : value;
+                          setPaymentForm({ ...paymentForm, expiry: formatted });
+                        }}
+                        placeholder="MM/YY"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">CVV</label>
+                      <input
+                        type="text"
+                        required
+                        maxLength={4}
+                        value={paymentForm.cvv}
+                        onChange={(e) => setPaymentForm({ ...paymentForm, cvv: e.target.value.replace(/\D/g, '') })}
+                        placeholder="123"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input
+                      type="email"
+                      required
+                      value={paymentForm.email}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, email: e.target.value })}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      required
+                      value={paymentForm.phone}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, phone: e.target.value })}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={processing}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#0f4d8a] to-[#E67919] text-white px-6 py-3 font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {processing ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="h-5 w-5" />
+                        MAKE PAYMENT
+                      </>
+                    )}
+                  </button>
+                </form>
               )}
             </div>
           </div>

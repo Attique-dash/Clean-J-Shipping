@@ -16,6 +16,7 @@ export async function POST(req: Request) {
   if (!pkg) return NextResponse.json({ error: "Package not found" }, { status: 404 });
 
   pkg.status = "Deleted";
+  if (!Array.isArray(pkg.history)) pkg.history = [];
   pkg.history.push({ status: "Deleted", at: new Date(), note: "Marked deleted by Tasoko" });
   await pkg.save();
 

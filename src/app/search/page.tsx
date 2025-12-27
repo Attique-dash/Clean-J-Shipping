@@ -4,7 +4,7 @@ import Link from "next/link";
 
 export default function SearchPage() {
   const params = useSearchParams();
-  const q = (params.get("q") || "").trim();
+  const q = (params?.get("q") || "").trim();
 
   return (
     <>

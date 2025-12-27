@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     }
 
     // Capture the PayPal order
-    const request = new paypal.orders.OrdersCaptureRequest(orderId);
+    const request = new (paypal as any).orders.OrdersCaptureRequest(orderId);
     request.requestBody({});
 
     const capture = await client.execute(request);
@@ -50,8 +50,8 @@ export async function POST(req: Request) {
         success: true,
         orderId: captureData.id,
         status: captureData.status,
-        amount: captureData.purchase_units?.[0]?.payments?.captures?.[0]?.amount,
-        transactionId: captureData.purchase_units?.[0]?.payments?.captures?.[0]?.id,
+        amount: (captureData as any).purchase_units?.[0]?.payments?.captures?.[0]?.amount,
+        transactionId: (captureData as any).purchase_units?.[0]?.payments?.captures?.[0]?.id,
       });
     } else {
       throw new Error("Failed to capture PayPal order");

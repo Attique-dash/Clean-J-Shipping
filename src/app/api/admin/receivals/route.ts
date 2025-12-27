@@ -26,7 +26,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { trackingNumber, userCode, weight, shipper, description, entryDate, length, width, height, receivedBy, warehouse } = parsed.data;
+  const { trackingNumber, userCode, weight, shipper, description, entryDate, dimensions, receivedBy, warehouse } = parsed.data;
+  const { length, width, height } = dimensions || {};
 
   const customer = await User.findOne({ userCode, role: "customer" }).select("_id userCode email firstName");
   if (!customer) {

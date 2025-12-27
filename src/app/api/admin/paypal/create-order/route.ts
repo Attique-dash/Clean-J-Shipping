@@ -41,34 +41,23 @@ export async function POST(req: Request) {
 
     // Create PayPal order
     const request = new OrdersCreateRequest();
-    request.prefer("return=representation");
     request.requestBody({
       intent: "CAPTURE",
       purchase_units: [
         {
-          description: description,
-          custom_id: receiptNo || `POS-${Date.now()}`,
-          invoice_id: customerCode || undefined,
           amount: {
             currency_code: currency,
             value: amount.toFixed(2),
           },
         },
       ],
-      application_context: {
-        brand_name: "Clean J Shipping",
-        landing_page: "NO_PREFERENCE",
-        user_action: "PAY_NOW",
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/admin/pos?paypal=success`,
-        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/admin/pos?paypal=cancelled`,
-      },
     });
 
     const order = await client.execute(request);
 
     if (order.statusCode === 201 && order.result) {
       const orderId = order.result.id;
-      const approvalUrl = (order.result as Record<string, unknown>).links?.find((link: Record<string, unknown>) => (link as Record<string, unknown>).rel === "approve")?.href as string;
+      const approvalUrl = (order.result as any).links?.find((link: any) => link.rel === "approve")?.href as string;
 
       return NextResponse.json({
         success: true,

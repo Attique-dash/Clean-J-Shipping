@@ -42,17 +42,17 @@ export async function GET(
 
     // Prepare invoice data for export
     const invoiceData = {
-      invoiceNumber: invoice.invoiceNumber,
-      issueDate: invoice.issueDate ? new Date(invoice.issueDate).toISOString() : new Date().toISOString(),
-      dueDate: invoice.dueDate ? new Date(invoice.dueDate).toISOString() : new Date().toISOString(),
-      status: invoice.status || 'draft',
+      invoiceNumber: (invoice as any).invoiceNumber,
+      issueDate: (invoice as any).issueDate ? new Date((invoice as any).issueDate).toISOString() : new Date().toISOString(),
+      dueDate: (invoice as any).dueDate ? new Date((invoice as any).dueDate).toISOString() : new Date().toISOString(),
+      status: (invoice as any).status || 'draft',
       customer: {
-        name: invoice.customer?.name || 'N/A',
-        email: invoice.customer?.email || 'N/A',
-        address: invoice.customer?.address || '',
-        phone: invoice.customer?.phone || ''
+        name: (invoice as any).customer?.name || 'N/A',
+        email: (invoice as any).customer?.email || 'N/A',
+        address: (invoice as any).customer?.address || '',
+        phone: (invoice as any).customer?.phone || ''
       },
-      items: (invoice.items || []).map((item: any) => ({
+      items: ((invoice as any).items || []).map((item: any) => ({
         description: item.description || 'Service',
         quantity: Number(item.quantity) || 1,
         unitPrice: Number(item.unitPrice) || 0,
@@ -61,15 +61,15 @@ export async function GET(
         taxAmount: Number(item.taxAmount) || 0,
         total: Number(item.total) || 0
       })),
-      subtotal: Number(invoice.subtotal) || 0,
-      taxTotal: Number(invoice.taxTotal) || 0,
-      discountAmount: Number(invoice.discountAmount) || 0,
-      total: Number(invoice.total) || 0,
-      amountPaid: Number(invoice.amountPaid) || 0,
-      balanceDue: Number(invoice.balanceDue) || 0,
-      currency: invoice.currency || 'USD',
-      notes: invoice.notes || '',
-      paymentHistory: (invoice.paymentHistory || []).map((payment: any) => ({
+      subtotal: Number((invoice as any).subtotal) || 0,
+      taxTotal: Number((invoice as any).taxTotal) || 0,
+      discountAmount: Number((invoice as any).discountAmount) || 0,
+      total: Number((invoice as any).total) || 0,
+      amountPaid: Number((invoice as any).amountPaid) || 0,
+      balanceDue: Number((invoice as any).balanceDue) || 0,
+      currency: (invoice as any).currency || 'USD',
+      notes: (invoice as any).notes || '',
+      paymentHistory: ((invoice as any).paymentHistory || []).map((payment: any) => ({
         amount: Number(payment.amount) || 0,
         date: payment.date ? new Date(payment.date).toISOString() : new Date().toISOString(),
         method: payment.method || 'Unknown',
@@ -98,7 +98,7 @@ export async function GET(
         'Notes': invoiceData.notes || 'N/A'
       };
 
-      const itemsData = invoiceData.items.map((item, index) => ({
+      const itemsData = invoiceData.items.map((item: any, index: number) => ({
         'Item #': index + 1,
         'Description': item.description,
         'Quantity': item.quantity,

@@ -2,20 +2,32 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { getAuthFromRequest } from "@/lib/rbac";
 import { PreAlert } from "@/models/PreAlert";
-import { User } from "@/models/User";
+import { IPreAlert } from "@/models/PreAlert";
+
+type PreAlertLean = Omit<IPreAlert, "_id"> & {
+  _id?: { toString(): string };
+};
 
 export async function GET(req: Request) {
   await dbConnect();
   const payload = await getAuthFromRequest(req);
-  if (!payload || payload.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  console.log('Admin pre-alerts auth payload:', payload);
+  
+  if (!payload) {
+    console.log('Admin pre-alerts: No payload found');
+    return NextResponse.json({ error: "No authentication found" }, { status: 401 });
+  }
+  
+  if (payload.role !== "admin") {
+    console.log('Admin pre-alerts: Invalid role:', payload.role);
+    return NextResponse.json({ error: "Unauthorized - Admin access required" }, { status: 401 });
   }
 
   const url = new URL(req.url);
   const status = (url.searchParams.get("status") || "").trim(); // submitted|approved|rejected
   const q = (url.searchParams.get("q") || "").trim();
 
-  const filter: any = {};
+  const filter: Record<string, unknown> = {};
   if (status) filter.status = status;
   if (q) {
     const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
@@ -28,17 +40,17 @@ export async function GET(req: Request) {
     .lean();
 
   return NextResponse.json({
-    pre_alerts: list.map((p) => ({
-      id: String(p._id),
-      tracking_number: p.trackingNumber,
-      user_code: p.userCode,
+    pre_alerts: list.map((p: any) => ({
+      _id: p._id?.toString() || "",
+      trackingNumber: p.trackingNumber,
+      userCode: p.userCode,
       carrier: p.carrier || null,
       origin: p.origin || null,
-      expected_date: p.expectedDate ? new Date(p.expectedDate).toISOString() : null,
+      expectedDate: p.expectedDate ? new Date(p.expectedDate).toISOString() : null,
       notes: p.notes || null,
       status: p.status || "submitted",
-      created_at: p.createdAt ? new Date(p.createdAt).toISOString() : null,
-      decided_at: (p as any).decidedAt ? new Date((p as any).decidedAt).toISOString() : null,
+      createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : null,
+      decidedAt: p.decidedAt ? new Date(p.decidedAt).toISOString() : null,
     })),
     total_count: list.length,
   });

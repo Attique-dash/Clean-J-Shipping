@@ -137,6 +137,10 @@ export interface IPackage extends Document {
     totalValue?: number;
     status?: string;
     amountPaid?: number;
+    lastPaymentDate?: Date;
+    paymentMethod?: string;
+    paypalOrderId?: string;
+    paymentDate?: Date;
   }>;
   invoiceDocuments?: unknown[];
   packagePayments?: string;

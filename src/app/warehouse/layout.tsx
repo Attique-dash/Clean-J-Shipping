@@ -4,6 +4,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -19,14 +20,24 @@ import {
   FaBarcode,
   FaWarehouse,
 } from 'react-icons/fa';
+import type { IconType } from 'react-icons';
 import { ChevronRight, Menu, X } from 'lucide-react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
+type NavigationItem = {
+  href: string;
+  label: string;
+  icon: IconType;
+  description: string;
+  color: string;
+  count?: number;
+};
+
 export default function WarehouseLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -48,7 +59,7 @@ export default function WarehouseLayout({
     );
   }
 
-  const navigation = [
+  const navigation: NavigationItem[] = [
     {
       href: "/warehouse",
       label: "Dashboard",

@@ -1,7 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Optimize for memory usage
+  // Memory optimization settings
   compress: true,
+  swcMinify: true,
+  
+  // Reduce memory usage during development
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'react-icons'],
+    serverComponentsExternalPackages: ['canvas', 'pdfkit', 'jspdf'],
+  },
+  
+  // Limit concurrent compilations
+  concurrentFeatures: false,
   
   env: {
     DATABASE_URL: process.env.DATABASE_URL,
@@ -45,7 +55,7 @@ const nextConfig = {
     ];
   },
 
-  // Webpack configuration to fix canvas/pdfjs-dist issues
+  // Webpack configuration to fix canvas/pdfjs-dist issues and optimize memory
   webpack: (config, { isServer }) => {
     // Fix for canvas module (used by pdfjs-dist/easyinvoice)
     if (!isServer) {
@@ -60,6 +70,32 @@ const nextConfig = {
     
     // Mark canvas as external to prevent webpack from trying to bundle it
     config.externals = [...(config.externals || []), 'canvas'];
+
+    // Memory optimization settings
+    config.optimization = {
+      ...config.optimization,
+      splitChunks: {
+        chunks: 'all',
+        cacheGroups: {
+          vendor: {
+            test: /[\\/]node_modules[\\/]/,
+            name: 'vendors',
+            chunks: 'all',
+          },
+          common: {
+            name: 'common',
+            minChunks: 2,
+            chunks: 'all',
+            enforce: true,
+          },
+        },
+      },
+    };
+
+    // Reduce memory usage during compilation
+    if (isServer) {
+      config.optimization.minimize = false;
+    }
 
     // Ignore specific warnings from pdfjs-dist
     config.ignoreWarnings = [

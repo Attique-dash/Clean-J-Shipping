@@ -38,7 +38,6 @@ export async function GET(req: Request) {
 
     // Test PayPal connection by creating a test order
     const request = new OrdersCreateRequest();
-    request.prefer("return=representation");
     request.requestBody({
       intent: "CAPTURE",
       purchase_units: [{
@@ -46,7 +45,6 @@ export async function GET(req: Request) {
           currency_code: "USD",
           value: "1.00",
         },
-        description: "Test payment connection",
       }],
     });
 

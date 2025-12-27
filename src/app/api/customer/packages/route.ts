@@ -60,8 +60,8 @@ export async function GET(req: NextRequest) {
     console.log(`Found ${packages.length} packages and ${invoices.length} invoices for user ${userId}`);
 
     // Get user information to include shippingId (userCode) in response
-    const user = await User.findById(userId).select('shippingId').lean();
-    const userCode = user?.shippingId || '';
+    const user = (await User.findById(userId).select('userCode').lean()) as unknown as { userCode?: string } | null;
+    const userCode = user?.userCode || '';
 
     // Create a map of invoice numbers to package tracking numbers
     const invoiceMap = new Map();

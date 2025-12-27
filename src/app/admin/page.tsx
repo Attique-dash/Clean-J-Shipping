@@ -7,6 +7,17 @@ import {
   Activity, ChevronRight, FileText, CreditCard, 
   Download, Radio, Loader2
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+// Dynamic imports for charts to avoid SSR issues
+const RevenueChart = dynamic(
+  () => import('@/components/charts/RevenueChart').then(mod => mod.RevenueChart),
+  { ssr: false }
+);
+const StatusPieChart = dynamic(
+  () => import('@/components/charts/StatusPieChart').then(mod => mod.StatusPieChart),
+  { ssr: false }
+);
 
 interface DashboardStats {
   overview: {
@@ -53,6 +64,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [activeTab, setActiveTab] = useState<'overview' | 'revenue' | 'customers'>('overview');
+  const [chartsLoaded, setChartsLoaded] = useState(false);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -106,6 +118,11 @@ export default function AdminDashboard() {
     const interval = setInterval(fetchStats, 300000); // Refresh every 5 minutes
     return () => clearInterval(interval);
   }, [fetchStats]);
+
+  // Load charts after component mounts
+  useEffect(() => {
+    setChartsLoaded(true);
+  }, []);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -299,15 +316,28 @@ export default function AdminDashboard() {
               <div className="lg:col-span-2 space-y-6">
                 {activeTab === 'overview' && (
                   <>
-                    {/* Revenue Chart Placeholder */}
+                    {/* Revenue Chart */}
                     <div className="group overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-gray-200">
                       <div className="border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-6">
                         <h3 className="text-xl font-bold text-gray-900">Revenue Overview</h3>
                         <p className="mt-1 text-sm text-gray-600">Monthly performance tracking</p>
                       </div>
                       <div className="p-6">
-                        <div className="h-80 flex items-center justify-center bg-gray-50 rounded-lg">
-                          <p className="text-gray-400">Chart Component Would Go Here</p>
+                        <div className="h-80">
+                          {chartsLoaded && stats?.revenueByMonth && stats.revenueByMonth.length > 0 ? (
+                            <RevenueChart data={stats.revenueByMonth} />
+                          ) : (
+                            <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg">
+                              {chartsLoaded ? (
+                                <p className="text-gray-400">No revenue data available</p>
+                              ) : (
+                                <div className="flex items-center justify-center">
+                                  <Loader2 className="h-6 w-6 animate-spin text-gray-400 mr-2" />
+                                  <p className="text-gray-400">Loading chart...</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -377,10 +407,23 @@ export default function AdminDashboard() {
                       <h3 className="text-xl font-bold text-gray-900">Revenue Analytics</h3>
                     </div>
                     <div className="p-6">
-                      <div className="h-80 flex items-center justify-center bg-gray-50 rounded-lg">
-                        <p className="text-gray-400">Revenue Chart</p>
+                      <div className="h-80 mb-6">
+                        {chartsLoaded && stats?.revenueByMonth && stats.revenueByMonth.length > 0 ? (
+                          <RevenueChart data={stats.revenueByMonth} />
+                        ) : (
+                          <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg">
+                            {chartsLoaded ? (
+                              <p className="text-gray-400">No revenue data available</p>
+                            ) : (
+                              <div className="flex items-center justify-center">
+                                <Loader2 className="h-6 w-6 animate-spin text-gray-400 mr-2" />
+                                <p className="text-gray-400">Loading chart...</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="p-4 bg-blue-50 rounded-lg">
                           <p className="text-sm text-gray-600">Total Revenue</p>
                           <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats?.overview?.totalRevenue ?? 0)}</p>
@@ -404,6 +447,22 @@ export default function AdminDashboard() {
                       <h3 className="text-xl font-bold text-gray-900">Customer Analytics</h3>
                     </div>
                     <div className="p-6">
+                      <div className="h-80 mb-6">
+                        {chartsLoaded && stats?.packagesByStatus && stats.packagesByStatus.length > 0 ? (
+                          <StatusPieChart data={stats.packagesByStatus} />
+                        ) : (
+                          <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg">
+                            {chartsLoaded ? (
+                              <p className="text-gray-400">No customer data available</p>
+                            ) : (
+                              <div className="flex items-center justify-center">
+                                <Loader2 className="h-6 w-6 animate-spin text-gray-400 mr-2" />
+                                <p className="text-gray-400">Loading chart...</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       <div className="space-y-3">
                         {stats?.topCustomers?.map((customer, index) => (
                           <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
@@ -433,6 +492,22 @@ export default function AdminDashboard() {
                     <h3 className="text-lg font-bold text-gray-900">Package Status</h3>
                   </div>
                   <div className="p-6">
+                    <div className="h-64 mb-4">
+                      {chartsLoaded && stats?.packagesByStatus && stats.packagesByStatus.length > 0 ? (
+                        <StatusPieChart data={stats.packagesByStatus} />
+                      ) : (
+                        <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg">
+                          {chartsLoaded ? (
+                            <p className="text-gray-400">No status data available</p>
+                          ) : (
+                            <div className="flex items-center justify-center">
+                              <Loader2 className="h-6 w-6 animate-spin text-gray-400 mr-2" />
+                              <p className="text-gray-400">Loading chart...</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <div className="space-y-3">
                       {stats?.packagesByStatus?.map((item, index) => (
                         <div key={item.status} className="flex items-center justify-between rounded-lg bg-gray-50 p-3">

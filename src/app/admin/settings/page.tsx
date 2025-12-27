@@ -33,18 +33,32 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    description: string;
+    serviceType: Service['serviceType'];
+    unitPrice: number;
+    isActive: boolean;
+    isDefault: boolean;
+    calculationMethod: Service['calculationMethod'];
+    conditions: {
+      packageStatus: string[];
+      weightRange: { min: number; max: number };
+      branch: string[];
+      daysInStorage: { min: number; max: number };
+    };
+  }>({
     name: '',
     description: '',
-    serviceType: 'other' as const,
+    serviceType: 'other',
     unitPrice: 0,
     isActive: true,
     isDefault: false,
-    calculationMethod: 'fixed' as const,
+    calculationMethod: 'fixed',
     conditions: {
-      packageStatus: [] as string[],
+      packageStatus: [],
       weightRange: { min: 0, max: 0 },
-      branch: [] as string[],
+      branch: [],
       daysInStorage: { min: 0, max: 0 }
     }
   });
@@ -83,7 +97,22 @@ export default function SettingsPage() {
 
     setLoading(true);
     try {
-      const payload = {
+      const payload: {
+        id?: string;
+        name: string;
+        description: string;
+        serviceType: Service['serviceType'];
+        unitPrice: number;
+        isActive: boolean;
+        isDefault: boolean;
+        calculationMethod: Service['calculationMethod'];
+        conditions: {
+          packageStatus?: string[];
+          weightRange?: { min: number; max: number };
+          branch?: string[];
+          daysInStorage?: { min: number; max: number };
+        };
+      } = {
         name: formData.name,
         description: formData.description,
         serviceType: formData.serviceType,
@@ -95,7 +124,10 @@ export default function SettingsPage() {
           packageStatus: formData.conditions.packageStatus.length > 0 ? formData.conditions.packageStatus : undefined,
           weightRange: (formData.conditions.weightRange.min > 0 || formData.conditions.weightRange.max > 0) ? formData.conditions.weightRange : undefined,
           branch: formData.conditions.branch.length > 0 ? formData.conditions.branch : undefined,
-          daysInStorage: (formData.conditions.daysInStorage.min > 0 || formData.conditions.daysInStorage.max > 0) ? formData.conditions.daysInStorage : undefined
+          daysInStorage: {
+            min: formData.conditions.daysInStorage.min,
+            max: formData.conditions.daysInStorage.max
+          }
         }
       };
 
@@ -187,11 +219,17 @@ export default function SettingsPage() {
         isActive: service.isActive,
         isDefault: service.isDefault,
         calculationMethod: service.calculationMethod,
-        conditions: service.conditions || {
-          packageStatus: [],
-          weightRange: { min: 0, max: 0 },
-          branch: [],
-          daysInStorage: { min: 0, max: 0 }
+        conditions: {
+          packageStatus: service.conditions?.packageStatus || [],
+          weightRange: {
+            min: service.conditions?.weightRange?.min ?? 0,
+            max: service.conditions?.weightRange?.max ?? 0
+          },
+          branch: service.conditions?.branch || [],
+          daysInStorage: {
+            min: service.conditions?.daysInStorage?.min ?? 0,
+            max: service.conditions?.daysInStorage?.max ?? 0
+          }
         }
       });
     } else {

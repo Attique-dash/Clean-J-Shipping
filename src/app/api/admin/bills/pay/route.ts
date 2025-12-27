@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getAuthFromRequest } from "@/lib/rbac";
 import { dbConnect } from "@/lib/db";
 import Invoice from "@/models/Invoice";
+import { GeneratedInvoice } from "@/models/GeneratedInvoice";
+import { PosTransaction } from "@/models/PosTransaction";
 import { Package } from "@/models/Package";
 import { Payment } from "@/models/Payment";
 import * as paypal from "@paypal/checkout-server-sdk";
@@ -39,17 +41,64 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const invoice = await Invoice.findById(billId);
-
-    if (!invoice) {
-      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+    // Extract actual ObjectId from prefixed billId
+    let actualBillId = billId;
+    let billType = 'invoice';
+    
+    if (billId.startsWith('invoice-')) {
+      actualBillId = billId.replace('invoice-', '');
+      billType = 'invoice';
+    } else if (billId.startsWith('generated-invoice-')) {
+      actualBillId = billId.replace('generated-invoice-', '');
+      billType = 'generated';
+    } else if (billId.startsWith('pos-')) {
+      actualBillId = billId.replace('pos-', '');
+      billType = 'pos';
     }
 
-    if (amount > invoice.balanceDue) {
-      return NextResponse.json({ error: "Payment amount exceeds balance" }, { status: 400 });
+    let invoice;
+    let packageData;
+    let invoiceNumber;
+    let currency = "USD";
+    let totalAmount = 0;
+    let balanceAmount = amount;
+
+    // Handle different bill types
+    if (billType === 'invoice') {
+      invoice = await Invoice.findById(actualBillId);
+      if (!invoice) {
+        return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+      }
+      if (amount > invoice.balanceDue) {
+        return NextResponse.json({ error: "Payment amount exceeds balance" }, { status: 400 });
+      }
+      packageData = await Package.findById(invoice.package);
+      invoiceNumber = invoice.invoiceNumber;
+      currency = invoice.currency || "USD";
+      totalAmount = invoice.total;
+      balanceAmount = invoice.balanceDue;
+    } else if (billType === 'generated') {
+      invoice = await GeneratedInvoice.findById(actualBillId);
+      if (!invoice) {
+        return NextResponse.json({ error: "Generated invoice not found" }, { status: 404 });
+      }
+      if (amount > invoice.balance) {
+        return NextResponse.json({ error: "Payment amount exceeds balance" }, { status: 400 });
+      }
+      invoiceNumber = invoice.invoiceNumber || `GEN-${actualBillId}`;
+      currency = invoice.currency || "USD";
+      totalAmount = invoice.total || 0;
+      balanceAmount = invoice.balance;
+    } else if (billType === 'pos') {
+      invoice = await PosTransaction.findById(actualBillId);
+      if (!invoice) {
+        return NextResponse.json({ error: "POS transaction not found" }, { status: 404 });
+      }
+      // POS transactions are always paid, so shouldn't reach here
+      return NextResponse.json({ error: "POS transaction is already paid" }, { status: 400 });
     }
 
-    let paymentGateway = "powertranz";
+    let paymentGateway = "Testing";
     let paypalOrderId = null;
 
     // Process PayPal payment if requested
@@ -66,7 +115,7 @@ export async function POST(req: Request) {
           intent: "CAPTURE",
           purchase_units: [{
             amount: {
-              currency_code: invoice.currency,
+              currency_code: currency,
               value: amount.toFixed(2),
             },
           }],
@@ -88,23 +137,38 @@ export async function POST(req: Request) {
       }
     }
 
-    // Process payment
-    const newAmountPaid = invoice.amountPaid + amount;
-    const newBalanceDue = invoice.total - newAmountPaid;
-    const newStatus = newBalanceDue <= 0 ? "paid" : newAmountPaid > 0 ? "sent" : "draft";
+    // Process payment - update the appropriate bill type
+    let updatedBill;
+    
+    if (billType === 'invoice') {
+      const newAmountPaid = invoice.amountPaid + amount;
+      const newBalanceDue = invoice.total - newAmountPaid;
+      const newStatus = newBalanceDue <= 0 ? "paid" : newAmountPaid > 0 ? "sent" : "draft";
 
-    const updatedInvoice = await Invoice.findByIdAndUpdate(
-      billId,
-      {
-        amountPaid: newAmountPaid,
-        balanceDue: newBalanceDue,
-        status: newStatus,
-      },
-      { new: true }
-    );
+      updatedBill = await Invoice.findByIdAndUpdate(
+        actualBillId,
+        {
+          amountPaid: newAmountPaid,
+          balanceDue: newBalanceDue,
+          status: newStatus,
+        },
+        { new: true }
+      );
+    } else if (billType === 'generated') {
+      const newPaidAmount = (invoice.paidAmount || 0) + amount;
+      const newBalance = (invoice.total || 0) - newPaidAmount;
+      const newStatus = newBalance <= 0 ? "paid" : "partial";
 
-    // Get package to find userId
-    const packageData = await Package.findById(invoice.package);
+      updatedBill = await GeneratedInvoice.findByIdAndUpdate(
+        actualBillId,
+        {
+          paidAmount: newPaidAmount,
+          balance: newBalance,
+          status: newStatus,
+        },
+        { new: true }
+      );
+    }
 
     // Create payment record
     if (packageData) {
@@ -112,23 +176,23 @@ export async function POST(req: Request) {
         userId: packageData.userId,
         paymentNumber: `PAY-${Date.now()}-${Math.random().toString(36).substring(7)}`,
         amount: amount,
-        currency: invoice.currency,
+        currency: currency,
         paymentMethod: paymentMethod || "card",
         paymentGateway: paymentGateway,
         status: usePayPal ? "pending" : "completed",
-        description: `Payment for invoice ${invoice.invoiceNumber}`,
+        description: `Payment for invoice ${invoiceNumber}`,
         paidAt: usePayPal ? null : new Date(),
         metadata: paypalOrderId ? { paypalOrderId } : null,
-        invoiceId: invoice._id,
+        invoiceId: billType === 'invoice' ? invoice._id : null,
       });
     }
 
     return NextResponse.json({
       success: true,
       bill: {
-        id: updatedInvoice._id,
-        balance: updatedInvoice.balanceDue,
-        status: updatedInvoice.status,
+        id: updatedBill?._id || actualBillId,
+        balance: billType === 'invoice' ? updatedBill?.balanceDue : updatedBill?.balance,
+        status: billType === 'invoice' ? updatedBill?.status : updatedBill?.status,
       },
       paypalOrderId: paypalOrderId,
       requiresCapture: !!usePayPal,

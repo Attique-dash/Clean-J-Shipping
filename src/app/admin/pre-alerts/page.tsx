@@ -1,37 +1,46 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { headers } from "next/headers";
 
-export const dynamic = "force-dynamic";
+interface PreAlertData {
+  _id: string;
+  trackingNumber: string;
+  userCode: string;
+  carrier: string | null;
+  origin: string | null;
+  expectedDate: string | null;
+  notes: string | null;
+  status: string;
+  createdAt: string | null;
+  decidedAt: string | null;
+}
 
-export default async function PreAlertsPage() {
-  // Build absolute base URL for server runtime
-  const h = await headers();
-  const host = h.get("x-forwarded-host") || h.get("host") || "localhost:3000";
-  const proto = h.get("x-forwarded-proto") || "http";
-  const base = `${proto}://${host}`;
+export default function PreAlertsPage() {
+  const [data, setData] = useState<PreAlertData[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const res = await fetch(`${base}/api/admin/pre-alerts`, { 
-    cache: "no-store",
-    credentials: 'include',
-  });
-  let data: any[] = [];
-  try {
-    const json = await res.json();
-    if (res.ok) {
-      data = Array.isArray(json?.pre_alerts) ? json.pre_alerts : Array.isArray(json?.items) ? json.items : Array.isArray(json) ? json : [];
-      // Map the data to match the expected format
-      data = data.map((p: any) => ({
-        _id: p.id || p._id,
-        trackingNumber: p.tracking_number || p.trackingNumber,
-        carrier: p.carrier || "Unknown",
-        origin: p.origin || "Unknown",
-        expectedDate: p.expected_date || p.expectedDate,
-        status: p.status || "pending",
-      }));
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const res = await fetch('/api/admin/pre-alerts', { 
+          cache: "no-store",
+          credentials: 'include',
+        });
+        const json = await res.json();
+        if (res.ok) {
+          const responseData = Array.isArray(json?.pre_alerts) ? json.pre_alerts : [];
+          setData(responseData);
+        }
+      } catch (err) {
+        console.error("Error loading pre-alerts:", err);
+      } finally {
+        setLoading(false);
+      }
     }
-  } catch (err) {
-    console.error("Error loading pre-alerts:", err);
-  }
+
+    fetchData();
+  }, []);
 
   // Status color mapping
   const getStatusColor = (status: string) => {
@@ -43,11 +52,17 @@ export default async function PreAlertsPage() {
     return "bg-gray-100 text-gray-800 border-gray-200";
   };
 
-  // Carrier icon/badge
-  const getCarrierBadge = (carrier: string) => {
-    const c = carrier?.toUpperCase() || "N/A";
-    return c;
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-lg">Loading pre-alerts...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
@@ -178,6 +193,9 @@ export default async function PreAlertsPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                    Customer Code
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                     Tracking Number
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -200,7 +218,7 @@ export default async function PreAlertsPage() {
               <tbody className="divide-y divide-gray-200 bg-white">
                 {data.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center">
+                    <td colSpan={7} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <div className="rounded-full bg-gray-100 p-4">
                           <svg className="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -215,11 +233,21 @@ export default async function PreAlertsPage() {
                     </td>
                   </tr>
                 )}
-                {data.map((p: any, i: number) => (
+                {data.map((p: PreAlertData, i: number) => (
                   <tr 
                     key={p._id || i} 
                     className="transition-colors hover:bg-gradient-to-r hover:from-[#0f4d8a]/5 hover:to-[#E67919]/5"
                   >
+                    <td className="whitespace-nowrap px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#E67919]/10 to-[#E67919]/20">
+                          <span className="text-xs font-bold text-[#E67919]">{p.userCode?.slice(0, 2).toUpperCase()}</span>
+                        </div>
+                        <span className="text-sm font-medium text-gray-900">
+                          {p.userCode || "-"}
+                        </span>
+                      </div>
+                    </td>
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center gap-2">
                         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#0f4d8a]/10 to-[#E67919]/10">
@@ -234,7 +262,7 @@ export default async function PreAlertsPage() {
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
                       <span className="inline-flex items-center rounded-md bg-[#0f4d8a]/10 px-2.5 py-1 text-xs font-medium text-[#0f4d8a]">
-                        {getCarrierBadge(p.carrier)}
+                        {p.carrier || "-"}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
@@ -266,7 +294,7 @@ export default async function PreAlertsPage() {
                             <button
                               onClick={async () => {
                                 try {
-                                  const res = await fetch(`${base}/api/admin/pre-alerts`, {
+                                  const res = await fetch('/api/admin/pre-alerts', {
                                     method: "PUT",
                                     headers: { "Content-Type": "application/json" },
                                     credentials: 'include',
@@ -275,7 +303,7 @@ export default async function PreAlertsPage() {
                                   if (res.ok) {
                                     window.location.reload();
                                   }
-                                } catch (err) {
+                                } catch {
                                   alert("Failed to approve pre-alert");
                                 }
                               }}
@@ -286,7 +314,7 @@ export default async function PreAlertsPage() {
                             <button
                               onClick={async () => {
                                 try {
-                                  const res = await fetch(`${base}/api/admin/pre-alerts`, {
+                                  const res = await fetch('/api/admin/pre-alerts', {
                                     method: "PUT",
                                     headers: { "Content-Type": "application/json" },
                                     credentials: 'include',
@@ -295,7 +323,7 @@ export default async function PreAlertsPage() {
                                   if (res.ok) {
                                     window.location.reload();
                                   }
-                                } catch (err) {
+                                } catch {
                                   alert("Failed to reject pre-alert");
                                 }
                               }}
@@ -305,64 +333,33 @@ export default async function PreAlertsPage() {
                             </button>
                           </>
                         )}
-                        {p.status !== "cancelled" && (
-                          <>
-                            <button
-                              onClick={async () => {
-                                if (confirm(`Resend pre-alert for tracking ${p.trackingNumber}?`)) {
-                                  try {
-                                    const res = await fetch(`${base}/api/admin/pre-alerts`, {
-                                      method: "POST",
-                                      headers: { "Content-Type": "application/json" },
-                                      credentials: 'include',
-                                      body: JSON.stringify({ id: p._id, action: "resend" }),
-                                    });
-                                    if (res.ok) {
-                                      alert("Pre-alert resent successfully!");
-                                      window.location.reload();
-                                    } else {
-                                      const data = await res.json();
-                                      alert(data?.error || "Failed to resend pre-alert");
-                                    }
-                                  } catch (err) {
-                                    alert("Failed to resend pre-alert");
-                                  }
+                        <button
+                          onClick={async () => {
+                            if (confirm(`Resend pre-alert for tracking ${p.trackingNumber}?`)) {
+                              try {
+                                const res = await fetch('/api/admin/pre-alerts', {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  credentials: 'include',
+                                  body: JSON.stringify({ id: p._id, action: "resend" }),
+                                });
+                                if (res.ok) {
+                                  alert("Pre-alert resent successfully!");
+                                  window.location.reload();
+                                } else {
+                                  const data = await res.json();
+                                  alert(data?.error || "Failed to resend pre-alert");
                                 }
-                              }}
-                              className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded hover:bg-blue-200"
-                              title="Resend Pre-Alert"
-                            >
-                              Resend
-                            </button>
-                            <button
-                              onClick={async () => {
-                                if (confirm(`Cancel pre-alert for tracking ${p.trackingNumber}?`)) {
-                                  try {
-                                    const res = await fetch(`${base}/api/admin/pre-alerts`, {
-                                      method: "PUT",
-                                      headers: { "Content-Type": "application/json" },
-                                      credentials: 'include',
-                                      body: JSON.stringify({ id: p._id, action: "cancel" }),
-                                    });
-                                    if (res.ok) {
-                                      alert("Pre-alert cancelled successfully!");
-                                      window.location.reload();
-                                    } else {
-                                      const data = await res.json();
-                                      alert(data?.error || "Failed to cancel pre-alert");
-                                    }
-                                  } catch (err) {
-                                    alert("Failed to cancel pre-alert");
-                                  }
-                                }
-                              }}
-                              className="px-3 py-1 text-xs font-medium text-orange-700 bg-orange-100 rounded hover:bg-orange-200"
-                              title="Cancel Pre-Alert"
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        )}
+                              } catch {
+                                alert("Failed to resend pre-alert");
+                              }
+                            }
+                          }}
+                          className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded hover:bg-blue-200"
+                          title="Resend Pre-Alert"
+                        >
+                          Resend
+                        </button>
                       </div>
                     </td>
                   </tr>

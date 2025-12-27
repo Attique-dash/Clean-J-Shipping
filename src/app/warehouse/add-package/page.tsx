@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import type { FormEvent } from "react";
 import { Package, ArrowLeft, Save, Loader2, ChevronDown, AlertCircle, RefreshCw, Check } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -104,7 +105,7 @@ export default function WarehouseAddPackagePage() {
 
   // Initialize - load customers and check for edit mode
   useEffect(() => {
-    const editId = searchParams.get('edit');
+    const editId = searchParams?.get('edit');
     
     if (editId) {
       const loadEditData = async () => {
@@ -176,7 +177,7 @@ export default function WarehouseAddPackagePage() {
   }, [searchParams]);
 
   // Handle form submission
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     if (!trackingNumber.trim()) {
@@ -244,7 +245,7 @@ export default function WarehouseAddPackagePage() {
         branch: undefined
       };
 
-      const editId = searchParams.get('edit');
+      const editId = searchParams?.get('edit');
       const url = editId ? `/api/warehouse/packages/${editId}` : "/api/warehouse/packages/add";
       const method = editId ? "PUT" : "POST";
 

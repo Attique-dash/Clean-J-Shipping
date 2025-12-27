@@ -207,7 +207,7 @@ export async function GET() {
           lng: shipment.destination?.coordinates?.coordinates[0] || 0,
           address: shipment.destination?.address || 'Unknown'
         },
-        status: shipment.status,
+        status: (shipment.status as 'in_transit' | 'out_for_delivery' | 'in_progress') || 'in_progress',
         estimatedDelivery: shipment.estimatedDelivery?.toISOString() || '',
         carrier: shipment.carrier || 'Standard'
       })),

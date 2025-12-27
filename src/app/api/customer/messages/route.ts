@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     await dbConnect();
 
     // Get user information to include userCode
-    const user = await User.findById(userId).select('userCode').lean();
+    const user = (await User.findById(userId).select('userCode').lean()) as unknown as { userCode?: string } | null;
     const userCode = user?.userCode;
     
     if (!userCode) {
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
 
     // Get user information to include userCode
     const user = await User.findById(userId).select('userCode').lean();
-    const userCode = user?.userCode;
+    const userCode = (user as any)?.userCode;
     
     if (!userCode) {
       console.error('User code not found for user:', userId);

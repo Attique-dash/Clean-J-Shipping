@@ -10,8 +10,8 @@ export async function PATCH(
   try {
     await dbConnect();
     const payload = await getAuthFromRequest(req);
-    if (!payload || (payload.role !== "customer" && payload.role !== "admin")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!payload || payload.role !== "admin") {
+      return NextResponse.json({ error: "Unauthorized - Admin access required" }, { status: 401 });
     }
 
     const body = await req.json();
@@ -29,16 +29,9 @@ export async function PATCH(
       return NextResponse.json({ error: "Pre-alert not found" }, { status: 404 });
     }
 
-    // Check if user owns this pre-alert (for customers)
-    if (payload.role === "customer") {
-      const userCode = payload.userCode as string | undefined;
-      if (!userCode || preAlert.userCode !== userCode) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-      }
-    }
-
-    // Update status
+    // Update status with admin tracking
     preAlert.status = status;
+    preAlert.decidedBy = payload._id;
     preAlert.decidedAt = new Date();
     await preAlert.save();
 
@@ -48,6 +41,7 @@ export async function PATCH(
         _id: preAlert._id,
         status: preAlert.status,
         decidedAt: preAlert.decidedAt,
+        decidedBy: preAlert.decidedBy,
       },
     });
   } catch (error) {

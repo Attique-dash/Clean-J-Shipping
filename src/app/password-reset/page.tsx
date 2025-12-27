@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import type { FormEvent } from "react";
 import { FaEnvelope, FaLock, FaPlane } from "react-icons/fa";
 import Link from "next/link";
 import Image from "next/image";
 
 export default function PasswordResetPage() {
   const params = useSearchParams();
-  const token = params.get("t");
+  const token = params?.get("t") || "";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +22,7 @@ export default function PasswordResetPage() {
     setError(null);
   }, [token]);
 
-  async function onRequest(e: React.FormEvent) {
+  async function onRequest(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
@@ -42,7 +43,7 @@ export default function PasswordResetPage() {
     }
   }
 
-  async function onReset(e: React.FormEvent) {
+  async function onReset(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);

@@ -29,9 +29,10 @@ import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal"
 interface Package {
   _id: string;
   trackingNumber: string;
-  status: 'received' | 'in_transit' | 'delivered' | 'unknown';
+  status: 'received' | 'in_processing' | 'ready_to_ship' | 'shipped' | 'in_transit' | 'delivered' | 'unknown';
   userCode?: string;
   weight?: number;
+  weightUnit?: string;
   shipper?: string;
   description?: string;
   dimensions?: {
@@ -49,6 +50,17 @@ interface Package {
   recipient?: {
     name?: string;
     shippingId?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    country?: string;
+  };
+  sender?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    country?: string;
   };
   // Database fields for recipient info
   receiverName?: string;

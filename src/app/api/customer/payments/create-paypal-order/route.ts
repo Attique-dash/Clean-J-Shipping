@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     }
 
     // Create PayPal order
-    const request = new paypal.orders.OrdersCreateRequest();
+    const request = new (paypal as any).orders.OrdersCreateRequest();
     request.prefer("return=representation");
     
     // Build purchase units - support both single and multiple items

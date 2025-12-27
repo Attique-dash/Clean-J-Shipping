@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     // Find the package if package_id is provided
     let pkg = null;
     if (package_id) {
-      pkg = await Package.findOne({ _id: package_id, userId });
+      pkg = await Package.findOne({ _id: package_id, userCode: payload.userCode });
       if (!pkg) {
         return NextResponse.json({ error: "Package not found" }, { status: 404 });
       }
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
           amountPaid: paymentAmount,
           status: "paid",
           paymentMethod: "paypal",
-          paypalPaymentId: payment_id_paypal,
+          paypalOrderId: payment_id_paypal,
         });
       }
 

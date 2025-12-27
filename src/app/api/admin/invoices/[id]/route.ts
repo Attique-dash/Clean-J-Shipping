@@ -80,7 +80,7 @@ export async function GET(
 
     // Format invoice with all fields
     const formattedInvoice = {
-      _id: invoice._id?.toString() || '',
+      _id: (invoice as any)._id?.toString() || '',
       invoiceNumber: (invoice as any).invoiceNumber || '',
       status: (invoice as any).status || 'draft',
       issueDate: (invoice as any).issueDate ? new Date((invoice as any).issueDate).toISOString() : new Date().toISOString(),

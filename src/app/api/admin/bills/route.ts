@@ -21,8 +21,9 @@ export async function GET(req: Request) {
     // 3. POS Transactions (as bills)
 
     const [invoices, generatedInvoices, posTransactions] = await Promise.all([
-      // Fetch MongoDB invoices
+      // Fetch MongoDB invoices with populated package data
       Invoice.find({})
+        .populate('package')
         .sort({ createdAt: -1 })
         .limit(100)
         .lean()
@@ -44,19 +45,50 @@ export async function GET(req: Request) {
     ]);
 
     // Format MongoDB invoices as bills
-    const formattedInvoiceBills = invoices.map((inv) => ({
-      id: `invoice-${inv._id}`,
-      billNumber: inv.invoiceNumber,
-      trackingNumber: inv.customer?.name || "N/A",
-      date: inv.issueDate ? new Date(inv.issueDate).toISOString() : new Date().toISOString(),
-      branch: "Main Branch",
-      dueAmount: inv.total,
-      paidAmount: inv.amountPaid || 0,
-      balance: inv.balanceDue || (inv.total - (inv.amountPaid || 0)),
-      currency: inv.currency || "USD",
-      status: inv.status === "paid" ? "paid" : inv.status === "overdue" ? "unpaid" : "unpaid",
-      source: "invoice",
-    }));
+    const formattedInvoiceBills = invoices.map((inv) => {
+      // Debug logging to see the actual data structure
+      console.log('Invoice data:', JSON.stringify(inv, null, 2));
+      
+      // Try multiple sources for tracking number
+      let trackingNumber = "N/A";
+      
+      // 1. Check populated package tracking number
+      if (inv.package && typeof inv.package === 'object' && inv.package.trackingNumber) {
+        trackingNumber = inv.package.trackingNumber;
+        console.log('Found tracking number in populated package:', trackingNumber);
+      }
+      // 2. Check invoice items for tracking number
+      else if (inv.items && inv.items.length > 0 && inv.items[0].trackingNumber) {
+        trackingNumber = inv.items[0].trackingNumber;
+        console.log('Found tracking number in invoice items:', trackingNumber);
+      }
+      // 3. Check if package reference exists but not populated (fallback to package ID)
+      else if (inv.package) {
+        trackingNumber = `PKG-${inv.package}`;
+        console.log('Using package ID as tracking number:', trackingNumber);
+      }
+      // 4. Check customer name as last resort (original behavior)
+      else if (inv.customer && inv.customer.name) {
+        trackingNumber = inv.customer.name;
+        console.log('Using customer name as tracking number:', trackingNumber);
+      }
+
+      console.log('Final tracking number:', trackingNumber);
+
+      return {
+        id: `invoice-${inv._id}`,
+        billNumber: inv.invoiceNumber,
+        trackingNumber,
+        date: inv.issueDate ? new Date(inv.issueDate).toISOString() : new Date().toISOString(),
+        branch: "Main Branch",
+        dueAmount: inv.total,
+        paidAmount: inv.amountPaid || 0,
+        balance: inv.balanceDue || (inv.total - (inv.amountPaid || 0)),
+        currency: inv.currency || "USD",
+        status: inv.status === "paid" ? "paid" : inv.status === "overdue" ? "unpaid" : "unpaid",
+        source: "invoice",
+      };
+    });
 
     // Format generated invoices as bills
     const formattedGeneratedInvoiceBills = generatedInvoices.map((inv) => ({

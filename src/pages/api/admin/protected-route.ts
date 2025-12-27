@@ -1,11 +1,18 @@
 // src/pages/api/admin/protected-route.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getSession } from 'next-auth/react';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../../lib/prisma';
 
-const prisma = new PrismaClient();
+type AdminDelegate = {
+  findMany: (args: { select: { id: true; email: true; name: true; isActive: true } }) => Promise<unknown>;
+  create: (args: {
+    data: { email: string; name: string; password: string };
+    select: { id: true; email: true; name: true; isActive: true };
+  }) => Promise<unknown>;
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+
   // Check authentication
   const session = await getSession({ req });
   
@@ -19,11 +26,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const adminDelegate = (prisma as unknown as Record<string, unknown>)['admin'] as AdminDelegate | undefined;
+    if (!adminDelegate) {
+      return res.status(500).json({ message: 'Admin model is not available in Prisma Client' });
+    }
+
     // Handle different HTTP methods
     switch (req.method) {
       case 'GET':
         // Example: Get data from database
-        const data = await prisma.admin.findMany({
+        const data = await adminDelegate.findMany({
           select: { id: true, email: true, name: true, isActive: true }
         });
         return res.status(200).json(data);
@@ -31,7 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       case 'POST':
         // Example: Create new record
         const { email, name } = req.body;
-        const newRecord = await prisma.admin.create({
+        const newRecord = await adminDelegate.create({
           data: { email, name, password: 'temp-password' }, // In production, hash the password
           select: { id: true, email: true, name: true, isActive: true }
         });
@@ -47,7 +59,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       message: 'Internal server error',
       error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : undefined,
     });
-  } finally {
-    await prisma.$disconnect();
   }
 }

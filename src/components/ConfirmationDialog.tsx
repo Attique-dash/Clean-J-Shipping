@@ -1,14 +1,14 @@
 // src/components/ConfirmationDialog.tsx
-import { useState } from 'react';
+import type { ReactNode } from 'react';
 import Modal from './Modal';
-import Button from './Button';
+import { Button } from './Button';
 
 interface ConfirmationDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
   title: string;
-  message: string | React.ReactNode;
+  message: string | ReactNode;
   confirmText?: string;
   cancelText?: string;
   variant?: 'default' | 'danger';

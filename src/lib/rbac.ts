@@ -14,11 +14,14 @@ export interface AuthPayload {
 
 export async function getAuthFromRequest(req: Request | NextRequest): Promise<AuthPayload | null> {
   try {
+    console.log('RBAC: Checking auth, NEXTAUTH_SECRET exists:', !!process.env.NEXTAUTH_SECRET);
+    
     // Method 1: Try NextAuth JWT token first
     const token = await getToken({
-      req: req as any,
+      req: req as NextRequest,
       secret: process.env.NEXTAUTH_SECRET
     });
+    console.log('RBAC: NextAuth token:', token);
 
     if (token && token.email && token.role) {
       return {

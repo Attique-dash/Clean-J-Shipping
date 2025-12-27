@@ -61,14 +61,13 @@ export async function POST(req: Request) {
 
     // Capture the PayPal order
     const request = new OrdersCaptureRequest(orderId);
-    request.requestBody({});
 
     const capture = await client.execute(request);
 
     if (capture.statusCode === 201 && capture.result) {
       await dbConnect();
       
-      const result = capture.result as PayPalCaptureResult;
+      const result = capture.result as unknown as PayPalCaptureResult;
       const captureId = result.id;
       const amount = parseFloat(result.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.value || "0");
       const currency = result.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.currency_code || "USD";
@@ -91,25 +90,7 @@ export async function POST(req: Request) {
       });
       await payment.save();
 
-      // Also update Prisma payment if exists
-      try {
-        await prisma.payment.updateMany({
-          where: {
-            transactionId: orderId,
-          },
-          data: {
-            status: "completed",
-            paidAt: new Date(),
-            metadata: JSON.stringify({
-              captureId,
-              paypalOrderId: orderId,
-            }),
-          },
-        });
-      } catch (prismaError) {
-        // Prisma update is optional, continue even if it fails
-        console.warn("Prisma payment update failed:", prismaError);
-      }
+      // Payment successfully saved to MongoDB
 
       return NextResponse.json({
         success: true,

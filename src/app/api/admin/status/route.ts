@@ -98,14 +98,14 @@ export async function GET(req: Request) {
 
     const activities: Activity[] = [];
 
-    recentPackages.forEach((p: PackageDocument) => {
+    recentPackages.forEach((p: any) => {
       activities.push({ 
         time: new Date(p.updatedAt), 
         text: `Package ${p.trackingNumber} ${p.status}` 
       });
     });
 
-    recentPayments.forEach((pay: PaymentDocument) => {
+    recentPayments.forEach((pay: any) => {
       activities.push({ 
         time: new Date(pay.createdAt), 
         text: `Payment captured $${pay.amount.toFixed(2)}`, 
@@ -113,7 +113,7 @@ export async function GET(req: Request) {
       });
     });
 
-    recentCustomers.forEach((u: CustomerDocument) => {
+    recentCustomers.forEach((u: any) => {
       activities.push({ 
         time: new Date(u.createdAt), 
         text: `New customer registered`, 
@@ -129,7 +129,7 @@ export async function GET(req: Request) {
       right: a.right,
     }));
 
-    const preAlerts = preAlertsList.map((p: PreAlertDocument) => ({
+    const preAlerts = preAlertsList.map((p: any) => ({
       trackingNumber: p.trackingNumber,
       status: p.status,
       createdAt: p.createdAt,

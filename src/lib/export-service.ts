@@ -60,6 +60,7 @@ export class ExportService {
   static formatDate(date: Date | string | null | undefined): string {
     if (!date) return '';
     const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
     return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
@@ -308,7 +309,7 @@ export class ExportService {
     }
   }
 
-  // Data preparation methods remain the same
+  // Data preparation methods with type assertions
   static preparePackageData(packages: Record<string, unknown>[]): Record<string, unknown>[] {
     return packages.map((pkg: Record<string, unknown>) => ({
       'Tracking Number': pkg.trackingNumber || pkg.tracking_number,
@@ -320,7 +321,7 @@ export class ExportService {
         : '',
       'Branch': pkg.branch || '',
       'Description': pkg.description || '',
-      'Created Date': this.formatDate(pkg.createdAt || pkg.created_at),
+      'Created Date': this.formatDate((pkg.createdAt || pkg.created_at) as string | Date | null | undefined),
     }));
   }
 
@@ -331,7 +332,7 @@ export class ExportService {
       'Email': cust.email,
       'Phone': cust.phone || '',
       'Branch': cust.branch || '',
-      'Member Since': this.formatDate(cust.createdAt || cust.member_since),
+      'Member Since': this.formatDate((cust.createdAt || cust.member_since) as string | Date | null | undefined),
     }));
   }
 
@@ -344,7 +345,7 @@ export class ExportService {
       'Currency': txn.currency || 'PKR',
       'Payment Method': txn.paymentMethod || txn.method,
       'Status': txn.status,
-      'Date': this.formatDate(txn.createdAt || txn.date),
+      'Date': this.formatDate((txn.createdAt || txn.date) as string | Date | null | undefined),
     }));
   }
 }

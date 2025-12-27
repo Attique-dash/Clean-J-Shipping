@@ -72,13 +72,13 @@ export async function POST(req: Request) {
           receiverEmail: recipient?.email || undefined,
           receiverPhone: recipient?.phone || undefined,
           receiverAddress: recipient?.address || undefined,
-          receiverCountry: recipient?.country || undefined,
+          receiverCountry: (recipient as any)?.country || undefined,
           // Sender information
           senderName: sender?.name || undefined,
           senderEmail: sender?.email || undefined,
           senderPhone: sender?.phone || undefined,
           senderAddress: sender?.address || undefined,
-          senderCountry: sender?.country || undefined,
+          senderCountry: (sender as any)?.country || undefined,
           // Package dimensions
           length: dimensions?.length ? Number(dimensions.length) : undefined,
           width: dimensions?.width ? Number(dimensions.width) : undefined,
@@ -117,12 +117,12 @@ export async function POST(req: Request) {
     const existingPreAlert = await PreAlert.findOne({ trackingNumber }).session(session);
     if (!existingPreAlert && pkg) {
       await PreAlert.create([{
-        userId: customer._id,
         userCode: customer.userCode,
         customer: customer._id,
         trackingNumber,
-        carrier: typeof shipper === "string" ? shipper : undefined,
-        origin: typeof warehouse === "string" ? warehouse : undefined,
+        carrier: typeof shipper === "string" ? shipper : "Unknown Carrier",
+        origin: typeof warehouse === "string" ? warehouse : "Unknown Origin",
+        expectedDate: now, // Set expected date to when package was received
         status: "approved", // Auto-approved since warehouse received it
         notes: `Package received at warehouse${receivedBy ? ` by ${receivedBy}` : ""}`,
         decidedAt: now,

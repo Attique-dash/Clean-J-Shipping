@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import type { ReactNode } from "react";
 import Image from "next/image";
 import { WebSocketProvider } from "@/components/providers/WebSocketProvider";
 import {
@@ -29,9 +30,9 @@ import {
 export default function CustomerLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() || "";
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
 

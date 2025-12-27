@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FileText, Plus, Trash2, Save, Download, User, Package, DollarSign, Calendar } from "lucide-react";
+import { FileText, Plus, Trash2, Save, Download, User, Package, DollarSign, Calendar, Edit2, ArrowLeft } from "lucide-react";
 import { ExportService } from "@/lib/export-service";
 import toast, { Toaster } from "react-hot-toast";
 
@@ -57,11 +57,28 @@ type Customer = {
   address?: string;
 };
 
+type CustomerApi = {
+  _id?: string;
+  id?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  userCode?: string;
+  address?:
+    | {
+        street?: string;
+        country?: string;
+      }
+    | string
+    | null;
+};
+
 export default function InvoiceGeneratorPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerPackages, setCustomerPackages] = useState<CustomerPackage[]>([]);
   const [availableServices, setAvailableServices] = useState<ServiceItem[]>([]);
+  const [servicesByPackage, setServicesByPackage] = useState<Record<string, ServiceItem[]>>({});
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [loadingServices, setLoadingServices] = useState(false);
@@ -115,6 +132,7 @@ export default function InvoiceGeneratorPage() {
     setLoadingServices(true);
     try {
       const services: ServiceItem[] = [];
+      const servicesByPackage: Record<string, ServiceItem[]> = {};
       
       // Load custom services from settings
       const res = await fetch("/api/admin/services?isActive=true", {
@@ -123,152 +141,105 @@ export default function InvoiceGeneratorPage() {
       const servicesData = await res.json();
       const customServices = servicesData.services || [];
       
-      for (const pkg of packages) {
-        const daysInStorage = pkg.status === 'received' ? 
-          Math.ceil((Date.now() - new Date(pkg.createdAt).getTime()) / (1000 * 60 * 60 * 24)) : 0;
-        
-        // Generate services based on custom services configuration
-        for (const service of customServices) {
-          // Check if service conditions match this package
-          let shouldApply = true;
+      console.log('Loaded custom services:', customServices.length, 'services');
+      
+      // Only generate services from database if they exist
+      if (customServices.length > 0) {
+        for (const pkg of packages) {
+          const daysInStorage = pkg.status === 'received' ? 
+            Math.ceil((Date.now() - new Date(pkg.createdAt).getTime()) / (1000 * 60 * 60 * 24)) : 0;
           
-          if (service.conditions) {
-            // Check package status condition
-            if (service.conditions.packageStatus && service.conditions.packageStatus.length > 0) {
-              if (!service.conditions.packageStatus.includes(pkg.status)) {
-                shouldApply = false;
+          const packageServices: ServiceItem[] = [];
+          
+          // Generate services based on custom services configuration
+          for (const service of customServices) {
+            // Check if service conditions match this package
+            let shouldApply = true;
+            
+            if (service.conditions) {
+              // Check package status condition
+              if (service.conditions.packageStatus && service.conditions.packageStatus.length > 0) {
+                if (!service.conditions.packageStatus.includes(pkg.status)) {
+                  shouldApply = false;
+                }
+              }
+              
+              // Check weight range condition
+              if (service.conditions.weightRange && (service.conditions.weightRange.min || service.conditions.weightRange.max)) {
+                const weight = pkg.weight || 0;
+                if (service.conditions.weightRange.min && weight < service.conditions.weightRange.min) {
+                  shouldApply = false;
+                }
+                if (service.conditions.weightRange.max && weight > service.conditions.weightRange.max) {
+                  shouldApply = false;
+                }
+              }
+              
+              // Check branch condition
+              if (service.conditions.branch && service.conditions.branch.length > 0) {
+                if (!service.conditions.branch.includes(pkg.branch || '')) {
+                  shouldApply = false;
+                }
+              }
+              
+              // Check days in storage condition
+              if (service.conditions.daysInStorage && (service.conditions.daysInStorage.min || service.conditions.daysInStorage.max)) {
+                if (service.conditions.daysInStorage.min && daysInStorage < service.conditions.daysInStorage.min) {
+                  shouldApply = false;
+                }
+                if (service.conditions.daysInStorage.max && daysInStorage > service.conditions.daysInStorage.max) {
+                  shouldApply = false;
+                }
               }
             }
             
-            // Check weight range condition
-            if (service.conditions.weightRange && (service.conditions.weightRange.min || service.conditions.weightRange.max)) {
-              const weight = pkg.weight || 0;
-              if (service.conditions.weightRange.min && weight < service.conditions.weightRange.min) {
-                shouldApply = false;
+            if (shouldApply) {
+              // Calculate price based on calculation method
+              let calculatedPrice = service.unitPrice;
+              
+              switch (service.calculationMethod) {
+                case 'per_kg':
+                  calculatedPrice = service.unitPrice * (pkg.weight || 1);
+                  break;
+                case 'per_day':
+                  calculatedPrice = service.unitPrice * daysInStorage;
+                  break;
+                case 'per_package':
+                  calculatedPrice = service.unitPrice;
+                  break;
+                case 'fixed':
+                default:
+                  calculatedPrice = service.unitPrice;
+                  break;
               }
-              if (service.conditions.weightRange.max && weight > service.conditions.weightRange.max) {
-                shouldApply = false;
-              }
-            }
-            
-            // Check branch condition
-            if (service.conditions.branch && service.conditions.branch.length > 0) {
-              if (!service.conditions.branch.includes(pkg.branch || '')) {
-                shouldApply = false;
-              }
-            }
-            
-            // Check days in storage condition
-            if (service.conditions.daysInStorage && (service.conditions.daysInStorage.min || service.conditions.daysInStorage.max)) {
-              if (service.conditions.daysInStorage.min && daysInStorage < service.conditions.daysInStorage.min) {
-                shouldApply = false;
-              }
-              if (service.conditions.daysInStorage.max && daysInStorage > service.conditions.daysInStorage.max) {
-                shouldApply = false;
-              }
+              
+              const serviceItem: ServiceItem = {
+                id: `${service.serviceType}-${pkg._id}-${service._id}`,
+                name: `${service.name}`,
+                description: service.description,
+                serviceType: service.serviceType,
+                unitPrice: calculatedPrice,
+                packageId: pkg._id,
+                trackingNumber: pkg.trackingNumber,
+                justification: `Service applied based on: ${pkg.status}, ${pkg.weight || 0}kg, ${pkg.branch || 'unknown branch'}`,
+                autoGenerated: true,
+              };
+              
+              services.push(serviceItem);
+              packageServices.push(serviceItem);
             }
           }
           
-          if (shouldApply) {
-            // Calculate price based on calculation method
-            let calculatedPrice = service.unitPrice;
-            
-            switch (service.calculationMethod) {
-              case 'per_kg':
-                calculatedPrice = service.unitPrice * (pkg.weight || 1);
-                break;
-              case 'per_day':
-                calculatedPrice = service.unitPrice * daysInStorage;
-                break;
-              case 'per_package':
-                calculatedPrice = service.unitPrice;
-                break;
-              case 'fixed':
-              default:
-                calculatedPrice = service.unitPrice;
-                break;
-            }
-            
-            services.push({
-              id: `${service.serviceType}-${pkg._id}-${service._id}`,
-              name: `${service.name} - ${pkg.trackingNumber}`,
-              description: service.description,
-              serviceType: service.serviceType,
-              unitPrice: calculatedPrice,
-              packageId: pkg._id,
-              trackingNumber: pkg.trackingNumber,
-              justification: `Service applied based on: ${pkg.status}, ${pkg.weight || 0}kg, ${pkg.branch || 'unknown branch'}`,
-              autoGenerated: true,
-            });
-          }
+          // Store services by package
+          servicesByPackage[pkg._id] = packageServices;
         }
-        
-        // Fallback to default services if no custom services found
-        if (customServices.length === 0) {
-          // Storage fees (if package is in warehouse)
-          if (pkg.status === 'received' && daysInStorage > 0) {
-            const storageFee = Math.max(daysInStorage * 2.50, 5.00); // $2.50/day, min $5
-            services.push({
-              id: `storage-${pkg._id}`,
-              name: `Storage Fee - ${pkg.trackingNumber}`,
-              description: `Package storage for ${daysInStorage} days`,
-              serviceType: 'storage',
-              unitPrice: storageFee,
-              packageId: pkg._id,
-              trackingNumber: pkg.trackingNumber,
-              justification: `Package stored in warehouse for ${daysInStorage} days since ${new Date(pkg.createdAt).toLocaleDateString()}`,
-              autoGenerated: true,
-            });
-          }
-          
-          // Handling fees
-          const handlingFee = (pkg.weight || 1) * 1.50; // $1.50 per kg
-          services.push({
-            id: `handling-${pkg._id}`,
-            name: `Package Handling - ${pkg.trackingNumber}`,
-            description: `Package processing and handling services`,
-            serviceType: 'handling',
-            unitPrice: handlingFee,
-            packageId: pkg._id,
-            trackingNumber: pkg.trackingNumber,
-            justification: `Standard handling fee for package weighing ${pkg.weight || 1}kg`,
-            autoGenerated: true,
-          });
-          
-          // Customs clearance (if international)
-          if (pkg.branch && pkg.branch !== 'local') {
-            services.push({
-              id: `customs-${pkg._id}`,
-              name: `Customs Clearance - ${pkg.trackingNumber}`,
-              description: `Customs documentation and processing`,
-              serviceType: 'customs',
-              unitPrice: 25.00,
-              packageId: pkg._id,
-              trackingNumber: pkg.trackingNumber,
-              justification: `International shipment customs processing for ${pkg.branch}`,
-              autoGenerated: true,
-            });
-          }
-          
-          // Delivery fees (if delivered)
-          if (pkg.status === 'delivered') {
-            const deliveryFee = (pkg.weight || 1) * 3.00; // $3.00 per kg
-            services.push({
-              id: `delivery-${pkg._id}`,
-              name: `Delivery Service - ${pkg.trackingNumber}`,
-              description: `Final delivery to recipient`,
-              serviceType: 'delivery',
-              unitPrice: deliveryFee,
-              packageId: pkg._id,
-              trackingNumber: pkg.trackingNumber,
-              justification: `Package delivered to final destination`,
-              autoGenerated: true,
-            });
-          }
-        }
+      } else {
+        // No custom services found in database - show empty list
+        console.log('No custom services found in database');
       }
       
       setAvailableServices(services);
+      setServicesByPackage(servicesByPackage);
     } catch (error) {
       console.error("Failed to generate service items:", error);
     } finally {
@@ -287,13 +258,29 @@ export default function InvoiceGeneratorPage() {
         console.error("Failed to load customers:", data?.error);
         return;
       }
-      const customerList = data.items?.map((c: any) => ({
-        id: c._id,
-        name: `${c.firstName} ${c.lastName}`,
-        email: c.email,
-        userCode: c.userCode,
-        address: c.address ? `${c.address.street || ''}, ${c.address.country || ''}`.trim() : '',
-      })) || [];
+      const customerList = (Array.isArray(data?.items) ? data.items : []).map((c: CustomerApi) => {
+        const id = String(c._id || c.id || '');
+        const firstName = (c.firstName || '').trim();
+        const lastName = (c.lastName || '').trim();
+        const name = `${firstName} ${lastName}`.trim() || 'N/A';
+        const email = c.email || '';
+        const userCode = c.userCode || '';
+
+        let address = '';
+        if (typeof c.address === 'string') {
+          address = c.address;
+        } else if (c.address && typeof c.address === 'object') {
+          address = `${c.address.street || ''}, ${c.address.country || ''}`.trim();
+        }
+
+        return {
+          id,
+          name,
+          email,
+          userCode,
+          address,
+        };
+      });
       setCustomers(customerList);
     } catch (error) {
       console.error("Failed to load customers:", error);
@@ -308,19 +295,6 @@ export default function InvoiceGeneratorPage() {
     const randomChars = Math.random().toString(36).substring(2, 6).toUpperCase(); // 4 random chars
     const sequence = timestamp.slice(-4) + randomChars; // Combine for short unique ID
     setInvoiceNumber(`${prefix}-${sequence}`);
-  }
-
-  function addItem() {
-    const newItem: InvoiceItem = {
-      id: Date.now().toString(),
-      description: "",
-      quantity: 1,
-      unitPrice: 0,
-      total: 0,
-      serviceType: 'manual',
-      autoGenerated: false,
-    };
-    setItems([...items, newItem]);
   }
 
   function addServiceToInvoice(serviceId: string) {
@@ -641,41 +615,16 @@ export default function InvoiceGeneratorPage() {
                     <p className="text-blue-100 mt-1">Generate professional invoices for customer payments and record-keeping</p>
                   </div>
                 </div>
+                <a 
+                    href="/admin/invoices" 
+                    className="flex items-center gap-2 px-4 py-2 bg-white/15 backdrop-blur rounded-lg hover:bg-white/25 transition-colors"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Invoices
+                  </a>
               </div>
             </div>
           </header>
-
-          {/* Purpose Section */}
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                <FileText className="h-6 w-6" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Why Create Invoices?</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
-                  <div className="flex items-start gap-2">
-                    <span className="text-green-500 mt-1">•</span>
-                    <div>
-                      <strong>Payment Collection:</strong> Request payment from customers for shipping services, packages, and other charges
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="text-blue-500 mt-1">•</span>
-                    <div>
-                      <strong>Record Keeping:</strong> Maintain financial records and track outstanding payments for accounting purposes
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="text-purple-500 mt-1">•</span>
-                    <div>
-                      <strong>Business Analytics:</strong> Monitor revenue trends and customer payment patterns for business insights
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Main Form */}
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
@@ -700,6 +649,7 @@ export default function InvoiceGeneratorPage() {
                       } else {
                         setCustomerPackages([]);
                         setAvailableServices([]);
+                        setServicesByPackage({});
                         setSelectedServices([]);
                       }
                     }}
@@ -803,86 +753,156 @@ export default function InvoiceGeneratorPage() {
                     </div>
                   </div>
 
-                  {/* Available Services */}
-                  {availableServices.length > 0 && (
-                    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-                      <div className="bg-gradient-to-r from-green-500 to-green-600 px-6 py-4">
-                        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                          <DollarSign className="w-5 h-5" />
-                          Available Services - {availableServices.length} Services
-                        </h3>
-                        <p className="text-green-100 text-sm mt-1">Automatically generated services based on customer packages</p>
-                      </div>
-                      <div className="p-6">
-                        {loadingServices ? (
-                          <div className="flex items-center justify-center py-8">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            {availableServices.map((service) => {
-                              const isSelected = selectedServices.includes(service.id);
-                              const isInInvoice = items.some(item => item.id === service.id);
-                              return (
-                                <div key={service.id} className={`border rounded-lg p-4 transition-all ${
-                                  isInInvoice ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-gray-50'
-                                }`}>
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-3 mb-2">
-                                        <h4 className="font-semibold text-gray-800">{service.name}</h4>
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                          service.serviceType === 'storage' ? 'bg-blue-100 text-blue-700' :
-                                          service.serviceType === 'handling' ? 'bg-yellow-100 text-yellow-700' :
-                                          service.serviceType === 'customs' ? 'bg-purple-100 text-purple-700' :
-                                          service.serviceType === 'delivery' ? 'bg-green-100 text-green-700' :
-                                          'bg-gray-100 text-gray-700'
-                                        }`}>{service.serviceType}</span>
-                                        {service.autoGenerated && (
-                                          <span className="px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-700">
-                                            Auto-generated
-                                          </span>
-                                        )}
-                                      </div>
-                                      <p className="text-sm text-gray-600 mb-2">{service.description}</p>
-                                      <p className="text-xs text-gray-500 italic mb-2">
-                                        <strong>Justification:</strong> {service.justification}
-                                      </p>
-                                      <div className="flex items-center gap-4 text-sm">
-                                        <span className="font-bold text-lg text-green-600">${service.unitPrice.toFixed(2)}</span>
-                                        <span className="text-gray-500">Tracking: {service.trackingNumber}</span>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      {isInInvoice ? (
-                                        <div className="flex items-center gap-2 text-green-600">
-                                          <span className="text-sm font-medium">Added</span>
-                                          <button
-                                            onClick={() => removeServiceFromInvoice(service.id)}
-                                            className="p-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
-                                            title="Remove from invoice"
-                                          >
-                                            <Trash2 className="w-4 h-4" />
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <button
-                                          onClick={() => addServiceToInvoice(service.id)}
-                                          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500 text-white font-medium hover:bg-green-600 transition-colors"
-                                        >
-                                          <Plus className="w-4 h-4" />
-                                          Add to Invoice
-                                        </button>
-                                      )}
-                                    </div>
+                  {/* Available Services - Grouped by Package */}
+                  {customerPackages.length > 0 && Object.keys(servicesByPackage).length > 0 ? (
+                    <div className="space-y-6">
+                      {customerPackages.map((pkg) => {
+                        const packageServices = servicesByPackage[pkg._id] || [];
+                        const hasServicesInInvoice = items.some(item => item.packageId === pkg._id);
+                        
+                        return (
+                          <div key={pkg._id} className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 px-6 py-4">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <Package className="w-5 h-5" />
+                                  <div>
+                                    <h3 className="text-lg font-semibold text-white">
+                                      {pkg.trackingNumber} - Available Services
+                                    </h3>
+                                    <p className="text-indigo-100 text-sm mt-1">
+                                      {packageServices.length} services available • {pkg.weight || 0}kg • {pkg.status}
+                                    </p>
                                   </div>
                                 </div>
-                              );
-                            })}
+                                {hasServicesInInvoice && (
+                                  <button
+                                    className="flex items-center gap-2 px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors"
+                                    onClick={() => {
+                                      // Remove all services for this package from invoice
+                                      const packageItems = items.filter(item => item.packageId === pkg._id);
+                                      packageItems.forEach(item => removeServiceFromInvoice(item.id));
+                                    }}
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                    Edit Package
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <div className="p-6">
+                              {packageServices.length === 0 ? (
+                                <div className="text-center py-8">
+                                  <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                  <p className="text-gray-500 font-medium">No services available for this package</p>
+                                  <p className="text-sm text-gray-400 mt-1">
+                                    This package doesn&apos;t match any service conditions
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  {packageServices.map((service) => {
+                                    const isInInvoice = items.some(item => item.id === service.id);
+                                    return (
+                                      <div key={service.id} className={`border rounded-lg p-4 transition-all ${
+                                        isInInvoice ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-gray-50'
+                                      }`}>
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-3 mb-2">
+                                              <h4 className="font-semibold text-gray-800">{service.name}</h4>
+                                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                service.serviceType === 'storage' ? 'bg-blue-100 text-blue-700' :
+                                                service.serviceType === 'handling' ? 'bg-yellow-100 text-yellow-700' :
+                                                service.serviceType === 'customs' ? 'bg-purple-100 text-purple-700' :
+                                                service.serviceType === 'delivery' ? 'bg-green-100 text-green-700' :
+                                                'bg-gray-100 text-gray-700'
+                                              }`}>{service.serviceType}</span>
+                                              {service.autoGenerated && (
+                                                <span className="px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-700">
+                                                  Auto-generated
+                                                </span>
+                                              )}
+                                            </div>
+                                            <p className="text-sm text-gray-600 mb-2">{service.description}</p>
+                                            <p className="text-xs text-gray-500 italic mb-2">
+                                              <strong>Justification:</strong> {service.justification}
+                                            </p>
+                                            <div className="flex items-center gap-4 text-sm">
+                                              <span className="font-bold text-lg text-green-600">${service.unitPrice.toFixed(2)}</span>
+                                              <span className="text-gray-500">Package: {pkg.trackingNumber}</span>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            {isInInvoice ? (
+                                              <div className="flex items-center gap-2 text-green-600">
+                                                <span className="text-sm font-medium">Added</span>
+                                                <button
+                                                  onClick={() => removeServiceFromInvoice(service.id)}
+                                                  className="p-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+                                                  title="Remove from invoice"
+                                                >
+                                                  <Trash2 className="w-4 h-4" />
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <button
+                                                onClick={() => addServiceToInvoice(service.id)}
+                                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500 text-white font-medium hover:bg-green-600 transition-colors"
+                                              >
+                                                <Plus className="w-4 h-4" />
+                                                Add to Invoice
+                                              </button>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        )}
-                      </div>
+                        );
+                      })}
                     </div>
+                  ) : (
+                    !loadingServices && (
+                      <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                        <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4">
+                          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                            <DollarSign className="w-5 h-5" />
+                            No Services Available
+                          </h3>
+                          <p className="text-orange-100 text-sm mt-1">Services from database not found</p>
+                        </div>
+                        <div className="p-6">
+                          <div className="text-center py-8">
+                            <div className="mb-4">
+                              <div className="mx-auto w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
+                                <DollarSign className="w-8 h-8 text-orange-600" />
+                              </div>
+                            </div>
+                            <h4 className="text-lg font-semibold text-gray-800 mb-2">No Database Services Found</h4>
+                            <p className="text-gray-600 mb-4">
+                              No services were found in your database. Please add services in Admin Settings first.
+                            </p>
+                            <div className="space-y-2">
+                              <a 
+                                href="/admin/settings" 
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                              >
+                                <DollarSign className="w-4 h-4" />
+                                Go to Settings to Add Services
+                              </a>
+                              <div className="text-sm text-gray-500">
+                                Or use manual invoice items below
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
                   )}
                 </div>
               )}
@@ -894,13 +914,13 @@ export default function InvoiceGeneratorPage() {
                     <Package className="w-5 h-5" />
                     Line Items
                   </h3>
-                  <button
-                    onClick={addItem}
+                  <a 
+                    href="/admin/settings"
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#E67919] text-white font-medium hover:bg-[#d66f15] transition-colors"
                   >
                     <Plus className="w-4 h-4" />
-                    Add Item
-                  </button>
+                    Add Services
+                  </a>
                 </div>
 
                 <div className="space-y-3">
@@ -951,7 +971,7 @@ export default function InvoiceGeneratorPage() {
                   {items.length === 0 && (
                     <div className="text-center py-8 text-slate-500">
                       <Package className="w-12 h-12 mx-auto mb-2 text-slate-300" />
-                      <p>No items added yet. Click &quot;Add Item&quot; to start.</p>
+                      <p>No items added yet. Click &quot;Add Services&quot; to start.</p>
                     </div>
                   )}
                 </div>

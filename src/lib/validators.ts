@@ -94,10 +94,19 @@ export const adminPosTransactionCreateSchema = z.object({
 // Pre-Alert Validation
 export const preAlertCreateSchema = z.object({
   tracking_number: z.string().min(3).max(50),
-  user_code: z.string().min(1),
-  carrier: z.string().optional(),
-  origin: z.string().optional(),
-  expected_date: z.string().optional(),
+  user_code: z.string().min(1).optional(), // Optional - will be set from auth
+  carrier: z.string().min(1, "Carrier is required"),
+  origin: z.string().min(1, "Origin is required"),
+  expected_date: z.string().min(1, "Expected arrival date is required"),
+  notes: z.string().max(1000).optional(),
+});
+
+// Customer Pre-Alert Validation (without user_code requirement)
+export const customerPreAlertCreateSchema = z.object({
+  tracking_number: z.string().min(3).max(50),
+  carrier: z.string().min(1, "Carrier is required"),
+  origin: z.string().min(1, "Origin is required"),
+  expected_date: z.string().min(1, "Expected arrival date is required"),
   notes: z.string().max(1000).optional(),
 });
 
@@ -165,8 +174,6 @@ export const messageCreateSchema = z.object({
 });
 
 // Additional missing validators
-export const customerPreAlertCreateSchema = preAlertCreateSchema;
-
 export const supportContactSchema = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email(),
@@ -174,18 +181,39 @@ export const supportContactSchema = z.object({
   message: z.string().min(1).max(5000),
 });
 
-export const tasokoAddPackageSchema = addPackageSchema;
+export const tasokoAddPackageSchema = z.object({
+  integration_id: z.string().min(1),
+  tracking_number: z.string().min(3).max(50),
+  customer_id: z.string().min(1),
+  description: z.string().max(500).optional(),
+  value: z.number().min(0).optional(),
+  currency: z.string().min(1).optional(),
+  origin: z.string().optional(),
+  order_id: z.string().optional(),
+  supplier: z.string().optional(),
+  ship_date: z.string().optional(),
+});
 
-export const tasokoUpdatePackageSchema = packageUpdateSchema;
+export const tasokoUpdatePackageSchema = z.object({
+  tracking_number: z.string().min(3).max(50),
+  new_status: z.string().min(1),
+  update_date: z.string().optional(),
+  location: z.string().optional(),
+  notes: z.string().optional(),
+  additional_data: z.record(z.string(), z.unknown()).optional(),
+});
 
 export const deletePackageSchema = z.object({
-  id: z.string(),
+  trackingNumber: z.string().min(3).max(50),
   reason: z.string().optional(),
 });
 
 export const manifestSchema = z.object({
   id: z.string().optional(),
-  tracking_number: z.string().min(3).max(50),
+  manifestId: z.string().optional(),
+  tracking_number: z.string().min(3).max(50).optional(),
+  description: z.string().optional(),
+  data: z.unknown().optional(),
   carrier: z.string().optional(),
   origin: z.string().optional(),
   destination: z.string().optional(),

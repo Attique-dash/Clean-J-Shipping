@@ -26,6 +26,7 @@ export default function WarehouseInventoryPage() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [form, setForm] = useState({
@@ -114,6 +115,7 @@ export default function WarehouseInventoryPage() {
 
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to delete this item?")) return;
+    setDeleting(id);
     try {
       const res = await fetch(`/api/warehouse/inventory/${id}`, {
         method: "DELETE",

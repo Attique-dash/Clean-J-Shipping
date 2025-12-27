@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
         status: pkg.status,
       })),
       ...customers.map(customer => ({
-        _id: customer._id.toString(),
+        _id: String((customer as { _id: unknown })._id),
         type: 'customer' as const,
         name: customer.name,
         email: customer.email,

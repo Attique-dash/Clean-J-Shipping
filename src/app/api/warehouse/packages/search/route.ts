@@ -23,7 +23,7 @@ export async function GET(req: Request) {
   const limit = parseInt(url.searchParams.get("limit") || "50");
 
   // Build filter
-  const filter: Record<string, unknown> = {};
+  const filter: Record<string, any> = {};
 
   if (query) {
     const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
     // Find user by shippingId (userCode) and get their packages
     const user = await User.findOne({ shippingId: userCode }).select('_id').lean();
     if (user) {
-      filter.userId = user._id;
+      filter.userId = (user as any)._id;
     } else {
       // If no user found with this shippingId, return empty results
       return NextResponse.json({
@@ -88,15 +88,16 @@ export async function GET(req: Request) {
   const userMap = new Map<string, string>();
   if (userIds.length > 0) {
     const users = await User.find({ _id: { $in: userIds } }).select('_id shippingId').lean();
-    users.forEach((user: { _id: string; shippingId: string }) => {
-      userMap.set(String(user._id), user.shippingId || '');
+    users.forEach((user) => {
+      const u = user as { _id: unknown; shippingId?: unknown };
+      userMap.set(String(u._id), typeof u.shippingId === 'string' ? u.shippingId : '');
     });
   }
 
   // Add userCode to each package
-  const packagesWithUserCode = packages.map((pkg: { userId: string; [key: string]: unknown }) => ({
-    ...pkg,
-    userCode: userMap.get(String(pkg.userId)) || ''
+  const packagesWithUserCode = packages.map((pkg) => ({
+    ...(pkg as Record<string, unknown>),
+    userCode: userMap.get(String((pkg as { userId?: unknown }).userId)) || ''
   }));
 
   return NextResponse.json({

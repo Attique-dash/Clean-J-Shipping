@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import type { FormEvent } from "react";
 
 type Package = {
   trackingNumber: string;
@@ -21,7 +22,7 @@ export default function TrackPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const q = params.get("q");
+    const q = params?.get("q");
     if (q) setTracking(q);
   }, [params]);
 
@@ -43,7 +44,7 @@ export default function TrackPage() {
     }
   }, [result]);
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);

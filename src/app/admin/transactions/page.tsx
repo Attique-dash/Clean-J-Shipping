@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, TrendingUp, TrendingDown, CreditCard, Search, Filter, Calendar, ChevronDown, CheckCircle, XCircle, Clock, AlertCircle, Download, Eye, User, Building, Receipt, RefreshCw, Settings, Loader2 } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, CreditCard, Search, Filter, Calendar, ChevronDown, CheckCircle, XCircle, Clock, AlertCircle, Download, Eye, User, Building, Receipt, RefreshCw, Settings, Loader2, Trash2 } from "lucide-react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 
 type TransactionType = "sale" | "refund" | "purchase" | "expense";
@@ -31,6 +31,7 @@ export default function TransactionsPage() {
   const [typeFilter, setTypeFilter] = useState<TransactionType | "all">("all");
   const [statusFilter, setStatusFilter] = useState<TransactionStatus | "all">("all");
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; transaction: Transaction | null }>({ open: false, transaction: null });
 
   async function loadTransactions() {
     setLoading(true);
@@ -51,8 +52,8 @@ export default function TransactionsPage() {
         const paymentGateway = t.payment_gateway || t.paymentGateway;
         if (paymentGateway === "paypal") {
           methodDisplay = "PayPal";
-        } else if (paymentGateway === "powertranz") {
-          methodDisplay = "PowerTranz";
+        } else if (paymentGateway === "Testing") {
+          methodDisplay = "Testing";
         }
 
         return {
@@ -82,6 +83,34 @@ export default function TransactionsPage() {
   useEffect(() => {
     loadTransactions();
   }, [searchQuery, statusFilter, typeFilter]);
+
+  async function deleteTransaction(transactionId: string) {
+    if (!confirm('Are you sure you want to delete this transaction? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      const res = await fetch(`/api/admin/transactions?id=${transactionId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to delete transaction');
+      }
+      
+      setDeleteConfirm({ open: false, transaction: null });
+      await loadTransactions();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to delete transaction');
+    }
+  }
+
+  function openDeleteConfirm(transaction: Transaction) {
+    setDeleteConfirm({ open: true, transaction });
+  }
 
   const getTypeStyle = (type: TransactionType) => {
     switch (type) {
@@ -164,7 +193,7 @@ export default function TransactionsPage() {
             </div>
 
             {/* Stats Cards inside header */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-3">
 
               {/* Total Revenue */}
               <div className="group relative overflow-hidden rounded-xl bg-green-500/20 p-4 shadow-md backdrop-blur">
@@ -205,84 +234,9 @@ export default function TransactionsPage() {
                 </div>
               </div>
 
-              {/* Pending */}
-              <div className="group relative overflow-hidden rounded-xl bg-yellow-500/20 p-4 shadow-md backdrop-blur">
-                <div className="relative flex items-center gap-3">
-                  <div className="rounded-lg bg-white/20 p-2.5 flex-shrink-0">
-                    <Clock className="h-5 w-5 text-white" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs text-yellow-100 truncate">Pending</p>
-                    <p className="mt-0.5 text-lg font-bold truncate">{stats.pending}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Unreconciled */}
-              <div className="group relative overflow-hidden rounded-xl bg-white/10 p-4 shadow-md backdrop-blur">
-                <div className="relative flex items-center gap-3">
-                  <div className="rounded-lg bg-white/20 p-2.5 flex-shrink-0">
-                    <AlertCircle className="h-5 w-5 text-white" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs text-blue-100 truncate">Unreconciled</p>
-                    <p className="mt-0.5 text-lg font-bold truncate">{stats.unreconciled}</p>
-                  </div>
-                </div>
-              </div>
-
             </div>
           </div>
         </header>
-
-        {/* PayPal Setup Section */}
-        <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-blue-50 p-2">
-                <Settings className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">PayPal Integration</h3>
-                <p className="text-sm text-gray-500">PayPal payments are processed in real-time</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Status:</span>
-              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-                Active
-              </span>
-            </div>
-          </div>
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-700 mb-2">
-              PayPal is configured and ready. All PayPal transactions are automatically recorded in the system.
-            </p>
-            <div className="flex items-center gap-4 text-xs text-blue-600 mb-3">
-              <span>• Real-time transaction sync</span>
-              <span>• Automatic payment capture</span>
-              <span>• Secure payment processing</span>
-            </div>
-            <button
-              onClick={async () => {
-                try {
-                  const res = await fetch("/api/admin/paypal/test", { cache: "no-store" });
-                  const data = await res.json();
-                  if (res.ok && data.success) {
-                    alert(`✅ PayPal connection test successful!\n\nEnvironment: ${data.environment}\nOrder ID: ${data.orderId}`);
-                  } else {
-                    alert(`❌ PayPal test failed: ${data.message || data.error}\n\n${data.details || ""}`);
-                  }
-                } catch (e) {
-                  alert(`❌ PayPal test error: ${e instanceof Error ? e.message : "Unknown error"}`);
-                }
-              }}
-              className="text-xs px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-            >
-              Test PayPal Connection
-            </button>
-          </div>
-        </div>
 
         {/* Search and Filter */}
         <div className="bg-white rounded-xl shadow-md border border-slate-200 p-5">
@@ -496,12 +450,20 @@ export default function TransactionsPage() {
                           </p>
                           <p className="text-xs text-slate-500 mt-1">{txn.category}</p>
                         </div>
-                        <button
-                          onClick={() => setSelectedTransaction(txn)}
-                          className="w-10 h-10 rounded-lg border border-slate-300 hover:bg-slate-100 flex items-center justify-center transition-colors"
-                        >
-                          <Eye className="w-5 h-5 text-slate-600" />
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setSelectedTransaction(txn)}
+                            className="w-10 h-10 rounded-lg border border-slate-300 hover:bg-slate-100 flex items-center justify-center transition-colors"
+                          >
+                            <Eye className="w-5 h-5 text-slate-600" />
+                          </button>
+                          <button
+                            onClick={() => openDeleteConfirm(txn)}
+                            className="w-10 h-10 rounded-lg border border-red-300 hover:bg-red-50 flex items-center justify-center transition-colors"
+                          >
+                            <Trash2 className="w-5 h-5 text-red-600" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -581,6 +543,50 @@ export default function TransactionsPage() {
                 <div>
                   <p className="text-sm text-slate-600 font-medium mb-2">Description</p>
                   <p className="text-slate-800 bg-slate-50 p-4 rounded-lg">{selectedTransaction.description}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteConfirm.open && deleteConfirm.transaction && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setDeleteConfirm({ open: false, transaction: null })}>
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4">
+                <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <Trash2 className="w-5 h-5" />
+                  Delete Transaction
+                </h3>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-sm text-red-800 font-medium mb-2">
+                    Are you sure you want to delete this transaction?
+                  </p>
+                  <div className="space-y-1 text-sm text-red-700">
+                    <p><strong>Transaction ID:</strong> {deleteConfirm.transaction.transactionId}</p>
+                    <p><strong>Amount:</strong> {deleteConfirm.transaction.type === 'sale' ? '+' : '-'} PKR {deleteConfirm.transaction.amount.toLocaleString()}</p>
+                    <p><strong>Description:</strong> {deleteConfirm.transaction.description}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-600">
+                  This action cannot be undone. The transaction will be permanently removed from the system.
+                </p>
+                <div className="flex items-center justify-end gap-3 pt-4 border-t">
+                  <button
+                    onClick={() => setDeleteConfirm({ open: false, transaction: null })}
+                    className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => deleteTransaction(deleteConfirm.transaction!.id)}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Transaction
+                  </button>
                 </div>
               </div>
             </div>

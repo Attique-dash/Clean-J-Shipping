@@ -29,7 +29,7 @@ export async function GET(req: Request) {
   }
   if (q) {
     const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-    (paymentFilter as any).$or = [
+    paymentFilter.$or = [
       { reference: regex },
       { trackingNumber: regex },
       { userCode: regex },
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
   }
   if (q) {
     const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-    (posFilter as any).$or = [
+    posFilter.$or = [
       { receiptNo: regex },
       { customerCode: regex },
       { notes: regex }
@@ -124,4 +124,46 @@ export async function GET(req: Request) {
     page,
     per_page,
   });
+}
+
+export async function DELETE(req: Request) {
+  const payload = await getAuthFromRequest(req);
+  if (!payload || payload.role !== "admin") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  await dbConnect();
+
+  const url = new URL(req.url);
+  const id = url.searchParams.get("id");
+  
+  if (!id) {
+    return NextResponse.json({ error: "Transaction ID is required" }, { status: 400 });
+  }
+
+  try {
+    // Check if it's a Payment transaction
+    if (id.startsWith("payment-")) {
+      const paymentId = id.replace("payment-", "");
+      const result = await Payment.findByIdAndDelete(paymentId);
+      if (!result) {
+        return NextResponse.json({ error: "Payment transaction not found" }, { status: 404 });
+      }
+    }
+    // Check if it's a POS transaction
+    else if (id.startsWith("pos-")) {
+      const posId = id.replace("pos-", "");
+      const result = await PosTransaction.findByIdAndDelete(posId);
+      if (!result) {
+        return NextResponse.json({ error: "POS transaction not found" }, { status: 404 });
+      }
+    }
+    else {
+      return NextResponse.json({ error: "Invalid transaction ID format" }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true, message: "Transaction deleted successfully" });
+  } catch (error) {
+    console.error("Delete transaction error:", error);
+    return NextResponse.json({ error: "Failed to delete transaction" }, { status: 500 });
+  }
 }

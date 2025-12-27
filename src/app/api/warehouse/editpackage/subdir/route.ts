@@ -3,7 +3,7 @@ import { dbConnect } from "@/lib/db";
 import { Package, type IPackage } from "@/models/Package";
 import { User } from "@/models/User";
 import { getAllowedWarehouseKeys, verifyWarehouseKeyFromRequest } from "@/lib/rbac";
-import { mapExternalToInternalStatus, getExternalStatusLabel, getServiceTypeName } from "@/lib/mappings";
+import { mapExternalToInternalStatus } from "@/lib/mappings";
 
 // URL: /api/warehouse/editpackage/subdir
 // Method: POST
@@ -89,36 +89,10 @@ export async function POST(req: Request) {
         shipper,
         description,
         manifestId: typeof item?.ManifestID === "string" ? item.ManifestID : undefined,
-        externalPackageId: typeof item?.PackageID === "string" ? item.PackageID : undefined,
-        courierId: typeof item?.CourierID === "string" ? item.CourierID : undefined,
-        collectionId: typeof item?.CollectionID === "string" ? item.CollectionID : undefined,
-        controlNumber: typeof item?.ControlNumber === "string" ? item.ControlNumber : undefined,
-        firstName: typeof item?.FirstName === "string" ? item.FirstName : undefined,
-        lastName: typeof item?.LastName === "string" ? item.LastName : undefined,
         entryStaff: typeof item?.EntryStaff === "string" ? item.EntryStaff : undefined,
         entryDate: entryDateStr ? new Date(entryDateStr) : undefined,
-        entryDateTime: entryDateStr ? new Date(entryDateStr) : undefined,
         branch: typeof item?.Branch === "string" ? item.Branch : undefined,
-        claimed: typeof item?.Claimed === "boolean" ? item.Claimed : undefined,
-        showControls: typeof item?.ShowControls === "boolean" ? item.ShowControls : undefined,
         hsCode: typeof item?.HSCode === "string" ? item.HSCode : undefined,
-        unknown: typeof item?.Unknown === "boolean" ? item.Unknown : undefined,
-        aiProcessed: typeof item?.AIProcessed === "boolean" ? item.AIProcessed : undefined,
-        originalHouseNumber: typeof item?.OriginalHouseNumber === "string" ? item.OriginalHouseNumber : undefined,
-        cubes: Number.isFinite(Number(item?.Cubes)) ? Number(item.Cubes) : undefined,
-        length: Number.isFinite(Number(item?.Length)) ? Number(item.Length) : undefined,
-        width: Number.isFinite(Number(item?.Width)) ? Number(item.Width) : undefined,
-        height: Number.isFinite(Number(item?.Height)) ? Number(item.Height) : undefined,
-        pieces: Number.isFinite(Number(item?.Pieces)) ? Number(item.Pieces) : undefined,
-        discrepancy: typeof item?.Discrepancy === "boolean" ? item.Discrepancy : undefined,
-        discrepancyDescription: typeof item?.DiscrepancyDescription === "string" ? item.DiscrepancyDescription : undefined,
-        serviceTypeId: typeof item?.ServiceTypeID === "string" ? item.ServiceTypeID : undefined,
-        serviceTypeName: getServiceTypeName(item?.ServiceTypeID),
-        externalStatusLabel: getExternalStatusLabel(item?.PackageStatus),
-        hazmatCodeId: typeof item?.HazmatCodeID === "string" ? item.HazmatCodeID : undefined,
-        coloaded: typeof item?.Coloaded === "boolean" ? item.Coloaded : undefined,
-        coloadIndicator: typeof item?.ColoadIndicator === "string" ? item.ColoadIndicator : undefined,
-        packagePayments: typeof item?.PackagePayments === "string" ? item.PackagePayments : undefined,
       };
 
       // Fetch existing package to compare status and build history

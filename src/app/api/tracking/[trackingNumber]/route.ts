@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { dbConnect } from "@/lib/db";
+import { Package } from "@/models/Package";
 
 export async function GET(
   _req: Request,
@@ -12,18 +13,13 @@ export async function GET(
       return NextResponse.json({ error: "Missing tracking number" }, { status: 400 });
     }
 
-    const pkg = await prisma.package.findFirst({
-      where: {
-        OR: [
-          { trackingNumber: { equals: trackingNumber, mode: 'insensitive' } },
-          { referenceNumber: { equals: trackingNumber, mode: 'insensitive' } }
-        ]
-      },
-      include: {
-        audits: {
-          orderBy: { timestamp: 'desc' }
-        }
-      }
+    await dbConnect();
+    
+    const pkg = await Package.findOne({
+      $or: [
+        { trackingNumber: { $regex: trackingNumber, $options: 'i' } },
+        { referenceNumber: { $regex: trackingNumber, $options: 'i' } }
+      ]
     });
 
     if (!pkg) {
@@ -39,11 +35,11 @@ export async function GET(
       estimatedDelivery: pkg.estimatedDelivery?.toISOString(),
       actualDelivery: pkg.actualDelivery?.toISOString(),
       updatedAt: pkg.updatedAt.toISOString(),
-      history: pkg.audits.map(audit => ({
+      history: (pkg.history || []).map((audit: any) => ({
         status: audit.status,
-        location: audit.location || undefined,
-        description: audit.description || undefined,
-        timestamp: audit.timestamp.toISOString()
+        location: undefined, // Package history doesn't have location
+        description: audit.note || undefined,
+        timestamp: audit.at.toISOString()
       }))
     });
   } catch (error) {

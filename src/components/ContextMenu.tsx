@@ -1,6 +1,6 @@
 // src/components/ContextMenu.tsx
-import { Fragment, ReactNode, useRef, useState } from 'react';
-import { useOnClickOutside } from 'usehooks-ts';
+import { Fragment, ReactNode, useEffect, useRef, useState } from 'react';
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
 
 interface MenuItem {
   label: string;
@@ -12,7 +12,7 @@ interface MenuItem {
 }
 
 interface ContextMenuProps {
-  trigger: (props: { onClick: (e: React.MouseEvent) => void }) => ReactNode;
+  trigger: (props: { onClick: (e: ReactMouseEvent) => void }) => ReactNode;
   items: MenuItem[];
   position?: 'left' | 'right';
   align?: 'top' | 'bottom';
@@ -28,7 +28,7 @@ export default function ContextMenu({
   const [coords, setCoords] = useState({ x: 0, y: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const handleContextMenu = (e: React.MouseEvent) => {
+  const handleContextMenu = (e: ReactMouseEvent) => {
     e.preventDefault();
     setCoords({ x: e.clientX, y: e.clientY });
     setIsOpen(true);
@@ -38,9 +38,27 @@ export default function ContextMenu({
     setIsOpen(false);
   };
 
-  useOnClickOutside(menuRef, handleClickOutside);
+  useEffect(() => {
+    if (!isOpen) return;
 
-  const menuStyle: React.CSSProperties = {
+    const handler = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (menuRef.current && !menuRef.current.contains(target)) {
+        handleClickOutside();
+      }
+    };
+
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
+  }, [isOpen]);
+
+  const menuStyle: CSSProperties = {
     position: 'fixed',
     left: position === 'right' ? coords.x : 'auto',
     right: position === 'left' ? window.innerWidth - coords.x : 'auto',

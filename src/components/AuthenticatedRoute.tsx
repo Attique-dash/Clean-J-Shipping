@@ -1,10 +1,11 @@
 // src/components/AuthenticatedRoute.tsx
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function AuthenticatedRoute({ children, requiredRoles = [] }: { 
-  children: React.ReactNode;
+  children: ReactNode;
   requiredRoles?: string[];
 }) {
   const { user, loading } = useAuth();
@@ -16,7 +17,7 @@ export default function AuthenticatedRoute({ children, requiredRoles = [] }: {
       if (!user) {
         // Not logged in, redirect to login
         router.push('/login');
-      } else if (requiredRoles.length > 0 && !requiredRoles.some(role => user.roles?.includes(role))) {
+      } else if (requiredRoles.length > 0 && !requiredRoles.includes(user.role || '')) {
         // Logged in but not authorized, redirect to dashboard
         router.push('/dashboard');
       } else {

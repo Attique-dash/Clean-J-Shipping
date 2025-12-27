@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
 import { Payment } from "@/models/Payment";
-import { Invoice } from "@/models/Invoice";
+import Invoice, { IInvoice } from "@/models/Invoice";
 import { User } from "@/models/User";
 import { getAuthFromRequest } from "@/lib/rbac";
 

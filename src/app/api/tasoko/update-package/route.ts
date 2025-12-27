@@ -75,6 +75,7 @@ export async function POST(req: Request) {
   if (Object.keys(packagePaymentsObj).length) {
     pkg.packagePayments = JSON.stringify(packagePaymentsObj);
   }
+  if (!Array.isArray(pkg.history)) pkg.history = [];
   pkg.history.push({ status: internalStatus, at, note: notes });
   await pkg.save();
 
