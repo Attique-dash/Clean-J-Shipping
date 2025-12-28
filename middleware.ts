@@ -54,7 +54,7 @@ export async function middleware(request: NextRequest) {
     const token = await getToken({
       req: request,
       secret: process.env.NEXTAUTH_SECRET,
-      secureCookie: process.env.NODE_ENV === 'production'
+      secureCookie: process.env.NODE_ENV === 'production' && process.env.VERCEL_ENV !== 'development'
     });
 
     // If no token, redirect to login
