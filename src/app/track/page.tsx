@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 
@@ -14,7 +14,7 @@ type Package = {
   history?: { status: string; at: string; note?: string }[];
 };
 
-export default function TrackPage() {
+function TrackPageContent() {
   const params = useSearchParams();
   const [tracking, setTracking] = useState("");
   const [result, setResult] = useState<Package | null>(null);
@@ -171,5 +171,17 @@ function ProgressCircle({ value, label }: { value: number; label: string }) {
         <div className="text-[10px] text-neutral-500">{label}</div>
       </div>
     </div>
+  );
+}
+
+export default function TrackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    }>
+      <TrackPageContent />
+    </Suspense>
   );
 }

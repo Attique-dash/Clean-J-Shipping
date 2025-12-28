@@ -8,15 +8,15 @@ import User from '@/models/User';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
       return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
-    const { id } = params;
     const { customerId } = await request.json();
 
     if (!customerId) {

@@ -4,12 +4,13 @@ import { Package } from "@/models/Package";
 
 export async function GET(
   _req: Request,
-  { params }: { params: { trackingNumber: string } }
+  { params }: { params: Promise<{ trackingNumber: string }> }
 ) {
+  const { trackingNumber } = await params;
   try {
-    const trackingNumber = decodeURIComponent(params.trackingNumber || "").trim();
+    const tracking = decodeURIComponent(trackingNumber || "").trim();
     
-    if (!trackingNumber) {
+    if (!tracking) {
       return NextResponse.json({ error: "Missing tracking number" }, { status: 400 });
     }
 

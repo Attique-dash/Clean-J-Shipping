@@ -3,11 +3,12 @@ import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
 import { getAuthFromRequest } from "@/lib/rbac";
 
-export async function GET(req: Request, { params }: { params: { packageId: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ packageId: string }> }) {
+  const { packageId } = await params;
   const payload = await getAuthFromRequest(req);
   if (!payload || payload.role !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   await dbConnect();
-  const pkg = await Package.findById(params.packageId).select("invoiceNumber trackingNumber").lean();
+  const pkg = await Package.findById(packageId).select("invoiceNumber trackingNumber").lean();
   if (!pkg) return NextResponse.json({ error: "Package not found" }, { status: 404 });
   return NextResponse.json({
     tracking_number: pkg.trackingNumber,
@@ -15,7 +16,8 @@ export async function GET(req: Request, { params }: { params: { packageId: strin
   });
 }
 
-export async function PATCH(req: Request, { params }: { params: { packageId: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ packageId: string }> }) {
+  const { packageId } = await params;
   const payload = await getAuthFromRequest(req);
   if (!payload || payload.role !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   await dbConnect();
@@ -27,7 +29,7 @@ export async function PATCH(req: Request, { params }: { params: { packageId: str
     return NextResponse.json({ error: "status must be 'reviewed' or 'rejected'" }, { status: 400 });
   }
 
-  const pkg = await Package.findById(params.packageId).select("invoiceNumber");
+  const pkg = await Package.findById(packageId).select("invoiceNumber");
   if (!pkg) return NextResponse.json({ error: "Package not found" }, { status: 404 });
   
   if (!pkg.invoiceNumber) {

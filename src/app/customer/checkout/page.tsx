@@ -1,7 +1,7 @@
 // src/app/customer/checkout/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { 
   ShoppingCart, 
@@ -32,7 +32,7 @@ type Bill = {
   last_updated?: string;
 };
 
-export default function CheckoutPage() {
+function CheckoutPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [items, setItems] = useState<Bill[]>([]);
@@ -388,6 +388,21 @@ export default function CheckoutPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 text-[#0f4d8a] animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 font-medium">Loading checkout...</p>
+        </div>
+      </div>
+    }>
+      <CheckoutPageContent />
+    </Suspense>
   );
 }
 

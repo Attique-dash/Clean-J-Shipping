@@ -35,12 +35,13 @@ type InvoiceRecord = {
   submittedAt: Date;
 };
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const auth = await getAuthFromRequest(req);
   const unauthorized = requireRole(auth, "customer");
   if (unauthorized) return unauthorized;
 
-  const packageId = params.id;
+  const packageId = id;
   if (!packageId) {
     return NextResponse.json({ error: "Missing package id" }, { status: 400 });
   }

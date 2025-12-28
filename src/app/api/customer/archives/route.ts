@@ -45,33 +45,34 @@ export async function GET(req: Request) {
     last_updated?: string;
   };
 
-  const bills: Bill[] = (pkgs as (IPackage & { invoiceRecords?: any[]; invoiceDocuments?: any[] })[]).flatMap((p) => {
-    const recs = Array.isArray(p.invoiceRecords) ? p.invoiceRecords : [];
+  const bills: Bill[] = (pkgs as unknown[]).flatMap((p) => {
+    const pkg = p as IPackage & { invoiceRecords?: any[]; invoiceDocuments?: any[] };
+    const recs = Array.isArray(pkg.invoiceRecords) ? pkg.invoiceRecords : [];
     if (recs.length === 0) {
-      const docs = Array.isArray(p.invoiceDocuments) ? p.invoiceDocuments : [];
+      const docs = Array.isArray(pkg.invoiceDocuments) ? pkg.invoiceDocuments : [];
       const payment_status: Bill["payment_status"] = docs.length > 0 ? "submitted" : "none";
       return [
         {
-          tracking_number: p.trackingNumber,
-          description: (p as any).description,
+          tracking_number: pkg.trackingNumber,
+          description: (pkg as any).description,
           amount_due: 0,
           payment_status,
-          last_updated: (p.updatedAt || p.createdAt) ? new Date((p.updatedAt || p.createdAt) as any).toISOString() : undefined,
+          last_updated: (pkg.updatedAt || pkg.createdAt) ? new Date((pkg.updatedAt || pkg.createdAt) as any).toISOString() : undefined,
         },
       ];
     }
     const latest = recs[recs.length - 1];
     return [
       {
-        tracking_number: p.trackingNumber,
-        description: (p as any).description,
+        tracking_number: pkg.trackingNumber,
+        description: (pkg as any).description,
         invoice_number: latest.invoiceNumber,
         invoice_date: latest.invoiceDate ? new Date(latest.invoiceDate).toISOString() : undefined,
         currency: latest.currency || "USD",
         amount_due: typeof latest.totalValue === "number" ? Number(latest.totalValue) : 0,
         payment_status: latest.status || "submitted",
         document_url: latest.documentUrl,
-        last_updated: (p.updatedAt || p.createdAt) ? new Date((p.updatedAt || p.createdAt) as any).toISOString() : undefined,
+        last_updated: (pkg.updatedAt || pkg.createdAt) ? new Date((pkg.updatedAt || pkg.createdAt) as any).toISOString() : undefined,
       },
     ];
   });

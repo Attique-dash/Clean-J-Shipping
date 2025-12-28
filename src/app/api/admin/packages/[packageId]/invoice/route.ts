@@ -6,8 +6,9 @@ import { GeneratedInvoice } from "@/models/GeneratedInvoice";
 
 export async function POST(
   req: Request,
-  { params }: { params: { packageId: string } }
+  { params }: { params: Promise<{ packageId: string }> }
 ) {
+  const { packageId } = await params;
   const payload = await getAuthFromRequest(req);
   if (!payload || payload.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -16,7 +17,6 @@ export async function POST(
   await dbConnect();
 
   try {
-    const packageId = params.packageId;
     
     // Get package details
     const pkg = await Package.findById(packageId).populate('userId');

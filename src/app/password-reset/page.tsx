@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { FaEnvelope, FaLock, FaPlane } from "react-icons/fa";
 import Link from "next/link";
 import Image from "next/image";
 
-export default function PasswordResetPage() {
+function PasswordResetPageContent() {
   const params = useSearchParams();
   const token = params?.get("t") || "";
 
@@ -258,5 +258,17 @@ export default function PasswordResetPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PasswordResetPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    }>
+      <PasswordResetPageContent />
+    </Suspense>
   );
 }

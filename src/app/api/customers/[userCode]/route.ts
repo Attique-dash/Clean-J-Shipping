@@ -5,7 +5,7 @@ import { getAuthFromRequest } from "@/lib/rbac";
 
 export async function GET(
   req: Request,
-  { params }: { params: { userCode: string } }
+  { params }: { params: Promise<{ userCode: string }> }
 ) {
   const auth = await getAuthFromRequest(req);
   if (!auth || (auth.role !== "admin" && auth.role !== "warehouse")) {
@@ -15,7 +15,7 @@ export async function GET(
   await dbConnect();
 
   try {
-    const { userCode } = params;
+    const { userCode } = await params;
 
     const customer = await User.findOne({ 
       userCode, 

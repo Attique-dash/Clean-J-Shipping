@@ -7,9 +7,10 @@ import { Types } from "mongoose";
 
 export async function GET(
   req: Request,
-  { params }: { params: { invoiceNumber: string } }
+  { params }: { params: Promise<{ invoiceNumber: string }> }
 ) {
   try {
+    const { invoiceNumber } = await params;
     const payload = await getAuthFromRequest(req);
     if (!payload || (payload.role !== "customer" && payload.role !== "admin")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -28,7 +29,7 @@ export async function GET(
 
     // Find the invoice
     const invoice = await Invoice.findOne({ 
-      invoiceNumber: params.invoiceNumber,
+      invoiceNumber: invoiceNumber,
       userId: new Types.ObjectId(userId) 
     }).lean();
 

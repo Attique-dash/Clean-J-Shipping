@@ -8,9 +8,10 @@ export const runtime = 'nodejs';
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const payload = await getAuthFromRequest(req);
     if (!payload || payload.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,7 +19,7 @@ export async function GET(
 
     await dbConnect();
 
-    const integration = await Integration.findById(params.id).lean() as IIntegration | null;
+    const integration = await Integration.findById(id).lean() as IIntegration | null;
 
     if (!integration) {
       return NextResponse.json({ error: "Integration not found" }, { status: 404 });
@@ -43,9 +44,10 @@ export async function GET(
 
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const payload = await getAuthFromRequest(req);
     if (!payload || payload.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -73,7 +75,7 @@ export async function PUT(
     if (metadata !== undefined) updateData.metadata = metadata;
 
     const integration = await Integration.findByIdAndUpdate(
-      params.id,
+      id,
       updateData,
       { new: true }
     ).lean() as IIntegration | null;
@@ -101,9 +103,10 @@ export async function PUT(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const payload = await getAuthFromRequest(req);
     if (!payload || payload.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -111,7 +114,7 @@ export async function DELETE(
 
     await dbConnect();
 
-    const integration = await Integration.findByIdAndDelete(params.id);
+    const integration = await Integration.findByIdAndDelete(id);
 
     if (!integration) {
       return NextResponse.json({ error: "Integration not found" }, { status: 404 });

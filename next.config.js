@@ -2,16 +2,14 @@
 const nextConfig = {
   // Memory optimization settings
   compress: true,
-  swcMinify: true,
   
-  // Reduce memory usage during development
+  // External packages for server components
+  serverExternalPackages: ['canvas', 'pdfkit', 'jspdf'],
+  
+  // Experimental features for Next.js 16
   experimental: {
     optimizePackageImports: ['lucide-react', 'react-icons'],
-    serverComponentsExternalPackages: ['canvas', 'pdfkit', 'jspdf'],
   },
-  
-  // Limit concurrent compilations
-  concurrentFeatures: false,
   
   env: {
     DATABASE_URL: process.env.DATABASE_URL,
@@ -31,14 +29,9 @@ const nextConfig = {
     ],
   },
   
-  // Disable type checking during build (optional, for faster builds)
-  typescript: {
-    ignoreBuildErrors: false,
-  },
-  
-  // Disable ESLint during build (optional, for faster builds)
-  eslint: {
-    ignoreDuringBuilds: false,
+  // Turbopack configuration
+  turbopack: {
+    root: './',
   },
 
   // CORS headers for warehouse API

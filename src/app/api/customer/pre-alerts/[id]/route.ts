@@ -5,9 +5,10 @@ import { PreAlert } from "@/models/PreAlert";
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     await dbConnect();
     const payload = await getAuthFromRequest(req);
     if (!payload || payload.role !== "admin") {
@@ -24,7 +25,7 @@ export async function PATCH(
       );
     }
 
-    const preAlert = await PreAlert.findById(params.id);
+    const preAlert = await PreAlert.findById(id);
     if (!preAlert) {
       return NextResponse.json({ error: "Pre-alert not found" }, { status: 404 });
     }

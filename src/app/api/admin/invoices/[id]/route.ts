@@ -9,9 +9,10 @@ import { Types } from 'mongoose';
 // Delete an invoice
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     await dbConnect();
     const session = await getServerSession(authOptions);
     
@@ -19,19 +20,17 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const invoiceId = params.id;
-
-    if (!invoiceId) {
+    if (!id) {
       return NextResponse.json({ error: 'Invoice ID is required' }, { status: 400 });
     }
 
     // Validate ObjectId
-    if (!Types.ObjectId.isValid(invoiceId)) {
+    if (!Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid invoice ID' }, { status: 400 });
     }
 
     // Find and delete the invoice
-    const invoice = await Invoice.findByIdAndDelete(invoiceId);
+    const invoice = await Invoice.findByIdAndDelete(id);
     
     if (!invoice) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
@@ -53,9 +52,10 @@ export async function DELETE(
 // Get a single invoice
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     await dbConnect();
     const session = await getServerSession(authOptions);
     
@@ -63,13 +63,11 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const invoiceId = params.id;
-
-    if (!invoiceId || !Types.ObjectId.isValid(invoiceId)) {
+    if (!id || !Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid invoice ID' }, { status: 400 });
     }
 
-    const invoice = await Invoice.findById(invoiceId)
+    const invoice = await Invoice.findById(id)
       .populate('package', 'trackingNumber userCode')
       .populate('shipment', 'trackingNumber status')
       .lean();

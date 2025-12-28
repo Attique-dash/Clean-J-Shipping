@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
-import Invoice, { IInvoice } from "@/models/Invoice";
+import Invoice from "@/models/Invoice";
 import { User } from "@/models/User";
 import { getAuthFromRequest } from "@/lib/rbac";
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const auth = await getAuthFromRequest(req);
   if (!auth || (auth.role !== "admin" && auth.role !== "warehouse")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -15,7 +16,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   try {
     // Get package details
-    const packageData = await Package.findById(params.id).populate('customer');
+    const packageData = await Package.findById(id).populate('customer');
     if (!packageData) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
     }
@@ -85,7 +86,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 }
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const auth = await getAuthFromRequest(req);
   if (!auth || (auth.role !== "admin" && auth.role !== "warehouse")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -95,7 +97,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   try {
     // Get invoices for this package
-    const invoices = await Invoice.find({ package: params.id })
+    const invoices = await Invoice.find({ package: id })
       .sort({ createdAt: -1 })
       .select('invoiceNumber status total amountPaid balanceDue createdAt');
 

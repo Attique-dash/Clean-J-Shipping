@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import type { FormEvent } from "react";
 import { Package, ArrowLeft, Save, Loader2, ChevronDown, AlertCircle, RefreshCw, Check } from "lucide-react";
 import Link from "next/link";
@@ -22,7 +22,7 @@ interface Customer {
   };
 }
 
-export default function WarehouseAddPackagePage() {
+function WarehouseAddPackagePageContent() {
   const searchParams = useSearchParams();
   const [submitting, setSubmitting] = useState(false);
   const [trackingNumber, setTrackingNumber] = useState("");
@@ -708,5 +708,17 @@ export default function WarehouseAddPackagePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function WarehouseAddPackagePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    }>
+      <WarehouseAddPackagePageContent />
+    </Suspense>
   );
 }

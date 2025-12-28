@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
 import { Payment } from "@/models/Payment";
-import Invoice, { IInvoice } from "@/models/Invoice";
+import Invoice from "@/models/Invoice";
 import { User } from "@/models/User";
 import { getAuthFromRequest } from "@/lib/rbac";
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const auth = await getAuthFromRequest(req);
   if (!auth || (auth.role !== "admin" && auth.role !== "warehouse")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -19,7 +20,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const { amount, method, reference, gatewayId } = body;
 
     // Get package details
-    const packageData = await Package.findById(params.id);
+    const packageData = await Package.findById(id);
     if (!packageData) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
     }
@@ -50,7 +51,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     await payment.save();
 
     // Update any related invoices
-    const invoices = await Invoice.find({ package: params.id, status: { $in: ['draft', 'sent'] } });
+    const invoices = await Invoice.find({ package: id, status: { $in: ['draft', 'sent'] } });
     for (const invoice of invoices) {
       const newAmountPaid = invoice.amountPaid + amount;
       invoice.amountPaid = newAmountPaid;
@@ -82,7 +83,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 }
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const auth = await getAuthFromRequest(req);
   if (!auth || (auth.role !== "admin" && auth.role !== "warehouse")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -92,7 +94,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   try {
     // Get payments for this package
-    const payments = await Payment.find({ trackingNumber: params.id })
+    const payments = await Payment.find({ trackingNumber: id })
       .sort({ createdAt: -1 })
       .select('amount method status reference gatewayId createdAt');
 

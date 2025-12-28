@@ -6,8 +6,9 @@ import { authOptions } from "@/lib/auth-config";
 
 export async function GET(
   req: Request,
-  { params }: { params: { packageId: string } }
+  { params }: { params: Promise<{ packageId: string }> }
 ) {
+  const { packageId } = await params;
   const session = await getServerSession(authOptions);
   if (!session?.user || !['admin', 'warehouse_staff', 'customer_support'].includes(session.user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -16,7 +17,7 @@ export async function GET(
   try {
     await dbConnect();
     
-    const packageData = await Package.findById(params.packageId).lean();
+    const packageData = await Package.findById(packageId).lean();
     
     if (!packageData) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
@@ -31,8 +32,9 @@ export async function GET(
 
 export async function PUT(
   req: Request,
-  { params }: { params: { packageId: string } }
+  { params }: { params: Promise<{ packageId: string }> }
 ) {
+  const { packageId } = await params;
   const session = await getServerSession(authOptions);
   if (!session?.user || !['admin', 'warehouse_staff', 'customer_support'].includes(session.user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -44,7 +46,7 @@ export async function PUT(
     const body = await req.json();
     
     // Get existing package to preserve required fields that aren't in the form
-    const existingPackage = await Package.findById(params.packageId);
+    const existingPackage = await Package.findById(packageId);
     if (!existingPackage) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
     }
@@ -102,7 +104,7 @@ export async function PUT(
     }
 
     const packageData = await Package.findByIdAndUpdate(
-      params.packageId,
+      packageId,
       updateData,
       { new: true, runValidators: false } // Disable validators for partial updates
     );

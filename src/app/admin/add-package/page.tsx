@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Package, ArrowLeft, Save, Loader2, ChevronDown, AlertCircle, RefreshCw, Check } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -21,7 +21,7 @@ interface Customer {
   };
 }
 
-export default function AdminAddPackagePage() {
+function AdminAddPackagePageContent() {
   const searchParams = useSearchParams();
   const editId = searchParams?.get('edit') || null;
   const [submitting, setSubmitting] = useState(false);
@@ -708,5 +708,20 @@ export default function AdminAddPackagePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminAddPackagePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 text-[#0f4d8a] animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 font-medium">Loading add package...</p>
+        </div>
+      </div>
+    }>
+      <AdminAddPackagePageContent />
+    </Suspense>
   );
 }

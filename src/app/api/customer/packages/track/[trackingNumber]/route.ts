@@ -5,9 +5,10 @@ import { getAuthFromRequest } from "@/lib/rbac";
 
 export async function GET(
   req: Request,
-  { params }: { params: { trackingNumber: string } }
+  { params }: { params: Promise<{ trackingNumber: string }> }
 ) {
   try {
+    const { trackingNumber: paramTrackingNumber } = await params;
     const payload = await getAuthFromRequest(req);
     if (!payload || payload.role !== "customer") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -15,7 +16,7 @@ export async function GET(
 
     await dbConnect();
 
-    const trackingNumber = decodeURIComponent(params.trackingNumber || "").trim();
+    const trackingNumber = decodeURIComponent(paramTrackingNumber || "").trim();
     if (!trackingNumber) {
       return NextResponse.json({ error: "Tracking number required" }, { status: 400 });
     }

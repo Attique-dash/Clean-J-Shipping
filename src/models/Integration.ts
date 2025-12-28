@@ -42,7 +42,6 @@ const IntegrationSchema = new Schema<IIntegration>({
 });
 
 IntegrationSchema.index({ type: 1, isActive: 1 });
-IntegrationSchema.index({ provider: 1 });
 
 export const Integration = models.Integration || model<IIntegration>("Integration", IntegrationSchema);
 

@@ -1,6 +1,6 @@
 // src/components/charts/RevenueChart.tsx
 'use client';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface RevenueData {
   month: string;
@@ -54,9 +54,9 @@ export const RevenueChart = ({ data }: RevenueChartProps) => {
             borderRadius: '8px',
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
           }}
-          formatter={(value: any, name: string) => [
-            name === 'Revenue' ? `$${value.toLocaleString()}` : value,
-            name
+          formatter={(value: number | string | undefined, name?: string) => [
+            name === 'Revenue' ? `$${Number(value || 0).toLocaleString()}` : value,
+            name || ''
           ]}
         />
         <Legend 

@@ -4,7 +4,8 @@ import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
 import { getAuthFromRequest } from "@/lib/rbac";
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const auth = await getAuthFromRequest(req);
   if (!auth || auth.role !== "warehouse") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -13,7 +14,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   await dbConnect();
 
   try {
-    const packageData = await Package.findById(params.id);
+    const packageData = await Package.findById(id);
     if (!packageData) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
     }
@@ -25,7 +26,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const auth = await getAuthFromRequest(req);
   if (!auth || auth.role !== "warehouse") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -37,7 +39,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const body = await req.json();
     
     // Get existing package to preserve required fields that aren't in the form
-    const existingPackage = await Package.findById(params.id);
+    const existingPackage = await Package.findById(id);
     if (!existingPackage) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
     }
@@ -101,7 +103,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
 
     const packageData = await Package.findByIdAndUpdate(
-      params.id,
+      id,
       updateData,
       { new: true, runValidators: false } // Disable validators for partial updates
     );
@@ -138,7 +140,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const auth = await getAuthFromRequest(req);
   if (!auth || auth.role !== "warehouse") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -147,7 +150,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   await dbConnect();
 
   try {
-    const packageData = await Package.findByIdAndDelete(params.id);
+    const packageData = await Package.findByIdAndDelete(id);
     if (!packageData) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
     }

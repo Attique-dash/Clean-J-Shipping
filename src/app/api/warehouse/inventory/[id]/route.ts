@@ -9,8 +9,9 @@ export const runtime = 'nodejs';
 
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user || !['admin', 'warehouse'].includes(session.user.role)) {
@@ -23,7 +24,7 @@ export async function PUT(
     const { name, category, currentStock, minStock, maxStock, unit, location, supplier, notes } = body;
 
     const item = await Inventory.findByIdAndUpdate(
-      params.id,
+      id,
       {
         name,
         category,
@@ -55,8 +56,9 @@ export async function PUT(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user || !['admin', 'warehouse'].includes(session.user.role)) {
@@ -65,7 +67,7 @@ export async function DELETE(
 
     await dbConnect();
 
-    const item = await Inventory.findByIdAndDelete(params.id);
+    const item = await Inventory.findByIdAndDelete(id);
 
     if (!item) {
       return NextResponse.json({ error: "Inventory item not found" }, { status: 404 });

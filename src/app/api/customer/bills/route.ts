@@ -111,41 +111,42 @@ export async function GET(req: Request) {
     });
 
     // Create bills from package records (legacy)
-    const packageBills: Bill[] = pkgs.flatMap((p: IPackage & { 
-      invoiceRecords?: Array<{ 
-        invoiceNumber?: string; 
-        invoiceDate?: Date | string; 
-        currency?: string; 
-        totalValue?: number; 
-        status?: string; 
-        amountPaid?: number;
-      }>;
-      invoiceDocuments?: unknown[];
-      totalAmount?: number;
-      shippingCost?: number;
-      itemDescription?: string;
-    }) => {
-      const recs = Array.isArray(p.invoiceRecords) ? p.invoiceRecords : [];
+    const packageBills: Bill[] = (pkgs as unknown[]).flatMap((p) => {
+      const pkg = p as IPackage & { 
+        invoiceRecords?: Array<{ 
+          invoiceNumber?: string; 
+          invoiceDate?: Date | string; 
+          currency?: string; 
+          totalValue?: number; 
+          status?: string; 
+          amountPaid?: number;
+        }>;
+        invoiceDocuments?: unknown[];
+        totalAmount?: number;
+        shippingCost?: number;
+        itemDescription?: string;
+      };
+      const recs = Array.isArray(pkg.invoiceRecords) ? pkg.invoiceRecords : [];
       
       // Use package's totalAmount or shippingCost as fallback if no invoice records
       // Handle missing fields - default to 0 if no financial data exists
-      const packageAmount = (typeof p.totalAmount === "number" && p.totalAmount > 0) ? p.totalAmount : 
-                           (typeof p.shippingCost === "number" && p.shippingCost > 0) ? p.shippingCost : 0;
+      const packageAmount = (typeof pkg.totalAmount === "number" && pkg.totalAmount > 0) ? pkg.totalAmount : 
+                           (typeof pkg.shippingCost === "number" && pkg.shippingCost > 0) ? pkg.shippingCost : 0;
       
             
       if (recs.length === 0) {
-        const docs = Array.isArray(p.invoiceDocuments) ? p.invoiceDocuments : [];
+        const docs = Array.isArray(pkg.invoiceDocuments) ? pkg.invoiceDocuments : [];
         const payment_status: Bill["payment_status"] = docs.length > 0 ? "submitted" : "none";
         return [
           {
-            tracking_number: p.trackingNumber,
-            description: p.itemDescription || p.description,
-            invoice_number: `PKG-${p.trackingNumber}`,
-            invoice_date: p.createdAt ? new Date(p.createdAt).toISOString() : undefined,
+            tracking_number: pkg.trackingNumber,
+            description: pkg.itemDescription || pkg.description,
+            invoice_number: `PKG-${pkg.trackingNumber}`,
+            invoice_date: pkg.createdAt ? new Date(pkg.createdAt).toISOString() : undefined,
             amount_due: packageAmount,
             payment_status,
             currency: "JMD",
-            last_updated: (p.updatedAt || p.createdAt) ? new Date(p.updatedAt || p.createdAt).toISOString() : undefined,
+            last_updated: (pkg.updatedAt || pkg.createdAt) ? new Date(pkg.updatedAt || pkg.createdAt).toISOString() : undefined,
           },
         ];
       }
@@ -175,15 +176,15 @@ export async function GET(req: Request) {
       
       return [
         {
-          tracking_number: p.trackingNumber,
-          description: p.itemDescription || p.description,
-          invoice_number: latest.invoiceNumber || `PKG-${p.trackingNumber}`,
+          tracking_number: pkg.trackingNumber,
+          description: pkg.itemDescription || pkg.description,
+          invoice_number: latest.invoiceNumber || `PKG-${pkg.trackingNumber}`,
           invoice_date: latest.invoiceDate ? new Date(latest.invoiceDate).toISOString() : 
-                       p.createdAt ? new Date(p.createdAt).toISOString() : undefined,
+                       pkg.createdAt ? new Date(pkg.createdAt).toISOString() : undefined,
           currency: latest.currency || "JMD",
           amount_due: amountDue,
           payment_status: paymentStatus,
-          last_updated: (p.updatedAt || p.createdAt) ? new Date(p.updatedAt || p.createdAt).toISOString() : undefined,
+          last_updated: (pkg.updatedAt || pkg.createdAt) ? new Date(pkg.updatedAt || pkg.createdAt).toISOString() : undefined,
         },
       ];
     });
