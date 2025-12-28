@@ -146,8 +146,7 @@ export default function CustomerArchivesPage() {
                   <Archive className="h-7 w-7" />
                 </div>
                 <div>
-                  <p className="text-sm uppercase tracking-widest text-blue-100">Customer Portal</p>
-                  <h1 className="text-3xl font-bold leading-tight md:text-4xl">Archived Records</h1>
+                  <h1 className="text-2xl font-bold leading-tight md:text-3xl">Archived Records</h1>
                   <p className="text-blue-100 mt-1 flex items-center gap-2">
                     <Archive className="h-4 w-4" />
                     View your historical packages and messages

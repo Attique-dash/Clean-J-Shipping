@@ -113,8 +113,7 @@ export default function CustomerFAQPage() {
                     <HelpCircle className="h-7 w-7" />
                   </div>
                   <div>
-                    <p className="text-sm uppercase tracking-widest text-blue-100">Customer Portal</p>
-                    <h1 className="text-3xl font-bold leading-tight md:text-4xl">Frequently Asked Questions</h1>
+                    <h1 className="text-2xl font-bold leading-tight md:text-3xl">Frequently Asked Questions</h1>
                     <p className="text-blue-100 mt-1 flex items-center gap-2">
                       <HelpCircle className="h-4 w-4" />
                       Find answers to common questions about shipping, rates, and policies

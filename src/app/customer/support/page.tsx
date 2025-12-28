@@ -126,8 +126,7 @@ export default function CustomerSupportPage() {
                     <Headphones className="h-7 w-7" />
                   </div>
                   <div>
-                    <p className="text-sm uppercase tracking-widest text-blue-100">Customer Portal</p>
-                    <h1 className="text-3xl font-bold leading-tight md:text-4xl">Support Center</h1>
+                    <h1 className="text-2xl font-bold leading-tight md:text-3xl">Support Center</h1>
                     <p className="text-blue-100 mt-1 flex items-center gap-2">
                       <Headphones className="h-4 w-4" />
                       Manage your support tickets and get help
@@ -330,15 +329,15 @@ export default function CustomerSupportPage() {
 
         {/* New Ticket Form Modal */}
         {showForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowForm(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <div className="sticky top-0 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white p-6 flex items-center justify-between">
-                <h2 className="text-2xl font-bold">Create Support Ticket</h2>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 sm:p-6" onClick={() => setShowForm(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4" onClick={(e) => e.stopPropagation()}>
+              <div className="sticky top-0 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white p-4 sm:p-6 flex items-center justify-between">
+                <h2 className="text-lg sm:text-2xl font-bold">Create Support Ticket</h2>
                 <button onClick={() => setShowForm(false)} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <form onSubmit={submitTicket} className="p-6 space-y-4">
+              <form onSubmit={submitTicket} className="p-4 sm:p-6 space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Subject *</label>
                   <input
@@ -349,7 +348,7 @@ export default function CustomerSupportPage() {
                     required
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
                     <select
@@ -412,10 +411,10 @@ export default function CustomerSupportPage() {
 
         {/* Ticket Detail Modal */}
         {selectedTicket && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setSelectedTicket(null)}>
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <div className="sticky top-0 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white p-6 flex items-center justify-between">
-                <h2 className="text-xl font-bold">{selectedTicket.subject}</h2>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 sm:p-6" onClick={() => setSelectedTicket(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4" onClick={(e) => e.stopPropagation()}>
+              <div className="sticky top-0 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white p-4 sm:p-6 flex items-center justify-between">
+                <h2 className="text-lg sm:text-xl font-bold">{selectedTicket.subject}</h2>
                 <button onClick={() => setSelectedTicket(null)} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
                   <X className="h-5 w-5" />
                 </button>

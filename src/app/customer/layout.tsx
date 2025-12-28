@@ -162,7 +162,7 @@ export default function CustomerLayout({
                 <div className="text-xl font-bold tracking-tight">
                   Clean J Shipping
                 </div>
-                <div className="text-xs text-amber-400 font-medium">
+                <div className="text-xs font-medium text-[#E67919] mt-1">
                   Customer Portal
                 </div>
               </div>
@@ -302,16 +302,21 @@ export default function CustomerLayout({
               <div className="absolute left-0 top-0 h-full w-72 transform bg-gradient-to-b from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] text-white shadow-2xl transition-transform">
                 <div className="flex items-center justify-between border-b border-white/10 px-4 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 backdrop-blur-sm">
-                      <Image
-                        src="/images/Logo.png"
-                        alt="Clean J Shipping"
-                        width={36}
-                        height={36}
-                      />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 backdrop-blur-sm">
+                        <Image
+                          src="/images/Logo.png"
+                          alt="Clean J Shipping"
+                          width={36}
+                          height={36}
+                        />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold">Clean J Shipping</div>
+                        <div className="text-xs font-medium text-[#E67919] mt-0.5">
+                          Customer Portal
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm font-semibold">Customer Portal</div>
-                  </div>
                   <button
                     aria-label="Close sidebar"
                     onClick={() => setMobileOpen(false)}

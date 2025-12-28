@@ -1,0 +1,13 @@
+# Required Environment Variables for Production (Vercel)
+NEXTAUTH_URL=https://your-domain.vercel.app
+NEXTAUTH_SECRET=QkrwBAmplHLyoq4BoVjRmE0dsSKHYAWamnumM/foNCY=
+NODE_ENV=production
+
+# Database
+DATABASE_URL=mongodb://your-connection-string
+
+# Other services (add as needed)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASS=your-app-password

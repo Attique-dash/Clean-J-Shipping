@@ -128,8 +128,7 @@ export default function CustomerMessagesPage() {
                     <MessageSquare className="h-7 w-7" />
                   </div>
                   <div>
-                    <p className="text-sm uppercase tracking-widest text-blue-100">Customer Portal</p>
-                    <h1 className="text-3xl font-bold leading-tight md:text-4xl">Messages</h1>
+                    <h1 className="text-2xl font-bold leading-tight md:text-3xl">Messages</h1>
                     <p className="text-blue-100 mt-1 flex items-center gap-2">
                       <MessageSquare className="h-4 w-4" />
                       Chat with our support team

@@ -227,8 +227,7 @@ export default function CustomerDashboardPage() {
                     <Package className="h-7 w-7" />
                   </div>
                   <div>
-                    <p className="text-sm uppercase tracking-widest text-blue-100">Customer Portal</p>
-                    <h1 className="text-3xl font-bold leading-tight md:text-4xl">Dashboard</h1>
+                    <h1 className="text-2xl font-bold leading-tight md:text-3xl">Dashboard</h1>
                     <p className="text-blue-100 mt-1 flex items-center gap-2">
                       <Clock className="h-4 w-4" />
                       Last updated: Just now
@@ -251,7 +250,7 @@ export default function CustomerDashboardPage() {
               </h2>
             </div>
             <div className="p-6">
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <input
@@ -267,26 +266,28 @@ export default function CustomerDashboardPage() {
                     className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0f4d8a] focus:border-transparent"
                   />
                 </div>
-                <button
-                  onClick={handleTrackPackage}
-                  disabled={!trackingNumber.trim()}
-                  className="px-6 py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-lg font-semibold hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  <MapPin className="h-5 w-5" />
-                  Track
-                </button>
-                {showTracker && (
+                <div className="flex gap-3">
                   <button
-                    onClick={() => {
-                      setShowTracker(false);
-                      setTrackingNumber("");
-                      setTrackingError(null);
-                    }}
-                    className="px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                    onClick={handleTrackPackage}
+                    disabled={!trackingNumber.trim()}
+                    className="px-6 py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-lg font-semibold hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    <X className="h-5 w-5" />
+                    <MapPin className="h-5 w-5" />
+                    Track
                   </button>
-                )}
+                  {showTracker && (
+                    <button
+                      onClick={() => {
+                        setShowTracker(false);
+                        setTrackingNumber("");
+                        setTrackingError(null);
+                      }}
+                      className="px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
               </div>
               
               {trackingError && (
