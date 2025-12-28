@@ -509,15 +509,6 @@ export default function CustomerPackagesPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end space-x-2">
-                          <a
-                            href={`/track?q=${encodeURIComponent(p.tracking_number)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center px-3 py-2 border border-[#0891b2] text-[#0891b2] rounded-lg hover:bg-cyan-50 transition-all text-sm font-medium"
-                          >
-                            <ExternalLink className="h-4 w-4 mr-1" />
-                            Track
-                          </a>
                           {p.hasInvoice && p.invoiceNumber && (
                             <div className="flex items-center gap-1">
                               <button

@@ -19,8 +19,13 @@ export async function GET(req: Request) {
   startOfWeek.setDate(now.getDate() - 7);
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  // Total packages by status
+  // Total packages by status (excluding deleted packages)
   const statusCounts = await Package.aggregate([
+    {
+      $match: {
+        status: { $ne: "Deleted" }
+      }
+    },
     {
       $group: {
         _id: "$status",
@@ -28,6 +33,9 @@ export async function GET(req: Request) {
       }
     }
   ]);
+
+  // Calculate total packages (sum of all status counts)
+  const totalPackages = statusCounts.reduce((sum, item) => sum + item.count, 0);
 
   // Today's statistics
   const todayStats = await Package.aggregate([
@@ -140,6 +148,7 @@ export async function GET(req: Request) {
   const readyToShip = statusCounts.find(item => item._id === "ready_to_ship")?.count || 0;
 
   return NextResponse.json({
+    totalPackages,
     statusCounts: statusCounts.reduce((acc, item) => {
       acc[item._id || "Unknown"] = item.count;
       return acc;

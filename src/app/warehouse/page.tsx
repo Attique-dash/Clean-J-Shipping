@@ -140,7 +140,7 @@ export default function WarehouseDashboard() {
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <StatCard 
                       label="Total Packages" 
-                      value={String(analytics?.today?.packages ?? 0)} 
+                      value={String(analytics?.totalPackages ?? 0)} 
                       color="blue"
                       icon={<Package className="w-5 h-5" />}
                     />

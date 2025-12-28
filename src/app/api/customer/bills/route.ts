@@ -190,16 +190,29 @@ export async function GET(req: Request) {
     });
 
     // Combine both types of bills, with admin invoices taking precedence
-    // Only include package bills that don't have corresponding admin invoices
-    const invoiceTrackingNumbers = new Set(invoiceBills.map(b => b.tracking_number));
+    // Create a map to track the most recent status for each tracking number
+    const billStatusMap = new Map<string, { bill: Bill; source: string; lastUpdated: Date }>();
     
-    // Filter out package bills that have corresponding admin invoices
-    const filteredPackageBills = packageBills.filter(bill => 
-      !invoiceTrackingNumbers.has(bill.tracking_number) && bill.amount_due > 0
-    );
+    // Add admin invoices first (highest priority)
+    invoiceBills.forEach(bill => {
+      const lastUpdated = new Date(bill.last_updated || 0);
+      billStatusMap.set(bill.tracking_number, { bill, source: 'admin', lastUpdated });
+    });
     
-    const bills = [...invoiceBills, ...filteredPackageBills];
+    // Add package bills only if no admin invoice exists or if package bill is more recent
+    packageBills.forEach(bill => {
+      const lastUpdated = new Date(bill.last_updated || 0);
+      const existing = billStatusMap.get(bill.tracking_number);
+      
+      if (!existing || lastUpdated > existing.lastUpdated) {
+        billStatusMap.set(bill.tracking_number, { bill, source: 'package', lastUpdated });
+      }
+    });
     
+    // Convert map back to array, sorted by last updated date
+    const bills = Array.from(billStatusMap.values())
+      .map(({ bill }) => bill)
+      .sort((a, b) => new Date(b.last_updated || 0).getTime() - new Date(a.last_updated || 0).getTime());
     
     return NextResponse.json({ bills });
   } catch (error) {

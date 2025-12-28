@@ -1,16 +1,15 @@
 // src/app/api/warehouse/packages/route.ts
 import { NextResponse, NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+import { getAuthFromRequest } from '@/lib/rbac';
 import { connectToDatabase } from '@/lib/db';
 import Package from '@/models/Package';
 
 // Get all packages
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || !['admin', 'warehouse'].includes(session.user.role)) {
-      return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    const auth = await getAuthFromRequest(request);
+    if (!auth || !['admin', 'warehouse'].includes(auth.role)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     await connectToDatabase();
@@ -37,6 +36,11 @@ export async function GET(request: NextRequest) {
       ];
     }
 
+    // Exclude deleted packages
+    if (!query.status) {
+      query.status = { $ne: 'Deleted' };
+    }
+
     const packages = await Package.find(query)
       .sort({ receivedAt: -1 })
       .limit(limit)
@@ -53,8 +57,8 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error fetching packages:', error);
-    return new NextResponse(
-      JSON.stringify({ error: 'Failed to fetch packages' }),
+    return NextResponse.json(
+      { error: 'Failed to fetch packages' },
       { status: 500 }
     );
   }
@@ -63,9 +67,9 @@ export async function GET(request: NextRequest) {
 // Create a new package
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || !['admin', 'warehouse'].includes(session.user.role)) {
-      return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    const auth = await getAuthFromRequest(request);
+    if (!auth || !['admin', 'warehouse'].includes(auth.role)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const data = await request.json();
