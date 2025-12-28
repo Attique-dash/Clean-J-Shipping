@@ -11,6 +11,7 @@ const StatusPieChart = dynamic(
 );
 
 type Analytics = {
+  totalPackages?: number;
   statusCounts: Record<string, number>;
   today: { packages: number; weight: number; delivered?: number };
   weeklyTrend: { _id: string; count: number }[];
