@@ -161,7 +161,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Section */}
-        <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl mb-8">
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 admin-header p-6 text-white shadow-2xl mb-8">
           <div className="absolute inset-0 bg-white/10" />
           <div className="relative flex flex-col gap-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -170,9 +170,9 @@ export default function AdminDashboard() {
                   <BarChart3 className="h-7 w-7" />
                 </div>
                 <div>
-                  <p className="text-sm uppercase tracking-widest text-blue-100">Admin Dashboard</p>
+                  <p className="text-sm uppercase tracking-widest text-gray-300-custom">Admin Dashboard</p>
                   <h1 className="text-3xl font-bold leading-tight md:text-4xl">Dashboard</h1>
-                  <p className="text-blue-100 mt-1">
+                  <p className="text-gray-300-custom mt-1">
                     Last updated: {lastUpdated.toLocaleTimeString()}
                   </p>
                 </div>
@@ -181,9 +181,9 @@ export default function AdminDashboard() {
                 <button
                   onClick={fetchStats}
                   disabled={isLoading}
-                  className="group flex items-center gap-2 rounded-lg bg-white/20 backdrop-blur px-3 py-2.5 sm:px-4 font-medium text-white shadow-md ring-1 ring-white/30 transition-all hover:bg-white/30 hover:shadow-lg disabled:opacity-50 text-sm sm:text-base"
+                  className="group flex items-center gap-2 rounded-lg bg-white border border-gray-200 px-3 py-2.5 sm:px-4 font-medium text-gray-700 shadow-md transition-all hover:bg-gray-50 hover:shadow-lg disabled:opacity-50 text-sm sm:text-base"
                 >
-                  <RefreshCw className={`h-4 w-4 transition-transform ${isLoading ? 'animate-spin' : 'group-hover:rotate-180'}`} />
+                  <RefreshCw className={`h-4 w-4 transition-transform text-gray-600 ${isLoading ? 'animate-spin' : 'group-hover:rotate-180'}`} />
                   <span className="hidden sm:inline">Refresh</span>
                 </button>
 
@@ -207,7 +207,7 @@ export default function AdminDashboard() {
                       alert(err instanceof Error ? err.message : 'Failed to export data');
                     }
                   }}
-                  className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#E67919] to-[#d46a0f] px-4 py-3 sm:px-6 font-medium text-white shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 text-sm sm:text-base"
+                  className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#FF8C00] to-[#FF8C00] px-4 py-3 sm:px-6 font-medium text-white shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 text-sm sm:text-base"
                 >
                   <Download className="h-4 w-4 sm:h-5 sm:w-5" />
                   <span className="hidden sm:inline">Export</span>
@@ -220,7 +220,7 @@ export default function AdminDashboard() {
 
         {/* Tab Navigation */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
+          <div className="admin-section-header px-6 py-4">
             <h2 className="text-xl font-semibold text-white flex items-center gap-2">
               <Activity className="w-5 h-5" />
               Dashboard Navigation
@@ -238,7 +238,7 @@ export default function AdminDashboard() {
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2.5 font-medium transition-all ${
                     activeTab === tab.id
-                      ? 'bg-white text-blue-600 shadow-md ring-2 ring-blue-600/20'
+                      ? 'bg-white text-primary-teal shadow-md ring-2 ring-[#20B2AA]/20 border border-[#20B2AA]'
                       : 'text-gray-600 hover:bg-white/60 hover:text-gray-900'
                   }`}
                 >
@@ -252,7 +252,7 @@ export default function AdminDashboard() {
 
         {/* Main Stats Grid */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
+          <div className="admin-section-header px-6 py-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-white flex items-center gap-2">
                 <BarChart3 className="w-5 h-5" />
@@ -299,7 +299,7 @@ export default function AdminDashboard() {
 
         {/* Main Content Grid */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
+          <div className="admin-section-header px-6 py-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-white flex items-center gap-2">
                 <Activity className="w-5 h-5" />
@@ -590,6 +590,13 @@ const StatCard = ({ title, value, change, icon, gradient }: {
       <div className="mt-4">
         <p className="text-sm font-medium text-gray-600">{title}</p>
         <p className="mt-1 text-3xl font-bold text-gray-900">{value}</p>
+      </div>
+      <div className="absolute bottom-2 right-2">
+        <div className={`text-xs font-medium ${
+          isPositive ? 'text-emerald-600' : 'text-red-600'
+        }`}>
+          {Math.abs(change)}%
+        </div>
       </div>
     </div>
   );

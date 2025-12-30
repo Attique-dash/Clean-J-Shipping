@@ -25,6 +25,7 @@ import {
   Headphones,
   Gift,
   ShoppingCart,
+  MapPin,
 } from "lucide-react";
 
 export default function CustomerLayout({
@@ -78,6 +79,13 @@ export default function CustomerLayout({
       icon: Package,
       description: "View and track your packages",
       color: "from-yellow-500 to-yellow-600",
+    },
+    {
+      href: "/customer/addresses",
+      label: "Addresses",
+      icon: MapPin,
+      description: "Manage your shipping addresses for air and sea delivery",
+      color: "from-orange-500 to-orange-600",
     },
     {
       href: "/customer/bills",

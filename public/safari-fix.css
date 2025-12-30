@@ -1,0 +1,125 @@
+/* Safari-specific CSS fixes for Clean J Shipping */
+
+/* Fix for Safari flexbox rendering issues */
+@supports (-webkit-appearance: none) {
+  .flex {
+    display: -webkit-flex;
+    display: flex;
+  }
+  
+  .grid {
+    display: -webkit-grid;
+    display: grid;
+  }
+}
+
+/* Fix for Safari gradient rendering */
+@supports (-webkit-appearance: none) {
+  .bg-gradient-to-r {
+    background-image: -webkit-linear-gradient(left, var(--tw-gradient-stops));
+    background-image: linear-gradient(to right, var(--tw-gradient-stops));
+  }
+  
+  .bg-gradient-to-b {
+    background-image: -webkit-linear-gradient(top, var(--tw-gradient-stops));
+    background-image: linear-gradient(to bottom, var(--tw-gradient-stops));
+  }
+}
+
+/* Fix for Safari transform issues */
+@supports (-webkit-appearance: none) {
+  .transform {
+    -webkit-transform: var(--tw-transform);
+    transform: var(--tw-transform);
+  }
+  
+  .hover\:scale-103:hover {
+    -webkit-transform: scale(1.03);
+    transform: scale(1.03);
+  }
+  
+  .hover\:translate-y-1:hover {
+    -webkit-transform: translateY(-0.25rem);
+    transform: translateY(-0.25rem);
+  }
+}
+
+/* Fix for Safari transition issues */
+@supports (-webkit-appearance: none) {
+  .transition {
+    -webkit-transition: all 0.3s ease;
+    transition: all 0.3s ease;
+  }
+  
+  .transition-transform {
+    -webkit-transition: -webkit-transform 0.5s ease;
+    -webkit-transition: transform 0.5s ease;
+    transition: transform 0.5s ease;
+  }
+}
+
+/* Fix for Safari shadow issues */
+@supports (-webkit-appearance: none) {
+  .shadow-md {
+    -webkit-box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+  
+  .shadow-xl {
+    -webkit-box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+}
+
+/* Fix for Safari border-radius issues */
+@supports (-webkit-appearance: none) {
+  .rounded-full {
+    -webkit-border-radius: 9999px;
+    border-radius: 9999px;
+  }
+  
+  .rounded-2xl {
+    -webkit-border-radius: 1rem;
+    border-radius: 1rem;
+  }
+  
+  .rounded-3xl {
+    -webkit-border-radius: 1.5rem;
+    border-radius: 1.5rem;
+  }
+}
+
+/* Fix for Safari text rendering */
+@supports (-webkit-appearance: none) {
+  .font-extrabold {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-weight: 800;
+  }
+  
+  .font-semibold {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-weight: 600;
+  }
+}
+
+/* Fix for Safari z-index stacking issues */
+@supports (-webkit-appearance: none) {
+  .relative {
+    position: relative;
+    z-index: 1;
+  }
+  
+  .z-10 {
+    z-index: 10;
+  }
+}
+
+/* Fix for Safari overflow issues */
+@supports (-webkit-appearance: none) {
+  .overflow-hidden {
+    overflow: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+}

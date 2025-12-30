@@ -2,11 +2,21 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717; /* dark text for light background */
+  --foreground: #171717;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  
+  /* Custom color variables for consistent theming */
+  --primary-dark-blue: #1A366D;
+  --primary-light-blue: #2B508C;
+  --primary-teal: #20B2AA;
+  --primary-orange: #E67919;
+  --primary-orange-dark: #FF8C00;
+  --accent-teal: #0E7893;
+  --text-light-gray: #94a3b8;
+  --text-gray-300: #d1d5db;
 }
 
 /* Keep a light theme even when system prefers dark to avoid unwanted black background */
@@ -17,10 +27,28 @@
   }
 }
 
+/* Safari-specific fixes */
+@supports (-webkit-appearance: none) {
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Fix for Safari rendering issues */
+* {
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  /* Safari-specific fixes */
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
 }
 
 /* Custom orange scrollbar for elements using class `scrollbar-orange` */
@@ -59,15 +87,71 @@ body {
   margin: 8px 0;
 }
 .sidebar-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.3);
   border-radius: 3px;
   transition: background 0.2s ease-in-out;
 }
 .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.5);
 }
 /* Custom scrollbar for Firefox */
 .sidebar-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+/* Additional utility classes for consistent styling */
+.bg-primary-dark-blue {
+  background-color: var(--primary-dark-blue);
+}
+
+.bg-primary-light-blue {
+  background-color: var(--primary-light-blue);
+}
+
+.bg-primary-teal {
+  background-color: var(--primary-teal);
+}
+
+.bg-primary-orange {
+  background-color: var(--primary-orange);
+}
+
+.bg-primary-orange-dark {
+  background-color: var(--primary-orange-dark);
+}
+
+.text-primary-teal {
+  color: var(--primary-teal);
+}
+
+.text-primary-orange {
+  color: var(--primary-orange);
+}
+
+.text-light-gray {
+  color: var(--text-light-gray);
+}
+
+.text-gray-300-custom {
+  color: var(--text-gray-300);
+}
+
+/* Ensure proper color rendering across browsers */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Fix for any potential color inheritance issues */
+.admin-sidebar {
+  background: var(--primary-dark-blue) !important;
+}
+
+.admin-header {
+  background: var(--primary-dark-blue) !important;
+}
+
+.admin-section-header {
+  background: var(--primary-teal) !important;
 }

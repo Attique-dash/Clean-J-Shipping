@@ -1,7 +1,7 @@
-// src/app/api/admin/customers/route.ts
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
+import { ShippingAddress } from "@/models/ShippingAddress";
 import { hashPassword } from "@/lib/auth";
 import { getAuthFromRequest } from "@/lib/rbac";
 import { Types } from "mongoose";
@@ -54,8 +54,12 @@ export async function POST(req: Request) {
   }
   const exists = await User.findOne({ email });
   if (exists) return NextResponse.json({ error: "Email already exists" }, { status: 409 });
-  const userCode = `C${Date.now()}`;
+  
+  // Generate unique user code
+  const userCode = `C${Date.now()}${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
   const passwordHash = await hashPassword(passwordStr);
+  
+  // Create user
   const created = await User.create({
     userCode,
     firstName,
@@ -70,6 +74,30 @@ export async function POST(req: Request) {
     accountStatus: accountStatus || "active",
     role: "customer",
   });
+
+  // Create default shipping address if address provided
+  if (address) {
+    try {
+      await ShippingAddress.create({
+        userId: created._id,
+        label: "Home",
+        contactName: `${firstName} ${lastName}`,
+        phone: phone || "",
+        address: address,
+        city: "",
+        state: "",
+        zipCode: "",
+        country: country || "Jamaica",
+        isDefault: true,
+        isActive: true,
+        addressType: "both",
+      });
+    } catch (shippingError) {
+      console.error("Failed to create shipping address for admin-created customer:", shippingError);
+      // Don't fail the user creation if shipping address creation fails
+    }
+  }
+  
   return NextResponse.json({ ok: true, id: created._id, userCode });
 }
 

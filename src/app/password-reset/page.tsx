@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
-import { FaEnvelope, FaLock, FaPlane } from "react-icons/fa";
+import { FaEnvelope, FaLock, FaPlane, FaShieldAlt } from "react-icons/fa";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -12,14 +12,20 @@ function PasswordResetPageContent() {
   const token = params?.get("t") || "";
 
   const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<"request" | "verify" | "reset">("request");
 
   useEffect(() => {
     setMessage(null);
     setError(null);
+    if (token) {
+      setStep("reset");
+    }
   }, [token]);
 
   async function onRequest(e: FormEvent) {
@@ -35,7 +41,30 @@ function PasswordResetPageContent() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Request failed");
-      setMessage("If the email exists, a reset link has been sent.");
+      setMessage("If the email exists, a reset OTP has been sent.");
+      setStep("verify");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onVerifyOtp(e: FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/auth/password/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Verification failed");
+      setMessage("OTP verified successfully. Please set your new password.");
+      setStep("reset");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
     } finally {
@@ -48,15 +77,31 @@ function PasswordResetPageContent() {
     setLoading(true);
     setError(null);
     setMessage(null);
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      setLoading(false);
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/auth/password/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ token: token || otp, password, email }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Reset failed");
       setMessage("Password reset successful. You can now log in.");
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 2000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
     } finally {
@@ -128,13 +173,17 @@ function PasswordResetPageContent() {
 
             <div className="mx-auto w-full max-w-sm">
               <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-[#0E7893] to-[#1a9bb8] bg-clip-text text-transparent">
-                {token ? "Reset Password" : "Forgot Password?"}
+                {step === "request" && "Forgot Password?"}
+                {step === "verify" && "Verify OTP"}
+                {step === "reset" && "Reset Password"}
               </h1>
-              <p className="mt-2 text-sm text-gray-600">
-                {token
-                  ? "Enter your new password to continue."
-                  : "Enter your email and we'll send you a reset link."}
-              </p>
+              
+              {/* Progress indicator */}
+              <div className="mt-4 flex items-center justify-center space-x-2">
+                <div className={`w-8 h-1 rounded-full ${step === "request" ? "bg-[#E67919]" : "bg-green-500"}`}></div>
+                <div className={`w-8 h-1 rounded-full ${step === "verify" ? "bg-[#E67919]" : step === "reset" ? "bg-green-500" : "bg-gray-300"}`}></div>
+                <div className={`w-8 h-1 rounded-full ${step === "reset" ? "bg-[#E67919]" : "bg-gray-300"}`}></div>
+              </div>
 
               {error && (
                 <div className="mt-4 rounded-lg bg-red-50 border border-red-200 p-3">
@@ -157,7 +206,7 @@ function PasswordResetPageContent() {
                 </div>
               )}
 
-              {!token ? (
+              {step === "request" && (
                 <form onSubmit={onRequest} className="mt-6 space-y-5">
                   <div className="group">
                     <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
@@ -190,7 +239,7 @@ function PasswordResetPageContent() {
                       </>
                     ) : (
                       <>
-                        Send Reset Link
+                        Send OTP
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
@@ -198,7 +247,51 @@ function PasswordResetPageContent() {
                     )}
                   </button>
                 </form>
-              ) : (
+              )}
+
+              {step === "verify" && (
+                <form onSubmit={onVerifyOtp} className="mt-6 space-y-5">
+                  <div className="group">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Enter OTP</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <FaShieldAlt className="text-gray-400 group-focus-within:text-[#E67919] transition-colors" />
+                      </div>
+                      <input
+                        className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 pl-11 pr-4 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E67919] focus:border-transparent focus:bg-white transition-all duration-200"
+                        type="text"
+                        placeholder="Enter 6-digit OTP"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        maxLength={6}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    disabled={loading}
+                    className="w-full rounded-xl bg-gradient-to-r from-[#E67919] to-[#f58a2e] py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <>
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Verifying...
+                      </>
+                    ) : (
+                      <>
+                        Verify OTP
+                        <FaShieldAlt className="w-5 h-5" />
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
+
+              {step === "reset" && (
                 <form onSubmit={onReset} className="mt-6 space-y-5">
                   <div className="group">
                     <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
@@ -212,6 +305,24 @@ function PasswordResetPageContent() {
                         placeholder="Enter new password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        required
+                        minLength={6}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="group">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <FaLock className="text-gray-400 group-focus-within:text-[#E67919] transition-colors" />
+                      </div>
+                      <input
+                        className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 pl-11 pr-4 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E67919] focus:border-transparent focus:bg-white transition-all duration-200"
+                        type="password"
+                        placeholder="Confirm new password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
                         required
                         minLength={6}
                       />

@@ -139,9 +139,9 @@ export default function AdminLayout({
     <div className="flex h-screen w-full overflow-hidden bg-gray-50">
       {/* Desktop Sidebar - Fixed */}
       <aside className="hidden md:flex md:flex-shrink-0">
-        <div className="flex w-72 flex-col bg-gradient-to-b from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] text-white shadow-2xl">
+        <div className="flex w-72 flex-col admin-sidebar text-white shadow-2xl">
           {/* Header */}
-          <div className="border-b border-white/10 bg-gradient-to-r from-[#0e447d] to-[#0c3a6b] px-6 py-5">
+          <div className="border-b border-white/10 admin-header px-6 py-5">
             <div className="flex items-center gap-3">
               {/* Logo Box */}
               <div className="flex h-12 w-12 items-center justify-center rounded-md bg-white/10 backdrop-blur-sm">
@@ -158,7 +158,7 @@ export default function AdminLayout({
                 <div className="text-xl font-bold tracking-tight">
                   Clean J Shipping
                 </div>
-                <div className="text-xs text-amber-400 font-medium">
+                <div className="text-xs text-gray-300 font-medium">
                   Admin Portal
                 </div>
               </div>
@@ -179,8 +179,8 @@ export default function AdminLayout({
                   href={item.href}
                   className={`group relative w-full flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 cursor-pointer ${
                     isActive
-                      ? "bg-white/15 text-white shadow-lg backdrop-blur-sm"
-                      : "text-blue-100 hover:bg-white/10 hover:text-white"
+                      ? "bg-primary-light-blue text-white shadow-lg backdrop-blur-sm"
+                      : "text-gray-300-custom hover:bg-white/10 hover:text-white"
                   }`}
                   title={item.description}
                 >
@@ -196,7 +196,7 @@ export default function AdminLayout({
                   <span className="flex-1 text-left">{item.label}</span>
                   {isActive && (
                     <>
-                      <div className="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-white shadow-lg" />
+            <div className="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-white shadow-lg" />
                       <ChevronRight className="h-4 w-4 text-white" />
                     </>
                   )}

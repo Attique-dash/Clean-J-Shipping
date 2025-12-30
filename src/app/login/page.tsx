@@ -163,14 +163,14 @@ function LoginPageContent() {
         <div className="mx-auto grid w-full grid-cols-1 items-stretch gap-0 overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 backdrop-blur-sm sm:max-w-3xl md:max-w-5xl md:grid-cols-2 transform hover:shadow-3xl transition-shadow duration-300">
           
           {/* Left: illustrative section with logo */}
-          <div className="hidden md:flex relative bg-gradient-to-br from-[#1a9bb8] to-[#0E7893] h-full flex-col justify-between p-10">
+          <div className="hidden md:flex relative bg-gradient-to-br from-[#0E7893] to-[#E67919] h-full flex-col justify-between p-10">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg transform hover:rotate-12 transition-transform duration-300">
                 <FaPlane className="text-[#E67919] text-2xl" />
               </div>
               <div>
                 <h2 className="text-white font-bold text-2xl">Clean J Shipping</h2>
-                <p className="text-cyan-100 text-xs">Logistics & Delivery</p>
+                <p className="text-white/80 text-xs">Logistics & Delivery</p>
               </div>
             </div>
 
@@ -195,7 +195,7 @@ function LoginPageContent() {
 
             <div className="space-y-3">
               <h3 className="text-white font-bold text-xl">Welcome to our platform</h3>
-              <p className="text-cyan-100 text-sm leading-relaxed">
+              <p className="text-white/80 text-sm leading-relaxed">
                 Manage your shipments, track deliveries, and streamline your logistics operations all in one place.
               </p>
             </div>
@@ -204,16 +204,16 @@ function LoginPageContent() {
           {/* Right: form */}
           <div className="bg-white px-8 py-8 md:px-10 md:py-10">
             <div className="flex md:hidden items-center gap-3 justify-center mb-6">
-              <div className="w-10 h-10 bg-gradient-to-br from-[#0E7893] to-[#1a9bb8] rounded-xl flex items-center justify-center shadow-lg">
+              <div className="w-10 h-10 bg-gradient-to-br from-[#0E7893] to-[#E67919] rounded-xl flex items-center justify-center shadow-lg">
                 <FaPlane className="text-white text-xl" />
               </div>
               <div>
-                <h2 className="font-bold text-xl text-[#E67919]">Clean J Shipping</h2>
+                <h2 className="font-bold text-xl text-[#1abc9c]">Clean J Shipping</h2>
               </div>
             </div>
 
             <div className="mx-auto w-full max-w-sm">
-              <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-[#0E7893] to-[#1a9bb8] bg-clip-text text-transparent">
+              <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-[#3498db] to-[#1abc9c] bg-clip-text text-transparent">
                 Welcome Back!
               </h1>
               <p className="mt-2 text-sm text-gray-600">Please enter your details to sign in and continue.</p>
@@ -293,7 +293,7 @@ function LoginPageContent() {
 
                 <button
                   disabled={loading}
-                  className="w-full rounded-xl bg-gradient-to-r from-[#E67919] to-[#f58a2e] py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
+                  className="w-full rounded-xl bg-gradient-to-r from-[#E67919] to-[#E67919] py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>
@@ -321,6 +321,18 @@ function LoginPageContent() {
                 <div className="relative flex justify-center text-xs">
                   <span className="px-4 bg-white text-gray-500">Secure Login</span>
                 </div>
+              </div>
+
+              <div className="mt-6 text-center">
+                <p className="text-sm text-gray-600">
+                  Don't have an account?{" "}
+                  <Link 
+                    href="/register" 
+                    className="text-[#0E7893] hover:text-[#E67919] font-semibold transition-colors hover:underline"
+                  >
+                    Sign Up
+                  </Link>
+                </p>
               </div>
             </div>
           </div>

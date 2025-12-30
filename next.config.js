@@ -31,7 +31,7 @@ const nextConfig = {
   
   // Turbopack configuration
   turbopack: {
-    root: './',
+    root: process.cwd(),
   },
 
   // CORS headers for warehouse API
@@ -74,15 +74,31 @@ const nextConfig = {
             test: /[\\/]node_modules[\\/]/,
             name: 'vendors',
             chunks: 'all',
+            priority: 10,
           },
           common: {
             name: 'common',
             minChunks: 2,
             chunks: 'all',
             enforce: true,
+            priority: 5,
+          },
+          pdf: {
+            test: /[\\/]node_modules[\\/](pdfkit|jspdf|@react-pdf)[\\/]/,
+            name: 'pdf',
+            chunks: 'all',
+            priority: 15,
+          },
+          charts: {
+            test: /[\\/]node_modules[\\/](chart\.js|recharts|react-chartjs)[\\/]/,
+            name: 'charts',
+            chunks: 'all',
+            priority: 15,
           },
         },
       },
+      // Limit parallel compilation to reduce memory usage
+      parallelism: 1,
     };
 
     // Reduce memory usage during compilation

@@ -61,12 +61,27 @@ export async function sendPasswordResetEmail(opts: {
   to: string;
   firstName?: string;
   resetUrl: string;
+  isOtp?: boolean;
 }) {
   const t = getTransporter();
   if (!t) return { sent: false, reason: "Email not configured" } as const;
-  const { to, firstName, resetUrl } = opts;
+  const { to, firstName, resetUrl, isOtp } = opts;
   const subject = `Reset your password for ${APP_NAME}`;
-  const html = `
+  
+  const html = isOtp ? `
+  <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111">
+    <h2 style="margin:0 0 12px 0;">Password reset request</h2>
+    <p>Hi ${firstName || "there"},</p>
+    <p>We received a request to reset your password for ${APP_NAME}. If you didn't request this, you can ignore this email.</p>
+    <div style="background:#f3f4f6;border-radius:8px;padding:16px;margin:16px 0;text-align:center;">
+      <p style="margin:0 0 8px 0;color:#374151;font-size:14px;">Your verification code is:</p>
+      <div style="font-size:32px;font-weight:bold;letter-spacing:2px;color:#E67919;background:#fff;padding:12px;border-radius:4px;border:2px solid #E67919;">
+        ${resetUrl.replace('Your OTP is: ', '')}
+      </div>
+      <p style="margin:8px 0 0 0;color:#6b7280;font-size:12px;">This code will expire in 10 minutes</p>
+    </div>
+    <p>Enter this code on the password reset page to continue.</p>
+  </div>` : `
   <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111">
     <h2 style="margin:0 0 12px 0;">Password reset request</h2>
     <p>Hi ${firstName || "there"},</p>
@@ -77,6 +92,7 @@ export async function sendPasswordResetEmail(opts: {
     <p>If the button doesn't work, copy and paste this link into your browser:</p>
     <p style="word-break:break-all;color:#374151">${resetUrl}</p>
   </div>`;
+  
   await t.sendMail({ from: EMAIL_USER, to, subject, html });
   return { sent: true } as const;
 }
