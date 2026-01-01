@@ -239,7 +239,7 @@ export default function RegisterPage() {
         <div className="mx-auto grid w-full grid-cols-1 items-stretch gap-0 overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 backdrop-blur-sm sm:max-w-3xl md:max-w-6xl md:grid-cols-2 transform hover:shadow-3xl transition-shadow duration-300">
           
           {/* Left: illustrative section */}
-          <div className="hidden md:flex relative bg-gradient-to-br from-[#1a9bb8] to-[#0E7893] h-full flex-col justify-between p-10">
+          <div className="hidden md:flex relative bg-gradient-to-br from-[#0E7893] to-[#E67919] h-full flex-col justify-between p-10">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg transform hover:rotate-12 transition-transform duration-300">
                 <FaPlane className="text-[#E67919] text-2xl" />

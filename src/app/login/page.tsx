@@ -213,7 +213,7 @@ function LoginPageContent() {
             </div>
 
             <div className="mx-auto w-full max-w-sm">
-              <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-[#3498db] to-[#1abc9c] bg-clip-text text-transparent">
+              <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-[#0E7893] to-[#1a9bb8] bg-clip-text text-transparent">
                 Welcome Back!
               </h1>
               <p className="mt-2 text-sm text-gray-600">Please enter your details to sign in and continue.</p>
