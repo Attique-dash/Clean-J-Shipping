@@ -6,6 +6,8 @@ import { FileText, DollarSign, Calendar, CheckCircle, XCircle, Clock, ExternalLi
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { toast } from "react-toastify";
 import Link from "next/link";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import EnhancedCurrencySelector from "@/components/EnhancedCurrencySelector";
 
 type Bill = {
   _id?: string;
@@ -32,6 +34,23 @@ export default function CustomerBillsPage() {
   const [cart, setCart] = useState<Set<string>>(new Set());
   const [usePayPal, setUsePayPal] = useState(false);
   const [paypalOrderId, setPaypalOrderId] = useState<string | null>(null);
+  const { selectedCurrency, setSelectedCurrency, convertAmount, formatCurrency } = useCurrency();
+
+  // Helper function to convert and format amounts
+  const convertAndFormatAmount = async (amount: number, fromCurrency: string) => {
+    if (fromCurrency === selectedCurrency) {
+      return formatCurrency(amount, selectedCurrency);
+    }
+    try {
+      const convertedAmount = await convertAmount(amount, fromCurrency || "USD");
+      return formatCurrency(convertedAmount, selectedCurrency);
+    } catch (error) {
+      return formatCurrency(amount, selectedCurrency);
+    }
+  };
+
+  // State for converted amounts
+  const [convertedAmounts, setConvertedAmounts] = useState<Map<string, string>>(new Map());
 
   // Payment form state
   const [paymentForm, setPaymentForm] = useState({
@@ -86,14 +105,93 @@ export default function CustomerBillsPage() {
     }
   }, []);
 
+  // Convert amounts when currency changes or items load
+  useEffect(() => {
+    const convertAllAmounts = async () => {
+      const newConvertedAmounts = new Map<string, string>();
+      
+      for (const item of items) {
+        const key = item.tracking_number;
+        let convertedAmount;
+        if (item.currency === selectedCurrency) {
+          convertedAmount = formatCurrency(item.amount_due, selectedCurrency);
+        } else {
+          try {
+            const converted = await convertAmount(item.amount_due, item.currency || "USD");
+            convertedAmount = formatCurrency(converted, selectedCurrency);
+          } catch (error) {
+            convertedAmount = formatCurrency(item.amount_due, selectedCurrency);
+          }
+        }
+        newConvertedAmounts.set(key, convertedAmount);
+      }
+      
+      setConvertedAmounts(newConvertedAmounts);
+    };
+
+    if (items.length > 0) {
+      convertAllAmounts();
+    }
+  }, [items, selectedCurrency, convertAmount, formatCurrency]);
+
   const totalDue = items.reduce((s, it) => s + (Number(it.amount_due) || 0), 0);
   const pendingBills = items.filter(b => b.payment_status === 'submitted' || b.payment_status === 'none');
   const reviewedBills = items.filter(b => b.payment_status === 'reviewed');
   const rejectedBills = items.filter(b => b.payment_status === 'rejected');
 
+  // Calculate converted total due
+  const [convertedTotalDue, setConvertedTotalDue] = useState<string>("");
+
+  useEffect(() => {
+    const convertTotalDue = async () => {
+      if (items.length === 0) {
+        setConvertedTotalDue("");
+        return;
+      }
+
+      try {
+        let total = 0;
+        for (const item of items) {
+          const converted = await convertAmount(item.amount_due, item.currency || "USD");
+          total += converted;
+        }
+        setConvertedTotalDue(formatCurrency(total, selectedCurrency));
+      } catch (error) {
+        setConvertedTotalDue(formatCurrency(totalDue, selectedCurrency));
+      }
+    };
+
+    convertTotalDue();
+  }, [items, selectedCurrency, convertAmount, formatCurrency, totalDue]);
+
   // Cart functionality
   const cartItems = items.filter(bill => cart.has(bill.tracking_number));
   const cartTotal = cartItems.reduce((sum, bill) => sum + (Number(bill.amount_due) || 0), 0);
+
+  // Calculate converted cart total
+  const [convertedCartTotal, setConvertedCartTotal] = useState<string>("");
+
+  useEffect(() => {
+    const convertCartTotal = async () => {
+      if (cartItems.length === 0) {
+        setConvertedCartTotal("");
+        return;
+      }
+
+      try {
+        let total = 0;
+        for (const item of cartItems) {
+          const converted = await convertAmount(item.amount_due, item.currency || "USD");
+          total += converted;
+        }
+        setConvertedCartTotal(formatCurrency(total, selectedCurrency));
+      } catch (error) {
+        setConvertedCartTotal(formatCurrency(cartTotal, selectedCurrency));
+      }
+    };
+
+    convertCartTotal();
+  }, [cartItems, selectedCurrency, convertAmount, formatCurrency]);
 
   const toggleCartItem = (trackingNumber: string) => {
     setCart(prev => {
@@ -335,6 +433,18 @@ export default function CustomerBillsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
+                  <EnhancedCurrencySelector
+                    selectedCurrency={selectedCurrency}
+                    onCurrencyChange={setSelectedCurrency}
+                    className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                  />
+                  <button
+                    onClick={() => load()}
+                    className="flex items-center space-x-2 px-6 py-3 bg-white/15 backdrop-blur-sm border border-white/20 text-white rounded-lg hover:bg-white/25 transition-all duration-200 font-medium"
+                  >
+                    <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+                    <span>Refresh</span>
+                  </button>
                   {cart.size > 0 && (
                     <Link
                       href="/customer/checkout"
@@ -347,13 +457,6 @@ export default function CustomerBillsPage() {
                       </span>
                     </Link>
                   )}
-                  <button
-                    onClick={() => load()}
-                    className="flex items-center space-x-2 px-6 py-3 bg-white/15 backdrop-blur-sm border border-white/20 text-white rounded-lg hover:bg-white/25 transition-all duration-200 font-medium"
-                  >
-                    <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
-                    <span>Refresh</span>
-                  </button>
                 </div>
               </div>
             </div>
@@ -379,8 +482,9 @@ export default function CustomerBillsPage() {
                   <div className="mt-4">
                     <p className="text-sm font-medium text-gray-600">Balance Due</p>
                     <p className="mt-1 text-3xl font-bold text-gray-900">
-                      ${totalDue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
+                      {convertedTotalDue || formatCurrency(totalDue, selectedCurrency)}
                     </p>
+                    <p className="text-xs text-gray-500 mt-1">in {selectedCurrency}</p>
                   </div>
                 </div>
 
@@ -447,7 +551,7 @@ export default function CustomerBillsPage() {
                   <div>
                     <p className="font-semibold">{cart.size} item{cart.size !== 1 ? 's' : ''} in cart</p>
                     <p className="text-sm text-orange-100">
-                      Total: ${cartTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
+                      Total: {convertedCartTotal || formatCurrency(cartTotal, selectedCurrency)} in {selectedCurrency}
                     </p>
                   </div>
                 </div>
@@ -533,9 +637,14 @@ export default function CustomerBillsPage() {
                           {/* Amount */}
                           <div className="flex items-center justify-between pb-4 border-b border-gray-100">
                             <span className="text-sm font-medium text-gray-600">Amount Due</span>
-                            <span className="text-2xl font-bold text-[#E67919]">
-                              ${(bill.amount_due || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {bill.currency || currency}
-                            </span>
+                            <div className="text-right">
+                              <span className="text-2xl font-bold text-[#E67919] block">
+                                {convertedAmounts.get(bill.tracking_number) || formatCurrency(bill.amount_due, selectedCurrency)}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {bill.currency || 'USD'} → {selectedCurrency}
+                              </span>
+                            </div>
                           </div>
 
                           {/* Status */}

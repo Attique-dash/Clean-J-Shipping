@@ -318,7 +318,6 @@ export default function AdminShipmentsPage() {
                   <FileText className="h-7 w-7" />
                 </div>
                 <div>
-                  <p className="text-sm uppercase tracking-widest text-blue-100">Manifest Management</p>
                   <h1 className="text-3xl font-bold leading-tight md:text-4xl">Shipments</h1>
                   <p className="text-blue-100 mt-1">Total manifests: <span className="font-semibold">{manifests.length}</span></p>
                 </div>

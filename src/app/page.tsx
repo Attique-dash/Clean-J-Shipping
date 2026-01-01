@@ -289,12 +289,24 @@ export default function Home() {
           {/* Left: Video */}
           <div className="overflow-hidden rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.08)] ring-1 ring-black/5">
             <video
-              src="/videos/shoping.mp4"
+              src="/videos/Shoping.mp4"
               className="h-full w-full object-cover"
               autoPlay
               muted
               loop
               playsInline
+              controls={false}
+              preload="auto"
+              onError={(e) => {
+                console.error('Video failed to load:', e);
+                // Fallback to image if video fails
+                const video = e.currentTarget;
+                const fallbackImg = document.createElement('img');
+                fallbackImg.src = '/images/deliver.png';
+                fallbackImg.className = 'h-full w-full object-cover';
+                fallbackImg.alt = 'Shopping illustration';
+                video.parentNode?.replaceChild(fallbackImg, video);
+              }}
             />
           </div>
 
@@ -336,12 +348,12 @@ export default function Home() {
       <section className="relative z-10 mx-auto max-w-7xl px-6 pb-10">
         <div className="grid grid-cols-2 gap-2 rounded-2xl border-2 border-dashed border-gray-300 bg-white p-6 text-center shadow-sm ring-1 ring-black/5 sm:grid-cols-3 md:grid-cols-6">
           {[
-            { name: "Amazon", src: "/amazon.svg" },
-            { name: "eBay", src: "/ebay.svg" },
-            { name: "Shein", src: "/shein.svg" },
-            { name: "Forever 21", src: "/forever21.svg" },
-            { name: "Fashion Nova", src: "/fashionnova.svg" },
-            { name: "Old Navy", src: "/oldnavy.svg" },
+            { name: "Amazon", src: "/amazon.svg", link: "https://www.amazon.com/" },
+            { name: "eBay", src: "/ebay.svg", link: "https://www.ebay.com/" },
+            { name: "Shein", src: "/shein.svg", link: "https://www.shein.com/" },
+            { name: "Forever 21", src: "/forever21.svg", link: "https://www.forever21.com/" },
+            { name: "Fashion Nova", src: "/fashionnova.svg", link: "https://www.fashionnova.com/" },
+            { name: "Old Navy", src: "/oldnavy.svg", link: "https://oldnavy.gap.com/" },
           ].map((brand, i) => (
             <motion.div
               key={brand.name}
@@ -351,7 +363,7 @@ export default function Home() {
               transition={{ duration: 0.5, ease: "easeOut", delay: i * 0.05 }}
               className={`group relative flex items-center justify-center py-3 ${i < 5 ? "sm:border-r sm:border-gray-300 sm:border-dashed" : ""}`}
             >
-              <Link href="#" className="block w-full">
+              <Link href={brand.link} target="_blank" rel="noopener noreferrer" className="block w-full">
                 <div className="mx-auto inline-flex transform items-center justify-center transition-transform duration-300 group-hover:-translate-y-1">
                   <Image src={brand.src} alt={brand.name} width={200} height={80} className={`w-auto object-contain ${brand.name === 'Shein' ? 'h-8 md:h-9 lg:h-10' : 'h-12 md:h-18 lg:h-20'}`} />
                 </div>

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { CreditCard, DollarSign, FileText, MapPin, CheckCircle, Clock, XCircle, Loader2, ShieldCheck, Lock, AlertCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 type Payment = {
   _id: string;
@@ -23,21 +24,8 @@ type CustomerBill = {
   currency?: string;
 };
 
-// PayPal configuration
-const paypalInitialOptions = {
-  clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID!,
-  currency: "USD",
-  intent: "capture",
-  // Enable PayPal and card funding sources
-  "funding-allowed": "paypal,card"
-};
-
 export default function CustomerPaymentsPage() {
-  return (
-    <PayPalScriptProvider options={paypalInitialOptions}>
-      <CustomerPaymentsInner />
-    </PayPalScriptProvider>
-  );
+  return <CustomerPaymentsInner />;
 }
 
 function CustomerPaymentsInner() {
@@ -45,15 +33,29 @@ function CustomerPaymentsInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const { selectedCurrency, formatCurrency } = useCurrency();
+  
+  // Dynamic PayPal configuration based on selected currency
+  const paypalOptions = useMemo(() => ({
+    clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID!,
+    currency: selectedCurrency,
+    intent: "capture",
+    "funding-allowed": "paypal,card"
+  }), [selectedCurrency]);
   
   // Card panel
   const [form, setForm] = useState({ 
     amount: "", 
-    currency: "USD", 
+    currency: selectedCurrency, 
     method: "visa", 
     reference: "", 
     tracking_number: "" 
   });
+
+  // Update form currency when selected currency changes
+  useEffect(() => {
+    setForm(prev => ({ ...prev, currency: selectedCurrency }));
+  }, [selectedCurrency]);
   
   // Billing panel
   const [billing, setBilling] = useState({ 
@@ -108,7 +110,7 @@ function CustomerPaymentsInner() {
   }, []);
 
   const totalDue = useMemo(() => bills.reduce((s, b) => s + (Number(b.amount_due) || 0), 0), [bills]);
-  const ccy = useMemo(() => bills.find((b) => b.currency)?.currency || form.currency || "USD", [bills, form.currency]);
+  const ccy = useMemo(() => selectedCurrency || bills.find((b) => b.currency)?.currency || form.currency || "USD", [selectedCurrency, bills, form.currency]);
 
   const [retryCount, setRetryCount] = useState(0);
   const [lastPaymentData, setLastPaymentData] = useState<Record<string, unknown> | null>(null);
@@ -201,7 +203,8 @@ function CustomerPaymentsInner() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
+    <PayPalScriptProvider options={paypalOptions}>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
@@ -281,19 +284,19 @@ function CustomerPaymentsInner() {
               <div className="flex items-center justify-between py-3 border-b border-gray-100">
                 <span className="text-sm text-gray-600">Outstanding Invoices</span>
                 <span className="text-sm font-semibold text-gray-900">
-                  {totalDue.toLocaleString(undefined, { style: "currency", currency: ccy })}
+                  {formatCurrency(totalDue, ccy)}
                 </span>
               </div>
               <div className="flex items-center justify-between py-3 border-b border-gray-100">
                 <span className="text-sm text-gray-600">Shipping Fees</span>
                 <span className="text-sm font-semibold text-gray-900">
-                  {(0).toLocaleString(undefined, { style: "currency", currency: ccy })}
+                  {formatCurrency(0, ccy)}
                 </span>
               </div>
               <div className="flex items-center justify-between py-3 border-b border-gray-100">
                 <span className="text-sm text-gray-600">Taxes & Fees</span>
                 <span className="text-sm font-semibold text-gray-900">
-                  {(0).toLocaleString(undefined, { style: "currency", currency: ccy })}
+                  {formatCurrency(0, ccy)}
                 </span>
               </div>
             </div>
@@ -302,7 +305,7 @@ function CustomerPaymentsInner() {
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">TOTAL AMOUNT DUE</span>
                 <span className="text-2xl font-bold">
-                  {Number(form.amount || totalDue || 0).toLocaleString(undefined, { style: "currency", currency: ccy })}
+                  {formatCurrency(Number(form.amount || totalDue || 0), ccy)}
                 </span>
               </div>
             </div>
@@ -408,6 +411,8 @@ function CustomerPaymentsInner() {
                   >
                     <option value="USD">USD</option>
                     <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                    <option value="JMD">JMD</option>
                   </select>
                 </div>
               </div>
@@ -596,7 +601,7 @@ function CustomerPaymentsInner() {
                       <tr key={p._id} className="hover:bg-gradient-to-r hover:from-slate-50 hover:to-blue-50 transition-colors duration-150">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-bold text-gray-900">
-                            {p.amount.toLocaleString(undefined, { style: 'currency', currency: p.currency })}
+                            {formatCurrency(p.amount, p.currency)}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -632,5 +637,6 @@ function CustomerPaymentsInner() {
         </div>
       </div>
     </div>
+    </PayPalScriptProvider>
   );
 }

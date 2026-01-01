@@ -39,6 +39,7 @@ function AdminAddPackagePageContent() {
     itemDescription: "",
     entryDate: new Date().toISOString().slice(0, 10),
     status: "received",
+    serviceMode: "air",
     dimensions: {
       length: "",
       width: "",
@@ -49,7 +50,12 @@ function AdminAddPackagePageContent() {
     senderEmail: "",
     senderPhone: "",
     senderAddress: "",
-    senderCountry: ""
+    senderCountry: "",
+    itemValue: "",
+    specialInstructions: "",
+    isFragile: false,
+    isHazardous: false,
+    requiresSignature: false
   });
 
   // Generate tracking number
@@ -131,17 +137,23 @@ function AdminAddPackagePageContent() {
             itemDescription: packageData.itemDescription || "",
             entryDate: packageData.entryDate?.split('T')[0] || packageData.dateReceived?.split('T')[0] || new Date().toISOString().slice(0, 10),
             status: packageData.status || "received",
+            serviceMode: packageData.serviceMode || "air",
             dimensions: {
-              length: packageData.length?.toString() || "",
-              width: packageData.width?.toString() || "",
-              height: packageData.height?.toString() || "",
-              unit: packageData.dimensionUnit || "cm"
+              length: packageData.length?.toString() || packageData.dimensions?.length?.toString() || "",
+              width: packageData.width?.toString() || packageData.dimensions?.width?.toString() || "",
+              height: packageData.height?.toString() || packageData.dimensions?.height?.toString() || "",
+              unit: packageData.dimensionUnit || packageData.dimensions?.unit || "cm"
             },
-            senderName: packageData.senderName || "",
-            senderEmail: packageData.senderEmail || "",
-            senderPhone: packageData.senderPhone || "",
-            senderAddress: packageData.senderAddress || "",
-            senderCountry: packageData.senderCountry || ""
+            senderName: packageData.senderName || packageData.sender?.name || "",
+            senderEmail: packageData.senderEmail || packageData.sender?.email || "",
+            senderPhone: packageData.senderPhone || packageData.sender?.phone || "",
+            senderAddress: packageData.senderAddress || packageData.sender?.address || "",
+            senderCountry: packageData.senderCountry || packageData.sender?.country || "",
+            itemValue: packageData.itemValue?.toString() || packageData.value?.toString() || "",
+            specialInstructions: packageData.specialInstructions || "",
+            isFragile: packageData.isFragile || false,
+            isHazardous: packageData.isHazardous || false,
+            requiresSignature: packageData.requiresSignature || packageData.signatureRequired || false
           });
           
           if (packageData.userCode) {
@@ -212,6 +224,7 @@ function AdminAddPackagePageContent() {
         itemDescription: form.itemDescription.trim() || undefined,
         entryDate: form.entryDate,
         status: form.status,
+        serviceMode: form.serviceMode,
         dimensions: {
           length: form.dimensions.length ? Number(form.dimensions.length) : undefined,
           width: form.dimensions.width ? Number(form.dimensions.width) : undefined,
@@ -237,12 +250,32 @@ function AdminAddPackagePageContent() {
           address: form.senderAddress.trim() || undefined,
           country: form.senderCountry.trim() || undefined
         },
-        // Additional fields expected by PUT API
+        // Additional fields matching the updated model
         contents: form.description.trim() || undefined,
-        value: undefined,
-        specialInstructions: undefined,
-        entryStaff: undefined,
-        branch: undefined
+        value: form.itemValue ? Number(form.itemValue) : undefined,
+        specialInstructions: form.specialInstructions.trim() || undefined,
+        isFragile: form.isFragile,
+        isHazardous: form.isHazardous,
+        requiresSignature: form.requiresSignature,
+        // Legacy fields for compatibility
+        itemValue: form.itemValue ? Number(form.itemValue) : undefined,
+        senderName: form.senderName.trim() || undefined,
+        senderPhone: form.senderPhone.trim() || undefined,
+        senderAddress: form.senderAddress.trim() || undefined,
+        receiverName: customerData ? `${customerData.firstName} ${customerData.lastName}` : undefined,
+        receiverPhone: customerData?.phone || undefined,
+        receiverEmail: customerData?.email || undefined,
+        receiverAddress: customerData?.address ? 
+          `${customerData.address.street || ''}${customerData.address.street ? ', ' : ''}${customerData.address.city || ''}${customerData.address.city ? ', ' : ''}${customerData.address.state || ''}${customerData.address.state ? ' ' : ''}${customerData.address.zipCode || ''}`.trim() : 
+          undefined,
+        currentLocation: undefined,
+        packageType: "parcel",
+        serviceType: "standard",
+        deliveryType: "door_to_door",
+        shippingCost: 0,
+        totalAmount: 0,
+        paymentMethod: "cash",
+        receivedAt: new Date()
       };
 
       const editId = searchParams?.get('edit') || null;
@@ -322,7 +355,6 @@ function AdminAddPackagePageContent() {
                   <Package className="h-7 w-7" />
                 </div>
                 <div>
-                  <p className="text-sm uppercase tracking-widest text-blue-100">Package Management</p>
                   <h1 className="text-3xl font-bold leading-tight md:text-4xl">
                     {isEditing ? "Edit Package" : "Add New Package"}
                   </h1>
@@ -493,14 +525,34 @@ function AdminAddPackagePageContent() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Entry Date</label>
-                  <input
-                    type="date"
-                    className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    value={form.entryDate}
-                    onChange={(e) => setForm({ ...form, entryDate: e.target.value })}
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Service Mode</label>
+                  <div className="relative">
+                    <select
+                      className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
+                      value={form.serviceMode}
+                      onChange={(e) => setForm({ ...form, serviceMode: e.target.value })}
+                    >
+                      <option value="air">Air</option>
+                      <option value="ocean">Ocean</option>
+                      <option value="local">Local</option>
+                    </select>
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                      <ChevronDown className="h-5 w-5 text-gray-400" />
+                    </div>
+                  </div>
                 </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Item Value</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  placeholder="0.00"
+                  value={form.itemValue}
+                  onChange={(e) => setForm({ ...form, itemValue: e.target.value })}
+                />
               </div>
               
               {/* Dimensions Section */}
@@ -611,6 +663,52 @@ function AdminAddPackagePageContent() {
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                     <ChevronDown className="h-5 w-5 text-gray-400" />
                   </div>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Special Instructions</label>
+                <textarea
+                  className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  rows={2}
+                  placeholder="Any special handling instructions (optional)"
+                  value={form.specialInstructions}
+                  onChange={(e) => setForm({ ...form, specialInstructions: e.target.value })}
+                />
+              </div>
+              
+              <div>
+                <h4 className="text-md font-semibold text-gray-900 mb-3">Package Options</h4>
+                <div className="space-y-3">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
+                      checked={form.isFragile}
+                      onChange={(e) => setForm({ ...form, isFragile: e.target.checked })}
+                    />
+                    <span className="text-sm text-gray-700">Fragile - Handle with care</span>
+                  </label>
+                  
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
+                      checked={form.isHazardous}
+                      onChange={(e) => setForm({ ...form, isHazardous: e.target.checked })}
+                    />
+                    <span className="text-sm text-gray-700">Hazardous Material</span>
+                  </label>
+                  
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
+                      checked={form.requiresSignature}
+                      onChange={(e) => setForm({ ...form, requiresSignature: e.target.checked })}
+                    />
+                    <span className="text-sm text-gray-700">Signature Required</span>
+                  </label>
                 </div>
               </div>
             </div>

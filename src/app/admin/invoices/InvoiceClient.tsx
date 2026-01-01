@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FileText, Plus, Download, Calendar, DollarSign, User, Eye, Search, Filter, Trash2, FileDown, TrendingUp, Clock, CheckCircle } from "lucide-react";
+import { FileText, Plus, Download, DollarSign, Search, Filter, Trash2, FileDown, TrendingUp, Clock, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { ExportService } from "@/lib/export-service";
 
@@ -19,7 +19,13 @@ type Invoice = {
     trackingNumber: string;
     userCode: string;
   };
-  status: "draft" | "sent" | "paid" | "overdue" | "cancelled";
+  status:
+    | "draft"
+    | "paid"
+    | "unpaid"
+    | "overdue"
+    | "partially_paid"
+    | "cancelled";
   issueDate: string;
   dueDate: string;
   currency: string;
@@ -41,7 +47,7 @@ type Invoice = {
   notes?: string;
   paymentHistory?: Array<{
     amount: number;
-    date: Date;
+    date: string;
     method: string;
     reference?: string;
   }>;
@@ -54,6 +60,10 @@ export default function InvoiceClient() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [minAmount, setMinAmount] = useState<string>("");
+  const [maxAmount, setMaxAmount] = useState<string>("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -64,6 +74,7 @@ export default function InvoiceClient() {
     setLoading(true);
     try {
       const res = await fetch("/api/admin/invoices", { cache: "no-store" });
+
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load invoices");
       setInvoices(Array.isArray(data?.data) ? data.data : []);
@@ -74,19 +85,63 @@ export default function InvoiceClient() {
     }
   }
 
-  const filteredInvoices = invoices.filter(invoice => {
-    const matchesSearch = invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         invoice.customer?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         invoice.customer?.email.toLowerCase().includes(searchTerm.toLowerCase());
+  const formatJMD = (amount: number) => {
+    return new Intl.NumberFormat("en-JM", {
+      style: "currency",
+      currency: "JMD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number(amount) || 0);
+  };
+
+  const filteredInvoices = invoices.filter((invoice) => {
+    const q = searchTerm.trim().toLowerCase();
+    const matchesSearch =
+      q.length === 0 ||
+      invoice.invoiceNumber.toLowerCase().includes(q) ||
+      invoice.customer?.name.toLowerCase().includes(q) ||
+      invoice.customer?.email.toLowerCase().includes(q) ||
+      (invoice.package?.trackingNumber || "").toLowerCase().includes(q);
     const matchesStatus = statusFilter === "all" || invoice.status === statusFilter;
-    return matchesSearch && matchesStatus;
+
+    const issue = invoice.issueDate ? new Date(invoice.issueDate) : null;
+    const due = invoice.dueDate ? new Date(invoice.dueDate) : null;
+
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(endDate) : null;
+
+    const matchesDate = (() => {
+      if (!start && !end) return true;
+      if (!issue && !due) return false;
+      const ref = issue || due;
+      if (!ref) return false;
+      if (start && ref < start) return false;
+      if (end) {
+        const endInclusive = new Date(end);
+        endInclusive.setHours(23, 59, 59, 999);
+        if (ref > endInclusive) return false;
+      }
+      return true;
+    })();
+
+    const min = minAmount.trim() ? Number(minAmount) : null;
+    const max = maxAmount.trim() ? Number(maxAmount) : null;
+    const total = Number(invoice.total) || 0;
+    const matchesAmount = (() => {
+      if (min !== null && !Number.isNaN(min) && total < min) return false;
+      if (max !== null && !Number.isNaN(max) && total > max) return false;
+      return true;
+    })();
+
+    return matchesSearch && matchesStatus && matchesDate && matchesAmount;
   });
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "draft": return "bg-gray-100 text-gray-700 border-gray-300";
-      case "sent": return "bg-blue-100 text-blue-700 border-blue-300";
       case "paid": return "bg-green-100 text-green-700 border-green-300";
+      case "partially_paid": return "bg-amber-100 text-amber-700 border-amber-300";
+      case "unpaid": return "bg-blue-100 text-blue-700 border-blue-300";
       case "overdue": return "bg-red-100 text-red-700 border-red-300";
       case "cancelled": return "bg-gray-100 text-gray-500 border-gray-300";
       default: return "bg-gray-100 text-gray-700 border-gray-300";
@@ -96,36 +151,51 @@ export default function InvoiceClient() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "paid": return <CheckCircle className="w-4 h-4" />;
-      case "sent": return <Clock className="w-4 h-4" />;
+      case "unpaid": return <Clock className="w-4 h-4" />;
+      case "partially_paid": return <DollarSign className="w-4 h-4" />;
       case "overdue": return <Clock className="w-4 h-4" />;
       default: return <FileText className="w-4 h-4" />;
     }
   };
 
-  const totalStats = invoices.reduce((acc, inv) => ({
-    total: acc.total + (inv.total || 0),
-    paid: acc.paid + (inv.status === 'paid' ? (inv.total || 0) : 0),
-    pending: acc.pending + (inv.status === 'sent' || inv.status === 'overdue' ? (inv.balanceDue || 0) : 0),
-    overdue: acc.overdue + (inv.status === 'overdue' ? (inv.balanceDue || 0) : 0)
-  }), { total: 0, paid: 0, pending: 0, overdue: 0 });
+  const totalStats = invoices.reduce(
+    (acc, inv) => {
+      const total = Number(inv.total) || 0;
+      const paid = Math.min(Number(inv.amountPaid) || 0, total);
+      const outstanding = Math.max(0, total - paid);
+
+      acc.totalAmount += total;
+      acc.paidAmount += paid;
+
+      if (inv.status === "overdue") {
+        acc.overdueAmount += outstanding;
+      }
+      if (inv.status === "unpaid" || inv.status === "partially_paid") {
+        acc.unpaidAmount += outstanding;
+      }
+
+      return acc;
+    },
+    { totalAmount: 0, paidAmount: 0, unpaidAmount: 0, overdueAmount: 0 }
+  );
 
   async function deleteInvoice(invoiceId: string) {
     if (!confirm('Are you sure you want to delete this invoice? This action cannot be undone.')) {
       return;
     }
-    
+
     setDeletingId(invoiceId);
     try {
       const res = await fetch(`/api/admin/invoices/${invoiceId}`, {
         method: 'DELETE',
         credentials: 'include'
       });
-      
+
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error?.error || 'Failed to delete invoice');
       }
-      
+
       await loadInvoices();
     } catch (error) {
       console.error('Delete invoice error:', error);
@@ -173,8 +243,8 @@ export default function InvoiceClient() {
             reference: payment.reference || ''
           }))
         };
-        
-        ExportService.toInvoicePDF(invoiceForPDF, `invoice_${invoice.invoiceNumber}`);
+
+        await ExportService.toInvoicePDF(invoiceForPDF, `invoice_${invoice.invoiceNumber}`);
       } else {
         // Excel export
         const invoiceData = {
@@ -228,7 +298,7 @@ export default function InvoiceClient() {
           <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:20px_20px]" />
           <div className="absolute top-0 right-0 w-96 h-96 bg-blue-400/20 rounded-full blur-3xl" />
           <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-400/20 rounded-full blur-3xl" />
-          
+
           <div className="relative">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 mb-8">
               <div className="flex items-center gap-4">
@@ -236,15 +306,14 @@ export default function InvoiceClient() {
                   <FileText className="h-8 w-8" />
                 </div>
                 <div>
-                  <p className="text-sm uppercase tracking-widest text-blue-200 font-semibold">Financial Management</p>
                   <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
                     Invoice Management
                   </h1>
                   <p className="mt-1 text-blue-100">Create, track and manage customer invoices</p>
                 </div>
               </div>
-              
-              <Link 
+
+              <Link
                 href="/admin/invoices/generator"
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#E67919] to-[#ff8c2e] px-6 py-3.5 text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all"
               >
@@ -254,7 +323,7 @@ export default function InvoiceClient() {
             </div>
 
             {/* Enhanced Stats Cards */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <div className="group relative overflow-hidden rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-6 transition-all hover:bg-white/15 hover:scale-105">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl" />
                 <div className="relative flex items-center justify-between">
@@ -269,13 +338,27 @@ export default function InvoiceClient() {
                 </div>
               </div>
 
+              <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 backdrop-blur-md border border-indigo-400/30 p-6 transition-all hover:scale-105">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-400/20 rounded-full blur-2xl" />
+                <div className="relative flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-indigo-100">Total Amount</p>
+                    <p className="mt-2 text-2xl font-bold">{formatJMD(totalStats.totalAmount)}</p>
+                    <p className="mt-1 text-xs text-indigo-200">JMD</p>
+                  </div>
+                  <div className="rounded-xl bg-indigo-400/30 p-3">
+                    <DollarSign className="h-6 w-6" />
+                  </div>
+                </div>
+              </div>
+
               <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-500/20 backdrop-blur-md border border-green-400/30 p-6 transition-all hover:scale-105">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-green-400/20 rounded-full blur-2xl" />
                 <div className="relative flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-green-100">Total Revenue</p>
-                    <p className="mt-2 text-3xl font-bold">${totalStats.paid.toFixed(2)}</p>
-                    <p className="mt-1 text-xs text-green-200">Collected</p>
+                    <p className="text-sm font-medium text-green-100">Paid Amount</p>
+                    <p className="mt-2 text-2xl font-bold">{formatJMD(totalStats.paidAmount)}</p>
+                    <p className="mt-1 text-xs text-green-200">Collected (JMD)</p>
                   </div>
                   <div className="rounded-xl bg-green-400/30 p-3">
                     <DollarSign className="h-6 w-6" />
@@ -287,9 +370,9 @@ export default function InvoiceClient() {
                 <div className="absolute top-0 right-0 w-24 h-24 bg-blue-400/20 rounded-full blur-2xl" />
                 <div className="relative flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-blue-100">Pending</p>
-                    <p className="mt-2 text-3xl font-bold">${totalStats.pending.toFixed(2)}</p>
-                    <p className="mt-1 text-xs text-blue-200">Outstanding</p>
+                    <p className="text-sm font-medium text-blue-100">Unpaid Amount</p>
+                    <p className="mt-2 text-2xl font-bold">{formatJMD(totalStats.unpaidAmount)}</p>
+                    <p className="mt-1 text-xs text-blue-200">Outstanding (JMD)</p>
                   </div>
                   <div className="rounded-xl bg-blue-400/30 p-3">
                     <TrendingUp className="h-6 w-6" />
@@ -302,7 +385,7 @@ export default function InvoiceClient() {
                 <div className="relative flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-red-100">Overdue</p>
-                    <p className="mt-2 text-3xl font-bold">${totalStats.overdue.toFixed(2)}</p>
+                    <p className="mt-2 text-2xl font-bold">{formatJMD(totalStats.overdueAmount)}</p>
                     <p className="mt-1 text-xs text-red-200">Requires action</p>
                   </div>
                   <div className="rounded-xl bg-red-400/30 p-3">
@@ -329,14 +412,14 @@ export default function InvoiceClient() {
                   <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                   <input
                     type="text"
-                    placeholder="Search by invoice number, customer name or email..."
+                    placeholder="Search by invoice number, customer name, email, or tracking number..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0891b2] focus:border-transparent transition-all"
                   />
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-3">
                 <Filter className="h-5 w-5 text-gray-400 flex-shrink-0" />
                 <select
@@ -346,11 +429,53 @@ export default function InvoiceClient() {
                 >
                   <option value="all">All Status</option>
                   <option value="draft">Draft</option>
-                  <option value="sent">Sent</option>
                   <option value="paid">Paid</option>
+                  <option value="unpaid">Unpaid</option>
+                  <option value="partially_paid">Partially Paid</option>
                   <option value="overdue">Overdue</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mt-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Start date</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0891b2] focus:border-transparent transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">End date</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0891b2] focus:border-transparent transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Min amount (JMD)</label>
+                <input
+                  inputMode="decimal"
+                  value={minAmount}
+                  onChange={(e) => setMinAmount(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0891b2] focus:border-transparent transition-all"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Max amount (JMD)</label>
+                <input
+                  inputMode="decimal"
+                  value={maxAmount}
+                  onChange={(e) => setMaxAmount(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0891b2] focus:border-transparent transition-all"
+                  placeholder="100000"
+                />
               </div>
             </div>
           </div>
@@ -403,107 +528,81 @@ export default function InvoiceClient() {
                 )}
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
-                {filteredInvoices.map((invoice) => (
-                  <div key={invoice._id} className="hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent transition-all group">
-                    <div className="p-6">
-                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-3 mb-3">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold text-sm shadow-lg">
-                              {invoice.invoiceNumber.slice(-4)}
-                            </div>
-                            <div>
-                              <h3 className="font-bold text-gray-900 text-lg">
-                                {invoice.invoiceNumber}
-                              </h3>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(invoice.status)}`}>
-                                  {getStatusIcon(invoice.status)}
-                                  {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
-                                </span>
-                                {invoice.balanceDue > 0 && invoice.status !== 'cancelled' && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700 border border-orange-200">
-                                    <DollarSign className="w-3 h-3" />
-                                    ${invoice.balanceDue.toFixed(2)} due
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="flex flex-col gap-2 text-sm">
-                            <div className="flex items-center gap-2 text-gray-700">
-                              <User className="w-4 h-4 text-gray-400" />
-                              <span className="font-semibold">{invoice.customer?.name || 'N/A'}</span>
-                              <span className="text-gray-400">•</span>
-                              <span className="text-gray-600">{invoice.customer?.email || 'N/A'}</span>
-                            </div>
-                            
-                            <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
-                              <div className="flex items-center gap-1.5">
-                                <Calendar className="w-3.5 h-3.5" />
-                                <span>Issued: <span className="font-medium text-gray-700">{new Date(invoice.issueDate).toLocaleDateString()}</span></span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <Calendar className="w-3.5 h-3.5" />
-                                <span>Due: <span className="font-medium text-gray-700">{new Date(invoice.dueDate).toLocaleDateString()}</span></span>
-                              </div>
-                              {invoice.package?.trackingNumber && (
-                                <div className="flex items-center gap-1.5 bg-blue-50 px-2 py-1 rounded-md">
-                                  <span className="font-mono text-blue-700">{invoice.package.trackingNumber}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
+              <table className="w-full text-left">
+                <thead className="bg-gray-50">
+                  <tr className="text-xs font-semibold text-gray-600">
+                    <th className="px-4 py-3">Invoice Number</th>
+                    <th className="px-4 py-3">Customer</th>
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Due Date</th>
+                    <th className="px-4 py-3">Amount (JMD)</th>
+                    <th className="px-4 py-3">Paid Amount</th>
+                    <th className="px-4 py-3">Outstanding</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredInvoices.map((invoice) => (
+                    <tr key={invoice._id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-semibold text-gray-900">{invoice.invoiceNumber}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-gray-900">{invoice.customer?.name || 'N/A'}</span>
+                          <span className="text-xs text-gray-500">{invoice.customer?.email || ''}</span>
+                          {invoice.package?.trackingNumber && (
+                            <span className="mt-1 inline-flex w-fit items-center rounded-md bg-blue-50 px-2 py-0.5 font-mono text-xs text-blue-700">
+                              {invoice.package.trackingNumber}
+                            </span>
+                          )}
                         </div>
-                        
-                        <div className="flex items-center gap-6">
-                          <div className="text-right">
-                            <p className="text-3xl font-bold bg-gradient-to-r from-[#0f4d8a] to-[#E67919] bg-clip-text text-transparent">
-                              ${(invoice.total || 0).toFixed(2)}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">{invoice.currency}</p>
-                            {invoice.amountPaid > 0 && (
-                              <div className="mt-2 flex flex-col gap-1">
-                                <p className="text-xs text-green-600 font-medium">Paid: ${invoice.amountPaid.toFixed(2)}</p>
-                                {invoice.balanceDue > 0 && (
-                                  <p className="text-xs text-orange-600 font-medium">Due: ${invoice.balanceDue.toFixed(2)}</p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => downloadInvoice(invoice, 'pdf')}
-                              className="p-2.5 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-all group"
-                              title="Download as PDF"
-                            >
-                              <Download className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
-                            </button>
-                            <button 
-                              onClick={() => downloadInvoice(invoice, 'excel')}
-                              className="p-2.5 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 transition-all group"
-                              title="Download as Excel"
-                            >
-                              <FileDown className="w-4 h-4 text-green-600 group-hover:scale-110 transition-transform" />
-                            </button>
-                            <button 
-                              onClick={() => deleteInvoice(invoice._id)}
-                              disabled={deletingId === invoice._id}
-                              className="p-2.5 rounded-xl bg-gradient-to-br from-red-50 to-rose-50 hover:from-red-100 hover:to-rose-100 transition-all group disabled:opacity-50"
-                              title="Delete Invoice"
-                            >
-                              <Trash2 className="w-4 h-4 text-red-600 group-hover:scale-110 transition-transform" />
-                            </button>
-                          </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{new Date(invoice.issueDate).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{new Date(invoice.dueDate).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 font-semibold">{formatJMD(invoice.total || 0)}</td>
+                      <td className="px-4 py-3 text-green-700">{formatJMD(invoice.amountPaid || 0)}</td>
+                      <td className="px-4 py-3 text-orange-700">{formatJMD(invoice.balanceDue || 0)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(invoice.status)}`}>
+                          {getStatusIcon(invoice.status)}
+                          {invoice.status === 'partially_paid'
+                            ? 'Partially Paid'
+                            : invoice.status === 'unpaid'
+                              ? 'Unpaid'
+                              : invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)
+                          }
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => downloadInvoice(invoice, 'pdf')}
+                            className="p-2.5 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-all group"
+                            title="Download as PDF"
+                          >
+                            <Download className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
+                          </button>
+                          <button
+                            onClick={() => downloadInvoice(invoice, 'excel')}
+                            className="p-2.5 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 transition-all group"
+                            title="Download as Excel"
+                          >
+                            <FileDown className="w-4 h-4 text-green-600 group-hover:scale-110 transition-transform" />
+                          </button>
+                          <button
+                            onClick={() => deleteInvoice(invoice._id)}
+                            disabled={deletingId === invoice._id}
+                            className="p-2.5 rounded-xl bg-gradient-to-br from-red-50 to-rose-50 hover:from-red-100 hover:to-rose-100 transition-all group disabled:opacity-50"
+                            title="Delete Invoice"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-600 group-hover:scale-110 transition-transform" />
+                          </button>
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </div>
         </div>

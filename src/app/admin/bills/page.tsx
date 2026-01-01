@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Receipt, Lock, CheckCircle, DollarSign, Calendar, MapPin, Plus, Eye, CreditCard, X, Loader2, Clock } from "lucide-react";
+import { Receipt, Lock, CheckCircle, DollarSign, Calendar, MapPin, Plus, Eye, CreditCard, X, Loader2, Clock, Trash2 } from "lucide-react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import toast, { Toaster } from "react-hot-toast";
 import dynamic from "next/dynamic";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import EnhancedCurrencySelector from "@/components/EnhancedCurrencySelector";
 
 const RevenueChart = dynamic(
   () => import('@/components/charts/RevenueChart').then(mod => mod.RevenueChart),
@@ -36,6 +38,21 @@ export default function BillsPage() {
   const [usePayPal, setUsePayPal] = useState(false);
   const [paypalOrderId, setPaypalOrderId] = useState<string | null>(null); // Used for PayPal order tracking and validation
   const [revenueData, setRevenueData] = useState<Array<{ month: string; revenue: number; packages: number }>>([]);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; bill: Bill | null }>({ open: false, bill: null });
+  const { selectedCurrency, setSelectedCurrency, convertAmount, formatCurrency } = useCurrency();
+
+  // Helper function to convert and format amounts
+  const convertAndFormatAmount = async (amount: number, fromCurrency: string) => {
+    if (fromCurrency === selectedCurrency) {
+      return formatCurrency(amount, selectedCurrency);
+    }
+    try {
+      const convertedAmount = await convertAmount(amount, fromCurrency || "USD");
+      return formatCurrency(convertedAmount, selectedCurrency);
+    } catch (error) {
+      return formatCurrency(amount, selectedCurrency);
+    }
+  };
 
   // Payment form state
   const [paymentForm, setPaymentForm] = useState({
@@ -88,6 +105,91 @@ export default function BillsPage() {
   const totalBills = bills.length;
   const totalAmount = bills.reduce((sum, b) => sum + b.dueAmount, 0);
   const totalBalance = bills.reduce((sum, b) => sum + b.balance, 0);
+
+  // Convert totals to selected currency
+  const [displayTotalAmount, setDisplayTotalAmount] = useState<string>("");
+  const [displayTotalBalance, setDisplayTotalBalance] = useState<string>("");
+
+  useEffect(() => {
+    const updateDisplayAmounts = async () => {
+      const convertedTotal = await convertAndFormatAmount(totalAmount, "JMD");
+      const convertedBalance = await convertAndFormatAmount(totalBalance, "JMD");
+      setDisplayTotalAmount(convertedTotal);
+      setDisplayTotalBalance(convertedBalance);
+    };
+    updateDisplayAmounts();
+  }, [totalAmount, totalBalance, selectedCurrency]);
+
+  // State for converted bill amounts
+  const [convertedBills, setConvertedBills] = useState<Array<{id: string, dueAmount: string, paidAmount: string, balance: string}>>([]);
+
+  useEffect(() => {
+    const updateBillAmounts = async () => {
+      const converted = await Promise.all(
+        bills.map(async (bill) => {
+          const convertedDue = await convertAndFormatAmount(bill.dueAmount, bill.currency || "JMD");
+          const convertedPaid = await convertAndFormatAmount(bill.paidAmount, bill.currency || "JMD");
+          const convertedBalance = await convertAndFormatAmount(bill.balance, bill.currency || "JMD");
+          return {
+            id: bill.id,
+            dueAmount: convertedDue,
+            paidAmount: convertedPaid,
+            balance: convertedBalance,
+          };
+        })
+      );
+      setConvertedBills(converted);
+    };
+    updateBillAmounts();
+  }, [bills, selectedCurrency]);
+
+  async function handleDeleteBill(billId: string) {
+    if (!confirm('Are you sure you want to delete this bill? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      setProcessing(true);
+      
+      // Extract actual ObjectId from prefixed billId
+      let actualBillId = billId;
+      let billType = 'invoice';
+      
+      if (billId.startsWith('invoice-')) {
+        actualBillId = billId.replace('invoice-', '');
+        billType = 'invoice';
+      } else if (billId.startsWith('generated-invoice-')) {
+        actualBillId = billId.replace('generated-invoice-', '');
+        billType = 'generated';
+      } else if (billId.startsWith('pos-')) {
+        actualBillId = billId.replace('pos-', '');
+        billType = 'pos';
+      }
+
+      const res = await fetch(`/api/admin/bills?id=${actualBillId}&type=${billType}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to delete bill');
+      }
+      
+      setDeleteConfirm({ open: false, bill: null });
+      await loadBills();
+      toast.success("Bill deleted successfully!");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete bill');
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  function openDeleteConfirm(bill: Bill) {
+    setDeleteConfirm({ open: true, bill });
+  }
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -273,6 +375,13 @@ export default function BillsPage() {
                   Manage bills and payments
                 </p>
               </div>
+              <div className="flex items-center gap-3">
+                <EnhancedCurrencySelector
+                  selectedCurrency={selectedCurrency}
+                  onCurrencyChange={setSelectedCurrency}
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                />
+              </div>
             </div>
 
             {/* Stats Cards */}
@@ -296,7 +405,7 @@ export default function BillsPage() {
                   </div>
                   <div>
                     <p className="text-sm text-green-100">Total Amount</p>
-                    <p className="mt-1 text-2xl font-bold">${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} JMD</p>
+                    <p className="mt-1 text-2xl font-bold">{displayTotalAmount}</p>
                   </div>
                 </div>
               </div>
@@ -308,7 +417,7 @@ export default function BillsPage() {
                   </div>
                   <div>
                     <p className="text-sm text-orange-100">Total Balance</p>
-                    <p className="mt-1 text-2xl font-bold">${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} JMD</p>
+                    <p className="mt-1 text-2xl font-bold">{displayTotalBalance}</p>
                   </div>
                 </div>
               </div>
@@ -420,20 +529,20 @@ export default function BillsPage() {
                       <div className="flex justify-between items-center">
                         <span className="text-xs text-gray-600 font-semibold uppercase tracking-wide">Due</span>
                         <span className="text-sm font-bold text-gray-900">
-                          ${bill.dueAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} {bill.currency}
+                          {convertedBills.find(cb => cb.id === bill.id)?.dueAmount || `$${bill.dueAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ${bill.currency}`}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-xs text-gray-600 font-semibold uppercase tracking-wide">Paid</span>
                         <span className={`text-sm font-bold ${bill.paidAmount > 0 ? "text-green-600" : "text-gray-400"}`}>
-                          ${bill.paidAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} {bill.currency}
+                          {convertedBills.find(cb => cb.id === bill.id)?.paidAmount || `$${bill.paidAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ${bill.currency}`}
                         </span>
                       </div>
                       <div className="border-t border-gray-300 pt-3">
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-700 font-bold uppercase tracking-wide">Balance</span>
                           <span className={`text-xl font-bold ${bill.balance > 0 ? "text-[#0f4d8a]" : "text-green-600"}`}>
-                            ${bill.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })} {bill.currency}
+                            {convertedBills.find(cb => cb.id === bill.id)?.balance || `$${bill.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ${bill.currency}`}
                           </span>
                         </div>
                       </div>
@@ -441,20 +550,20 @@ export default function BillsPage() {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex gap-3 mt-6">
+                  <div className="flex gap-2 mt-4">
                     <button
                       onClick={() => {
                         setSelectedBill(bill);
                         setShowPaymentModal(true);
                       }}
                       disabled={bill.balance === 0}
-                      className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
+                      className={`flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
                         bill.balance === 0
                           ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                           : "bg-gradient-to-r from-[#0f4d8a] to-[#0e447d] text-white hover:from-[#0e447d] hover:to-[#0d3d70] hover:shadow-lg active:scale-95"
                       }`}
                     >
-                      <Plus className="h-4 w-4" />
+                      <Plus className="h-3 w-3" />
                       PAY
                     </button>
                     <button
@@ -462,11 +571,20 @@ export default function BillsPage() {
                         setSelectedBill(bill);
                         setShowDetailsModal(true);
                       }}
-                      className="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-[#0f4d8a] text-[#0f4d8a] px-4 py-3 text-sm font-semibold hover:bg-blue-50 hover:border-blue-600 hover:text-blue-600 transition-all active:scale-95"
+                      className="flex items-center justify-center gap-1 rounded-lg border border-[#0f4d8a] text-[#0f4d8a] px-3 py-2 text-xs font-semibold hover:bg-blue-50 hover:border-blue-600 hover:text-blue-600 transition-all active:scale-95"
                     >
-                      <Eye className="h-4 w-4" />
+                      <Eye className="h-3 w-3" />
                       VIEW
                     </button>
+                    {bill.status === "paid" && (
+                      <button
+                        onClick={() => openDeleteConfirm(bill)}
+                        className="flex items-center justify-center gap-1 rounded-lg border border-red-500 text-red-500 px-3 py-2 text-xs font-semibold hover:bg-red-50 hover:border-red-600 hover:text-red-600 transition-all active:scale-95"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        DELETE
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -491,7 +609,9 @@ export default function BillsPage() {
               <div className="p-6">
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                   <p className="text-sm text-gray-600 mb-1">Total Due</p>
-                  <p className="text-2xl font-bold text-[#0f4d8a]">${selectedBill.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {selectedBill.currency || "JMD"}</p>
+                  <p className="text-2xl font-bold text-[#0f4d8a]">
+                    {convertedBills.find(cb => cb.id === selectedBill.id)?.balance || `$${selectedBill.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${selectedBill.currency || "JMD"}`}
+                  </p>
                 </div>
 
                 {!usePayPal && (
@@ -712,16 +832,20 @@ export default function BillsPage() {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Due Amount:</span>
-                      <span className="font-semibold">${selectedBill.dueAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {selectedBill.currency}</span>
+                      <span className="font-semibold">
+                        {convertedBills.find(cb => cb.id === selectedBill.id)?.dueAmount || `$${selectedBill.dueAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${selectedBill.currency}`}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Paid Amount:</span>
-                      <span className="font-semibold text-green-600">${selectedBill.paidAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {selectedBill.currency}</span>
+                      <span className="font-semibold text-green-600">
+                        {convertedBills.find(cb => cb.id === selectedBill.id)?.paidAmount || `$${selectedBill.paidAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${selectedBill.currency}`}
+                      </span>
                     </div>
                     <div className="flex justify-between font-bold text-lg border-t pt-2">
                       <span>Balance:</span>
                       <span className={selectedBill.balance > 0 ? "text-[#0f4d8a]" : "text-green-600"}>
-                        ${selectedBill.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {selectedBill.currency}
+                        {convertedBills.find(cb => cb.id === selectedBill.id)?.balance || `$${selectedBill.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${selectedBill.currency}`}
                       </span>
                     </div>
                   </div>
@@ -752,6 +876,60 @@ export default function BillsPage() {
                     Process Payment
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteConfirm.open && deleteConfirm.bill && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setDeleteConfirm({ open: false, bill: null })}>
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4">
+                <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <Trash2 className="w-5 h-5" />
+                  Delete Bill
+                </h3>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-sm text-red-800 font-medium mb-2">
+                    Are you sure you want to delete this paid bill?
+                  </p>
+                  <div className="space-y-1 text-sm text-red-700">
+                    <p><strong>Bill Number:</strong> {deleteConfirm.bill.billNumber}</p>
+                    <p><strong>Tracking:</strong> #{deleteConfirm.bill.trackingNumber}</p>
+                    <p><strong>Amount:</strong> {convertedBills.find(cb => cb.id === deleteConfirm?.bill?.id)?.balance || `$${deleteConfirm?.bill?.balance?.toLocaleString('en-US', { minimumFractionDigits: 2 })} ${deleteConfirm?.bill?.currency}`}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-600">
+                  This action cannot be undone. The bill will be permanently removed from the system.
+                </p>
+                <div className="flex items-center justify-end gap-3 pt-4 border-t">
+                  <button
+                    onClick={() => setDeleteConfirm({ open: false, bill: null })}
+                    className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleDeleteBill(deleteConfirm.bill!.id)}
+                    disabled={processing}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {processing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        Delete Bill
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

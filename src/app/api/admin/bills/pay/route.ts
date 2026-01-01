@@ -174,14 +174,20 @@ export async function POST(req: Request) {
     if (packageData) {
       await Payment.create({
         userId: packageData.userId,
+        userCode: packageData.trackingNumber,
         paymentNumber: `PAY-${Date.now()}-${Math.random().toString(36).substring(7)}`,
         amount: amount,
         currency: currency,
-        paymentMethod: paymentMethod || "card",
+        method: paymentMethod || "card",
         paymentGateway: paymentGateway,
         status: usePayPal ? "pending" : "completed",
         description: `Payment for invoice ${invoiceNumber}`,
+        reference: paypalOrderId || `PAY-${Date.now()}`,
+        gatewayId: paypalOrderId || null,
+        trackingNumber: packageData.trackingNumber,
         paidAt: usePayPal ? null : new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
         metadata: paypalOrderId ? { paypalOrderId } : null,
         invoiceId: billType === 'invoice' ? invoice._id : null,
       });

@@ -17,6 +17,26 @@ export class ExportService {
     this.downloadFile(csv, `${filename}.csv`, 'text/csv');
   }
 
+  private static readBlobAsDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  private static async fetchImageAsDataUrl(path: string): Promise<string | null> {
+    try {
+      const res = await fetch(path);
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return await this.readBlobAsDataUrl(blob);
+    } catch {
+      return null;
+    }
+  }
+
   static toExcel(data: Record<string, unknown>[], filename: string, sheetName: string = 'Sheet1'): void {
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
@@ -67,7 +87,7 @@ export class ExportService {
   /**
    * Generate simple invoice PDF - completely rewritten without autoTable
    */
-  static toInvoicePDF(invoice: {
+  static async toInvoicePDF(invoice: {
     invoiceNumber: string;
     issueDate: string | Date;
     dueDate: string | Date;
@@ -100,38 +120,63 @@ export class ExportService {
       trackingNumber?: string;
       userCode?: string;
     };
-  }, filename: string): void {
+  }, filename: string): Promise<void> {
     try {
+      const currency = (invoice.currency || 'JMD').toUpperCase();
+      const moneyFormatter = new Intl.NumberFormat(currency === 'JMD' ? 'en-JM' : 'en-US', {
+        style: 'currency',
+        currency,
+        currencyDisplay: 'symbol',
+      });
+      const formatMoney = (amount: number) => {
+        try {
+          return moneyFormatter.format(amount);
+        } catch {
+          return `${currency} ${amount.toFixed(2)}`;
+        }
+      };
+
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       let yPos = 20;
 
       // Company Header
       doc.setFillColor(15, 77, 138);
-      doc.rect(0, 0, pageWidth, 50, 'F');
+      doc.rect(0, 0, pageWidth, 52, 'F');
+
+      const logoDataUrl = await this.fetchImageAsDataUrl('/images/Logo.png');
+      if (logoDataUrl) {
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(14, 12, 22, 22, 3, 3, 'F');
+        doc.addImage(logoDataUrl, 'PNG', 15, 13, 20, 20);
+      }
       
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(24);
       doc.setFont('helvetica', 'bold');
-      doc.text('CLEAN J SHIPPING', 15, 25);
+      doc.text('CLEAN J SHIPPING', logoDataUrl ? 40 : 15, 25);
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text('Professional Logistics Services', 15, 32);
-      doc.text('contact@cleanjshipping.com | +92-XXX-XXXXXXX', 15, 39);
+      doc.text('Professional Logistics Services', logoDataUrl ? 40 : 15, 32);
+      doc.text('info@cleanshipping.com | 1 (876) 578-5945', logoDataUrl ? 40 : 15, 39);
       
       // Invoice Title and Number
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
-      doc.text('INVOICE', pageWidth - 15, 25, { align: 'right' });
+      doc.text('INVOICE', pageWidth - 15, 23, { align: 'right' });
       
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
-      doc.text(`#${invoice.invoiceNumber}`, pageWidth - 15, 32, { align: 'right' });
+      doc.text(`#${invoice.invoiceNumber}`, pageWidth - 15, 31, { align: 'right' });
       
       // Status
       doc.setFontSize(10);
-      doc.text(`Status: ${invoice.status.toUpperCase()}`, pageWidth - 15, 39, { align: 'right' });
+      doc.text(`Status: ${(invoice.status || 'draft').toUpperCase()}`, pageWidth - 15, 39, { align: 'right' });
+
+      doc.setDrawColor(230, 143, 25);
+      doc.setLineWidth(2);
+      doc.line(0, 52, pageWidth, 52);
       
       yPos = 60;
       
@@ -190,7 +235,7 @@ export class ExportService {
       doc.text(`Due Date: ${this.formatDate(invoice.dueDate)}`, 15, yPos);
       
       yPos += 6;
-      doc.text(`Currency: ${invoice.currency || 'USD'}`, 15, yPos);
+      doc.text(`Currency: ${currency}`, 15, yPos);
       
       // Items Section
       yPos += 15;
@@ -204,10 +249,14 @@ export class ExportService {
       doc.setFillColor(240, 240, 240);
       doc.rect(15, yPos - 5, pageWidth - 30, 8, 'F');
       doc.setFontSize(9);
-      doc.text('Description', 20, yPos);
-      doc.text('Qty', 100, yPos);
-      doc.text('Price', 120, yPos);
-      doc.text('Total', 160, yPos);
+      const descX = 20;
+      const qtyX = 120;
+      const priceX = 145;
+      const totalX = pageWidth - 20;
+      doc.text('Description', descX, yPos);
+      doc.text('Qty', qtyX, yPos, { align: 'right' });
+      doc.text('Price', priceX, yPos, { align: 'right' });
+      doc.text('Total', totalX, yPos, { align: 'right' });
       
       yPos += 8;
       
@@ -218,23 +267,29 @@ export class ExportService {
         doc.text('No items', 20, yPos);
         yPos += 8;
       } else {
-        items.forEach((item) => {
+        items.forEach((item, idx) => {
           if (yPos > 250) {
             doc.addPage();
             yPos = 20;
           }
-          
+
+          if (idx % 2 === 1) {
+            doc.setFillColor(250, 250, 250);
+            doc.rect(15, yPos - 4.5, pageWidth - 30, 8, 'F');
+          }
+
           const description = item.description || 'Service';
-          const quantity = item.quantity?.toString() || '1';
-          const price = `$${(item.unitPrice || 0).toFixed(2)}`;
-          const total = `$${(item.total || 0).toFixed(2)}`;
-          
-          doc.text(description, 20, yPos);
-          doc.text(quantity, 100, yPos);
-          doc.text(price, 120, yPos);
-          doc.text(total, 160, yPos);
-          
-          yPos += 8;
+          const descriptionLines = doc.splitTextToSize(description, 90);
+          const quantity = (item.quantity ?? 1).toString();
+          const price = formatMoney(item.unitPrice || 0);
+          const lineTotal = formatMoney(item.total || 0);
+
+          doc.text(descriptionLines, descX, yPos);
+          doc.text(quantity, qtyX, yPos, { align: 'right' });
+          doc.text(price, priceX, yPos, { align: 'right' });
+          doc.text(lineTotal, totalX, yPos, { align: 'right' });
+
+          yPos += Math.max(8, descriptionLines.length * 5);
         });
       }
       
@@ -243,7 +298,7 @@ export class ExportService {
       const summaryX = pageWidth - 80;
       
       doc.setFillColor(240, 240, 240);
-      doc.rect(summaryX, yPos - 5, 65, 60, 'F');
+      doc.roundedRect(summaryX, yPos - 6, 65, 68, 3, 3, 'F');
       
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
@@ -252,16 +307,16 @@ export class ExportService {
       yPos += 8;
       doc.setFont('helvetica', 'normal');
       doc.text('Subtotal:', summaryX + 5, yPos);
-      doc.text(`$${(invoice.subtotal || 0).toFixed(2)}`, summaryX + 60, yPos, { align: 'right' });
+      doc.text(formatMoney(invoice.subtotal || 0), summaryX + 60, yPos, { align: 'right' });
       
       yPos += 8;
       doc.text('Tax:', summaryX + 5, yPos);
-      doc.text(`$${(invoice.taxTotal || 0).toFixed(2)}`, summaryX + 60, yPos, { align: 'right' });
+      doc.text(formatMoney(invoice.taxTotal || 0), summaryX + 60, yPos, { align: 'right' });
       
       if (invoice.discountAmount && invoice.discountAmount > 0) {
         yPos += 8;
         doc.text('Discount:', summaryX + 5, yPos);
-        doc.text(`-$${invoice.discountAmount.toFixed(2)}`, summaryX + 60, yPos, { align: 'right' });
+        doc.text(`-${formatMoney(invoice.discountAmount)}`, summaryX + 60, yPos, { align: 'right' });
       }
       
       yPos += 8;
@@ -272,14 +327,19 @@ export class ExportService {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
       doc.text('Total:', summaryX + 5, yPos);
-      doc.text(`$${(invoice.total || 0).toFixed(2)}`, summaryX + 60, yPos, { align: 'right' });
+      doc.text(formatMoney(invoice.total || 0), summaryX + 60, yPos, { align: 'right' });
       
       yPos += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
+      doc.setTextColor(34, 197, 94);
+      doc.text('Paid:', summaryX + 5, yPos);
+      doc.text(formatMoney(invoice.amountPaid || 0), summaryX + 60, yPos, { align: 'right' });
+
+      yPos += 8;
       doc.setTextColor(239, 68, 68);
       doc.text('Balance Due:', summaryX + 5, yPos);
-      doc.text(`$${(invoice.balanceDue || 0).toFixed(2)}`, summaryX + 60, yPos, { align: 'right' });
+      doc.text(formatMoney(invoice.balanceDue || 0), summaryX + 60, yPos, { align: 'right' });
       
       // Notes
       if (invoice.notes) {

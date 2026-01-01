@@ -1,11 +1,38 @@
 // src/models/Package.ts
 import mongoose, { Document, Schema } from 'mongoose';
 
-export type PackageStatus = 'pending' | 'received' | 'in_transit' | 'out_for_delivery' | 'delivered' | 'exception' | 'returned' | 'lost' | 'damaged' | 'At Warehouse' | 'In Transit' | 'At Local Port' | 'Delivered' | 'Unknown' | 'Deleted';
+export type PackageStatus =
+  | 'pending'
+  | 'At Warehouse'
+  | 'pre_alerted'
+  | 'received'
+  | 'in_storage'
+  | 'in_processing'
+  | 'ready_to_ship'
+  | 'shipped'
+  | 'in_transit'
+  | 'customs_pending'
+  | 'customs_cleared'
+  | 'ready_for_delivery'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'exception'
+  | 'returned'
+  | 'lost'
+  | 'damaged'
+  | 'unknown'
+  | 'At Warehouse'
+  | 'In Transit'
+  | 'At Local Port'
+  | 'Delivered'
+  | 'Unknown'
+  | 'Deleted';
 export type PackageType = 'document' | 'parcel' | 'freight' | 'pallet';
 export type ServiceType = 'standard' | 'express' | 'overnight' | 'same_day';
+export type ServiceMode = 'air' | 'ocean' | 'local';
 export type DeliveryType = 'pickup' | 'delivery' | 'door_to_door' | 'warehouse_pickup';
 export type PaymentStatus = 'pending' | 'paid' | 'partially_paid' | 'refunded' | 'cancelled';
+export type CustomsStatus = 'not_required' | 'pending' | 'cleared';
 
 export interface IPackage extends Document {
   // Basic Information
@@ -69,12 +96,25 @@ export interface IPackage extends Document {
   warehouseLocation?: string;
   dateReceived?: Date;
   receivedBy?: string;
+
+  mailboxNumber?: string;
+  serviceMode?: ServiceMode;
   
   // Customs Information
   isInternational: boolean;
   customsValue?: number;
   dutiesAndTaxes?: number;
   invoiceNumber?: string;
+
+  customsRequired?: boolean;
+  customsStatus?: CustomsStatus;
+  customsClearanceDate?: Date;
+  dutyAmount?: number;
+  customsDocuments?: Array<{
+    name?: string;
+    url?: string;
+    uploadedAt?: Date;
+  }>;
   
   // Payment & Pricing
   shippingCost: number;
@@ -85,6 +125,13 @@ export interface IPackage extends Document {
   paymentMethod: string;
   paymentStatus: PaymentStatus;
   paymentDueDate?: Date;
+
+  amountPaid?: number;
+  deliveryFee?: number;
+  additionalFees?: Array<{
+    label?: string;
+    amount?: number;
+  }>;
   
   // Status & Tracking
   status: PackageStatus;
@@ -102,6 +149,20 @@ export interface IPackage extends Document {
   proofOfDelivery?: string;
   damageNotes?: string;
   returnReason?: string;
+
+  condition?: 'good' | 'damaged';
+  photos?: Array<{
+    url?: string;
+    caption?: string;
+    uploadedAt?: Date;
+    uploadedBy?: string;
+  }>;
+
+  internalNotes?: Array<{
+    text: string;
+    createdAt: Date;
+    createdBy?: string;
+  }>;
   
   // Flags
   isFragile: boolean;
@@ -249,12 +310,25 @@ const PackageSchema = new Schema<IPackage>(
     warehouseLocation: { type: String, trim: true },
     dateReceived: { type: Date },
     receivedBy: { type: String, trim: true },
+
+    mailboxNumber: { type: String, trim: true },
+    serviceMode: { type: String, enum: ['air', 'ocean', 'local'], default: 'air' },
     
     // Customs Information
     isInternational: { type: Boolean, default: false },
     customsValue: { type: Number, min: 0 },
     dutiesAndTaxes: { type: Number, min: 0 },
     invoiceNumber: { type: String, trim: true },
+
+    customsRequired: { type: Boolean, default: false },
+    customsStatus: { type: String, enum: ['not_required', 'pending', 'cleared'], default: 'not_required' },
+    customsClearanceDate: { type: Date },
+    dutyAmount: { type: Number, min: 0 },
+    customsDocuments: [{
+      name: { type: String, trim: true },
+      url: { type: String, trim: true },
+      uploadedAt: { type: Date },
+    }],
     
     // Payment & Pricing
     shippingCost: { type: Number, required: true, min: 0 },
@@ -265,11 +339,44 @@ const PackageSchema = new Schema<IPackage>(
     paymentMethod: { type: String, required: true, trim: true },
     paymentStatus: { type: String, enum: ['pending', 'paid', 'partially_paid', 'refunded', 'cancelled'], default: 'pending' },
     paymentDueDate: { type: Date },
+
+    amountPaid: { type: Number, default: 0, min: 0 },
+    deliveryFee: { type: Number, default: 0, min: 0 },
+    additionalFees: [{
+      label: { type: String, trim: true },
+      amount: { type: Number, min: 0 },
+    }],
     
     // Status & Tracking
     status: { 
       type: String, 
-      enum: ['pending', 'received', 'in_processing', 'ready_to_ship', 'shipped', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'lost', 'damaged', 'unknown'],
+      enum: [
+        'pending',
+        'At Warehouse',
+        'pre_alerted',
+        'received',
+        'in_storage',
+        'in_processing',
+        'ready_to_ship',
+        'shipped',
+        'in_transit',
+        'customs_pending',
+        'customs_cleared',
+        'ready_for_delivery',
+        'out_for_delivery',
+        'delivered',
+        'exception',
+        'returned',
+        'lost',
+        'damaged',
+        'unknown',
+        'At Warehouse',
+        'In Transit',
+        'At Local Port',
+        'Delivered',
+        'Unknown',
+        'Deleted',
+      ],
       default: 'received',
       required: true 
     },
@@ -287,6 +394,19 @@ const PackageSchema = new Schema<IPackage>(
     proofOfDelivery: { type: String, trim: true },
     damageNotes: { type: String, trim: true },
     returnReason: { type: String, trim: true },
+
+    condition: { type: String, enum: ['good', 'damaged'], default: 'good' },
+    photos: [{
+      url: { type: String, trim: true },
+      caption: { type: String, trim: true },
+      uploadedAt: { type: Date },
+      uploadedBy: { type: String, trim: true },
+    }],
+    internalNotes: [{
+      text: { type: String, required: true, trim: true },
+      createdAt: { type: Date, required: true },
+      createdBy: { type: String, trim: true },
+    }],
     
     // Flags
     isFragile: { type: Boolean, default: false },

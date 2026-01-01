@@ -83,9 +83,6 @@ export default function PreAlertsPage() {
         </div>
 
         <div>
-          <p className="text-sm uppercase tracking-widest text-blue-100">
-            Shipment Notifications
-          </p>
           <h1 className="text-3xl font-bold leading-tight md:text-4xl">
             Pre-Alerts Dashboard
           </h1>

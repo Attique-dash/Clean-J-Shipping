@@ -6,6 +6,58 @@ import { dbConnect } from '@/lib/db';
 import Invoice from '@/models/Invoice';
 import { Types } from 'mongoose';
 
+ type InvoicePaymentHistoryLean = {
+   amount?: unknown;
+   date?: unknown;
+   method?: unknown;
+   reference?: unknown;
+ };
+
+ type InvoiceItemLean = {
+   description?: unknown;
+   quantity?: unknown;
+   unitPrice?: unknown;
+   taxRate?: unknown;
+   amount?: unknown;
+   taxAmount?: unknown;
+   total?: unknown;
+ };
+
+ type InvoiceLean = {
+   _id?: { toString: () => string } | string;
+   invoiceNumber?: unknown;
+   status?: unknown;
+   issueDate?: unknown;
+   dueDate?: unknown;
+   currency?: unknown;
+   subtotal?: unknown;
+   taxTotal?: unknown;
+   discountAmount?: unknown;
+   total?: unknown;
+   amountPaid?: unknown;
+   balanceDue?: unknown;
+   customer?: {
+     id?: unknown;
+     name?: unknown;
+     email?: unknown;
+     address?: unknown;
+     phone?: unknown;
+     city?: unknown;
+     country?: unknown;
+   };
+   items?: InvoiceItemLean[];
+   package?: {
+     trackingNumber?: unknown;
+     tracking_number?: unknown;
+     userCode?: unknown;
+     user_code?: unknown;
+   };
+   paymentHistory?: InvoicePaymentHistoryLean[];
+   notes?: unknown;
+   createdAt?: unknown;
+   updatedAt?: unknown;
+ };
+
 // Delete an invoice
 export async function DELETE(
   req: NextRequest,
@@ -76,31 +128,47 @@ export async function GET(
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
 
+    const inv = invoice as unknown as InvoiceLean;
+    const now = new Date();
+    const totalAmount = Number(inv.total) || 0;
+    const paidFromHistory = Array.isArray(inv.paymentHistory)
+      ? inv.paymentHistory.reduce((sum: number, p) => sum + (Number(p?.amount) || 0), 0)
+      : 0;
+    const paidAmount = paidFromHistory > 0 ? paidFromHistory : (Number(inv.amountPaid) || 0);
+    const outstanding = Math.max(0, totalAmount - paidAmount);
+
     // Format invoice with all fields
     const formattedInvoice = {
-      _id: (invoice as any)._id?.toString() || '',
-      invoiceNumber: (invoice as any).invoiceNumber || '',
-      status: (invoice as any).status || 'draft',
-      issueDate: (invoice as any).issueDate ? new Date((invoice as any).issueDate).toISOString() : new Date().toISOString(),
-      dueDate: (invoice as any).dueDate ? new Date((invoice as any).dueDate).toISOString() : new Date().toISOString(),
-      currency: (invoice as any).currency || 'USD',
-      subtotal: Number((invoice as any).subtotal) || 0,
-      taxTotal: Number((invoice as any).taxTotal) || 0,
-      discountAmount: Number((invoice as any).discountAmount) || 0,
-      total: Number((invoice as any).total) || 0,
-      amountPaid: Number((invoice as any).amountPaid) || 0,
-      balanceDue: Number((invoice as any).balanceDue) || 0,
-      customer: (invoice as any).customer ? {
-        id: (invoice as any).customer.id || '',
-        name: (invoice as any).customer.name || '',
-        email: (invoice as any).customer.email || '',
-        address: (invoice as any).customer.address || '',
-        phone: (invoice as any).customer.phone || '',
-        city: (invoice as any).customer.city || '',
-        country: (invoice as any).customer.country || ''
+      _id: typeof inv._id === 'string' ? inv._id : inv._id?.toString() || '',
+      invoiceNumber: String(inv.invoiceNumber || ''),
+      status: (() => {
+        if (String(inv.status || '') === 'cancelled') return 'cancelled';
+        if (String(inv.status || 'draft') === 'draft') return 'draft';
+        if (outstanding <= 0) return 'paid';
+        if (paidAmount > 0) return 'partially_paid';
+        if (inv.dueDate && now > new Date(String(inv.dueDate))) return 'overdue';
+        return 'unpaid';
+      })(),
+      issueDate: inv.issueDate ? new Date(String(inv.issueDate)).toISOString() : new Date().toISOString(),
+      dueDate: inv.dueDate ? new Date(String(inv.dueDate)).toISOString() : new Date().toISOString(),
+      currency: String(inv.currency || 'JMD'),
+      subtotal: Number(inv.subtotal) || 0,
+      taxTotal: Number(inv.taxTotal) || 0,
+      discountAmount: Number(inv.discountAmount) || 0,
+      total: Number(inv.total) || 0,
+      amountPaid: paidAmount,
+      balanceDue: outstanding,
+      customer: inv.customer ? {
+        id: String(inv.customer.id || ''),
+        name: String(inv.customer.name || ''),
+        email: String(inv.customer.email || ''),
+        address: String(inv.customer.address || ''),
+        phone: String(inv.customer.phone || ''),
+        city: String(inv.customer.city || ''),
+        country: String(inv.customer.country || '')
       } : undefined,
-      items: Array.isArray((invoice as any).items) ? (invoice as any).items.map((item: any) => ({
-        description: item.description || '',
+      items: Array.isArray(inv.items) ? inv.items.map((item) => ({
+        description: String(item.description || ''),
         quantity: Number(item.quantity) || 0,
         unitPrice: Number(item.unitPrice) || 0,
         taxRate: Number(item.taxRate) || 0,
@@ -108,19 +176,19 @@ export async function GET(
         taxAmount: Number(item.taxAmount) || 0,
         total: Number(item.total) || 0
       })) : [],
-      package: (invoice as any).package ? {
-        trackingNumber: (invoice as any).package.trackingNumber || (invoice as any).package.tracking_number,
-        userCode: (invoice as any).package.userCode || (invoice as any).package.user_code
+      package: inv.package ? {
+        trackingNumber: String(inv.package.trackingNumber || inv.package.tracking_number || ''),
+        userCode: String(inv.package.userCode || inv.package.user_code || '')
       } : undefined,
-      paymentHistory: Array.isArray((invoice as any).paymentHistory) ? (invoice as any).paymentHistory.map((payment: any) => ({
+      paymentHistory: Array.isArray(inv.paymentHistory) ? inv.paymentHistory.map((payment) => ({
         amount: Number(payment.amount) || 0,
-        date: payment.date ? new Date(payment.date).toISOString() : new Date().toISOString(),
-        method: payment.method || '',
-        reference: payment.reference || ''
+        date: payment.date ? new Date(String(payment.date)).toISOString() : new Date().toISOString(),
+        method: String(payment.method || ''),
+        reference: String(payment.reference || '')
       })) : [],
-      notes: (invoice as any).notes || '',
-      createdAt: (invoice as any).createdAt ? new Date((invoice as any).createdAt).toISOString() : new Date().toISOString(),
-      updatedAt: (invoice as any).updatedAt ? new Date((invoice as any).updatedAt).toISOString() : new Date().toISOString()
+      notes: String(inv.notes || ''),
+      createdAt: inv.createdAt ? new Date(String(inv.createdAt)).toISOString() : new Date().toISOString(),
+      updatedAt: inv.updatedAt ? new Date(String(inv.updatedAt)).toISOString() : new Date().toISOString()
     };
 
     return NextResponse.json(formattedInvoice);

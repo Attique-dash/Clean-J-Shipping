@@ -153,25 +153,27 @@ export default function CustomerLayout({
         <aside className="hidden md:flex w-72 h-screen bg-gradient-to-b from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] text-white shadow-2xl overflow-hidden flex-col">
           {/* Header */}
           <div className="border-b border-white/10 bg-gradient-to-r from-[#0e447d] to-[#0c3a6b] px-6 py-5">
-            <div className="flex items-center gap-3">
-              {/* Logo Box */}
-              <div className="flex h-12 w-12 items-center justify-center rounded-md bg-white/10 backdrop-blur-sm">
-                <Image
-                  src="/images/Logo.png"
-                  alt="Clean J Shipping"
-                  width={40}
-                  height={40}
-                  className="h-10 w-12 object-contain"
-                />
-              </div>
-
-              {/* Title */}
-              <div>
-                <div className="text-xl font-bold tracking-tight">
-                  Clean J Shipping
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                {/* Logo Box */}
+                <div className="flex h-12 w-12 items-center justify-center rounded-md bg-white/10 backdrop-blur-sm">
+                  <Image
+                    src="/images/Logo.png"
+                    alt="Clean J Shipping"
+                    width={40}
+                    height={40}
+                    className="h-10 w-12 object-contain"
+                  />
                 </div>
-                <div className="text-xs font-medium text-[#E67919] mt-1">
-                  Customer Portal
+
+                {/* Title */}
+                <div>
+                  <div className="text-xl font-bold tracking-tight">
+                    Clean J Shipping
+                  </div>
+                  <div className="text-xs font-medium text-[#E67919] mt-1">
+                    Customer Portal
+                  </div>
                 </div>
               </div>
             </div>

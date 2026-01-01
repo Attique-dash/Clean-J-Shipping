@@ -5,6 +5,46 @@ import { User } from "@/models/User";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function asNumber(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
+function calcDaysInStorage(dateReceived: unknown, createdAt: unknown): number {
+  const base = dateReceived || createdAt;
+  if (!base) return 0;
+  const d = new Date(String(base));
+  if (Number.isNaN(d.getTime())) return 0;
+  const diffDays = Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.max(0, diffDays);
+}
+
+function calcShippingCostJmd(weightLbs: number): number {
+  if (weightLbs <= 0) return 0;
+  const first = 700;
+  const additional = Math.max(0, Math.ceil(weightLbs) - 1) * 350;
+  return first + additional;
+}
+
+function calcStorageFeeJmd(daysInStorage: number): number {
+  if (daysInStorage <= 7) return 0;
+  return (daysInStorage - 7) * 50;
+}
+
+function calcCustomsDutyUsd(valueUsd: number): number {
+  // Placeholder: requirement says “Customs duty (if > $100 USD)” but not a specific rate.
+  // Keep it explicit and configurable later.
+  return valueUsd > 100 ? 0 : 0;
+}
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !['admin', 'warehouse_staff', 'customer_support'].includes(session.user.role)) {
@@ -17,7 +57,15 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const q = (url.searchParams.get("q") || "").trim();
     const status = (url.searchParams.get("status") || "").trim();
+    const statuses = (url.searchParams.get("statuses") || "").trim();
     const userCode = (url.searchParams.get("userCode") || "").trim();
+    const serviceMode = (url.searchParams.get("serviceMode") || "").trim();
+    const warehouseLocation = (url.searchParams.get("warehouseLocation") || "").trim();
+    const customsStatus = (url.searchParams.get("customsStatus") || "").trim();
+    const customsRequired = (url.searchParams.get("customsRequired") || "").trim();
+    const paymentStatus = (url.searchParams.get("paymentStatus") || "").trim();
+    const from = (url.searchParams.get("from") || "").trim();
+    const to = (url.searchParams.get("to") || "").trim();
     const page = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
     const per_page = Math.min(Math.max(parseInt(url.searchParams.get("per_page") || "20", 10), 1), 100);
 
@@ -31,41 +79,91 @@ export async function GET(req: Request) {
         { description: regex },
         { shipper: regex },
         { controlNumber: regex },
-        { manifestId: regex }
+        { userCode: regex },
+        { mailboxNumber: regex },
+        { receiverName: regex },
+        { receiverPhone: regex },
       ];
     }
 
-    if (status) {
+    // status: single status for backward compatibility
+    // statuses: comma-separated list (multi-select)
+    if (statuses) {
+      const list = statuses
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (list.length > 0) {
+        filter.status = { $in: list };
+      }
+    } else if (status) {
       filter.status = status;
     }
 
+    if (serviceMode) {
+      filter.serviceMode = serviceMode;
+    }
+
+    if (warehouseLocation) {
+      filter.warehouseLocation = warehouseLocation;
+    }
+
+    if (customsStatus) {
+      filter.customsStatus = customsStatus;
+    }
+
+    if (customsRequired) {
+      if (customsRequired === 'yes') filter.customsRequired = true;
+      if (customsRequired === 'no') filter.customsRequired = false;
+    }
+
+    if (paymentStatus) {
+      filter.paymentStatus = paymentStatus;
+    }
+
+    if (from || to) {
+      const range: Record<string, Date> = {};
+      if (from) {
+        const d = new Date(from);
+        if (!Number.isNaN(d.getTime())) range.$gte = d;
+      }
+      if (to) {
+        const d = new Date(to);
+        if (!Number.isNaN(d.getTime())) {
+          d.setHours(23, 59, 59, 999);
+          range.$lte = d;
+        }
+      }
+      if (Object.keys(range).length > 0) {
+        filter.createdAt = range;
+      }
+    }
+
     if (userCode) {
-      // Find user by userCode and get their packages
-      const user = (await User.findOne({ userCode: userCode }).select('_id').lean()) as unknown as { _id?: unknown } | null;
+      // Existing codebase uses both userCode and shippingId in different places.
+      const user = (await User.findOne({ $or: [{ userCode }, { shippingId: userCode }] }).select('_id').lean()) as unknown as { _id?: unknown } | null;
       if (user?._id) {
         filter.userId = user._id;
       } else {
-        // If no user found with this userCode, return empty results
         return NextResponse.json({
           packages: [],
           total_count: 0,
           status_counts: {},
-          page, 
-          per_page 
+          page,
+          per_page,
         });
       }
     }
 
     const [packages, total_count, status_counts] = await Promise.all([
       Package.find(filter)
-        .populate('userId', 'name email')
+        .populate('userId', 'name email phone userCode')
         .sort({ createdAt: -1 })
         .skip((page - 1) * per_page)
-        .limit(per_page),
+        .limit(per_page)
+        .lean(),
       Package.countDocuments(filter),
-      Package.aggregate([
-        { $group: { _id: '$status', count: { $sum: 1 } } }
-      ])
+      Package.aggregate([{ $match: filter }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
     ]);
 
     const statusCountsMap = status_counts.reduce((acc, curr) => {
@@ -73,56 +171,79 @@ export async function GET(req: Request) {
       return acc;
     }, {} as Record<string, number>);
 
-    // Get user information for all packages to include shippingId (userCode) in response
-    const userIds = packages
-      .map((p: any) => p?.userId?._id || p?.userId)
-      .filter(Boolean);
-    const userMap = new Map<string, string>();
-    if (userIds.length > 0) {
-      const users = (await User.find({ _id: { $in: userIds } }).select('_id shippingId').lean()) as unknown as Array<{ _id?: unknown; shippingId?: string }>;
-      users.forEach((user) => {
-        userMap.set(String(user._id), user.shippingId || '');
-      });
-    }
+    const packagesWithComputed = (packages as Array<Record<string, unknown>>).map((p) => {
+      const trackingNumber = asString(p.trackingNumber);
+      const statusValue = asString(p.status);
 
-    // Add userCode to each package
-    const packagesWithUserCode = packages.map((p: any) => ({
-      _id: p._id,
-      trackingNumber: p.trackingNumber,
-      userCode: userMap.get(String(p?.userId?._id || p?.userId)) || '',
-      status: p.status,
-      weight: p.weight,
-      shipper: p.shipper,
-      description: p.description,
-      dimensions: p.length && p.width && p.height 
-        ? `${p.length}×${p.width}×${p.height} cm` 
-        : undefined,
-      itemDescription: p.itemDescription,
-      createdAt: p.createdAt ? (p.createdAt instanceof Date ? p.createdAt.toISOString() : new Date(p.createdAt).toISOString()) : undefined,
-      updatedAt: p.updatedAt ? (p.updatedAt instanceof Date ? p.updatedAt.toISOString() : new Date(p.updatedAt).toISOString()) : undefined,
-      // Include additional fields for frontend compatibility
-      length: p.length,
-      width: p.width,
-      height: p.height,
-      dimensionUnit: p.dimensionUnit,
-      receiverName: p.receiverName,
-      receiverEmail: p.receiverEmail,
-      receiverPhone: p.receiverPhone,
-      receiverAddress: p.receiverAddress,
-      receiverCountry: p.receiverCountry,
-      senderName: p.senderName,
-      senderEmail: p.senderEmail,
-      senderPhone: p.senderPhone,
-      senderAddress: p.senderAddress,
-      senderCountry: p.senderCountry,
-    }));
+      // Prefer populated userId fields if available
+      const populatedUser = (p.userId && typeof p.userId === 'object') ? (p.userId as Record<string, unknown>) : null;
+      const customerName = populatedUser ? asString(populatedUser.name) : '';
+      const customerEmail = populatedUser ? asString(populatedUser.email) : '';
+      const customerPhone = populatedUser ? asString(populatedUser.phone) : '';
+      const mailboxNumber = asString(p.mailboxNumber) || asString(p.userCode) || (populatedUser ? asString(populatedUser.userCode) : '');
 
-    return NextResponse.json({ 
-      packages: packagesWithUserCode, 
+      const weight = asNumber(p.weight);
+      const weightUnit = asString(p.weightUnit) || asString((p.dimensions as Record<string, unknown> | undefined)?.weightUnit) || 'kg';
+      const weightLbs = weightUnit === 'lb' ? weight : weight * 2.20462;
+
+      const itemValueUsd = asNumber(p.itemValue) || asNumber(p.value);
+
+      const dateReceived = p.dateReceived || p.entryDate;
+      const createdAt = p.createdAt;
+      const daysInStorage = calcDaysInStorage(dateReceived, createdAt);
+
+      const shippingCostJmd = calcShippingCostJmd(weightLbs);
+      const storageFeeJmd = calcStorageFeeJmd(daysInStorage);
+      const customsDutyUsd = calcCustomsDutyUsd(itemValueUsd);
+
+      const deliveryFeeJmd = asNumber(p.deliveryFee);
+      const additionalFees = Array.isArray(p.additionalFees) ? (p.additionalFees as Array<Record<string, unknown>>) : [];
+      const additionalFeesTotalJmd = additionalFees.reduce((sum, f) => sum + asNumber(f.amount), 0);
+
+      const totalCostJmd = shippingCostJmd + storageFeeJmd + deliveryFeeJmd + additionalFeesTotalJmd;
+      const amountPaidJmd = asNumber(p.amountPaid);
+      const outstandingBalanceJmd = Math.max(0, totalCostJmd - amountPaidJmd);
+
+      return {
+        _id: String(p._id || ''),
+        trackingNumber,
+        customerName,
+        customerEmail,
+        customerPhone,
+        mailboxNumber,
+        serviceMode: asString(p.serviceMode) || 'air',
+        status: statusValue,
+        warehouseLocation: asString(p.warehouseLocation) || asString(p.branch) || '',
+        customsRequired: Boolean(p.customsRequired),
+        customsStatus: asString(p.customsStatus) || 'not_required',
+        paymentStatus: asString(p.paymentStatus) || 'pending',
+        weight,
+        weightUnit,
+        weightLbs,
+        itemValueUsd,
+        dateReceived: dateReceived ? new Date(String(dateReceived)).toISOString() : null,
+        daysInStorage,
+        costs: {
+          shippingCostJmd,
+          storageFeeJmd,
+          deliveryFeeJmd,
+          additionalFeesTotalJmd,
+          totalCostJmd,
+          amountPaidJmd,
+          outstandingBalanceJmd,
+          customsDutyUsd,
+        },
+        createdAt: createdAt ? new Date(String(createdAt)).toISOString() : null,
+        updatedAt: p.updatedAt ? new Date(String(p.updatedAt)).toISOString() : null,
+      };
+    });
+
+    return NextResponse.json({
+      packages: packagesWithComputed,
       total_count,
       status_counts: statusCountsMap,
-      page, 
-      per_page 
+      page,
+      per_page,
     });
   } catch (error) {
     console.error("Error fetching packages:", error);
@@ -271,7 +392,25 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
-    const { id, status, weight, description, branch, length, width, height } = body;
+    const {
+      id,
+      status,
+      weight,
+      description,
+      branch,
+      length,
+      width,
+      height,
+      serviceMode,
+      mailboxNumber,
+      warehouseLocation,
+      dateReceived,
+      itemValueUsd,
+      customsRequired,
+      customsStatus,
+      paymentStatus,
+      amountPaid,
+    } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Package ID is required" }, { status: 400 });
@@ -302,6 +441,44 @@ export async function PUT(req: Request) {
     if (branch !== undefined && branch !== currentPackage.currentLocation) {
       updateData.currentLocation = branch;
       changedFields.push('branch');
+    }
+    if (warehouseLocation !== undefined && warehouseLocation !== currentPackage.warehouseLocation) {
+      updateData.warehouseLocation = warehouseLocation;
+      changedFields.push('warehouseLocation');
+    }
+    if (serviceMode !== undefined && serviceMode !== currentPackage.serviceMode) {
+      updateData.serviceMode = serviceMode;
+      changedFields.push('serviceMode');
+    }
+    if (mailboxNumber !== undefined && mailboxNumber !== currentPackage.mailboxNumber) {
+      updateData.mailboxNumber = mailboxNumber;
+      changedFields.push('mailboxNumber');
+    }
+    if (dateReceived !== undefined) {
+      updateData.dateReceived = dateReceived;
+      changedFields.push('dateReceived');
+    }
+    if (itemValueUsd !== undefined && itemValueUsd !== currentPackage.itemValue && itemValueUsd !== currentPackage.value) {
+      // Store in the existing field(s) already used across the codebase
+      updateData.itemValue = itemValueUsd;
+      updateData.value = itemValueUsd;
+      changedFields.push('itemValueUsd');
+    }
+    if (customsRequired !== undefined && customsRequired !== currentPackage.customsRequired) {
+      updateData.customsRequired = customsRequired;
+      changedFields.push('customsRequired');
+    }
+    if (customsStatus !== undefined && customsStatus !== currentPackage.customsStatus) {
+      updateData.customsStatus = customsStatus;
+      changedFields.push('customsStatus');
+    }
+    if (paymentStatus !== undefined && paymentStatus !== currentPackage.paymentStatus) {
+      updateData.paymentStatus = paymentStatus;
+      changedFields.push('paymentStatus');
+    }
+    if (amountPaid !== undefined && amountPaid !== currentPackage.amountPaid) {
+      updateData.amountPaid = amountPaid;
+      changedFields.push('amountPaid');
     }
     if (length !== undefined) {
       updateData.length = length;

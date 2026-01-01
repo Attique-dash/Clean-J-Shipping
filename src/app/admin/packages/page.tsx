@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
+import { ExportService } from '@/lib/export-service';
 import { 
   Search, 
   Plus, 
@@ -19,91 +20,82 @@ import {
   ChevronRight, 
   Loader2,
   Eye,
-  Mail,
-  Calendar,
+  DollarSign,
   X
 } from 'lucide-react';
 import Link from 'next/link';
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
 
-interface Package {
+type PackageRow = {
   _id: string;
   trackingNumber: string;
-  status: 'received' | 'in_processing' | 'ready_to_ship' | 'shipped' | 'in_transit' | 'delivered' | 'unknown';
+  customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  mailboxNumber?: string;
   userCode?: string;
-  weight?: number;
-  weightUnit?: string;
-  shipper?: string;
-  description?: string;
-  dimensions?: {
-    length?: number;
-    width?: number;
-    height?: number;
-    unit?: string;
-    weight?: number;
-    weightUnit?: string;
+  serviceMode?: 'air' | 'ocean' | 'local';
+  status: string;
+  weight: number;
+  weightUnit: string;
+  weightLbs: number;
+  itemValueUsd?: number;
+  dateReceived?: string | null;
+  daysInStorage: number;
+  warehouseLocation?: string;
+  customsRequired?: boolean;
+  customsStatus?: string;
+  paymentStatus?: string;
+  costs?: {
+    shippingCostJmd: number;
+    storageFeeJmd: number;
+    deliveryFeeJmd: number;
+    additionalFeesTotalJmd: number;
+    totalCostJmd: number;
+    amountPaidJmd: number;
+    outstandingBalanceJmd: number;
+    customsDutyUsd: number;
   };
-  createdAt?: string;
-  updatedAt?: string;
-  branch?: string;
-  manifestId?: string;
-  recipient?: {
-    name?: string;
-    shippingId?: string;
-    email?: string;
-    phone?: string;
-    address?: string;
-    country?: string;
-  };
-  sender?: {
-    name?: string;
-    email?: string;
-    phone?: string;
-    address?: string;
-    country?: string;
-  };
-  // Database fields for recipient info
-  receiverName?: string;
-  receiverEmail?: string;
-  receiverPhone?: string;
-  receiverAddress?: string;
-  receiverCountry?: string;
-  // Database fields for sender info
-  senderName?: string;
-  senderEmail?: string;
-  senderPhone?: string;
-  senderAddress?: string;
-  senderCountry?: string;
-  // Dimension fields
-  length?: number;
-  width?: number;
-  height?: number;
-  dimensionUnit?: string;
-  // Package details
-  itemDescription?: string;
-  itemValue?: number;
-  contents?: string;
-  specialInstructions?: string;
-}
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+type StatusOption = {
+  value: string;
+  label: string;
+};
+
+const STATUS_OPTIONS: StatusOption[] = [
+  { value: 'received', label: 'Received' },
+  { value: 'in_processing', label: 'In Processing' },
+  { value: 'ready_to_ship', label: 'Ready to Ship' },
+  { value: 'shipped', label: 'Shipped' },
+  { value: 'in_transit', label: 'In Transit' },
+  { value: 'delivered', label: 'Delivered' },
+];
 
 export default function AdminPackagesPage() {
   const { status } = useSession();
   const router = useRouter();
-  const [packages, setPackages] = useState<Package[]>([]);
+  const [packages, setPackages] = useState<PackageRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [userCodeFilter, setUserCodeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState('');
   
   // Delete confirmation modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [packageToDelete, setPackageToDelete] = useState<Package | null>(null);
+  const [packageToDelete, setPackageToDelete] = useState<PackageRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   
   // View package modal state
   const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [packageToView, setPackageToView] = useState<Package | null>(null);
+  const [packageToView, setPackageToView] = useState<PackageRow | null>(null);
 
   // Get userCode from URL params on mount
   useEffect(() => {
@@ -128,7 +120,7 @@ export default function AdminPackagesPage() {
         const params = new URLSearchParams();
         if (userCodeFilter) params.set('userCode', userCodeFilter);
         if (searchTerm) params.set('q', searchTerm);
-        if (statusFilter) params.set('status', statusFilter);
+        if (selectedStatuses.length > 0) params.set('statuses', selectedStatuses.join(','));
         
         const res = await fetch(`/api/admin/packages?${params.toString()}`, {
           credentials: 'include'
@@ -136,8 +128,9 @@ export default function AdminPackagesPage() {
         const data = await res.json();
         if (res.ok) {
           setPackages(data.packages || []);
+          setSelectedIds(new Set());
         } else {
-          throw new Error(data.message || 'Failed to load packages');
+          throw new Error(data.error || data.message || 'Failed to load packages');
         }
       } catch (error) {
         console.error('Error loading packages:', error);
@@ -151,24 +144,139 @@ export default function AdminPackagesPage() {
     if (status === 'authenticated') {
       fetchPackages();
     }
-  }, [status, userCodeFilter, searchTerm, statusFilter]);
+  }, [status, userCodeFilter, searchTerm, selectedStatuses, refreshToken]);
 
   const handleRefresh = () => {
     setRefreshing(true);
-    // Trigger useEffect to refetch
+    setRefreshToken((v) => v + 1);
   };
 
   // Filter packages based on search term (already filtered by API, but keep for client-side filtering if needed)
   const filteredPackages = packages;
 
+  const allSelectedOnPage = filteredPackages.length > 0 && filteredPackages.every((p) => selectedIds.has(p._id));
+
+  const toggleSelectAll = () => {
+    if (allSelectedOnPage) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredPackages.map((p) => p._id)));
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectedCount = selectedIds.size;
+
+  const formatUsd = (amount: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
+  };
+
+  const formatJmd = (amount: number) => {
+    return new Intl.NumberFormat('en-JM', { style: 'currency', currency: 'JMD' }).format(amount || 0);
+  };
+
+  const humanStatus = (s: string) => {
+    const found = STATUS_OPTIONS.find((o) => o.value === s);
+    if (found) return found.label;
+    return s.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+  };
+
+  const getServiceBadge = (mode: string) => {
+    if (mode === 'air') return 'bg-sky-100 text-sky-800 border-sky-200';
+    if (mode === 'ocean') return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+    if (mode === 'local') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+    return 'bg-gray-100 text-gray-800 border-gray-200';
+  };
+
+  const getStatusBadge = (s: string) => {
+    if (s === 'delivered') return 'bg-emerald-100 text-emerald-800';
+    if (s === 'out_for_delivery') return 'bg-blue-100 text-blue-800';
+    if (s === 'ready_for_delivery') return 'bg-cyan-100 text-cyan-800';
+    if (s === 'customs_pending') return 'bg-amber-100 text-amber-800';
+    if (s === 'customs_cleared') return 'bg-green-100 text-green-800';
+    if (s === 'in_transit') return 'bg-yellow-100 text-yellow-800';
+    if (s === 'received' || s === 'At Warehouse') return 'bg-purple-100 text-purple-800';
+    return 'bg-gray-100 text-gray-800';
+  };
+
+  const runBulkStatusUpdate = async () => {
+    if (!bulkStatus || selectedIds.size === 0) return;
+    try {
+      const ids = Array.from(selectedIds);
+      await Promise.all(
+        ids.map((id) =>
+          fetch('/api/admin/packages', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ id, status: bulkStatus }),
+          })
+        )
+      );
+      toast.success(`Updated ${ids.length} package(s)`);
+      setBulkStatus('');
+      setRefreshToken((v) => v + 1);
+    } catch (e) {
+      console.error(e);
+      toast.error('Bulk status update failed');
+    }
+  };
+
+  const clearAllFilters = () => {
+    setUserCodeFilter('');
+    setSearchTerm('');
+    setSelectedStatuses([]);
+  };
+
+  const exportSelected = (format: 'csv' | 'excel') => {
+    const rows = filteredPackages.filter((p) => selectedIds.has(p._id));
+    if (rows.length === 0) {
+      toast.info('No packages selected');
+      return;
+    }
+
+    const exportRows = rows.map((p) => ({
+      'Tracking Number': p.trackingNumber,
+      'Customer Name': p.customerName,
+      'Mailbox Number': p.mailboxNumber,
+      'Service Type': String(p.serviceMode).toUpperCase(),
+      'Status': humanStatus(p.status),
+      'Weight (lbs)': Number(p.weightLbs || 0).toFixed(2),
+      'Value (USD)': Number(p.itemValueUsd || 0).toFixed(2),
+      'Date Received': p.dateReceived ? new Date(p.dateReceived).toLocaleDateString() : '',
+      'Days in Storage': p.daysInStorage,
+      'Warehouse Location': p.warehouseLocation,
+      'Customs Required': p.customsRequired ? 'Yes' : 'No',
+      'Customs Status': p.customsStatus,
+      'Payment Status': p.paymentStatus,
+      'Total Cost (JMD)': p.costs ? Number(p.costs.totalCostJmd || 0).toFixed(2) : '0.00',
+      'Outstanding (JMD)': p.costs ? Number(p.costs.outstandingBalanceJmd || 0).toFixed(2) : '0.00',
+    }));
+
+    const filename = `packages_${new Date().toISOString().slice(0, 10)}`;
+    if (format === 'csv') {
+      ExportService.toCSV(exportRows, filename);
+    } else {
+      ExportService.toExcel(exportRows, filename, 'Packages');
+    }
+  };
+
   // Handle package view
-  const handleViewPackage = async (pkg: Package) => {
+  const handleViewPackage = async (pkg: PackageRow) => {
     setPackageToView(pkg);
     setViewModalOpen(true);
   };
 
   // Handle package delete
-  const handleDeletePackage = async (pkg: Package) => {
+  const handleDeletePackage = async (pkg: PackageRow) => {
     setPackageToDelete(pkg);
     setDeleteModalOpen(true);
   };
@@ -179,7 +287,7 @@ export default function AdminPackagesPage() {
     
     setDeleting(true);
     try {
-      const res = await fetch(`/api/admin/packages?trackingNumber=${packageToDelete.trackingNumber}`, {
+      const res = await fetch(`/api/admin/packages?id=${packageToDelete._id}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -222,7 +330,6 @@ export default function AdminPackagesPage() {
                   <Package className="h-7 w-7" />
                 </div>
                 <div>
-                  <p className="text-sm uppercase tracking-widest text-blue-100">Package Management</p>
                   <h1 className="text-3xl font-bold leading-tight md:text-4xl">Packages</h1>
                   <p className="text-blue-100 mt-1">Total packages: <span className="font-semibold">{packages.length}</span></p>
                 </div>
@@ -233,12 +340,12 @@ export default function AdminPackagesPage() {
                   disabled={refreshing}
                   className="group flex items-center gap-2 rounded-lg bg-white/20 backdrop-blur px-3 py-2.5 sm:px-4 font-medium text-white shadow-md ring-1 ring-white/30 transition-all hover:bg-white/30 hover:shadow-lg disabled:opacity-50 text-sm sm:text-base"
                 >
-                  <RefreshCw className={`h-4 w-4 transition-transform ${refreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
+                  <RefreshCw className={`h-4 w-4 transition-transform ${refreshing ? 'animate-spin' : 'hover:rotate-180'}`} />
                   <span className="hidden sm:inline">Refresh</span>
                 </button>
                 <Link
                   href="/admin/add-package"
-                  className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#E67919] to-[#d46a0f] px-4 py-3 sm:px-6 font-medium text-white shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 text-sm sm:text-base"
+                  className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#E67919] to-[#d46a0f] px-4 py-3 font-medium text-white shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5"
                 >
                   <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
                   <span>Add Package</span>
@@ -267,37 +374,60 @@ export default function AdminPackagesPage() {
                 <input
                   type="text"
                   className="block w-full h-12 pl-10 pr-4 text-sm border border-gray-300 rounded-xl bg-white/80 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                  placeholder="Search by tracking #, customer name, or ID"
+                  placeholder="Search by tracking #, customer name, mailbox, or phone"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
 
-              {/* Status Filter */}
+              {/* Customer Code Filter */}
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User className="h-5 w-5 text-blue-500" />
+                </div>
+                <input
+                  type="text"
+                  className="block w-full h-12 pl-10 pr-4 text-sm border border-gray-300 rounded-xl bg-white/80 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  placeholder="Customer code (e.g. MB-001)"
+                  value={userCodeFilter}
+                  onChange={(e) => setUserCodeFilter(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-gray-700">Package Status</h4>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Filter className="h-5 w-5 text-blue-500" />
                 </div>
                 <select
-                  className="block w-full h-12 pl-10 pr-8 text-sm border border-gray-300 rounded-xl bg-white/80 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="block w-full pl-10 pr-8 py-2.5 text-sm border border-gray-300 rounded-xl bg-white/80 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
+                  value={selectedStatuses[0] || ''}
+                  onChange={(e) => {
+                    setSelectedStatuses(e.target.value ? [e.target.value] : []);
+                  }}
                 >
-                  <option value="">All Status</option>
-                  <option value="received">Received</option>
-                  <option value="in_processing">In Processing</option>
-                  <option value="ready_to_ship">Ready to Ship</option>
-                  <option value="shipped">Shipped</option>
-                  <option value="in_transit">In Transit</option>
-                  <option value="delivered">Delivered</option>
-                  <option value="unknown">Unknown</option>
+                  <option value="">All Statuses</option>
+                  {STATUS_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
 
-          {/* Active Filters */}
-            {(userCodeFilter || statusFilter) && (
+            {/* Active Filters */}
+            {(userCodeFilter || searchTerm || selectedStatuses.length > 0) && (
               <div className="flex flex-wrap items-center gap-2">
+                {searchTerm && (
+                  <div className="flex items-center gap-2 rounded-lg bg-teal-100 px-3 py-1.5 text-sm">
+                    <Search className="h-4 w-4 text-teal-700" />
+                    <span className="font-medium text-teal-900">Search: {searchTerm}</span>
+                    <button onClick={() => setSearchTerm('')} className="ml-1 text-teal-700 hover:text-teal-900">×</button>
+                  </div>
+                )}
                 {userCodeFilter && (
                   <div className="flex items-center gap-2 rounded-lg bg-blue-100 px-3 py-1.5 text-sm">
                     <User className="h-4 w-4 text-blue-600" />
@@ -310,12 +440,12 @@ export default function AdminPackagesPage() {
                     </button>
                   </div>
                 )}
-                {statusFilter && (
+                {selectedStatuses.length > 0 && (
                   <div className="flex items-center gap-2 rounded-lg bg-orange-100 px-3 py-1.5 text-sm">
                     <Filter className="h-4 w-4 text-orange-600" />
-                    <span className="font-medium text-orange-800">Status: {statusFilter.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                    <span className="font-medium text-orange-800">Status: {selectedStatuses.length === 1 ? humanStatus(selectedStatuses[0]) : `${selectedStatuses.length} selected`}</span>
                     <button
-                      onClick={() => setStatusFilter('')}
+                      onClick={() => setSelectedStatuses([])}
                       className="ml-1 text-orange-600 hover:text-orange-800"
                     >
                       ×
@@ -323,11 +453,7 @@ export default function AdminPackagesPage() {
                   </div>
                 )}
                 <button
-                  onClick={() => {
-                    setUserCodeFilter('');
-                    setStatusFilter('');
-                    setSearchTerm('');
-                  }}
+                  onClick={clearAllFilters}
                   className="text-sm text-gray-600 hover:text-gray-800 underline"
                 >
                   Clear all filters
@@ -350,13 +476,62 @@ export default function AdminPackagesPage() {
               </div>
             </div>
           </div>
+
+          {selectedCount > 0 && (
+            <div className="border-b border-gray-200 bg-white px-6 py-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="text-sm text-gray-700">
+                  <span className="font-semibold">{selectedCount}</span> selected
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                  <select
+                    className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={bulkStatus}
+                    onChange={(e) => setBulkStatus(e.target.value)}
+                  >
+                    <option value="">Bulk status update…</option>
+                    {STATUS_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={runBulkStatusUpdate}
+                    disabled={!bulkStatus}
+                    className="h-10 rounded-lg bg-[#0f4d8a] px-4 text-sm font-medium text-white shadow-sm disabled:opacity-50"
+                  >
+                    Apply
+                  </button>
+                  <button
+                    onClick={() => exportSelected('csv')}
+                    className="h-10 rounded-lg bg-white px-4 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50"
+                  >
+                    Export CSV
+                  </button>
+                  <button
+                    onClick={() => exportSelected('excel')}
+                    className="h-10 rounded-lg bg-white px-4 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50"
+                  >
+                    Export Excel
+                  </button>
+                  <button
+                    onClick={() => setSelectedIds(new Set())}
+                    className="h-10 rounded-lg bg-white px-4 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           
           {filteredPackages.length === 0 ? (
             <div className="p-12 text-center">
               <Package2 className="mx-auto h-12 w-12 text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No packages found</h3>
               <p className="text-sm text-gray-600 mb-6">
-                {searchTerm || statusFilter || userCodeFilter 
+                {userCodeFilter || searchTerm || selectedStatuses.length > 0
                   ? 'Try adjusting your search or filters' 
                   : 'Get started by adding your first package'}
               </p>
@@ -377,45 +552,53 @@ export default function AdminPackagesPage() {
                     <div key={pkg._id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            className="mr-3 mt-1"
+                            checked={selectedIds.has(pkg._id)}
+                            onChange={() => toggleSelectOne(pkg._id)}
+                          />
                           <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                             <Package className="h-5 w-5 text-white" />
                           </div>
                           <div className="ml-3">
-                            <div className="text-sm font-medium text-gray-900 font-mono">
+                            <button
+                              type="button"
+                              onClick={() => handleViewPackage(pkg)}
+                              className="text-sm font-medium text-gray-900 font-mono hover:underline"
+                            >
                               {pkg.trackingNumber}
-                            </div>
+                            </button>
                             <div className="text-xs text-gray-500">
-                              {new Date(pkg.createdAt || Date.now()).toLocaleDateString()}
+                              {pkg.dateReceived ? new Date(pkg.dateReceived).toLocaleDateString() : ''}
                             </div>
                           </div>
                         </div>
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          pkg.status === 'received' ? 'bg-green-100 text-green-800' :
-                          pkg.status === 'in_processing' ? 'bg-purple-100 text-purple-800' :
-                          pkg.status === 'ready_to_ship' ? 'bg-orange-100 text-orange-800' :
-                          pkg.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
-                          pkg.status === 'in_transit' ? 'bg-yellow-100 text-yellow-800' :
-                          pkg.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {pkg.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(pkg.status)}`}>
+                          {humanStatus(pkg.status)}
                         </span>
                       </div>
                       
                       <div className="space-y-2 mb-3">
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Recipient:</span>
-                          <span className="font-medium text-gray-900">{pkg.recipient?.name || pkg.receiverName || 'Unknown'}</span>
+                          <span className="text-gray-600">Customer:</span>
+                          <span className="font-medium text-gray-900">{pkg.customerName || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Dimensions:</span>
-                          <span className="font-medium text-gray-900">
-                            {(pkg.dimensions?.length || pkg.length || 'N/A')}×{(pkg.dimensions?.width || pkg.width || 'N/A')}×{(pkg.dimensions?.height || pkg.height || 'N/A')} {pkg.dimensions?.unit || pkg.dimensionUnit || 'cm'}
-                          </span>
+                          <span className="text-gray-600">Mailbox:</span>
+                          <span className="font-medium text-gray-900">{pkg.mailboxNumber || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Weight:</span>
-                          <span className="font-medium text-gray-900">{(pkg.dimensions?.weight || pkg.weight || 'N/A')} {(pkg.dimensions?.weightUnit || pkg.weightUnit || 'kg')}</span>
+                          <span className="font-medium text-gray-900">{Number(pkg.weightLbs || 0).toFixed(2)} lbs</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Value:</span>
+                          <span className="font-medium text-gray-900">{formatUsd(pkg.itemValueUsd || 0)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Days in storage:</span>
+                          <span className="font-medium text-gray-900">{pkg.daysInStorage}</span>
                         </div>
                       </div>
                       
@@ -455,10 +638,18 @@ export default function AdminPackagesPage() {
                 <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Package</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Recipient</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Dimensions</th>
+                    <th className="px-6 py-3 text-left">
+                      <input type="checkbox" checked={allSelectedOnPage} onChange={toggleSelectAll} />
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Tracking</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Customer</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Mailbox</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Service</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Weight (lbs)</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Value (USD)</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date Received</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Days</th>
                     <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -466,52 +657,51 @@ export default function AdminPackagesPage() {
                   {filteredPackages.map((pkg) => (
                     <tr key={pkg._id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4">
+                        <input type="checkbox" checked={selectedIds.has(pkg._id)} onChange={() => toggleSelectOne(pkg._id)} />
+                      </td>
+                      <td className="px-6 py-4">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                             <Package className="h-5 w-5 text-white" />
                           </div>
                           <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900 font-mono">
+                            <button
+                              type="button"
+                              onClick={() => handleViewPackage(pkg)}
+                              className="text-sm font-medium text-gray-900 font-mono hover:underline"
+                            >
                               {pkg.trackingNumber}
-                            </div>
+                            </button>
                             <div className="text-xs text-gray-500">
-                              {new Date(pkg.createdAt || Date.now()).toLocaleDateString()}
+                              {pkg.warehouseLocation}
                             </div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          {pkg.recipient?.name || pkg.receiverName || 'Unknown'}
-                        </div>
-                        {(pkg.recipient?.shippingId || pkg.shipper) && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            ID: <span className="font-mono">{pkg.recipient?.shippingId || pkg.shipper || 'N/A'}</span>
-                          </div>
-                        )}
+                        <div className="text-sm text-gray-900">{pkg.customerName || 'N/A'}</div>
+                        <div className="text-xs text-gray-500">{pkg.customerEmail || ''}</div>
                       </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.mailboxNumber || 'N/A'}</td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          {(pkg.dimensions?.length || pkg.length || 'N/A')}×{(pkg.dimensions?.width || pkg.width || 'N/A')}×{(pkg.dimensions?.height || pkg.height || 'N/A')} {pkg.dimensions?.unit || pkg.dimensionUnit || 'cm'}
-                        </div>
-                        <div className="text-xs text-gray-500 flex items-center mt-1">
-                          <Weight className="h-3 w-3 mr-1" />
-                          {(pkg.dimensions?.weight || pkg.weight || 'N/A')} {(pkg.dimensions?.weightUnit || pkg.weightUnit || 'kg')}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          pkg.status === 'received' ? 'bg-green-100 text-green-800' :
-                          pkg.status === 'in_processing' ? 'bg-purple-100 text-purple-800' :
-                          pkg.status === 'ready_to_ship' ? 'bg-orange-100 text-orange-800' :
-                          pkg.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
-                          pkg.status === 'in_transit' ? 'bg-yellow-100 text-yellow-800' :
-                          pkg.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {pkg.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        <span className={`inline-flex items-center border px-2 py-1 text-xs font-semibold rounded-full ${getServiceBadge(pkg.serviceMode || '')}`}>
+                          {String(pkg.serviceMode).toUpperCase()}
                         </span>
                       </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(pkg.status)}`}>
+                          {humanStatus(pkg.status)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        <span className="inline-flex items-center gap-1">
+                          <Weight className="h-3 w-3" />
+                          {Number(pkg.weightLbs || 0).toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{formatUsd(pkg.itemValueUsd || 0)}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.dateReceived ? new Date(pkg.dateReceived).toLocaleDateString() : ''}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.daysInStorage}</td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
@@ -548,197 +738,86 @@ export default function AdminPackagesPage() {
             </div>
           )}
         </div>
-      </div>
 
-      {/* Delete Confirmation Modal */}
-      <DeleteConfirmationModal
-        open={deleteModalOpen}
-        onClose={() => {
-          setDeleteModalOpen(false);
-          setPackageToDelete(null);
-        }}
-        onConfirm={confirmDelete}
-        title="Delete Package"
-        message="Are you sure you want to delete this package? This action cannot be undone and will permanently remove all package data from the system."
-        itemName={packageToDelete?.trackingNumber}
-        loading={deleting}
-      />
+        {/* Delete Confirmation Modal */}
+        <DeleteConfirmationModal
+          open={deleteModalOpen}
+          onClose={() => {
+            setDeleteModalOpen(false);
+            setPackageToDelete(null);
+          }}
+          onConfirm={confirmDelete}
+          title="Delete Package"
+          message="Are you sure you want to delete this package? This action cannot be undone and will permanently remove all package data from the system."
+          itemName={packageToDelete?.trackingNumber}
+          loading={deleting}
+        />
 
-      {/* View Package Modal */}
-      {viewModalOpen && packageToView && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 z-10">
-              <div className="flex items-center justify-between">
-                <h3 className="text-2xl font-bold text-gray-900">Package Details</h3>
+        {/* View Package Modal */}
+       {/* View Package Modal */}
+        {viewModalOpen && packageToView && (
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+              <div className="sticky top-0 bg-white border-b border-gray-200 p-6 z-10">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-2xl font-bold text-gray-900">Package Details</h3>
+                  <button
+                    onClick={() => setViewModalOpen(false)}
+                    className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 transition-all"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
+                  <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <Package className="h-5 w-5 text-blue-600" />
+                    Package
+                  </h4>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Tracking:</span><span className="text-sm font-medium text-gray-900 font-mono">{packageToView.trackingNumber}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Status:</span><span className={`text-xs font-semibold px-2 py-1 rounded-full ${getStatusBadge(packageToView.status)}`}>{humanStatus(packageToView.status)}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Service:</span><span className={`text-xs font-semibold px-2 py-1 rounded-full border ${getServiceBadge(packageToView?.serviceMode || '')}`}>{String(packageToView?.serviceMode || '').toUpperCase()}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Mailbox:</span><span className="text-sm font-medium text-gray-900">{packageToView.mailboxNumber || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Customer:</span><span className="text-sm font-medium text-gray-900">{packageToView.customerName || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.customerPhone || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Weight:</span><span className="text-sm font-medium text-gray-900">{Number(packageToView.weightLbs || 0).toFixed(2)} lbs</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Value:</span><span className="text-sm font-medium text-gray-900">{formatUsd(packageToView.itemValueUsd || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Date Received:</span><span className="text-sm font-medium text-gray-900">{packageToView.dateReceived ? new Date(packageToView.dateReceived).toLocaleDateString() : ''}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Days in Storage:</span><span className="text-sm font-medium text-gray-900">{packageToView.daysInStorage}</span></div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-6">
+                  <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-emerald-600" />
+                    Costs (JMD)
+                  </h4>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Shipping:</span><span className="text-sm font-medium text-gray-900">{formatJmd(packageToView.costs?.shippingCostJmd || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Storage:</span><span className="text-sm font-medium text-gray-900">{formatJmd(packageToView.costs?.storageFeeJmd || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Delivery:</span><span className="text-sm font-medium text-gray-900">{formatJmd(packageToView.costs?.deliveryFeeJmd || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Total:</span><span className="text-sm font-medium text-gray-900">{formatJmd(packageToView.costs?.totalCostJmd || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Paid:</span><span className="text-sm font-medium text-gray-900">{formatJmd(packageToView.costs?.amountPaidJmd || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Outstanding:</span><span className="text-sm font-medium text-gray-900">{formatJmd(packageToView.costs?.outstandingBalanceJmd || 0)}</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6">
                 <button
                   onClick={() => setViewModalOpen(false)}
-                  className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 transition-all"
+                  className="w-full px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl hover:from-gray-700 hover:to-gray-800 transition-all font-medium shadow-lg"
                 >
-                  <X className="h-5 w-5" />
+                  Close
                 </button>
               </div>
             </div>
-            
-            <div className="p-6 space-y-8">
-              {/* Package Information */}
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
-                <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <Package className="h-5 w-5 text-blue-600" />
-                  Package Information
-                </h4>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Tracking Number:</span>
-                      <span className="text-sm font-medium text-gray-900 font-mono">{packageToView.trackingNumber}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Status:</span>
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        packageToView.status === 'received' ? 'bg-green-100 text-green-800' :
-                        packageToView.status === 'in_processing' ? 'bg-purple-100 text-purple-800' :
-                        packageToView.status === 'ready_to_ship' ? 'bg-orange-100 text-orange-800' :
-                        packageToView.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
-                        packageToView.status === 'in_transit' ? 'bg-yellow-100 text-yellow-800' :
-                        packageToView.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {packageToView.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Weight:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.weight || 'N/A'} kg</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Dimensions:</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {(packageToView.dimensions?.length || packageToView.length || 'N/A')}×{(packageToView.dimensions?.width || packageToView.width || 'N/A')}×{(packageToView.dimensions?.height || packageToView.height || 'N/A')} {packageToView.dimensions?.unit || packageToView.dimensionUnit || 'cm'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Shipper:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.shipper || 'N/A'}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Recipient Information */}
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6">
-                <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <User className="h-5 w-5 text-green-600" />
-                  Recipient Information
-                </h4>
-                <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Name:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.recipient?.name || packageToView.receiverName || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Email:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.recipient?.email || packageToView.receiverEmail || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Phone:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.recipient?.phone || packageToView.receiverPhone || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Address:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.recipient?.address || packageToView.receiverAddress || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Country:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.recipient?.country || packageToView.receiverCountry || 'N/A'}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Sender Information */}
-              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6">
-                <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <Mail className="h-5 w-5 text-purple-600" />
-                  Sender Information
-                </h4>
-                <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Name:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.sender?.name || packageToView.senderName || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Email:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.sender?.email || packageToView.senderEmail || 'N/A'}</span>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Phone:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.sender?.phone || packageToView.senderPhone || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Address:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.sender?.address || packageToView.senderAddress || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Country:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.sender?.country || packageToView.senderCountry || 'N/A'}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Additional Details */}
-              {(packageToView.description || packageToView.itemDescription || packageToView.contents || packageToView.specialInstructions) && (
-                <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-6">
-                  <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-orange-600" />
-                    Additional Information
-                  </h4>
-                  <div className="space-y-4">
-                    {packageToView.description && (
-                      <div>
-                        <span className="text-sm font-medium text-gray-700">Description: </span>
-                        <span className="text-sm text-gray-600">{packageToView.description}</span>
-                      </div>
-                    )}
-                    {packageToView.itemDescription && (
-                      <div>
-                        <span className="text-sm font-medium text-gray-700">Item Description: </span>
-                        <span className="text-sm text-gray-600">{packageToView.itemDescription}</span>
-                      </div>
-                    )}
-                    {packageToView.contents && (
-                      <div>
-                        <span className="text-sm font-medium text-gray-700">Contents: </span>
-                        <span className="text-sm text-gray-600">{packageToView.contents}</span>
-                      </div>
-                    )}
-                    {packageToView.specialInstructions && (
-                      <div>
-                        <span className="text-sm font-medium text-gray-700">Special Instructions: </span>
-                        <span className="text-sm text-gray-600">{packageToView.specialInstructions}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6">
-              <button
-                onClick={() => setViewModalOpen(false)}
-                className="w-full px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl hover:from-gray-700 hover:to-gray-800 transition-all font-medium shadow-lg"
-              >
-                Close
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

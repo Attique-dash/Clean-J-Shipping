@@ -132,6 +132,52 @@ export async function GET(req: Request) {
   }
 }
 
+export async function DELETE(req: Request) {
+  const payload = await getAuthFromRequest(req);
+  if (!payload || payload.role !== "admin") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    await dbConnect();
+
+    const url = new URL(req.url);
+    const id = url.searchParams.get("id");
+    const type = url.searchParams.get("type") || "invoice";
+    
+    if (!id) {
+      return NextResponse.json({ error: "Bill ID is required" }, { status: 400 });
+    }
+
+    let result;
+
+    // Handle different bill types
+    if (type === "invoice") {
+      result = await Invoice.findByIdAndDelete(id);
+      if (!result) {
+        return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+      }
+    } else if (type === "generated") {
+      result = await GeneratedInvoice.findByIdAndDelete(id);
+      if (!result) {
+        return NextResponse.json({ error: "Generated invoice not found" }, { status: 404 });
+      }
+    } else if (type === "pos") {
+      result = await PosTransaction.findByIdAndDelete(id);
+      if (!result) {
+        return NextResponse.json({ error: "POS transaction not found" }, { status: 404 });
+      }
+    } else {
+      return NextResponse.json({ error: "Invalid bill type" }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true, message: "Bill deleted successfully" });
+  } catch (error) {
+    console.error("Delete bill error:", error);
+    return NextResponse.json({ error: "Failed to delete bill" }, { status: 500 });
+  }
+}
+
 export async function POST(req: Request) {
   const payload = await getAuthFromRequest(req);
   if (!payload || payload.role !== "admin") {

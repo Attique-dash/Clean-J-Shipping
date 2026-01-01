@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { DollarSign, TrendingUp, TrendingDown, CreditCard, Search, Filter, Calendar, ChevronDown, CheckCircle, XCircle, Clock, AlertCircle, Download, Eye, User, Building, Receipt, RefreshCw, Settings, Loader2, Trash2 } from "lucide-react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import EnhancedCurrencySelector from "@/components/EnhancedCurrencySelector";
 
 type TransactionType = "sale" | "refund" | "purchase" | "expense";
 type TransactionStatus = "completed" | "pending" | "failed" | "reconciled" | "captured" | "authorized" | "refunded";
@@ -32,6 +34,39 @@ export default function TransactionsPage() {
   const [statusFilter, setStatusFilter] = useState<TransactionStatus | "all">("all");
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; transaction: Transaction | null }>({ open: false, transaction: null });
+  const { selectedCurrency, setSelectedCurrency, convertAmount, formatCurrency } = useCurrency();
+
+  // Helper function to convert and format amounts
+  const convertAndFormatAmount = async (amount: number, fromCurrency: string) => {
+    if (fromCurrency === selectedCurrency) {
+      return formatCurrency(amount, selectedCurrency);
+    }
+    try {
+      const convertedAmount = await convertAmount(amount, fromCurrency || "USD");
+      return formatCurrency(convertedAmount, selectedCurrency);
+    } catch (error) {
+      return formatCurrency(amount, selectedCurrency);
+    }
+  };
+
+  // State for converted transaction amounts
+  const [convertedTransactions, setConvertedTransactions] = useState<Array<{id: string, amount: string}>>([]);
+
+  useEffect(() => {
+    const updateTransactionAmounts = async () => {
+      const converted = await Promise.all(
+        transactions.map(async (transaction) => {
+          const convertedAmount = await convertAndFormatAmount(transaction.amount, "USD");
+          return {
+            id: transaction.id,
+            amount: convertedAmount,
+          };
+        })
+      );
+      setConvertedTransactions(converted);
+    };
+    updateTransactionAmounts();
+  }, [transactions, selectedCurrency]);
 
   async function loadTransactions() {
     setLoading(true);
@@ -154,6 +189,32 @@ export default function TransactionsPage() {
     return matchesSearch && matchesType && matchesStatus;
   });
 
+  // Convert stats to selected currency
+  const [displayStats, setDisplayStats] = useState<{totalRevenue: string, totalExpenses: string, totalRefunds: string}>({
+    totalRevenue: "",
+    totalExpenses: "",
+    totalRefunds: "",
+  });
+
+  useEffect(() => {
+    const updateDisplayStats = async () => {
+      const totalRevenue = transactions.filter(t => t.type === "sale" && (t.status === "completed" || t.status === "captured")).reduce((sum, t) => sum + t.amount, 0);
+      const totalExpenses = transactions.filter(t => (t.type === "expense" || t.type === "purchase") && (t.status === "completed" || t.status === "captured")).reduce((sum, t) => sum + t.amount, 0);
+      const totalRefunds = transactions.filter(t => (t.type === "refund" || t.status === "refunded") && (t.status === "completed" || t.status === "captured" || t.status === "refunded")).reduce((sum, t) => sum + t.amount, 0);
+
+      const convertedRevenue = await convertAndFormatAmount(totalRevenue, "USD");
+      const convertedExpenses = await convertAndFormatAmount(totalExpenses, "USD");
+      const convertedRefunds = await convertAndFormatAmount(totalRefunds, "USD");
+
+      setDisplayStats({
+        totalRevenue: convertedRevenue,
+        totalExpenses: convertedExpenses,
+        totalRefunds: convertedRefunds,
+      });
+    };
+    updateDisplayStats();
+  }, [transactions, selectedCurrency]);
+
   const stats = {
     totalRevenue: transactions.filter(t => t.type === "sale" && (t.status === "completed" || t.status === "captured")).reduce((sum, t) => sum + t.amount, 0),
     totalExpenses: transactions.filter(t => (t.type === "expense" || t.type === "purchase") && (t.status === "completed" || t.status === "captured")).reduce((sum, t) => sum + t.amount, 0),
@@ -182,14 +243,21 @@ export default function TransactionsPage() {
                 </p>
               </div>
               
-              <button 
-                onClick={loadTransactions}
-                disabled={loading}
-                className="inline-flex items-center gap-2 rounded-2xl bg-white/15 px-5 py-3 text-sm font-semibold shadow-md backdrop-blur transition hover:bg-white/25 hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50"
-              >
-                <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
+              <div className="flex items-center gap-3">
+                <EnhancedCurrencySelector
+                  selectedCurrency={selectedCurrency}
+                  onCurrencyChange={setSelectedCurrency}
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                />
+                <button 
+                  onClick={loadTransactions}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-white/15 px-5 py-3 text-sm font-semibold shadow-md backdrop-blur transition hover:bg-white/25 hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </button>
+              </div>
             </div>
 
             {/* Stats Cards inside header */}
@@ -203,7 +271,7 @@ export default function TransactionsPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-green-100 truncate">Total Revenue</p>
-                    <p className="mt-0.5 text-lg font-bold truncate">PKR {stats.totalRevenue.toLocaleString()}</p>
+                    <p className="mt-0.5 text-lg font-bold truncate">{displayStats.totalRevenue}</p>
                   </div>
                 </div>
               </div>
@@ -216,7 +284,7 @@ export default function TransactionsPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-red-100 truncate">Total Expenses</p>
-                    <p className="mt-0.5 text-lg font-bold truncate">PKR {stats.totalExpenses.toLocaleString()}</p>
+                    <p className="mt-0.5 text-lg font-bold truncate">{displayStats.totalExpenses}</p>
                   </div>
                 </div>
               </div>
@@ -229,7 +297,7 @@ export default function TransactionsPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-orange-100 truncate">Total Refunds</p>
-                    <p className="mt-0.5 text-lg font-bold truncate">PKR {stats.totalRefunds.toLocaleString()}</p>
+                    <p className="mt-0.5 text-lg font-bold truncate">{displayStats.totalRefunds}</p>
                   </div>
                 </div>
               </div>
@@ -446,7 +514,7 @@ export default function TransactionsPage() {
                       <div className="flex items-center gap-4">
                         <div className="text-right">
                           <p className={`text-2xl font-bold ${txn.type === 'sale' ? 'text-green-600' : 'text-red-600'}`}>
-                            {txn.type === 'sale' ? '+' : '-'} PKR {txn.amount.toLocaleString()}
+                            {txn.type === 'sale' ? '+' : '-'} {convertedTransactions.find(ct => ct.id === txn.id)?.amount || `PKR ${txn.amount.toLocaleString()}`}
                           </p>
                           <p className="text-xs text-slate-500 mt-1">{txn.category}</p>
                         </div>
@@ -492,7 +560,7 @@ export default function TransactionsPage() {
                   <div>
                     <p className="text-sm text-slate-600 font-medium mb-1">Amount</p>
                     <p className={`text-2xl font-bold ${selectedTransaction.type === 'sale' ? 'text-green-600' : 'text-red-600'}`}>
-                      {selectedTransaction.type === 'sale' ? '+' : '-'} PKR {selectedTransaction.amount.toLocaleString()}
+                      {selectedTransaction.type === 'sale' ? '+' : '-'} {convertedTransactions.find(ct => ct.id === selectedTransaction.id)?.amount || `PKR ${selectedTransaction.amount.toLocaleString()}`}
                     </p>
                   </div>
                   <div>
@@ -566,7 +634,7 @@ export default function TransactionsPage() {
                   </p>
                   <div className="space-y-1 text-sm text-red-700">
                     <p><strong>Transaction ID:</strong> {deleteConfirm.transaction.transactionId}</p>
-                    <p><strong>Amount:</strong> {deleteConfirm.transaction.type === 'sale' ? '+' : '-'} PKR {deleteConfirm.transaction.amount.toLocaleString()}</p>
+                    <p><strong>Amount:</strong> {deleteConfirm?.transaction?.type === 'sale' ? '+' : '-'} {convertedTransactions.find(ct => ct.id === deleteConfirm?.transaction?.id)?.amount || `PKR ${deleteConfirm?.transaction?.amount?.toLocaleString()}`}</p>
                     <p><strong>Description:</strong> {deleteConfirm.transaction.description}</p>
                   </div>
                 </div>

@@ -34,7 +34,7 @@ const nextConfig = {
     root: process.cwd(),
   },
 
-  // CORS headers for warehouse API
+  // CORS headers for warehouse API and video files
   async headers() {
     return [
       {
@@ -43,6 +43,13 @@ const nextConfig = {
           { key: "Access-Control-Allow-Origin", value: "*" },
           { key: "Access-Control-Allow-Methods", value: "GET,POST,PUT,DELETE" },
           { key: "Access-Control-Allow-Headers", value: "Content-Type, Authorization, x-warehouse-key, x-api-key" },
+        ],
+      },
+      {
+        source: "/videos/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+          { key: "Content-Type", value: "video/mp4" },
         ],
       },
     ];
