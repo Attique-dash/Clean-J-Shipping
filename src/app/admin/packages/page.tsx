@@ -20,7 +20,6 @@ import {
   ChevronRight, 
   Loader2,
   Eye,
-  DollarSign,
   X
 } from 'lucide-react';
 import Link from 'next/link';
@@ -46,16 +45,14 @@ type PackageRow = {
   customsRequired?: boolean;
   customsStatus?: string;
   paymentStatus?: string;
-  costs?: {
-    shippingCostJmd: number;
-    storageFeeJmd: number;
-    deliveryFeeJmd: number;
-    additionalFeesTotalJmd: number;
-    totalCostJmd: number;
-    amountPaidJmd: number;
-    outstandingBalanceJmd: number;
-    customsDutyUsd: number;
-  };
+  // Sender information
+  senderName?: string;
+  senderEmail?: string;
+  senderPhone?: string;
+  senderAddress?: string;
+  senderCountry?: string;
+  // Additional details
+  shipper?: string;
   createdAt?: string | null;
   updatedAt?: string | null;
 };
@@ -179,10 +176,6 @@ export default function AdminPackagesPage() {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
   };
 
-  const formatJmd = (amount: number) => {
-    return new Intl.NumberFormat('en-JM', { style: 'currency', currency: 'JMD' }).format(amount || 0);
-  };
-
   const humanStatus = (s: string) => {
     const found = STATUS_OPTIONS.find((o) => o.value === s);
     if (found) return found.label;
@@ -246,6 +239,8 @@ export default function AdminPackagesPage() {
     const exportRows = rows.map((p) => ({
       'Tracking Number': p.trackingNumber,
       'Customer Name': p.customerName,
+      'Customer Email': p.customerEmail || '',
+      'Customer Phone': p.customerPhone || '',
       'Mailbox Number': p.mailboxNumber,
       'Service Type': String(p.serviceMode).toUpperCase(),
       'Status': humanStatus(p.status),
@@ -257,8 +252,11 @@ export default function AdminPackagesPage() {
       'Customs Required': p.customsRequired ? 'Yes' : 'No',
       'Customs Status': p.customsStatus,
       'Payment Status': p.paymentStatus,
-      'Total Cost (JMD)': p.costs ? Number(p.costs.totalCostJmd || 0).toFixed(2) : '0.00',
-      'Outstanding (JMD)': p.costs ? Number(p.costs.outstandingBalanceJmd || 0).toFixed(2) : '0.00',
+      'Shipper': p.shipper || '',
+      'Sender Name': p.senderName || '',
+      'Sender Email': p.senderEmail || '',
+      'Sender Phone': p.senderPhone || '',
+      'Sender Country': p.senderCountry || '',
     }));
 
     const filename = `packages_${new Date().toISOString().slice(0, 10)}`;
@@ -792,16 +790,30 @@ export default function AdminPackagesPage() {
 
                 <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-6">
                   <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <DollarSign className="h-5 w-5 text-emerald-600" />
-                    Costs (JMD)
+                    <User className="h-5 w-5 text-emerald-600" />
+                    Sender Information
                   </h4>
                   <div className="grid gap-2 md:grid-cols-2">
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Shipping:</span><span className="text-sm font-medium text-gray-900">{formatJmd(packageToView.costs?.shippingCostJmd || 0)}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Storage:</span><span className="text-sm font-medium text-gray-900">{formatJmd(packageToView.costs?.storageFeeJmd || 0)}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Delivery:</span><span className="text-sm font-medium text-gray-900">{formatJmd(packageToView.costs?.deliveryFeeJmd || 0)}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Total:</span><span className="text-sm font-medium text-gray-900">{formatJmd(packageToView.costs?.totalCostJmd || 0)}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Paid:</span><span className="text-sm font-medium text-gray-900">{formatJmd(packageToView.costs?.amountPaidJmd || 0)}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Outstanding:</span><span className="text-sm font-medium text-gray-900">{formatJmd(packageToView.costs?.outstandingBalanceJmd || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Name:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderName || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderEmail || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderPhone || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderCountry || 'N/A'}</span></div>
+                    <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderAddress || 'N/A'}</span></div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-6">
+                  <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <Package className="h-5 w-5 text-purple-600" />
+                    Additional Details
+                  </h4>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Shipper:</span><span className="text-sm font-medium text-gray-900">{packageToView.shipper || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Warehouse:</span><span className="text-sm font-medium text-gray-900">{packageToView.warehouseLocation || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Required:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsRequired ? 'Yes' : 'No'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsStatus || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Payment Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.paymentStatus || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Entry Date:</span><span className="text-sm font-medium text-gray-900">{packageToView.dateReceived ? new Date(packageToView.dateReceived).toLocaleDateString() : 'N/A'}</span></div>
                   </div>
                 </div>
               </div>

@@ -1,8 +1,9 @@
 // src/app/customer/packages/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Package, Search, MapPin, Filter, X, Calendar, Weight, Download, ExternalLink, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { Package, Search, MapPin, Filter, X, Calendar, Weight, Download, ExternalLink, RefreshCw, ChevronLeft, ChevronRight, Loader2, Bell, AlertCircle } from "lucide-react";
+import { toast } from "react-toastify";
 
 type UIPackage = {
   id?: string;
@@ -45,6 +46,7 @@ export default function CustomerPackagesPage() {
   const [locationQuery, setLocationQuery] = useState("");
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const previousItemsRef = useRef<UIPackage[]>([]);
   
   // Advanced filters
   const [dateFrom, setDateFrom] = useState<string>("");
@@ -62,7 +64,7 @@ export default function CustomerPackagesPage() {
     return () => clearTimeout(t);
   }, [query]);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -78,6 +80,26 @@ export default function CustomerPackagesPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load packages");
       const list: UIPackage[] = Array.isArray(data?.packages) ? data.packages : [];
+      
+      // Check for newly received packages and show notifications
+      const receivedPackages = list.filter(pkg => pkg.status === "received");
+      const previousReceived = previousItemsRef.current.filter(pkg => pkg.status === "received");
+      
+      if (receivedPackages.length > previousReceived.length && previousItemsRef.current.length > 0) {
+        const newPackages = receivedPackages.filter(pkg => 
+          !previousReceived.some(prev => prev.tracking_number === pkg.tracking_number)
+        );
+        
+        newPackages.forEach(pkg => {
+          toast.success(`📦 Package ${pkg.tracking_number} received at warehouse!`, {
+            position: "top-right",
+            autoClose: 5000,
+          });
+        });
+      }
+      
+      // Update ref after checking
+      previousItemsRef.current = list;
       setItems(list);
       setTotal(Number(data?.total_packages || list.length));
     } catch (e) {
@@ -85,7 +107,7 @@ export default function CustomerPackagesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     load();
@@ -93,7 +115,7 @@ export default function CustomerPackagesPage() {
       load();
     }, 30000);
     return () => clearInterval(id);
-  }, []);
+  }, [load]);
 
   const filtered = useMemo(() => {
     return items.filter((p) => {

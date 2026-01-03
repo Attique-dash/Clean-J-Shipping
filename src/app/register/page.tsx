@@ -157,7 +157,8 @@ export default function RegisterPage() {
             street: form.address.street,
             city: form.address.city,
             parish: form.address.state, // Map state to parish for backend
-            zipCode: form.address.zipCode || '00000' // Include zipCode with fallback
+            zipCode: form.address.zipCode || '00000', // Include zipCode with fallback
+            country: form.address.country // Include country field
           }
         }),
       });

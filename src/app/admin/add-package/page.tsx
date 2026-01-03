@@ -50,12 +50,17 @@ function AdminAddPackagePageContent() {
     senderEmail: "",
     senderPhone: "",
     senderAddress: "",
+    senderCity: "",
+    senderState: "",
+    senderZipCode: "",
     senderCountry: "",
     itemValue: "",
     specialInstructions: "",
     isFragile: false,
     isHazardous: false,
-    requiresSignature: false
+    requiresSignature: false,
+    customsRequired: false,
+    customsStatus: "not_required"
   });
 
   // Generate tracking number
@@ -148,12 +153,17 @@ function AdminAddPackagePageContent() {
             senderEmail: packageData.senderEmail || packageData.sender?.email || "",
             senderPhone: packageData.senderPhone || packageData.sender?.phone || "",
             senderAddress: packageData.senderAddress || packageData.sender?.address || "",
+            senderCity: packageData.senderCity || "Kingston",
+            senderState: packageData.senderState || "St. Andrew",
+            senderZipCode: packageData.senderZipCode || "00000",
             senderCountry: packageData.senderCountry || packageData.sender?.country || "",
             itemValue: packageData.itemValue?.toString() || packageData.value?.toString() || "",
             specialInstructions: packageData.specialInstructions || "",
             isFragile: packageData.isFragile || false,
             isHazardous: packageData.isHazardous || false,
-            requiresSignature: packageData.requiresSignature || packageData.signatureRequired || false
+            requiresSignature: packageData.requiresSignature || packageData.signatureRequired || false,
+            customsRequired: packageData.customsRequired || false,
+            customsStatus: packageData.customsStatus || "not_required"
           });
           
           if (packageData.userCode) {
@@ -239,6 +249,9 @@ function AdminAddPackagePageContent() {
             address: customerData.address ? 
               `${customerData.address.street || ''}${customerData.address.street ? ', ' : ''}${customerData.address.city || ''}${customerData.address.city ? ', ' : ''}${customerData.address.state || ''}${customerData.address.state ? ' ' : ''}${customerData.address.zipCode || ''}`.trim() : 
               undefined,
+            city: customerData.address?.city || undefined,
+            state: customerData.address?.state || undefined,
+            zipCode: customerData.address?.zipCode || undefined,
             country: customerData.address?.country || undefined,
             shippingId: customerData.userCode
           }
@@ -248,6 +261,9 @@ function AdminAddPackagePageContent() {
           email: form.senderEmail.trim() || undefined,
           phone: form.senderPhone.trim() || undefined,
           address: form.senderAddress.trim() || undefined,
+          city: form.senderCity.trim() || "Kingston", // Default sender city
+          state: form.senderState.trim() || "St. Andrew", // Default sender state
+          zipCode: form.senderZipCode.trim() || "00000", // Default sender zipCode
           country: form.senderCountry.trim() || undefined
         },
         // Additional fields matching the updated model
@@ -257,6 +273,8 @@ function AdminAddPackagePageContent() {
         isFragile: form.isFragile,
         isHazardous: form.isHazardous,
         requiresSignature: form.requiresSignature,
+        customsRequired: form.customsRequired,
+        customsStatus: form.customsStatus,
         // Legacy fields for compatibility
         itemValue: form.itemValue ? Number(form.itemValue) : undefined,
         senderName: form.senderName.trim() || undefined,
@@ -709,13 +727,36 @@ function AdminAddPackagePageContent() {
                     />
                     <span className="text-sm text-gray-700">Signature Required</span>
                   </label>
+                  
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
+                      checked={form.customsRequired}
+                      onChange={(e) => setForm({ ...form, customsRequired: e.target.checked })}
+                    />
+                    <span className="text-sm text-gray-700">Customs Required</span>
+                  </label>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Customs Status</label>
+                    <div className="relative">
+                      <select
+                        className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
+                        value={form.customsStatus}
+                        onChange={(e) => setForm({ ...form, customsStatus: e.target.value })}
+                      >
+                        <option value="not_required">Not Required</option>
+                        <option value="pending">Pending</option>
+                        <option value="cleared">Cleared</option>
+                      </select>
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                        <ChevronDown className="h-5 w-5 text-gray-400" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            {/* Sender Information */}
-            <div className="space-y-4 pt-6 border-t border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Sender Information</h3>
               <p className="text-sm text-gray-600">Enter details about who is sending this package</p>
               
               <div className="grid gap-4 md:grid-cols-2">

@@ -571,42 +571,6 @@ export default function CustomerProfilePage() {
               </div>
             </div>
 
-            {/* Payment Methods Card */}
-            <div className="overflow-hidden rounded-xl bg-white shadow-lg">
-              <div className="bg-gradient-to-r from-[#E67919] to-[#f59e0b] px-6 py-4">
-                <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
-                  <CreditCard className="h-5 w-5" />
-                  Payment Methods
-                </h2>
-              </div>
-              <div className="p-6">
-                <div className="space-y-3">
-                  <div className="rounded-lg border border-gray-200 bg-gradient-to-r from-slate-50 to-blue-50 p-4">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Saved Payment Methods</p>
-                    <p className="text-xs text-gray-500 mb-4">
-                      Payment methods are securely stored and can be used for future transactions.
-                    </p>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3">
-                        <div className="flex items-center gap-3">
-                          <CreditCard className="h-5 w-5 text-[#0f4d8a]" />
-                          <div>
-                            <p className="text-sm font-semibold text-gray-900">Visa •••• 4242</p>
-                            <p className="text-xs text-gray-500">Expires 12/25</p>
-                          </div>
-                        </div>
-                        <button className="text-xs text-red-600 hover:text-red-700 font-medium">
-                          Remove
-                        </button>
-                      </div>
-                      <button className="w-full rounded-lg border-2 border-dashed border-gray-300 bg-white p-3 text-sm font-medium text-gray-700 hover:border-[#E67919] hover:bg-orange-50 transition-all">
-                        + Add Payment Method
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
 
             {/* Quick Actions Card */}
             <div className="overflow-hidden rounded-xl bg-white shadow-lg">

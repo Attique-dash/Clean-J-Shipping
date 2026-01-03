@@ -157,7 +157,7 @@ export async function GET(req: Request) {
 
     const [packages, total_count, status_counts] = await Promise.all([
       Package.find(filter)
-        .populate('userId', 'name email phone userCode')
+        .populate('userId', 'firstName lastName email phone userCode address')
         .sort({ createdAt: -1 })
         .skip((page - 1) * per_page)
         .limit(per_page)
@@ -177,9 +177,11 @@ export async function GET(req: Request) {
 
       // Prefer populated userId fields if available
       const populatedUser = (p.userId && typeof p.userId === 'object') ? (p.userId as Record<string, unknown>) : null;
-      const customerName = populatedUser ? asString(populatedUser.name) : '';
-      const customerEmail = populatedUser ? asString(populatedUser.email) : '';
-      const customerPhone = populatedUser ? asString(populatedUser.phone) : '';
+      const customerName = populatedUser ? 
+        `${asString(populatedUser.firstName || '')} ${asString(populatedUser.lastName || '')}`.trim() : 
+        `${asString(p.receiverName) || ''}`.trim() || 'N/A';
+      const customerEmail = populatedUser ? asString(populatedUser.email) : asString(p.receiverEmail);
+      const customerPhone = populatedUser ? asString(populatedUser.phone) : asString(p.receiverPhone);
       const mailboxNumber = asString(p.mailboxNumber) || asString(p.userCode) || (populatedUser ? asString(populatedUser.userCode) : '');
 
       const weight = asNumber(p.weight);
@@ -223,16 +225,14 @@ export async function GET(req: Request) {
         itemValueUsd,
         dateReceived: dateReceived ? new Date(String(dateReceived)).toISOString() : null,
         daysInStorage,
-        costs: {
-          shippingCostJmd,
-          storageFeeJmd,
-          deliveryFeeJmd,
-          additionalFeesTotalJmd,
-          totalCostJmd,
-          amountPaidJmd,
-          outstandingBalanceJmd,
-          customsDutyUsd,
-        },
+        // Sender information
+        senderName: asString(p.senderName) || asString((p.sender as any)?.name) || '',
+        senderEmail: asString(p.senderEmail) || asString((p.sender as any)?.email) || '',
+        senderPhone: asString(p.senderPhone) || asString((p.sender as any)?.phone) || '',
+        senderAddress: asString(p.senderAddress) || asString((p.sender as any)?.address) || '',
+        senderCountry: asString(p.senderCountry) || asString((p.sender as any)?.country) || '',
+        // Additional details
+        shipper: asString(p.shipper) || '',
         createdAt: createdAt ? new Date(String(createdAt)).toISOString() : null,
         updatedAt: p.updatedAt ? new Date(String(p.updatedAt)).toISOString() : null,
       };
@@ -275,13 +275,16 @@ export async function POST(req: Request) {
       description, 
       entryDate,
       status,
+      serviceMode,
       dimensions,
       recipient,
       sender,
       contents,
       value,
       specialInstructions,
-      branch
+      branch,
+      customsRequired,
+      customsStatus
     } = body;
 
     if (!trackingNumber || !userCode) {
@@ -292,7 +295,7 @@ export async function POST(req: Request) {
     }
 
     // Find user by userCode
-    const user = await User.findOne({ shippingId: userCode });
+    const user = await User.findOne({ userCode: userCode });
     
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -316,49 +319,68 @@ export async function POST(req: Request) {
       description: description || "Package description",
       entryDate: entryDate || new Date(),
       status: status || "received",
+      serviceMode: serviceMode || "air",
       dimensions: dimensions || {
         length: 0,
         width: 0,
         height: 0,
         unit: "cm"
       },
+      // Required sender fields
+      senderName: (sender as any)?.name || "Warehouse",
+      senderPhone: (sender as any)?.phone || "0000000000",
+      senderEmail: (sender as any)?.email || "warehouse@shipping.com",
+      senderAddress: (sender as any)?.address || branch || "Main Warehouse",
+      senderCity: (sender as any)?.city || "Kingston",
+      senderState: (sender as any)?.state || "St. Andrew",
+      senderZipCode: (sender as any)?.zipCode || "00000",
+      senderCountry: (sender as any)?.country || "Jamaica",
+      // Required receiver fields
+      receiverName: (recipient as any)?.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Customer",
+      receiverPhone: (recipient as any)?.phone || user.phone || "0000000000",
+      receiverEmail: (recipient as any)?.email || user.email || "",
+      receiverAddress: (recipient as any)?.address || user.address?.street || "No Address",
+      receiverCity: (recipient as any)?.city || user.address?.city || "Kingston",
+      receiverState: (recipient as any)?.state || user.address?.state || "St. Andrew",
+      receiverZipCode: (recipient as any)?.zipCode || user.address?.zipCode || "00000",
+      receiverCountry: (recipient as any)?.country || user.address?.country || "Jamaica",
+      // Additional fields
       recipient: {
-        name: (recipient as any)?.name || (user as any).name || "",
-        email: (recipient as any)?.email || (user as any).email,
-        shippingId: (recipient as any)?.shippingId || (user as any).userCode,
-        phone: (recipient as any)?.phone || (user as any).phone || "",
-        address: (recipient as any)?.address || (user as any).address?.street || "",
-        country: (recipient as any)?.country || (user as any).address?.country || "Jamaica",
+        name: (recipient as any)?.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Customer",
+        email: (recipient as any)?.email || user.email,
+        shippingId: (recipient as any)?.shippingId || user.userCode,
+        phone: (recipient as any)?.phone || user.phone || "",
+        address: (recipient as any)?.address || user.address?.street || ""
       },
       sender: sender || {
         name: "Warehouse",
         email: "warehouse@shipping.com",
         phone: "0000000000",
-        address: branch || "Main Warehouse",
-        country: "Jamaica"
+        address: branch || "Main Warehouse"
       },
       contents: contents || "",
       value: value || 0,
       specialInstructions: specialInstructions || "",
       branch: branch || "Main Warehouse",
+      // Required fields with defaults
+      shippingCost: 0,
+      totalAmount: 0,
+      paymentMethod: "cash",
       // Legacy fields for compatibility
       itemDescription: description || "Package description",
       itemValue: value || 0,
-      senderName: (sender as any)?.name || "Warehouse",
-      senderPhone: (sender as any)?.phone || "0000000000",
-      senderAddress: (sender as any)?.address || branch || "Main Warehouse",
-      receiverName: (recipient as any)?.name || (user as any).name || "",
-      receiverPhone: (recipient as any)?.phone || (user as any).phone || "",
-      receiverAddress: (recipient as any)?.address || (user as any).address?.street || "",
-      receiverEmail: (recipient as any)?.email || (user as any).email,
+      receiverName: (recipient as any)?.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Customer",
+      receiverPhone: (recipient as any)?.phone || user.phone || "",
+      receiverAddress: (recipient as any)?.address || user.address?.street || "",
+      receiverEmail: (recipient as any)?.email || user.email,
       currentLocation: branch || "Main Warehouse",
       packageType: "parcel",
       serviceType: "standard",
       deliveryType: "door_to_door",
-      shippingCost: 0,
-      totalAmount: 0,
-      paymentMethod: "cash",
-      receivedAt: new Date()
+      receivedAt: new Date(),
+      // Customs fields
+      customsRequired: customsRequired !== undefined ? Boolean(customsRequired) : false,
+      customsStatus: customsStatus || "not_required"
     };
 
     const created = await Package.create(packageData);

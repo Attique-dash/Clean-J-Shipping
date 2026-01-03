@@ -1,0 +1,194 @@
+import { NextResponse } from "next/server";
+import { dbConnect } from "@/lib/db";
+import Package from "@/models/Package";
+import Invoice from "@/models/Invoice";
+import { getAuthFromRequest } from "@/lib/rbac";
+import { writeFileSync, mkdirSync } from "fs";
+import { join } from "path";
+import { Types } from "mongoose";
+
+export async function POST(req: Request) {
+  try {
+    const payload = await getAuthFromRequest(req);
+    if (!payload || (payload.role !== "customer" && payload.role !== "admin")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    await dbConnect();
+
+    // Get user ID
+    const userId = (payload as { id?: string; _id?: string; uid?: string }).id || 
+                  (payload as { id?: string; _id?: string; uid?: string })._id || 
+                  (payload as { id?: string; _id?: string; uid?: string }).uid;
+    
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const formData = await req.formData();
+    
+    // Parse uploads from form data
+    const uploads: any[] = [];
+    let index = 0;
+    
+    while (formData.has(`upload_${index}`)) {
+      const uploadData = JSON.parse(formData.get(`upload_${index}`) as string);
+      const files = formData.getAll(`files_${index}`) as File[];
+      
+      uploads.push({
+        ...uploadData,
+        files: files
+      });
+      
+      index++;
+    }
+
+    if (uploads.length === 0) {
+      return NextResponse.json({ error: "No uploads provided" }, { status: 400 });
+    }
+
+    // Create uploads directory if it doesn't exist
+    const uploadsDir = join(process.cwd(), "public", "uploads", "invoices");
+    try {
+      mkdirSync(uploadsDir, { recursive: true });
+    } catch (error) {
+      // Directory might already exist
+    }
+
+    const results = [];
+
+    for (const upload of uploads) {
+      try {
+        // Verify package exists and belongs to user
+        const pkg = await Package.findOne({ 
+          tracking_number: upload.tracking_number,
+          userId: new Types.ObjectId(userId) 
+        });
+
+        if (!pkg) {
+          results.push({
+            tracking_number: upload.tracking_number,
+            success: false,
+            error: "Package not found or doesn't belong to user"
+          });
+          continue;
+        }
+
+        // Save uploaded files
+        const savedFiles = [];
+        for (const file of upload.files) {
+          const bytes = await file.arrayBuffer();
+          const buffer = Buffer.from(bytes);
+          
+          // Generate unique filename
+          const timestamp = Date.now();
+          const originalName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+          const filename = `${upload.tracking_number}_${timestamp}_${originalName}`;
+          const filepath = join(uploadsDir, filename);
+          
+          // Write file to disk
+          writeFileSync(filepath, buffer);
+          
+          savedFiles.push({
+            originalName: file.name,
+            filename: filename,
+            path: `/uploads/invoices/${filename}`,
+            size: file.size,
+            type: file.type
+          });
+        }
+
+        // Create or update invoice record
+        const invoiceData = {
+          tracking_number: upload.tracking_number,
+          userId: new Types.ObjectId(userId),
+          price_paid: upload.price_paid,
+          currency: upload.currency || "USD",
+          description: upload.description || "",
+          files: savedFiles,
+          upload_date: new Date(),
+          status: "submitted"
+        };
+
+        // Check if invoice already exists for this package
+        const existingInvoice = await Invoice.findOne({ 
+          tracking_number: upload.tracking_number,
+          userId: new Types.ObjectId(userId) 
+        });
+
+        let invoice;
+        if (existingInvoice) {
+          // Update existing invoice
+          invoice = await Invoice.findByIdAndUpdate(
+            existingInvoice._id,
+            { 
+              $set: invoiceData,
+              $push: { files: { $each: savedFiles } }
+            },
+            { new: true }
+          );
+        } else {
+          // Create new invoice
+          invoice = new Invoice(invoiceData);
+          await invoice.save();
+        }
+
+        // Update package to indicate invoice has been uploaded
+        await Package.findByIdAndUpdate(
+          pkg._id,
+          { 
+            $set: { 
+              invoice_status: "uploaded",
+              invoice_uploaded_date: new Date()
+            }
+          }
+        );
+
+        results.push({
+          tracking_number: upload.tracking_number,
+          success: true,
+          invoice_id: invoice._id,
+          files_uploaded: savedFiles.length
+        });
+
+      } catch (error) {
+        console.error(`Error processing upload for ${upload.tracking_number}:`, error);
+        results.push({
+          tracking_number: upload.tracking_number,
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    const failureCount = results.length - successCount;
+
+    if (failureCount === 0) {
+      return NextResponse.json({
+        success: true,
+        message: `Successfully uploaded ${successCount} invoice(s)`,
+        results
+      });
+    } else if (successCount === 0) {
+      return NextResponse.json({
+        success: false,
+        message: "Failed to upload any invoices",
+        results
+      }, { status: 400 });
+    } else {
+      return NextResponse.json({
+        success: true,
+        message: `Successfully uploaded ${successCount} invoice(s), ${failureCount} failed`,
+        results
+      });
+    }
+
+  } catch (error) {
+    console.error("Invoice upload error:", error);
+    return NextResponse.json(
+      { error: "Failed to process invoice upload" },
+      { status: 500 }
+    );
+  }
+}

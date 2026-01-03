@@ -368,6 +368,7 @@ export default function InvoiceGeneratorPage() {
     try {
       // Map to main Invoice model shape so records appear on /admin/invoices
       const payload = {
+        invoiceNumber: invoiceNumber,
         customer: {
           id: selectedCustomer.id,
           name: selectedCustomer.name,

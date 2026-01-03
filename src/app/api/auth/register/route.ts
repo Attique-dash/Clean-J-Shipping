@@ -18,6 +18,7 @@ const registerSchema = z.object({
     city: z.string().min(1, 'City is required').max(50, 'City name is too long'),
     street: z.string().min(1, 'Street address is required').max(200, 'Street address is too long'),
     zipCode: z.string().min(1, 'ZIP code is required').max(20, 'ZIP code is too long'),
+    country: z.string().min(1, 'Country is required').max(50, 'Country name is too long'),
   }),
 });
 
@@ -144,7 +145,7 @@ export async function POST(request: Request) {
         street: validatedData.address.street,
         city: validatedData.address.city,
         state: validatedData.address.parish,
-        country: 'Jamaica'
+        country: validatedData.address.country
       },
     });
 
@@ -160,7 +161,7 @@ export async function POST(request: Request) {
       city: validatedData.address.city,
       state: validatedData.address.parish,
       zipCode: validatedData.address.zipCode,
-      country: 'Jamaica',
+      country: validatedData.address.country,
       isDefault: true,
       isActive: true,
     });

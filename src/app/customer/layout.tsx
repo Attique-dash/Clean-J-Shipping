@@ -5,6 +5,8 @@ import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import Image from "next/image";
 import { WebSocketProvider } from "@/components/providers/WebSocketProvider";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import EnhancedCurrencySelector from "@/components/EnhancedCurrencySelector";
 import {
   Home,
   Package,
@@ -36,6 +38,7 @@ export default function CustomerLayout({
   const pathname = usePathname() || "";
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
+  const { selectedCurrency, setSelectedCurrency } = useCurrency();
 
   // Load cart count from localStorage
   useEffect(() => {
@@ -85,6 +88,13 @@ export default function CustomerLayout({
       label: "Addresses",
       icon: MapPin,
       description: "Manage your shipping addresses for air and sea delivery",
+      color: "from-orange-500 to-orange-600",
+    },
+     {
+      href: "/customer/invoice-upload",
+      label: "Package Invoices",
+      icon: FileText,
+      description: "Upload invoice details and costs for received packages",
       color: "from-orange-500 to-orange-600",
     },
     {

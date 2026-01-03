@@ -63,6 +63,7 @@ export async function PUT(
       ...(body.itemDescription && { itemDescription: body.itemDescription }),
       ...(body.entryDate && { entryDate: body.entryDate }),
       ...(body.status && { status: body.status }),
+      ...(body.serviceMode && { serviceMode: body.serviceMode }),
       
       // Map dimensions to flat fields
       ...(body.dimensions?.length !== undefined && { length: Number(body.dimensions.length) || existingPackage.length }),
@@ -90,6 +91,8 @@ export async function PUT(
       ...(body.specialInstructions !== undefined && { specialInstructions: body.specialInstructions }),
       ...(body.entryStaff && { entryStaff: body.entryStaff }),
       ...(body.branch && { branch: body.branch }),
+      ...(body.customsRequired !== undefined && { customsRequired: body.customsRequired }),
+      ...(body.customsStatus && { customsStatus: body.customsStatus }),
     };
 
     // Add to history if status changed
