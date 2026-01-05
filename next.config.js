@@ -31,7 +31,7 @@ const nextConfig = {
   
   // Turbopack configuration
   turbopack: {
-    root: process.cwd(),
+    root: __dirname,
   },
 
   // CORS headers for warehouse API and video files
@@ -104,8 +104,7 @@ const nextConfig = {
           },
         },
       },
-      // Limit parallel compilation to reduce memory usage
-      parallelism: 1,
+      // parallelism option removed - not supported in webpack 5
     };
 
     // Reduce memory usage during compilation

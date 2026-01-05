@@ -171,7 +171,64 @@ export default function AdminDashboard() {
       } else if (data.error) {
         throw new Error(data.error || `Failed to fetch stats: ${response.statusText}`);
       } else if (!data.overview) {
-        throw new Error('Invalid response format from server - missing overview');
+        // Try to calculate stats from individual endpoints if main endpoint fails
+        try {
+          const [packagesRes, customersRes, billsRes] = await Promise.all([
+            fetch("/api/admin/packages", { cache: "no-store" }),
+            fetch("/api/admin/customers", { cache: "no-store" }),
+            fetch("/api/admin/bills", { cache: "no-store" })
+          ]);
+          
+          const packagesData = await packagesRes.json();
+          const customersData = await customersRes.json();
+          const billsData = await billsRes.json();
+          
+          // Calculate real-time stats from actual data
+          const calculatedStats: DashboardStats = {
+            overview: {
+              totalRevenue: billsData.bills?.reduce((sum: number, bill: any) => 
+                sum + (bill.paidAmount || 0), 0) || 0,
+              revenueGrowth: 0, // Calculate growth if needed
+              totalPackages: packagesData.packages?.length || 0,
+              packagesGrowth: 0,
+              totalCustomers: customersData.items?.length || 0,
+              customersGrowth: 0,
+              averageValue: packagesData.packages?.length > 0 ? 
+                (billsData.bills?.reduce((sum: number, bill: any) => sum + (bill.paidAmount || 0), 0) || 0) / packagesData.packages.length : 0,
+              valueGrowth: 0,
+              activePackages: packagesData.packages?.filter((p: any) => 
+                !['delivered', 'cancelled'].includes(p.status?.toLowerCase())
+              ).length || 0,
+              pendingDeliveries: packagesData.packages?.filter((p: any) => 
+                p.status?.toLowerCase().includes('pending') || 
+                p.status?.toLowerCase().includes('transit')
+              ).length || 0,
+              newCustomersThisMonth: customersData.items?.filter((c: any) => {
+                const custDate = new Date(c.createdAt);
+                const thisMonth = new Date();
+                return custDate.getMonth() === thisMonth.getMonth() && 
+                       custDate.getFullYear() === thisMonth.getFullYear();
+              }).length || 0,
+              outstandingPayments: billsData.bills?.filter((bill: any) => 
+                bill.status === 'unpaid'
+              ).reduce((sum: number, bill: any) => sum + (bill.balance || 0), 0) || 0,
+              packagesInCustoms: packagesData.packages?.filter((p: any) => 
+                p.status?.toLowerCase().includes('customs')
+              ).length || 0
+            },
+            packagesByStatus: calculatePackageStatuses(packagesData.packages || []),
+            revenueByMonth: calculateRevenueByMonth(billsData.bills || []),
+            topCustomers: calculateTopCustomers(billsData.bills || [], customersData.items || []),
+            packagesByBranch: calculatePackagesByBranch(packagesData.packages || []),
+            recentActivity: [],
+            alerts: calculateAlerts(packagesData.packages || [], billsData.bills || [])
+          };
+          
+          setStats(calculatedStats);
+          setLastUpdated(new Date());
+        } catch (calculationError) {
+          throw new Error('Invalid response format from server - missing overview and failed to calculate');
+        }
       } else {
         setStats(data);
         setLastUpdated(new Date());
@@ -184,6 +241,122 @@ export default function AdminDashboard() {
       setIsLoading(false);
     }
   }, [router]);
+
+  // Helper functions to calculate stats from raw data
+  const calculatePackageStatuses = (packages: any[]) => {
+    const statusCounts = packages.reduce((acc, pkg) => {
+      const status = pkg.status || 'unknown';
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const total = packages.length;
+    return Object.entries(statusCounts).map(([status, count]) => ({
+      status,
+      count,
+      percentage: total > 0 ? ((count / total) * 100).toFixed(1) : '0'
+    }));
+  };
+
+  const calculateRevenueByMonth = (bills: any[]) => {
+    const monthlyRevenue = new Map<string, { revenue: number; packages: number }>();
+    
+    bills.forEach(bill => {
+      const date = new Date(bill.date);
+      const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      
+      if (!monthlyRevenue.has(monthKey)) {
+        monthlyRevenue.set(monthKey, { revenue: 0, packages: 0 });
+      }
+      
+      const current = monthlyRevenue.get(monthKey)!;
+      current.revenue += bill.paidAmount || 0;
+      current.packages += 1;
+    });
+    
+    return Array.from(monthlyRevenue.entries())
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .slice(-6) // Last 6 months
+      .map(([month, data]) => ({
+        month,
+        revenue: data.revenue,
+        packages: data.packages
+      }));
+  };
+
+  const calculateTopCustomers = (bills: any[], customers: any[]) => {
+    const customerRevenue = new Map<string, { name: string; revenue: number; packages: number }>();
+    
+    bills.forEach(bill => {
+      const trackingNumber = bill.trackingNumber;
+      if (!customerRevenue.has(trackingNumber)) {
+        const customer = customers.find(c => c.userCode === trackingNumber);
+        customerRevenue.set(trackingNumber, {
+          name: customer ? `${customer.firstName} ${customer.lastName}` : trackingNumber,
+          revenue: 0,
+          packages: 0
+        });
+      }
+      
+      const current = customerRevenue.get(trackingNumber)!;
+      current.revenue += bill.paidAmount || 0;
+      current.packages += 1;
+    });
+    
+    return Array.from(customerRevenue.values())
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10);
+  };
+
+  const calculatePackagesByBranch = (packages: any[]) => {
+    const branchCounts = packages.reduce((acc, pkg) => {
+      const branch = pkg.branch || 'Unknown';
+      acc[branch] = (acc[branch] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    return Object.entries(branchCounts).map(([branch, count]) => ({
+      branch,
+      count
+    }));
+  };
+
+  const calculateAlerts = (packages: any[], bills: any[]) => {
+    const alerts = [];
+    
+    const overduePayments = bills.filter(bill => 
+      bill.status === 'unpaid' && new Date(bill.dueDate || bill.date) < new Date()
+    );
+    
+    if (overduePayments.length > 0) {
+      alerts.push({
+        id: 'overdue-payments',
+        type: 'overdue_payment' as const,
+        title: 'Overdue Payments',
+        description: `${overduePayments.length} payments are overdue`,
+        count: overduePayments.length,
+        severity: 'high' as const
+      });
+    }
+    
+    const delayedPackages = packages.filter(pkg => 
+      pkg.status?.toLowerCase().includes('delayed') || 
+      pkg.status?.toLowerCase().includes('issue')
+    );
+    
+    if (delayedPackages.length > 0) {
+      alerts.push({
+        id: 'delayed-packages',
+        type: 'delayed_delivery' as const,
+        title: 'Delayed Deliveries',
+        description: `${delayedPackages.length} packages are delayed`,
+        count: delayedPackages.length,
+        severity: 'medium' as const
+      });
+    }
+    
+    return alerts;
+  };
 
   useEffect(() => {
     fetchStats();

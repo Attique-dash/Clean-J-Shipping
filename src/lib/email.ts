@@ -104,28 +104,75 @@ export async function sendNewPackageEmail(opts: {
   status: string;
   weight?: number;
   shipper?: string;
+  warehouse?: string;
+  receivedBy?: string;
+  receivedDate?: Date;
 }) {
   const t = getTransporter();
   if (!t) return { sent: false, reason: "Email not configured" };
 
-  const { to, firstName, trackingNumber, status, weight, shipper } = opts;
+  const { to, firstName, trackingNumber, status, weight, shipper, warehouse, receivedBy, receivedDate } = opts;
 
-  const subject = `New Package Received — ${trackingNumber}`;
+  const subject = `Package Received at Warehouse — ${trackingNumber}`;
+  const receivedDateStr = receivedDate ? new Date(receivedDate).toLocaleString() : new Date().toLocaleString();
   const html = `
   <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111">
-    <h2 style="margin:0 0 12px 0;">New Package Received</h2>
+    <h2 style="margin:0 0 12px 0;">Package Received at Warehouse</h2>
     <p>Hi ${firstName || "Customer"},</p>
-    <p>Great news! We have received a new package for you.</p>
-    <h3 style="margin:16px 0 8px 0;">Package Information</h3>
-    <ul style="padding-left:16px;">
-      <li><strong>Shipper:</strong> ${shipper || "UNKNOWN"}</li>
-      <li><strong>Tracking Number:</strong> ${trackingNumber}</li>
-      <li><strong>Weight:</strong> ${weight ?? "-"}</li>
-      <li><strong>Status:</strong> ${status}</li>
-    </ul>
-    <p>
-      You can view live updates in your portal.
-    </p>
+    <p>Great news! We have received your package at our warehouse. Here are the details:</p>
+    
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:16px 0;">
+      <h3 style="margin:0 0 12px 0;color:#1e40af;">Package Information</h3>
+      <table style="border-collapse:collapse;width:100%;">
+        <tbody>
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;width:140px;">Tracking Number:</td>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;"><strong>${trackingNumber}</strong></td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;">Shipper:</td>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${shipper || "UNKNOWN"}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;">Weight:</td>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${weight ? `${weight} kg` : "-"}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;">Status:</td>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">
+              <span style="background:#10b981;color:white;padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600;">
+                ${status}
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;">Warehouse:</td>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${warehouse || "Main Warehouse"}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;">Received By:</td>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${receivedBy || "Warehouse Staff"}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;color:#374151;font-weight:600;">Received Date:</td>
+            <td style="padding:8px;">${receivedDateStr}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:16px;margin:16px 0;">
+      <h4 style="margin:0 0 8px 0;color:#92400e;">📋 Invoice Information Required</h4>
+      <p style="margin:0;color:#92400e;">Please provide the invoice value of your goods through the customer portal. This information is required for customs clearance and will help us calculate any applicable duties and taxes.</p>
+      <p style="margin:8px 0 0 0;">
+        <a href="${APP_URL}/customer/invoice-upload" style="display:inline-block;background:#E67919;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:600;">
+          Upload Invoice
+        </a>
+      </p>
+    </div>
+    
+    <p style="margin-top:16px;">You can view live tracking updates and manage your package in your customer portal.</p>
+    <p style="margin-top:8px;">If you have any questions, please don't hesitate to contact us.</p>
   </div>`;
 
   await t.sendMail({

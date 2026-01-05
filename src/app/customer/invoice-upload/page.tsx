@@ -23,6 +23,8 @@ interface PackageData {
   weight?: string;
   status: string;
   current_location?: string;
+  invoice_status?: string;
+  invoice_uploaded_date?: string;
 }
 
 interface InvoiceUpload {
@@ -31,6 +33,14 @@ interface InvoiceUpload {
   currency: string;
   invoice_files: File[];
   description?: string;
+  item_description?: string;
+  item_category?: string;
+  item_quantity?: number;
+  hs_code?: string;
+  declared_value?: number;
+  supplier_name?: string;
+  supplier_address?: string;
+  purchase_date?: string;
 }
 
 export default function CustomerInvoiceUploadPage() {
@@ -47,7 +57,15 @@ export default function CustomerInvoiceUploadPage() {
     price_paid: 0,
     currency: globalCurrency,
     invoice_files: [],
-    description: ""
+    description: "",
+    item_description: "",
+    item_category: "",
+    item_quantity: 1,
+    hs_code: "",
+    declared_value: 0,
+    supplier_name: "",
+    supplier_address: "",
+    purchase_date: new Date().toISOString().split('T')[0]
   });
 
   useEffect(() => {
@@ -86,12 +104,55 @@ export default function CustomerInvoiceUploadPage() {
     }
   }
 
+  const [isDragging, setIsDragging] = useState(false);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     setCurrentUpload(prev => ({
       ...prev,
       invoice_files: [...prev.invoice_files, ...files]
     }));
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    const validFiles = files.filter(file => {
+      const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      
+      if (!validTypes.includes(file.type)) {
+        toast.error(`${file.name} is not a supported file type`);
+        return false;
+      }
+      
+      if (file.size > maxSize) {
+        toast.error(`${file.name} exceeds the 10MB size limit`);
+        return false;
+      }
+      
+      return true;
+    });
+    
+    if (validFiles.length > 0) {
+      setCurrentUpload(prev => ({
+        ...prev,
+        invoice_files: [...prev.invoice_files, ...validFiles]
+      }));
+      toast.success(`${validFiles.length} file(s) added successfully`);
+    }
   };
 
   const removeFile = (index: number) => {
@@ -123,7 +184,15 @@ export default function CustomerInvoiceUploadPage() {
       price_paid: 0,
       currency: globalCurrency,
       invoice_files: [],
-      description: ""
+      description: "",
+      item_description: "",
+      item_category: "",
+      item_quantity: 1,
+      hs_code: "",
+      declared_value: 0,
+      supplier_name: "",
+      supplier_address: "",
+      purchase_date: new Date().toISOString().split('T')[0]
     });
     
     // Reset file input
@@ -137,6 +206,39 @@ export default function CustomerInvoiceUploadPage() {
     setUploads(prev => prev.filter((_, i) => i !== index));
   };
 
+  const getInvoiceStatusBadge = (status?: string) => {
+    switch (status) {
+      case "uploaded":
+        return (
+          <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full flex items-center gap-1">
+            <CheckCircle className="h-3 w-3" />
+            Invoice Uploaded
+          </span>
+        );
+      case "submitted":
+        return (
+          <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            Invoice Pending
+          </span>
+        );
+      case "approved":
+        return (
+          <span className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs rounded-full flex items-center gap-1">
+            <CheckCircle className="h-3 w-3" />
+            Approved by Customs
+          </span>
+        );
+      default:
+        return (
+          <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            Invoice Required
+          </span>
+        );
+    }
+  };
+
   const handleSubmitAll = async () => {
     if (uploads.length === 0) {
       toast.error("No packages to upload");
@@ -148,14 +250,22 @@ export default function CustomerInvoiceUploadPage() {
       const formData = new FormData();
       
       uploads.forEach((upload, index) => {
-        upload.invoice_files.forEach((file, fileIndex) => {
+        upload.invoice_files.forEach((file: File, fileIndex: number) => {
           formData.append(`files_${index}`, file);
         });
         formData.append(`upload_${index}`, JSON.stringify({
           tracking_number: upload.tracking_number,
           price_paid: upload.price_paid,
           currency: upload.currency,
-          description: upload.description
+          description: upload.description,
+          item_description: upload.item_description,
+          item_category: upload.item_category,
+          item_quantity: upload.item_quantity,
+          hs_code: upload.hs_code,
+          declared_value: upload.declared_value,
+          supplier_name: upload.supplier_name,
+          supplier_address: upload.supplier_address,
+          purchase_date: upload.purchase_date
         }));
       });
 
@@ -168,7 +278,7 @@ export default function CustomerInvoiceUploadPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Upload failed");
 
-      toast.success("All invoices uploaded successfully!");
+      toast.success("All invoices uploaded successfully! Files have been saved and package status updated.");
       setUploads([]);
       await loadPackages();
     } catch (error) {
@@ -227,9 +337,12 @@ export default function CustomerInvoiceUploadPage() {
                         <Package className="h-5 w-5 text-[#0f4d8a]" />
                         <span className="font-mono text-sm font-semibold">{pkg.tracking_number}</span>
                       </div>
-                      <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
-                        {pkg.status}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                          {pkg.status}
+                        </span>
+                        {getInvoiceStatusBadge(pkg.invoice_status)}
+                      </div>
                     </div>
                     {pkg.description && (
                       <p className="text-sm text-gray-600 mb-2">{pkg.description}</p>
@@ -243,6 +356,11 @@ export default function CustomerInvoiceUploadPage() {
                     {pkg.current_location && (
                       <div className="text-sm text-gray-500 mt-1">
                         Location: {pkg.current_location}
+                      </div>
+                    )}
+                    {pkg.invoice_uploaded_date && (
+                      <div className="text-sm text-gray-500 mt-1">
+                        Invoice uploaded: {new Date(pkg.invoice_uploaded_date).toLocaleDateString()}
                       </div>
                     )}
                   </div>
@@ -329,12 +447,161 @@ export default function CustomerInvoiceUploadPage() {
               />
             </div>
 
+            {/* Enhanced Invoice Details */}
+            <div className="bg-blue-50 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-600" />
+                Invoice Details for Customs
+              </h3>
+              
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Item Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Item Description *
+                  </label>
+                  <input
+                    type="text"
+                    value={currentUpload.item_description}
+                    onChange={(e) => setCurrentUpload(prev => ({ ...prev, item_description: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0f4d8a] focus:border-[#0f4d8a]"
+                    placeholder="Describe the items in detail"
+                  />
+                </div>
+
+                {/* Item Category */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Item Category
+                  </label>
+                  <select
+                    value={currentUpload.item_category}
+                    onChange={(e) => setCurrentUpload(prev => ({ ...prev, item_category: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0f4d8a] focus:border-[#0f4d8a]"
+                  >
+                    <option value="">Select category...</option>
+                    <option value="electronics">Electronics</option>
+                    <option value="clothing">Clothing & Accessories</option>
+                    <option value="books">Books & Media</option>
+                    <option value="home">Home & Garden</option>
+                    <option value="health">Health & Beauty</option>
+                    <option value="sports">Sports & Outdoors</option>
+                    <option value="toys">Toys & Games</option>
+                    <option value="food">Food & Beverages</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                {/* Item Quantity */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Quantity
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={currentUpload.item_quantity}
+                    onChange={(e) => setCurrentUpload(prev => ({ ...prev, item_quantity: parseInt(e.target.value) || 1 }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0f4d8a] focus:border-[#0f4d8a]"
+                    placeholder="1"
+                  />
+                </div>
+
+                {/* Declared Value */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Declared Value ({currentUpload.currency}) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={currentUpload.declared_value}
+                    onChange={(e) => setCurrentUpload(prev => ({ ...prev, declared_value: parseFloat(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0f4d8a] focus:border-[#0f4d8a]"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                {/* HS Code */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    HS Code (Harmonized System)
+                  </label>
+                  <input
+                    type="text"
+                    value={currentUpload.hs_code}
+                    onChange={(e) => setCurrentUpload(prev => ({ ...prev, hs_code: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0f4d8a] focus:border-[#0f4d8a]"
+                    placeholder="e.g., 8517.12.00"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Optional but helps with customs clearance
+                  </p>
+                </div>
+
+                {/* Purchase Date */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Purchase Date
+                  </label>
+                  <input
+                    type="date"
+                    value={currentUpload.purchase_date}
+                    onChange={(e) => setCurrentUpload(prev => ({ ...prev, purchase_date: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0f4d8a] focus:border-[#0f4d8a]"
+                  />
+                </div>
+
+                {/* Supplier Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Supplier/Seller Name
+                  </label>
+                  <input
+                    type="text"
+                    value={currentUpload.supplier_name}
+                    onChange={(e) => setCurrentUpload(prev => ({ ...prev, supplier_name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0f4d8a] focus:border-[#0f4d8a]"
+                    placeholder="Store or seller name"
+                  />
+                </div>
+
+                {/* Supplier Address */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Supplier/Seller Address
+                  </label>
+                  <input
+                    type="text"
+                    value={currentUpload.supplier_address}
+                    onChange={(e) => setCurrentUpload(prev => ({ ...prev, supplier_address: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0f4d8a] focus:border-[#0f4d8a]"
+                    placeholder="Supplier address"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800">
+                  <strong>💡 Important:</strong> Accurate invoice details help customs process your package faster and calculate correct duties and taxes.
+                </p>
+              </div>
+            </div>
+
             {/* File Upload */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Invoice Files *
               </label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#0f4d8a] transition-colors">
+              <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                   isDragging 
+                     ? 'border-[#0f4d8a] bg-blue-50' 
+                     : 'border-gray-300 hover:border-[#0f4d8a]'
+                 }`}
+                 onDragOver={handleDragOver}
+                 onDragLeave={handleDragLeave}
+                 onDrop={handleDrop}>
                 <input
                   id="invoice-files"
                   type="file"
@@ -344,9 +611,11 @@ export default function CustomerInvoiceUploadPage() {
                   className="hidden"
                 />
                 <label htmlFor="invoice-files" className="cursor-pointer">
-                  <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <Upload className={`h-12 w-12 mx-auto mb-4 transition-colors ${
+                    isDragging ? 'text-[#0f4d8a]' : 'text-gray-400'
+                  }`} />
                   <p className="text-sm text-gray-600">
-                    Click to upload or drag and drop
+                    {isDragging ? 'Drop files here...' : 'Click to upload or drag and drop'}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     PDF, JPG, PNG, DOC up to 10MB each

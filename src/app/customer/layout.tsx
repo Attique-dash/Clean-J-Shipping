@@ -258,8 +258,11 @@ export default function CustomerLayout({
             </div>
           )}
 
-          {/* Sidebar footer with Logout button */}
-          <div className="border-t border-white/10 p-4">
+          {/* Sidebar footer with Currency and Logout */}
+          <div className="border-t border-white/10 p-4 space-y-3">
+      
+            
+            {/* Logout Button */}
             <form action="/api/auth/logout" method="POST">
               <button className="w-full rounded-md bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20 transition">
                 Logout
@@ -287,8 +290,9 @@ export default function CustomerLayout({
                 Clean J Shipping
               </div>
 
-              {/* Right: Cart & Toggle */}
+              {/* Right: Cart, Currency & Toggle */}
               <div className="flex items-center gap-2">
+          
                 {cartCount > 0 && (
                   <Link
                     href="/customer/checkout"
@@ -387,7 +391,10 @@ export default function CustomerLayout({
                   })}
                 </nav>
 
-                <div className="border-t border-white/10 p-4">
+                <div className="border-t border-white/10 p-4 space-y-3">
+               
+                  
+                  {/* Logout Button */}
                   <form action="/api/auth/logout" method="POST">
                     <button className="w-full rounded-md bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20 transition">
                       Logout

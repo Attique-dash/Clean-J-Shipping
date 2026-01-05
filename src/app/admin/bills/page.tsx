@@ -74,22 +74,38 @@ export default function BillsPage() {
       if (!res.ok) throw new Error(data?.error || "Failed to load bills");
       setBills(data.bills || []);
       
-      // Load revenue trend data
-      if (data.revenueTrend) {
+      // Load real revenue trend data from database
+      if (data.revenueTrend && Array.isArray(data.revenueTrend)) {
         setRevenueData(data.revenueTrend);
       } else {
-        // Generate sample data if not provided
-        const months = [];
-        for (let i = 5; i >= 0; i--) {
-          const date = new Date();
-          date.setMonth(date.getMonth() - i);
-          months.push({
-            month: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-            revenue: Math.random() * 10000 + 5000,
-            packages: Math.floor(Math.random() * 50 + 20),
-          });
-        }
-        setRevenueData(months);
+        // Generate revenue data from actual bills if no trend data provided
+        const monthlyRevenue = new Map<string, { revenue: number; packages: number }>();
+        
+        // Process bills to calculate monthly revenue
+        data.bills?.forEach((bill: Bill) => {
+          const date = new Date(bill.date);
+          const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+          
+          if (!monthlyRevenue.has(monthKey)) {
+            monthlyRevenue.set(monthKey, { revenue: 0, packages: 0 });
+          }
+          
+          const current = monthlyRevenue.get(monthKey)!;
+          current.revenue += bill.paidAmount || 0;
+          current.packages += 1;
+        });
+        
+        // Convert to array and sort by date
+        const sortedRevenue = Array.from(monthlyRevenue.entries())
+          .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+          .slice(-6) // Last 6 months
+          .map(([month, data]) => ({
+            month,
+            revenue: data.revenue,
+            packages: data.packages
+          }));
+        
+        setRevenueData(sortedRevenue.length > 0 ? sortedRevenue : []);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load bills");

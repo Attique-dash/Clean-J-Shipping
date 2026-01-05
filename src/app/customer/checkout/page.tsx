@@ -17,6 +17,7 @@ import {
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { toast } from "react-toastify";
 import Link from "next/link";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 type Bill = {
   _id?: string;
@@ -35,6 +36,7 @@ type Bill = {
 function CheckoutPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { formatCurrency } = useCurrency();
   const [items, setItems] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -293,10 +295,7 @@ function CheckoutPageContent() {
                     <div className="flex items-center gap-4">
                       <div className="text-right">
                         <p className="font-bold text-[#E67919]">
-                          {(bill.amount_due || 0).toLocaleString(undefined, { 
-                            style: 'currency', 
-                            currency: bill.currency || currency 
-                          })}
+                          {formatCurrency(bill.amount_due || 0, bill.currency || currency)}
                         </p>
                       </div>
                       <button
@@ -330,10 +329,7 @@ function CheckoutPageContent() {
                   <div className="flex justify-between items-center">
                     <span className="text-lg font-semibold text-gray-900">Total</span>
                     <span className="text-2xl font-bold text-[#E67919]">
-                      {totalAmount.toLocaleString(undefined, { 
-                        style: 'currency', 
-                        currency: currency 
-                      })}
+                      {formatCurrency(totalAmount, currency)}
                     </span>
                   </div>
                 </div>

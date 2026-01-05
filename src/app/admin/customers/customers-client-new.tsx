@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, User, Mail, Phone, MapPin, Calendar, Shield, X } from "lucide-react";
 import SharedModal from "@/components/admin/SharedModal";
 import AddButton from "@/components/admin/AddButton";
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
@@ -34,6 +34,7 @@ export default function CustomersPageClient() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; customer: Customer | null }>({ open: false, customer: null });
+  const [viewCustomer, setViewCustomer] = useState<Customer | null>(null);
   const [form, setForm] = useState({ 
     firstName: "", 
     lastName: "", 
@@ -132,6 +133,16 @@ export default function CustomersPageClient() {
   function openDelete(customer: Customer) {
     setDeleteConfirm({ open: true, customer });
   }
+
+  function openView(customer: Customer) {
+    setViewCustomer(customer);
+  }
+
+  // Helper function to truncate text
+  const truncateText = (text: string, maxLength: number = 30) => {
+    if (!text || text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + "...";
+  };
 
   async function deleteItem() {
     if (!deleteConfirm.customer) return;
@@ -349,7 +360,9 @@ export default function CustomersPageClient() {
                         <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
-                        <span className="truncate">{customer.email}</span>
+                        <span className="truncate" title={customer.email}>
+                          {truncateText(customer.email, 30)}
+                        </span>
                       </div>
 
                       {customer.phone && (
@@ -357,7 +370,7 @@ export default function CustomersPageClient() {
                           <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                           </svg>
-                          <span>{customer.phone}</span>
+                          <span title={customer.phone}>{truncateText(customer.phone, 30)}</span>
                         </div>
                       )}
 
@@ -367,14 +380,20 @@ export default function CustomersPageClient() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
-                          <span className="truncate">
-                            {[
+                          <span className="truncate" title={[
+                            customer.address.street,
+                            customer.address.city,
+                            customer.address.state,
+                            customer.address.zipCode,
+                            customer.address.country
+                          ].filter(Boolean).join(", ")}>
+                            {truncateText([
                               customer.address.street,
                               customer.address.city,
                               customer.address.state,
                               customer.address.zipCode,
                               customer.address.country
-                            ].filter(Boolean).join(", ")}
+                            ].filter(Boolean).join(", "), 30)}
                           </span>
                         </div>
                       )}
@@ -398,6 +417,14 @@ export default function CustomersPageClient() {
                     </div>
 
                     <div className="flex flex-wrap gap-2 pt-2">
+                      <button
+                        onClick={() => openView(customer)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-medium text-blue-600 transition-all hover:bg-blue-600 hover:text-white"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        View
+                      </button>
+
                       <button
                         onClick={() => openEdit(customer)}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-[#0f4d8a] bg-white px-3 py-1.5 text-xs font-medium text-[#0f4d8a] transition-all hover:bg-[#0f4d8a] hover:text-white"
@@ -625,6 +652,184 @@ export default function CustomersPageClient() {
         message="Are you sure you want to delete this customer? This action cannot be undone and will permanently remove all associated data."
         itemName={deleteConfirm.customer ? `${deleteConfirm.customer.firstName} ${deleteConfirm.customer.lastName} (${deleteConfirm.customer.userCode})` : undefined}
       />
+
+      {/* Customer View Modal */}
+      {viewCustomer && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex min-h-screen items-center justify-center p-4">
+            {/* Backdrop */}
+            <div 
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setViewCustomer(null)}
+            />
+            
+            {/* Modal */}
+            <div className="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-gray-200 p-6">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[#0f4d8a] to-[#E67919] text-xl font-bold text-white shadow-lg">
+                    {`${viewCustomer.firstName} ${viewCustomer.lastName}`.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {viewCustomer.firstName} {viewCustomer.lastName}
+                    </h2>
+                    <p className="text-sm text-gray-500">Customer ID: {viewCustomer.userCode}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setViewCustomer(null)}
+                  className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  {/* Personal Information */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <User className="h-5 w-5 text-[#0f4d8a]" />
+                      <h3 className="text-lg font-semibold text-gray-900">Personal Information</h3>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Full Name</p>
+                        <p className="text-sm text-gray-900">{viewCustomer.firstName} {viewCustomer.lastName}</p>
+                      </div>
+                      
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Email Address</p>
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-gray-400" />
+                          <p className="text-sm text-gray-900 break-all">{viewCustomer.email}</p>
+                        </div>
+                      </div>
+                      
+                      {viewCustomer.phone && (
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Phone Number</p>
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-gray-400" />
+                            <p className="text-sm text-gray-900">{viewCustomer.phone}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Account Information */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-[#E67919]" />
+                      <h3 className="text-lg font-semibold text-gray-900">Account Information</h3>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Account Status</p>
+                        <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${
+                          viewCustomer.accountStatus === "active" 
+                            ? "bg-green-100 text-green-700" 
+                            : "bg-yellow-100 text-yellow-700"
+                        }`}>
+                          <span className={`h-2 w-2 rounded-full ${
+                            viewCustomer.accountStatus === "active" ? "bg-green-500" : "bg-yellow-500"
+                          }`} />
+                          {viewCustomer.accountStatus || "active"}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Email Verification</p>
+                        <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${
+                          viewCustomer.emailVerified 
+                            ? "bg-green-100 text-green-700" 
+                            : "bg-red-100 text-red-700"
+                        }`}>
+                          <span className={`h-2 w-2 rounded-full ${
+                            viewCustomer.emailVerified ? "bg-green-500" : "bg-red-500"
+                          }`} />
+                          {viewCustomer.emailVerified ? "Verified" : "Not Verified"}
+                        </div>
+                      </div>
+                      
+                      {viewCustomer.createdAt && (
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Member Since</p>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-gray-400" />
+                            <p className="text-sm text-gray-900">
+                              {new Date(viewCustomer.createdAt).toLocaleDateString("default", { 
+                                month: "long", 
+                                day: "numeric", 
+                                year: "numeric" 
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Address Information */}
+                {viewCustomer.address && (
+                  <div className="mt-6 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-5 w-5 text-purple-600" />
+                      <h3 className="text-lg font-semibold text-gray-900">Address Information</h3>
+                    </div>
+                    
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                      <div className="grid gap-2 text-sm">
+                        {viewCustomer.address.street && (
+                          <p className="text-gray-900">{viewCustomer.address.street}</p>
+                        )}
+                        {(viewCustomer.address.city || viewCustomer.address.state || viewCustomer.address.zipCode) && (
+                          <p className="text-gray-900">
+                            {[
+                              viewCustomer.address.city,
+                              viewCustomer.address.state,
+                              viewCustomer.address.zipCode
+                            ].filter(Boolean).join(", ")}
+                          </p>
+                        )}
+                        {viewCustomer.address.country && (
+                          <p className="text-gray-900">{viewCustomer.address.country}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end gap-3 border-t border-gray-200 p-6">
+                <button
+                  onClick={() => openEdit(viewCustomer)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[#0f4d8a] bg-white px-4 py-2 text-sm font-medium text-[#0f4d8a] transition-colors hover:bg-[#0f4d8a] hover:text-white"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Edit Customer
+                </button>
+                <button
+                  onClick={() => setViewCustomer(null)}
+                  className="rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-300"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

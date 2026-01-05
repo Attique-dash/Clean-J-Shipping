@@ -33,6 +33,16 @@ type UIPackage = {
   weight_kg?: number;
   hasInvoice?: boolean;
   invoiceNumber?: string;
+  // Warehouse receiving fields
+  warehouse_location?: string;
+  received_by?: string;
+  received_date?: string;
+  shipper?: string;
+  dimensions?: {
+    length?: number;
+    width?: number;
+    height?: number;
+  };
 };
 
 export default function CustomerPackagesPage() {
@@ -502,6 +512,40 @@ export default function CustomerPackagesPage() {
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">
                           {p.description || <span className="text-gray-400">No description</span>}
+                          {/* Warehouse receiving info */}
+                          {p.status === "received" && (
+                            <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
+                              <div className="font-semibold text-green-800 mb-1">📦 Received at Warehouse</div>
+                              {p.warehouse_location && (
+                                <div className="text-green-700">
+                                  <span className="font-medium">Location:</span> {p.warehouse_location}
+                                </div>
+                              )}
+                              {p.received_date && (
+                                <div className="text-green-700">
+                                  <span className="font-medium">Received:</span> {new Date(p.received_date).toLocaleDateString()}
+                                </div>
+                              )}
+                              {p.received_by && (
+                                <div className="text-green-700">
+                                  <span className="font-medium">Received by:</span> {p.received_by}
+                                </div>
+                              )}
+                              {p.shipper && (
+                                <div className="text-green-700">
+                                  <span className="font-medium">Shipper:</span> {p.shipper}
+                                </div>
+                              )}
+                              {p.dimensions && (
+                                <div className="text-green-700">
+                                  <span className="font-medium">Dimensions:</span>{" "}
+                                  {p.dimensions.length && <span>L: {p.dimensions.length}cm</span>}
+                                  {p.dimensions.width && <span> × W: {p.dimensions.width}cm</span>}
+                                  {p.dimensions.height && <span> × H: {p.dimensions.height}cm</span>}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

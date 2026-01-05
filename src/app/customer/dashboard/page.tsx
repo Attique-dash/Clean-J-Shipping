@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Package, TrendingUp, FileText, Bell, ChevronRight, Clock, CheckCircle, AlertCircle, Loader2, MapPin, Search, X } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 const PackageTracker = dynamic(() => import("@/components/tracking/PackageTracker"), {
   ssr: false,
@@ -42,6 +43,7 @@ interface BillData {
 
 export default function CustomerDashboardPage() {
   const { data: session } = useSession();
+  const { formatCurrency } = useCurrency();
   const [stats, setStats] = useState<Stats>({
     totalPackages: 0,
     activeShipments: 0,
@@ -436,7 +438,7 @@ export default function CustomerDashboardPage() {
                           </p>
                           <span className="text-xs font-medium text-[#E67919]">
                             {typeof bill.amount_due === 'number' 
-                              ? `$${bill.amount_due.toFixed(2)}`
+                              ? formatCurrency(bill.amount_due)
                               : 'N/A'}
                           </span>
                         </div>

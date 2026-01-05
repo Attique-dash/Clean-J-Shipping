@@ -95,6 +95,9 @@ export async function POST(req: Request) {
       status: "At Warehouse",
       weight,
       shipper,
+      warehouse,
+      receivedBy,
+      receivedDate: now,
     }).catch(() => {});
   }
 

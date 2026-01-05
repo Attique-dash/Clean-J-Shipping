@@ -3,6 +3,20 @@
 import { useEffect, useState } from "react";
 import { Package, Users, Truck, DollarSign, TrendingUp, TrendingDown, AlertCircle, CheckCircle, Clock, FileText, Activity, RefreshCw, Calendar, ArrowUpRight, Loader2 } from "lucide-react";
 
+type Bill = {
+  id: string;
+  billNumber: string;
+  trackingNumber: string;
+  date: string;
+  branch: string;
+  dueAmount: number;
+  paidAmount: number;
+  balance: number;
+  currency: string;
+  status: "unpaid" | "paid" | "partial";
+  source?: string;
+};
+
 type Summary = {
   total_packages: number;
   total_customers: number;
@@ -104,13 +118,83 @@ export default function AdminReportsPage() {
         throw new Error(data?.error || "Failed to load summary");
       }
       
+      // Validate data structure
+      if (!data.summary || !data.weekly_stats || !data.alerts) {
+        throw new Error("Invalid data structure received from API");
+      }
+      
       setReport(data as Report);
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : "Failed to load data";
       setError(errorMsg);
-      // Load demo data as fallback
-      setReport(demoReport);
-      setUsingDemo(true);
+      
+      // Try to load real-time data from individual endpoints if main endpoint fails
+      try {
+        const [packagesRes, customersRes, billsRes] = await Promise.all([
+          fetch("/api/admin/packages", { cache: "no-store" }),
+          fetch("/api/admin/customers", { cache: "no-store" }),
+          fetch("/api/admin/bills", { cache: "no-store" })
+        ]);
+        
+        const packagesData = await packagesRes.json();
+        const customersData = await customersRes.json();
+        const billsData = await billsRes.json();
+        
+        // Calculate real-time summary from actual data
+        const realTimeSummary: Report = {
+          summary: {
+            total_packages: packagesData.packages?.length || 0,
+            total_customers: customersData.items?.length || 0,
+            packages_in_transit: packagesData.packages?.filter((p: any) => 
+              p.status?.toLowerCase().includes('transit') || 
+              p.status?.toLowerCase().includes('in transit')
+            ).length || 0,
+            total_revenue: billsData.bills?.reduce((sum: number, bill: Bill) => 
+              sum + (bill.paidAmount || 0), 0) || 0
+          },
+          weekly_stats: {
+            packages_this_week: packagesData.packages?.filter((p: any) => {
+              const pkgDate = new Date(p.createdAt || p.date);
+              const weekAgo = new Date();
+              weekAgo.setDate(weekAgo.getDate() - 7);
+              return pkgDate >= weekAgo;
+            }).length || 0,
+            revenue_this_week: billsData.bills?.filter((bill: Bill) => {
+              const billDate = new Date(bill.date);
+              const weekAgo = new Date();
+              weekAgo.setDate(weekAgo.getDate() - 7);
+              return billDate >= weekAgo;
+            }).reduce((sum: number, bill: Bill) => sum + (bill.paidAmount || 0), 0) || 0,
+            new_customers_this_week: customersData.items?.filter((c: any) => {
+              const custDate = new Date(c.createdAt);
+              const weekAgo = new Date();
+              weekAgo.setDate(weekAgo.getDate() - 7);
+              return custDate >= weekAgo;
+            }).length || 0
+          },
+          alerts: {
+            packages_awaiting_invoice: packagesData.packages?.filter((p: any) => 
+              p.status?.toLowerCase().includes('awaiting') || 
+              p.status?.toLowerCase().includes('pending')
+            ).length || 0,
+            packages_ready_for_pickup: packagesData.packages?.filter((p: any) => 
+              p.status?.toLowerCase().includes('ready') || 
+              p.status?.toLowerCase().includes('pickup')
+            ).length || 0,
+            overdue_payments: billsData.bills?.filter((bill: Bill) => 
+              bill.status === 'unpaid' && new Date(bill.dueDate || bill.date) < new Date()
+            ).length || 0
+          },
+          recent_activity: demoReport.recent_activity // Keep demo activity for now
+        };
+        
+        setReport(realTimeSummary);
+        setUsingDemo(false);
+      } catch (fallbackError) {
+        // If all attempts fail, use demo data
+        setReport(demoReport);
+        setUsingDemo(true);
+      }
     } finally {
       setLoading(false);
     }

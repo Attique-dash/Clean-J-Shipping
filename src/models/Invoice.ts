@@ -54,6 +54,24 @@ export interface IInvoice extends Document {
     method: string;
     reference?: string;
   }>;
+  // Customer invoice upload fields
+  tracking_number?: string;
+  item_description?: string;
+  item_category?: string;
+  item_quantity?: number;
+  hs_code?: string;
+  declared_value?: number;
+  supplier_name?: string;
+  supplier_address?: string;
+  purchase_date?: string;
+  files?: Array<{
+    originalName?: string;
+    filename?: string;
+    path?: string;
+    size?: number;
+    type?: string;
+  }>;
+  upload_date?: Date;
   createdAt: Date;
   updatedAt: Date;
   calculateTotals(): void;
@@ -132,7 +150,25 @@ const InvoiceSchema = new Schema<IInvoice>({
     date: { type: Date, required: true },
     method: { type: String, required: true },
     reference: String
-  }]
+  }],
+  // Customer invoice upload fields
+  tracking_number: { type: String, trim: true, index: true },
+  item_description: { type: String, trim: true },
+  item_category: { type: String, trim: true },
+  item_quantity: { type: Number, min: 1, default: 1 },
+  hs_code: { type: String, trim: true },
+  declared_value: { type: Number, min: 0 },
+  supplier_name: { type: String, trim: true },
+  supplier_address: { type: String, trim: true },
+  purchase_date: { type: Date },
+  files: [{
+    originalName: { type: String, trim: true },
+    filename: { type: String, trim: true },
+    path: { type: String, trim: true },
+    size: { type: Number, min: 0 },
+    type: { type: String, trim: true }
+  }],
+  upload_date: { type: Date }
 }, {
   timestamps: true
 });

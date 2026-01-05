@@ -98,8 +98,8 @@ export default function TopHeader() {
         <span className="pointer-events-none absolute left-0 top-0 h-full w-10 -skew-x-12 bg-white" />
         <span className="pointer-events-none absolute right-0 top-0 h-full w-10 skew-x-12 bg-white" />
 
-        <div className="relative z-10 mx-auto hidden h-full max-w-7xl items-center md:flex md:justify-center lg:justify-between gap-8 px-6 text-sm">
-          <div className="flex items-center gap-6">
+        <div className="relative z-10 mx-auto hidden h-full max-w-7xl items-center md:flex md:justify-between gap-8 px-6 text-sm">
+          <div className="flex items-center gap-6 pl-8">
             <a href="tel:+18765785945" className="inline-flex items-center gap-2 hover:opacity-90">
               <FaPhoneAlt className="text-[#E67919]" size={18} />
               <span className="font-medium ">1 (876) 578-5945</span>
@@ -109,7 +109,7 @@ export default function TopHeader() {
               <span className="font-medium">info@cleanshipping.com</span>
             </a>
           </div>
-          <div className="flex items-center gap-4 pr-1">
+          <div className="flex items-center gap-4 pr-8">
             <a aria-label="Facebook" href="#" className="hover:opacity-90">
               <FaFacebookF size={16} className="text-[#E67919]" />
             </a>
