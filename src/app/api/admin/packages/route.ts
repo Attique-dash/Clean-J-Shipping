@@ -45,6 +45,21 @@ function calcCustomsDutyUsd(valueUsd: number): number {
   return valueUsd > 100 ? 0 : 0;
 }
 
+function calculateTotalAmount(itemValue: number, weight: number): number {
+  // Convert item value from USD to JMD (assuming 1 USD = 155 JMD)
+  const itemValueJmd = itemValue * 155;
+  
+  // Calculate shipping cost based on weight (convert to lbs first)
+  const weightLbs = weight * 2.20462;
+  const shippingCostJmd = calcShippingCostJmd(weightLbs);
+  
+  // Calculate customs duty (15% of item value if > $100 USD)
+  const customsDutyJmd = itemValue > 100 ? itemValueJmd * 0.15 : 0;
+  
+  // Total: item value + shipping + customs
+  return itemValueJmd + shippingCostJmd + customsDutyJmd;
+}
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !['admin', 'warehouse_staff', 'customer_support'].includes(session.user.role)) {
@@ -368,7 +383,7 @@ export async function POST(req: Request) {
       branch: branch || "Main Warehouse",
       // Required fields with defaults
       shippingCost: 0,
-      totalAmount: 0,
+      totalAmount: calculateTotalAmount(value || 0, weight || 0),
       paymentMethod: "cash",
       // Legacy fields for compatibility
       itemDescription: description || "Package description",
@@ -432,6 +447,7 @@ export async function PUT(req: Request) {
       warehouseLocation,
       dateReceived,
       itemValueUsd,
+      itemValue, // Add this to handle the field sent by frontend
       customsRequired,
       customsStatus,
       paymentStatus,
@@ -489,6 +505,11 @@ export async function PUT(req: Request) {
       updateData.itemValue = itemValueUsd;
       updateData.value = itemValueUsd;
       changedFields.push('itemValueUsd');
+    } else if (itemValue !== undefined && itemValue !== currentPackage.itemValue && itemValue !== currentPackage.value) {
+      // Handle the field sent by frontend form
+      updateData.itemValue = itemValue;
+      updateData.value = itemValue;
+      changedFields.push('itemValue');
     }
     if (customsRequired !== undefined && customsRequired !== currentPackage.customsRequired) {
       updateData.customsRequired = customsRequired;

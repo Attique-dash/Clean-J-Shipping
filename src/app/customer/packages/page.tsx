@@ -3,24 +3,14 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { Package, Search, MapPin, Filter, X, Calendar, Weight, Download, ExternalLink, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Package, Search, MapPin, Filter, X, Calendar, Weight, Download, ExternalLink, RefreshCw, Loader2, Eye, User } from "lucide-react";
 import { toast } from "react-toastify";
 
 type UIPackage = {
   id?: string;
   tracking_number: string;
   description?: string;
-  status:
-    | "pending"
-    | "received"
-    | "in_processing"
-    | "ready_to_ship"
-    | "shipped"
-    | "in_transit"
-    | "ready_for_pickup"
-    | "delivered"
-    | "archived"
-    | "unknown";
+  status: "pending" | "received" | "in_processing" | "ready_to_ship" | "shipped" | "in_transit" | "ready_for_pickup" | "delivered" | "archived" | "unknown";
   current_location?: string;
   estimated_delivery?: string;
   weight?: string;
@@ -38,11 +28,18 @@ type UIPackage = {
   received_by?: string;
   received_date?: string;
   shipper?: string;
-  dimensions?: {
-    length?: number;
-    width?: number;
-    height?: number;
-  };
+  dimensions?: { length?: number; width?: number; height?: number; unit?: string };
+  itemValueUsd?: number;
+  serviceMode?: 'air' | 'ocean' | 'local';
+  customsRequired?: boolean;
+  customsStatus?: string;
+  paymentStatus?: string;
+  dateReceived?: string;
+  daysInStorage?: number;
+  senderEmail?: string;
+  senderPhone?: string;
+  senderAddress?: string;
+  senderCountry?: string;
 };
 
 export default function CustomerPackagesPage() {
@@ -57,12 +54,12 @@ export default function CustomerPackagesPage() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const previousItemsRef = useRef<UIPackage[]>([]);
-  
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [packageToView, setPackageToView] = useState<UIPackage | null>(null);
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
   const [weightMin, setWeightMin] = useState<string>("");
   const [weightMax, setWeightMax] = useState<string>("");
-  
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
@@ -152,8 +149,7 @@ export default function CustomerPackagesPage() {
       case "ready_to_ship": return "Ready for Pickup";
       case "delivered": return "Delivered";
       case "archived": return "Archived";
-      case "unknown": return "Unknown";
-      default: return s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : "Unknown";
+      default: return s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) : "Unknown";
     }
   }
 
@@ -203,6 +199,27 @@ export default function CustomerPackagesPage() {
     setPage(1);
   }
 
+  function handleViewDetails(pkg: UIPackage) {
+    setPackageToView(pkg);
+    setViewModalOpen(true);
+  }
+
+  function handleTrackPackage(pkg: UIPackage) {
+    const trackingNumber = pkg.tracking_number;
+    const existingTracking = localStorage.getItem('dashboardTracking') || '[]';
+    const trackingList = JSON.parse(existingTracking);
+    
+    if (!trackingList.includes(trackingNumber)) {
+      trackingList.push(trackingNumber);
+      localStorage.setItem('dashboardTracking', JSON.stringify(trackingList));
+      toast.success(`📍 ${trackingNumber} added to tracking dashboard`, { position: "top-right", autoClose: 3000 });
+    } else {
+      toast.info(`📍 ${trackingNumber} is already in tracking dashboard`, { position: "top-right", autoClose: 3000 });
+    }
+    
+    window.open('/customer/dashboard', '_blank');
+  }
+
   const hasActiveFilters = query || locationQuery || statusFilter || dateFrom || dateTo || weightMin || weightMax;
 
   return (
@@ -229,9 +246,7 @@ export default function CustomerPackagesPage() {
                     <p className="text-blue-100 mt-1 flex items-center gap-2">
                       <Package className="h-4 w-4" />
                       Showing {filtered.length} of {total} packages
-                      <span className="ml-2 rounded-full bg-green-100/20 backdrop-blur-sm px-2 py-0.5 text-xs font-medium text-green-100">
-                        Data Loaded
-                      </span>
+                      <span className="ml-2 rounded-full bg-green-100/20 backdrop-blur-sm px-2 py-0.5 text-xs font-medium text-green-100">Data Loaded</span>
                     </p>
                   </div>
                 </div>
@@ -307,53 +322,28 @@ export default function CustomerPackagesPage() {
                           <Calendar className="inline h-3 w-3 mr-1" />
                           Date From
                         </label>
-                        <input
-                          type="date"
-                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
-                          value={dateFrom}
-                          onChange={(e) => setDateFrom(e.target.value)}
-                        />
+                        <input type="date" className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
                       </div>
-
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1.5">
                           <Calendar className="inline h-3 w-3 mr-1" />
                           Date To
                         </label>
-                        <input
-                          type="date"
-                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
-                          value={dateTo}
-                          onChange={(e) => setDateTo(e.target.value)}
-                        />
+                        <input type="date" className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
                       </div>
-
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1.5">
                           <Weight className="inline h-3 w-3 mr-1" />
                           Min Weight (kg)
                         </label>
-                        <input
-                          type="number"
-                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
-                          placeholder="0"
-                          value={weightMin}
-                          onChange={(e) => setWeightMin(e.target.value)}
-                        />
+                        <input type="number" className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm" placeholder="0" value={weightMin} onChange={(e) => setWeightMin(e.target.value)} />
                       </div>
-
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1.5">
                           <Weight className="inline h-3 w-3 mr-1" />
                           Max Weight (kg)
                         </label>
-                        <input
-                          type="number"
-                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
-                          placeholder="999"
-                          value={weightMax}
-                          onChange={(e) => setWeightMax(e.target.value)}
-                        />
+                        <input type="number" className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm" placeholder="999" value={weightMax} onChange={(e) => setWeightMax(e.target.value)} />
                       </div>
                     </div>
                   </div>
@@ -361,13 +351,8 @@ export default function CustomerPackagesPage() {
 
                 {hasActiveFilters && (
                   <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                    <span className="text-sm text-gray-600">
-                      {filtered.length} results found
-                    </span>
-                    <button
-                      onClick={clearFilters}
-                      className="flex items-center space-x-1 text-sm text-[#E67919] hover:text-[#d66a15] font-medium"
-                    >
+                    <span className="text-sm text-gray-600">{filtered.length} results found</span>
+                    <button onClick={clearFilters} className="flex items-center space-x-1 text-sm text-[#E67919] hover:text-[#d66a15] font-medium">
                       <X className="h-4 w-4" />
                       <span>Clear all filters</span>
                     </button>
@@ -379,12 +364,8 @@ export default function CustomerPackagesPage() {
 
           {error && (
             <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-start space-x-3">
-              <div className="flex-shrink-0">
-                <div className="h-5 w-5 text-red-600">⚠</div>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-red-800">{error}</p>
-              </div>
+              <div className="h-5 w-5 text-red-600">⚠</div>
+              <p className="text-sm font-medium text-red-800">{error}</p>
             </div>
           )}
 
@@ -410,114 +391,77 @@ export default function CustomerPackagesPage() {
               ) : (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {paged.map((p) => (
-                    <div
-                      key={p.tracking_number}
-                      className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 hover:border-[#0f4d8a] overflow-hidden"
-                    >
-                      <div className="bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
+                    <div key={p.tracking_number} className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 hover:border-[#0f4d8a] overflow-hidden group">
+                      <div className="bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] p-4 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -mr-10 -mt-10"></div>
+                        <div className="absolute bottom-0 left-0 w-16 h-16 bg-white/10 rounded-full -ml-8 -mb-8"></div>
+                        <div className="relative z-10">
+                          <div className="flex items-center justify-between mb-3">
                             <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white/20 backdrop-blur-sm">
                               <Package className="h-6 w-6 text-white" />
                             </div>
-                            <div>
-                              <h3 className="text-sm font-bold text-white">{p.tracking_number}</h3>
-                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full border bg-white/20 text-white">
-                                {statusLabel(p.status)}
-                              </span>
-                            </div>
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full border bg-white/20 text-white backdrop-blur-sm">
+                              {statusLabel(p.status)}
+                            </span>
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-white mb-1 group-hover:underline cursor-pointer" onClick={() => handleViewDetails(p)}>
+                              {p.tracking_number}
+                            </h3>
+                            <p className="text-xs text-blue-100">
+                              {p.serviceMode?.toUpperCase() || 'AIR'} • {p.weight || 'N/A'}
+                            </p>
                           </div>
                         </div>
                       </div>
 
                       <div className="p-4 space-y-4">
                         <div>
-                          <p className="text-sm text-gray-900 font-medium mb-1">Description</p>
-                          <p className="text-sm text-gray-600">
-                            {p.description || <span className="text-gray-400">No description</span>}
-                          </p>
+                          <p className="text-sm text-gray-900 font-medium mb-1 line-clamp-2">{p.description || <span className="text-gray-400">No description</span>}</p>
+                          {p.itemValueUsd && (
+                            <p className="text-sm font-semibold text-green-600">${p.itemValueUsd.toFixed(2)}</p>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          <div className="bg-gray-50 rounded-lg p-2">
+                            <p className="text-gray-500 mb-1">Days</p>
+                            <p className="font-semibold text-gray-900">{p.daysInStorage || 0}</p>
+                          </div>
+                          <div className="bg-gray-50 rounded-lg p-2">
+                            <p className="text-gray-500 mb-1">Customs</p>
+                            <p className="font-semibold text-gray-900">{p.customsRequired ? 'Yes' : 'No'}</p>
+                          </div>
                         </div>
 
                         {p.status === "received" && (
-                          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                            <div className="font-semibold text-green-800 mb-2 text-sm">📦 Received at Warehouse</div>
-                            <div className="space-y-1 text-xs text-green-700">
-                              {p.warehouse_location && <div><span className="font-medium">Location:</span> {p.warehouse_location}</div>}
-                              {p.received_date && <div><span className="font-medium">Received:</span> {new Date(p.received_date).toLocaleDateString()}</div>}
-                              {p.received_by && <div><span className="font-medium">Received by:</span> {p.received_by}</div>}
-                              {p.shipper && <div><span className="font-medium">Shipper:</span> {p.shipper}</div>}
-                              {p.dimensions && (
-                                <div>
-                                  <span className="font-medium">Dimensions:</span>{" "}
-                                  {p.dimensions.length && <span>L: {p.dimensions.length}cm</span>}
-                                  {p.dimensions.width && <span> × W: {p.dimensions.width}cm</span>}
-                                  {p.dimensions.height && <span> × H: {p.dimensions.height}cm</span>}
-                                </div>
-                              )}
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-2">
+                            <div className="flex items-center gap-2 text-green-700">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <span className="text-xs font-medium">Received at {p.warehouse_location || 'warehouse'}</span>
                             </div>
                           </div>
                         )}
 
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-xs text-gray-500 mb-1">Weight</p>
-                            <p className="text-sm font-medium text-gray-900">{p.weight || <span className="text-gray-400">-</span>}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500 mb-1">Date Added</p>
-                            <p className="text-sm font-medium text-gray-900">
-                              {(() => {
-                                const dateStr = p.created_at || p.createdAt || p.updated_at || p.updatedAt;
-                                return dateStr ? new Date(dateStr).toLocaleDateString() : <span className="text-gray-400">N/A</span>;
-                              })()}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div>
-                          <p className="text-xs text-gray-500 mb-1">Invoice Status</p>
-                          <div className="flex flex-col gap-2">
-                            <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getStatusColor(p.status)}`}>
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                          <div className="flex items-center gap-1">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getStatusColor(p.status)}`}>
                               {p.invoice_status === 'submitted' ? 'Invoice Generated' : p.invoice_status === 'none' ? 'Invoice Pending' : p.invoice_status || 'Pending'}
                             </span>
-                            <Link href="/customer/bills" className="text-xs text-blue-600 hover:text-blue-800 underline">
-                              View Bills →
-                            </Link>
                           </div>
-                        </div>
-                      </div>
-
-                      <div className="border-t border-gray-100 p-4 bg-gray-50">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center gap-1">
                             {p.hasInvoice && p.invoiceNumber && (
-                              <>
-                                <button
-                                  onClick={() => downloadInvoice(p, 'pdf')}
-                                  disabled={uploadingId === p.id}
-                                  className="inline-flex items-center px-3 py-2 border border-[#E67919] text-[#E67919] rounded-lg hover:bg-orange-50 transition-all text-sm font-medium disabled:opacity-50"
-                                  title="Download PDF"
-                                >
-                                  {uploadingId === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                                </button>
-                                <button
-                                  onClick={() => downloadInvoice(p, 'excel')}
-                                  disabled={uploadingId === p.id}
-                                  className="inline-flex items-center px-3 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 transition-all text-sm font-medium disabled:opacity-50"
-                                  title="Download Excel"
-                                >
-                                  {uploadingId === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                                </button>
-                              </>
+                              <button onClick={() => downloadInvoice(p, 'pdf')} disabled={uploadingId === p.id} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-all disabled:opacity-50" title="Download PDF">
+                                {uploadingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                              </button>
                             )}
+                            <button onClick={() => handleViewDetails(p)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="View Details">
+                              <Eye className="h-3 w-3" />
+                            </button>
+                            <button onClick={() => handleTrackPackage(p)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Track Package">
+                              <ExternalLink className="h-3 w-3" />
+                            </button>
                           </div>
-                          <button
-                            onClick={() => window.open(`/track?p=${p.tracking_number}`, '_blank')}
-                            className="inline-flex items-center px-3 py-2 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-lg hover:shadow-lg transition-all text-sm font-medium"
-                          >
-                            <ExternalLink className="h-4 w-4 mr-1" />
-                            Track
-                          </button>
                         </div>
                       </div>
                     </div>
@@ -527,34 +471,76 @@ export default function CustomerPackagesPage() {
             </div>
           </div>
 
-          {!loading && paged.length > 0 && (
-            <div className="bg-gradient-to-r from-slate-50 to-blue-50 px-6 py-4 border-t border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  Showing <span className="font-semibold text-[#0f4d8a]">{(pageClamped - 1) * pageSize + 1}</span> to{" "}
-                  <span className="font-semibold text-[#0f4d8a]">{Math.min(pageClamped * pageSize, filtered.length)}</span>{" "}
-                  of <span className="font-semibold text-[#0f4d8a]">{filtered.length}</span> results
+          {viewModalOpen && packageToView && (
+            <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                <div className="sticky top-0 bg-white border-b border-gray-200 p-6 z-10">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-2xl font-bold text-gray-900">Package Details</h3>
+                    <button onClick={() => setViewModalOpen(false)} className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 transition-all">
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={pageClamped === 1}
-                    className="inline-flex items-center px-3 py-2 border-2 border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    Previous
-                  </button>
-                  <span className="text-sm text-gray-700">
-                    Page <span className="font-semibold text-[#0f4d8a]">{pageClamped}</span> of{" "}
-                    <span className="font-semibold text-[#0f4d8a]">{totalPages}</span>
-                  </span>
-                  <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={pageClamped === totalPages}
-                    className="inline-flex items-center px-3 py-2 border-2 border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                  >
-                    Next
-                    <ChevronRight className="h-4 w-4 ml-1" />
+                
+                <div className="p-6 space-y-6">
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
+                    <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <Package className="h-5 w-5 text-blue-600" />
+                      Package Information
+                    </h4>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Tracking:</span><span className="text-sm font-medium text-gray-900 font-mono">{packageToView.tracking_number}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Status:</span><span className={`text-xs font-semibold px-2 py-1 rounded-full border ${getStatusColor(packageToView.status)}`}>{statusLabel(packageToView.status)}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Service:</span><span className="text-xs font-semibold px-2 py-1 rounded-full border bg-sky-100 text-sky-800 border-sky-200">{String(packageToView.serviceMode || '').toUpperCase()}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Weight:</span><span className="text-sm font-medium text-gray-900">{packageToView.weight || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Value:</span><span className="text-sm font-medium text-gray-900">{packageToView.itemValueUsd ? `${packageToView.itemValueUsd.toFixed(2)}` : 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Date Received:</span><span className="text-sm font-medium text-gray-900">{packageToView.dateReceived ? new Date(packageToView.dateReceived).toLocaleDateString() : 'N/A'}</span></div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-6">
+                    <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <User className="h-5 w-5 text-emerald-600" />
+                      Sender Information
+                    </h4>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Name:</span><span className="text-sm font-medium text-gray-900">{packageToView.shipper || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderEmail || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderPhone || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderCountry || 'N/A'}</span></div>
+                      <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderAddress || 'N/A'}</span></div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-6">
+                    <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <Package className="h-5 w-5 text-purple-600" />
+                      Additional Details
+                    </h4>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Warehouse:</span><span className="text-sm font-medium text-gray-900">{packageToView.warehouse_location || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Required:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsRequired ? 'Yes' : 'No'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsStatus || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Payment Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.paymentStatus || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Days in Storage:</span><span className="text-sm font-medium text-gray-900">{packageToView.daysInStorage || 0}</span></div>
+                      {packageToView.dimensions && (
+                        <div className="flex justify-between col-span-2">
+                          <span className="text-sm text-gray-600">Dimensions:</span>
+                          <span className="text-sm font-medium text-gray-900">
+                            {packageToView.dimensions.length && <span>L: {packageToView.dimensions.length}{packageToView.dimensions.unit || 'cm'}</span>}
+                            {packageToView.dimensions.width && <span> × W: {packageToView.dimensions.width}{packageToView.dimensions.unit || 'cm'}</span>}
+                            {packageToView.dimensions.height && <span> × H: {packageToView.dimensions.height}{packageToView.dimensions.unit || 'cm'}</span>}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6">
+                  <button onClick={() => setViewModalOpen(false)} className="w-full px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl hover:from-gray-700 hover:to-gray-800 transition-all font-medium shadow-lg">
+                    Close
                   </button>
                 </div>
               </div>

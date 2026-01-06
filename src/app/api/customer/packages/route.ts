@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       Package.find({
         userId: userId,
       })
-      .select('trackingNumber status itemDescription weight senderName currentLocation receiverName updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords')
+      .select('trackingNumber status itemDescription weight senderName currentLocation receiverName updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords itemValue value dimensions length width height dimensionUnit serviceMode customsRequired customsStatus paymentStatus dateReceived daysInStorage warehouseLocation senderEmail senderPhone senderAddress senderCountry shipper')
       .sort({ createdAt: -1 })
       .limit(100)
       .lean(),
@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
         weight_kg: p.weight,
         weight: p.weight ? `${p.weight} kg` : undefined,
         userCode: userCode,
-        shipper: p.senderName,
+        shipper: p.senderName || p.shipper,
         current_location: p.currentLocation,
         destination: p.receiverName || 'Receiver name only available',
         updated_at: p.updatedAt?.toISOString(),
@@ -112,8 +112,27 @@ export async function GET(req: NextRequest) {
         invoiceNumber: invoiceInfo.invoiceNumber || (hasAutoInvoice ? `AUTO-${p.trackingNumber}` : null),
         shipping_cost: p.shippingCost,
         total_amount: p.totalAmount,
+        itemValueUsd: (p as any).itemValue || (p as any).value || 0,
         last_scan: p.lastScan?.toISOString(),
         actual_delivery: p.actualDelivery?.toISOString(),
+        // Additional details from admin
+        dimensions: (p as any).dimensions || {
+          length: (p as any).length,
+          width: (p as any).width,
+          height: (p as any).height,
+          unit: (p as any).dimensionUnit || 'cm'
+        },
+        serviceMode: (p as any).serviceMode || 'air',
+        customsRequired: (p as any).customsRequired || false,
+        customsStatus: (p as any).customsStatus || 'not_required',
+        paymentStatus: (p as any).paymentStatus || 'pending',
+        dateReceived: (p as any).dateReceived,
+        daysInStorage: (p as any).daysInStorage || 0,
+        warehouseLocation: (p as any).warehouseLocation || 'Main Warehouse',
+        senderEmail: (p as any).senderEmail || '',
+        senderPhone: (p as any).senderPhone || '',
+        senderAddress: (p as any).senderAddress || '',
+        senderCountry: (p as any).senderCountry || '',
       };
     });
 

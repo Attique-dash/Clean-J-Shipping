@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { FileText, DollarSign, Calendar, CheckCircle, XCircle, Clock, ExternalLink, CreditCard, RefreshCw, Loader2, TrendingUp, Download, X, ShoppingCart, Plus, Eye, Save, Trash2 } from "lucide-react";
+import { FileText, DollarSign, Calendar, CheckCircle, XCircle, Clock, ExternalLink, CreditCard, RefreshCw, Loader2, TrendingUp, Download, X, ShoppingCart, Plus, Eye, Save, Trash2, Filter } from "lucide-react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { toast } from "react-toastify";
 import Link from "next/link";
@@ -39,6 +39,11 @@ export default function CustomerBillsPage() {
   const [savedCards, setSavedCards] = useState<any[]>([]);
   const [selectedCard, setSelectedCard] = useState<any>(null);
   const { selectedCurrency, setSelectedCurrency, convertAmount, formatCurrency } = useCurrency();
+
+  // Bills History State
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [sortBy, setSortBy] = useState("date");
 
   // Helper function to convert and format amounts
   const convertAndFormatAmount = async (amount: number, fromCurrency: string) => {
@@ -458,6 +463,71 @@ export default function CustomerBillsPage() {
     loadSavedCards();
   }, []);
 
+  // Bills History Filtering and Sorting Logic
+  const filteredAndSortedBills = items
+    .filter(bill => {
+      // Search filter
+      const matchesSearch = searchTerm === "" || 
+        bill.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        bill.tracking_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        bill.description?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Status filter
+      const matchesStatus = statusFilter === "" || bill.payment_status === statusFilter;
+      
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case "date":
+          return new Date(b.invoice_date || 0).getTime() - new Date(a.invoice_date || 0).getTime();
+        case "amount":
+          return b.amount_due - a.amount_due;
+        case "status":
+          return a.payment_status.localeCompare(b.payment_status);
+        case "invoice":
+          return (a.invoice_number || "").localeCompare(b.invoice_number || "");
+        default:
+          return 0;
+      }
+    });
+
+  // Export functionality
+  const handleExportHistory = () => {
+    const exportData = filteredAndSortedBills.map(bill => ({
+      'Invoice Number': bill.invoice_number || 'N/A',
+      'Tracking Number': bill.tracking_number,
+      'Description': bill.description || 'No description',
+      'Amount': `${bill.currency || 'USD'} ${bill.amount_due.toFixed(2)}`,
+      'Status': getStatusInfo(bill.payment_status).label,
+      'Invoice Date': bill.invoice_date ? new Date(bill.invoice_date).toLocaleDateString() : 'N/A',
+      'Due Date': bill.due_date ? new Date(bill.due_date).toLocaleDateString() : 'N/A',
+      'Last Updated': bill.last_updated ? new Date(bill.last_updated).toLocaleDateString() : 'N/A'
+    }));
+
+    // Create CSV content
+    const headers = Object.keys(exportData[0] || {});
+    const csvContent = [
+      headers.join(','),
+      ...exportData.map(row => 
+        headers.map(header => `"${row[header as keyof typeof row]}"`).join(',')
+      )
+    ].join('\n');
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `bills_history_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success(`Exported ${filteredAndSortedBills.length} bills to CSV`);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
@@ -611,37 +681,6 @@ export default function CustomerBillsPage() {
             </div>
           )}
 
-          {/* Cart Summary Bar */}
-          {cart.size > 0 && (
-            <div className="bg-gradient-to-r from-[#E67919] to-[#f59e42] rounded-2xl shadow-lg p-4 text-white">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <ShoppingCart className="h-6 w-6" />
-                  <div>
-                    <p className="font-semibold">{cart.size} item{cart.size !== 1 ? 's' : ''} in cart</p>
-                    <p className="text-sm text-orange-100">
-                      Total: {convertedCartTotal || formatCurrency(cartTotal, selectedCurrency)} in {selectedCurrency}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={clearCart}
-                    className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Clear Cart
-                  </button>
-                  <Link
-                    href="/customer/checkout"
-                    className="px-6 py-2 bg-white text-[#E67919] rounded-lg font-bold hover:bg-gray-100 transition-colors"
-                  >
-                    Checkout
-                  </Link>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Bills Grid Section */}
           <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
             <div className="bg-gradient-to-r from-[#E67919] to-[#f59e42] px-6 py-4">
@@ -651,7 +690,7 @@ export default function CustomerBillsPage() {
               </h2>
             </div>
             <div className="p-6">
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-8 sm:grid-cols-1 lg:grid-cols-2">
                 {items.length === 0 ? (
                   <div className="col-span-full bg-white rounded-2xl shadow-lg border border-gray-100 p-12 text-center">
                     <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
@@ -672,15 +711,6 @@ export default function CustomerBillsPage() {
                         <div className="bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] px-6 py-4">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3 flex-1">
-                              {/* Checkbox for cart */}
-                              {bill.payment_status !== 'paid' && bill.amount_due > 0 && (
-                                <input
-                                  type="checkbox"
-                                  checked={cart.has(bill.tracking_number)}
-                                  onChange={() => toggleCartItem(bill.tracking_number)}
-                                  className="h-5 w-5 rounded border-gray-300 text-[#E67919] focus:ring-[#E67919] cursor-pointer"
-                                />
-                              )}
                               <div className="p-2 bg-white/20 rounded-lg">
                                 <FileText className="h-5 w-5 text-white" />
                               </div>
@@ -702,7 +732,7 @@ export default function CustomerBillsPage() {
                         </div>
 
                         {/* Card Body */}
-                        <div className="p-6 space-y-4">
+                        <div className="p-8 space-y-6">
                           {/* Amount */}
                           <div className="flex items-center justify-between pb-4 border-b border-gray-100">
                             <span className="text-sm font-medium text-gray-600">Amount Due</span>
@@ -805,17 +835,10 @@ export default function CustomerBillsPage() {
                             <div className="flex items-center justify-between space-x-2">
                               <button
                                 onClick={() => handleViewDetails(bill)}
-                                className="flex-1 inline-flex items-center justify-center px-3 py-2 border-2 border-[#6366f1] text-[#6366f1] rounded-lg hover:bg-indigo-50 transition-all text-sm font-medium"
+                                className="flex-1 inline-flex items-center justify-center px-4 py-3 border-2 border-[#6366f1] text-[#6366f1] rounded-lg hover:bg-indigo-50 transition-all text-sm font-medium"
                               >
                                 <Eye className="h-4 w-4 mr-2" />
                                 Details
-                              </button>
-                              <button
-                                onClick={handleAddCard}
-                                className="flex-1 inline-flex items-center justify-center px-3 py-2 border-2 border-[#10b981] text-[#10b981] rounded-lg hover:bg-emerald-50 transition-all text-sm font-medium"
-                              >
-                                <Plus className="h-4 w-4 mr-2" />
-                                Add Card
                               </button>
                             </div>
                             
@@ -881,6 +904,221 @@ export default function CustomerBillsPage() {
               </div>
             </div>
           )}
+
+          {/* Bills History Section */}
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Bills History
+                </h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleExportHistory}
+                    disabled={filteredAndSortedBills.length === 0}
+                    className="flex items-center space-x-2 px-4 py-2 bg-white/15 backdrop-blur-sm border border-white/20 text-white rounded-lg hover:bg-white/25 transition-all duration-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Export CSV</span>
+                  </button>
+                  <button
+                    onClick={() => load()}
+                    className="flex items-center space-x-2 px-4 py-2 bg-white/15 backdrop-blur-sm border border-white/20 text-white rounded-lg hover:bg-white/25 transition-all duration-200 text-sm font-medium"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              {/* Search and Filter Controls */}
+              <div className="mb-6 flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search by invoice number, tracking number, or description..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent"
+                    />
+                    <FileText className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent"
+                  >
+                    <option value="">All Status</option>
+                    <option value="paid">Paid</option>
+                    <option value="submitted">Submitted</option>
+                    <option value="reviewed">Reviewed</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="none">Pending</option>
+                  </select>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:border-transparent"
+                  >
+                    <option value="date">Sort by Date</option>
+                    <option value="amount">Sort by Amount</option>
+                    <option value="status">Sort by Status</option>
+                    <option value="invoice">Sort by Invoice</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* History Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-4 font-semibold text-gray-900">Invoice #</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-900">Tracking #</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-900">Description</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-900">Amount</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-900">Status</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-900">Date</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-900">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredAndSortedBills.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-8">
+                          <div className="flex flex-col items-center">
+                            <FileText className="h-12 w-12 text-gray-300 mb-3" />
+                            <p className="text-gray-500">No bills found matching your criteria</p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredAndSortedBills.map((bill) => {
+                        const statusInfo = getStatusInfo(bill.payment_status);
+                        const StatusIcon = statusInfo.icon;
+                        
+                        return (
+                          <tr key={`${bill.tracking_number}-${bill.invoice_number || 'doc'}`} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="py-3 px-4">
+                              <span className="font-medium text-gray-900">
+                                {bill.invoice_number || 'N/A'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-mono text-sm text-gray-600">
+                                {bill.tracking_number}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="text-sm text-gray-600 max-w-xs truncate">
+                                {bill.description || 'No description'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="text-right">
+                                <span className="font-semibold text-[#E67919]">
+                                  {convertedAmounts.get(bill.tracking_number) || formatCurrency(bill.amount_due, selectedCurrency)}
+                                </span>
+                                <div className="text-xs text-gray-500">
+                                  {bill.currency || 'USD'} → {selectedCurrency}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full border ${statusInfo.bgColor}`}>
+                                <StatusIcon className={`h-3 w-3 mr-1 ${statusInfo.iconColor}`} />
+                                {statusInfo.label}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="text-sm text-gray-600">
+                                {bill.invoice_date
+                                  ? new Date(bill.invoice_date).toLocaleDateString()
+                                  : 'N/A'}
+                              </div>
+                              {bill.last_updated && (
+                                <div className="text-xs text-gray-500">
+                                  Updated: {new Date(bill.last_updated).toLocaleDateString()}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleViewDetails(bill)}
+                                  className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                  title="View Details"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                                {bill.document_url && (
+                                  <a
+                                    href={bill.document_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                    title="View Document"
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                  </a>
+                                )}
+                                {bill.payment_status !== 'paid' && bill.amount_due > 0 && (
+                                  <button
+                                    onClick={() => handlePayNow(bill)}
+                                    className="p-1 text-orange-600 hover:bg-orange-50 rounded transition-colors"
+                                    title="Pay Now"
+                                  >
+                                    <CreditCard className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Summary Statistics */}
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-gray-900">{filteredAndSortedBills.length}</p>
+                    <p className="text-sm text-gray-600">Total Bills</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-green-600">
+                      {filteredAndSortedBills.filter(b => b.payment_status === 'paid').length}
+                    </p>
+                    <p className="text-sm text-gray-600">Paid Bills</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-orange-600">
+                      {filteredAndSortedBills.filter(b => b.payment_status !== 'paid').length}
+                    </p>
+                    <p className="text-sm text-gray-600">Unpaid Bills</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-[#E67919]">
+                      {formatCurrency(
+                        filteredAndSortedBills.reduce((sum, bill) => sum + (Number(bill.amount_due) || 0), 0),
+                        selectedCurrency
+                      )}
+                    </p>
+                    <p className="text-sm text-gray-600">Total Amount</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

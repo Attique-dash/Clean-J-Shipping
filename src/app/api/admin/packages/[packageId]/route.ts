@@ -88,6 +88,10 @@ export async function PUT(
       // Additional fields
       ...(body.contents !== undefined && { contents: body.contents }),
       ...(body.value !== undefined && { value: typeof body.value === "number" ? body.value : Number(body.value) || existingPackage.value }),
+      ...(body.itemValue !== undefined && { 
+        value: typeof body.itemValue === "number" ? body.itemValue : Number(body.itemValue) || existingPackage.value,
+        itemValue: typeof body.itemValue === "number" ? body.itemValue : Number(body.itemValue) || existingPackage.itemValue 
+      }),
       ...(body.specialInstructions !== undefined && { specialInstructions: body.specialInstructions }),
       ...(body.entryStaff && { entryStaff: body.entryStaff }),
       ...(body.branch && { branch: body.branch }),
