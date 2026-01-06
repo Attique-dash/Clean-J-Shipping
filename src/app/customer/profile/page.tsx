@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, Mail, Phone, MapPin, Shield, Calendar, Clock, Edit2, Lock, Check, X, Building, Globe, CreditCard } from "lucide-react";
+import { User, Mail, Phone, MapPin, Shield, Calendar, Clock, Edit2, Lock, Check, X, Building, Globe, CreditCard, LogOut, Trash2, AlertTriangle } from "lucide-react";
 
 type Address = { street?: string; city?: string; state?: string; zip_code?: string; country?: string };
 
@@ -27,6 +27,8 @@ export default function CustomerProfilePage() {
   const [pwdError, setPwdError] = useState<string | null>(null);
   const [pwdOk, setPwdOk] = useState(false);
   const [pwdForm, setPwdForm] = useState({ current_password: "", new_password: "", confirm_password: "" });
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -513,10 +515,63 @@ export default function CustomerProfilePage() {
                 </form>
               )}
             </div>
+
+            {/* Account Actions Card */}
+            <div className="overflow-hidden rounded-xl bg-white shadow-lg">
+              <div className="bg-gradient-to-r from-[#0f4d8a] to-[#1565a8] px-6 py-4">
+                <h2 className="text-lg font-semibold text-white">Account Actions</h2>
+              </div>
+              <div className="p-6 space-y-3">
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/auth/logout", { method: "POST" });
+                      if (res.ok) {
+                        window.location.href = "/login";
+                      }
+                    } catch (error) {
+                      console.error("Logout failed:", error);
+                    }
+                  }}
+                  className="flex w-full items-center justify-between rounded-lg border border-gray-200 p-4 transition-all hover:border-blue-500 hover:bg-blue-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600">
+                      <LogOut className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-gray-900">Logout</p>
+                      <p className="text-xs text-gray-500">Sign out of your account</p>
+                    </div>
+                  </div>
+                  <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+
+                <button
+                  onClick={() => setDeleteModalOpen(true)}
+                  className="flex w-full items-center justify-between rounded-lg border border-red-200 p-4 transition-all hover:border-red-500 hover:bg-red-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-red-500 to-red-600">
+                      <Trash2 className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-red-600">Delete Account</p>
+                      <p className="text-xs text-gray-500">Permanently remove your account</p>
+                    </div>
+                  </div>
+                  <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Right Column - Account Stats */}
-          <div className="space-y-6">
+          <div className="space-y-6 lg:col-span-1">
             {/* Account Status Card */}
             <div className="overflow-hidden rounded-xl bg-white shadow-lg">
               <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
@@ -570,7 +625,6 @@ export default function CustomerProfilePage() {
                 </div>
               </div>
             </div>
-
 
             {/* Quick Actions Card */}
             <div className="overflow-hidden rounded-xl bg-white shadow-lg">
@@ -658,6 +712,104 @@ export default function CustomerProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* Delete Account Confirmation Modal */}
+        {deleteModalOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+            onClick={() => setDeleteModalOpen(false)}
+          >
+            <div
+              className="bg-white rounded-xl shadow-2xl max-w-md w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4">
+                <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  Delete Account
+                </h3>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className="text-center space-y-3">
+                  <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                    <AlertTriangle className="h-8 w-8 text-red-600" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900 mb-2">Are you sure?</h4>
+                    <p className="text-sm text-gray-600 mb-3">
+                      This action cannot be undone. Deleting your account will:
+                    </p>
+                    <ul className="text-left text-sm text-gray-600 space-y-1 mb-4">
+                      <li className="flex items-start gap-2">
+                        <span className="text-red-500 mt-0.5">•</span>
+                        <span>Permanently delete your profile and personal information</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-red-500 mt-0.5">•</span>
+                        <span>Remove all your packages and shipping history</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-red-500 mt-0.5">•</span>
+                        <span>Cancel all pending payments and invoices</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-red-500 mt-0.5">•</span>
+                        <span>Delete your account permanently from our system</span>
+                      </li>
+                    </ul>
+                    <p className="text-sm font-medium text-red-600">
+                      Please consider carefully before proceeding.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4 border-t">
+                  <button
+                    onClick={() => setDeleteModalOpen(false)}
+                    className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setDeleteLoading(true);
+                      try {
+                        const res = await fetch("/api/customer/profile/delete", { method: "DELETE" });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data?.error || "Failed to delete account");
+                        
+                        // Clear local storage and redirect
+                        localStorage.clear();
+                        window.location.href = "/login";
+                      } catch (error) {
+                        console.error("Delete account failed:", error);
+                        alert(error instanceof Error ? error.message : "Failed to delete account");
+                      } finally {
+                        setDeleteLoading(false);
+                        setDeleteModalOpen(false);
+                      }
+                    }}
+                    disabled={deleteLoading}
+                    className="px-6 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:shadow-lg transition-all flex items-center disabled:opacity-50"
+                  >
+                    {deleteLoading ? (
+                      <>
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2"></div>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Account
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

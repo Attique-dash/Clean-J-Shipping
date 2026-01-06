@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Warehouse Inventory Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+        button { padding: 10px 20px; margin: 5px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; max-height: 400px; overflow-y: auto; }
+        .status-indicator { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
+        .status-good { background-color: green; }
+        .status-warning { background-color: orange; }
+        .status-error { background-color: red; }
+    </style>
+</head>
+<body>
+    <h1>Warehouse Inventory Test</h1>
+    
+    <div class="test-section">
+        <h2>Database Connection Status</h2>
+        <button onclick="testConnection()">Test Connection</button>
+        <div id="connectionStatus"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Inventory API Test</h2>
+        <button onclick="testInventoryGet()">Test GET Inventory</button>
+        <button onclick="testInventoryPost()">Test POST Inventory</button>
+        <button onclick="clearResults()">Clear Results</button>
+        <div id="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Performance Test</h2>
+        <button onclick="testPerformance()">Run Performance Test</button>
+        <div id="performance"></div>
+    </div>
+    
+    <script>
+        let connectionStatus = 'unknown';
+        
+        async function testConnection() {
+            const statusDiv = document.getElementById('connectionStatus');
+            statusDiv.innerHTML = '<div class="status-indicator status-warning"></div>Testing connection...';
+            
+            const startTime = Date.now();
+            
+            try {
+                const response = await fetch('/api/warehouse/inventory?limit=1', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                
+                const responseTime = Date.now() - startTime;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    connectionStatus = 'good';
+                    statusDiv.innerHTML = `
+                        <div class="status-indicator status-good"></div>
+                        <strong>✅ Connection Successful</strong><br>
+                        Response Time: ${responseTime}ms<br>
+                        Items Found: ${data.items?.length || 0}
+                    `;
+                } else {
+                    connectionStatus = 'error';
+                    const errorData = await response.json();
+                    statusDiv.innerHTML = `
+                        <div class="status-indicator status-error"></div>
+                        <strong>❌ Connection Failed</strong><br>
+                        Status: ${response.status}<br>
+                        Error: ${errorData.error}<br>
+                        Response Time: ${responseTime}ms
+                    `;
+                }
+            } catch (error) {
+                connectionStatus = 'error';
+                statusDiv.innerHTML = `
+                    <div class="status-indicator status-error"></div>
+                    <strong>❌ Network Error</strong><br>
+                    ${error.message}
+                `;
+            }
+        }
+        
+        async function testInventoryGet() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div>Testing GET inventory...</div>';
+            
+            const startTime = Date.now();
+            
+            try {
+                const response = await fetch('/api/warehouse/inventory?limit=10', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                
+                const responseTime = Date.now() - startTime;
+                const contentType = response.headers.get("content-type");
+                
+                let data = null;
+                if (contentType && contentType.includes("application/json")) {
+                    const text = await response.text();
+                    if (text.trim()) {
+                        data = JSON.parse(text);
+                    }
+                }
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ GET Inventory Successful!</div>
+                        <p><strong>Response Time:</strong> ${responseTime}ms</p>
+                        <p><strong>Items Retrieved:</strong> ${data.items?.length || 0}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">❌ GET Inventory Failed</div>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <p><strong>Response Time:</strong> ${responseTime}ms</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ Network Error</div>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        }
+        
+        async function testInventoryPost() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div>Testing POST inventory...</div>';
+            
+            const startTime = Date.now();
+            
+            try {
+                const response = await fetch('/api/warehouse/inventory', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        name: `Test Item ${Date.now()}`,
+                        category: 'Test Category',
+                        currentStock: 100,
+                        minStock: 10,
+                        maxStock: 500,
+                        unit: 'pieces',
+                        location: 'Test Location',
+                        supplier: 'Test Supplier',
+                        notes: 'Test item created via API test'
+                    })
+                });
+                
+                const responseTime = Date.now() - startTime;
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ POST Inventory Successful!</div>
+                        <p><strong>Response Time:</strong> ${responseTime}ms</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">❌ POST Inventory Failed</div>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <p><strong>Response Time:</strong> ${responseTime}ms</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ Network Error</div>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        }
+        
+        async function testPerformance() {
+            const perfDiv = document.getElementById('performance');
+            perfDiv.innerHTML = '<div>Running performance test...</div>';
+            
+            const tests = [];
+            const testCount = 5;
+            
+            for (let i = 0; i < testCount; i++) {
+                const startTime = Date.now();
+                
+                try {
+                    const response = await fetch('/api/warehouse/inventory?limit=5', {
+                        method: 'GET',
+                        credentials: 'include'
+                    });
+                    
+                    const responseTime = Date.now() - startTime;
+                    tests.push({
+                        test: i + 1,
+                        status: response.ok ? 'success' : 'failed',
+                        responseTime,
+                        status_code: response.status
+                    });
+                } catch (error) {
+                    tests.push({
+                        test: i + 1,
+                        status: 'error',
+                        responseTime: Date.now() - startTime,
+                        error: error.message
+                    });
+                }
+                
+                // Small delay between tests
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            const avgResponseTime = tests.reduce((sum, test) => sum + test.responseTime, 0) / tests.length;
+            const successCount = tests.filter(test => test.status === 'success').length;
+            
+            perfDiv.innerHTML = `
+                <h3>Performance Results (${testCount} tests)</h3>
+                <p><strong>Average Response Time:</strong> ${avgResponseTime.toFixed(2)}ms</p>
+                <p><strong>Success Rate:</strong> ${successCount}/${testCount} (${(successCount/testCount*100).toFixed(1)}%)</p>
+                <pre>${JSON.stringify(tests, null, 2)}</pre>
+            `;
+        }
+        
+        function clearResults() {
+            document.getElementById('result').innerHTML = '';
+            document.getElementById('performance').innerHTML = '';
+        }
+        
+        // Auto-test connection on page load
+        window.addEventListener('load', () => {
+            setTimeout(testConnection, 1000);
+        });
+    </script>
+</body>
+</html>

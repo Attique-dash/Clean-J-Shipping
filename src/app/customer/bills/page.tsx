@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { FileText, DollarSign, Calendar, CheckCircle, XCircle, Clock, ExternalLink, CreditCard, RefreshCw, Loader2, TrendingUp, Download, X, ShoppingCart } from "lucide-react";
+import { FileText, DollarSign, Calendar, CheckCircle, XCircle, Clock, ExternalLink, CreditCard, RefreshCw, Loader2, TrendingUp, Download, X, ShoppingCart, Plus, Eye, Save, Trash2 } from "lucide-react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { toast } from "react-toastify";
 import Link from "next/link";
@@ -34,6 +34,10 @@ export default function CustomerBillsPage() {
   const [cart, setCart] = useState<Set<string>>(new Set());
   const [usePayPal, setUsePayPal] = useState(false);
   const [paypalOrderId, setPaypalOrderId] = useState<string | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showAddCardModal, setShowAddCardModal] = useState(false);
+  const [savedCards, setSavedCards] = useState<any[]>([]);
+  const [selectedCard, setSelectedCard] = useState<any>(null);
   const { selectedCurrency, setSelectedCurrency, convertAmount, formatCurrency } = useCurrency();
 
   // Helper function to convert and format amounts
@@ -389,6 +393,71 @@ export default function CustomerBillsPage() {
     }
   }
 
+  // Card management functions
+  const handleViewDetails = (bill: Bill) => {
+    setSelectedBill(bill);
+    setShowDetailsModal(true);
+  };
+
+  const handleAddCard = () => {
+    setShowAddCardModal(true);
+  };
+
+  const handleSaveCard = async (cardData: any) => {
+    try {
+      // Mock API call to save card
+      const newCard = {
+        id: Date.now().toString(),
+        ...cardData,
+        createdAt: new Date().toISOString()
+      };
+      
+      setSavedCards(prev => [...prev, newCard]);
+      setShowAddCardModal(false);
+      toast.success("Card saved successfully!");
+    } catch (error) {
+      toast.error("Failed to save card");
+    }
+  };
+
+  const handleDeleteCard = async (cardId: string) => {
+    try {
+      setSavedCards(prev => prev.filter(card => card.id !== cardId));
+      toast.success("Card deleted successfully!");
+    } catch (error) {
+      toast.error("Failed to delete card");
+    }
+  };
+
+  const handlePayWithSavedCard = (card: any) => {
+    setSelectedCard(card);
+    setShowPaymentModal(true);
+    setShowDetailsModal(false);
+  };
+
+  // Load saved cards on component mount
+  useEffect(() => {
+    const loadSavedCards = async () => {
+      try {
+        // Mock loading saved cards - replace with actual API call
+        const mockCards = [
+          {
+            id: "1",
+            last4: "4242",
+            brand: "visa",
+            expiry: "12/25",
+            name: "John Doe"
+          }
+        ];
+        setSavedCards(mockCards);
+      } catch (error) {
+        console.error("Failed to load saved cards:", error);
+      }
+    };
+    
+    loadSavedCards();
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
@@ -731,6 +800,25 @@ export default function CustomerBillsPage() {
                                 </div>
                               )}
                             </div>
+                            
+                            {/* Additional Action Buttons */}
+                            <div className="flex items-center justify-between space-x-2">
+                              <button
+                                onClick={() => handleViewDetails(bill)}
+                                className="flex-1 inline-flex items-center justify-center px-3 py-2 border-2 border-[#6366f1] text-[#6366f1] rounded-lg hover:bg-indigo-50 transition-all text-sm font-medium"
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                Details
+                              </button>
+                              <button
+                                onClick={handleAddCard}
+                                className="flex-1 inline-flex items-center justify-center px-3 py-2 border-2 border-[#10b981] text-[#10b981] rounded-lg hover:bg-emerald-50 transition-all text-sm font-medium"
+                              >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add Card
+                              </button>
+                            </div>
+                            
                             {bill.payment_status !== 'paid' && bill.amount_due > 0 && (
                               <button
                                 onClick={() => handlePayNow(bill)}
@@ -1009,6 +1097,274 @@ export default function CustomerBillsPage() {
                 </form>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Details Modal */}
+      {showDetailsModal && selectedBill && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          onClick={() => setShowDetailsModal(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] px-6 py-4 flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-white">Bill Details</h3>
+              <button
+                onClick={() => setShowDetailsModal(false)}
+                className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Bill Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-gray-900">Invoice Information</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Invoice Number:</span>
+                      <span className="text-sm font-medium">{selectedBill.invoice_number || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Tracking Number:</span>
+                      <span className="text-sm font-medium font-mono">{selectedBill.tracking_number}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Status:</span>
+                      <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getStatusInfo(selectedBill.payment_status).bgColor}`}>
+                        {getStatusInfo(selectedBill.payment_status).label}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Currency:</span>
+                      <span className="text-sm font-medium">{selectedBill.currency || 'JMD'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-gray-900">Financial Details</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Amount Due:</span>
+                      <span className="text-lg font-bold text-[#E67919]">
+                        {formatCurrency(selectedBill.amount_due, selectedBill.currency || 'JMD')}
+                      </span>
+                    </div>
+                    {selectedBill.invoice_date && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Invoice Date:</span>
+                        <span className="text-sm font-medium">
+                          {new Date(selectedBill.invoice_date).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                    {selectedBill.due_date && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Due Date:</span>
+                        <span className={`text-sm font-medium ${
+                          new Date(selectedBill.due_date) < new Date() ? 'text-red-600' : 'text-gray-900'
+                        }`}>
+                          {new Date(selectedBill.due_date).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                    {selectedBill.last_updated && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Last Updated:</span>
+                        <span className="text-sm font-medium">
+                          {new Date(selectedBill.last_updated).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {selectedBill.description && (
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Description</h4>
+                  <p className="text-sm text-gray-700 bg-gray-50 p-4 rounded-lg">
+                    {selectedBill.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Saved Cards Section */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-3">Saved Payment Methods</h4>
+                <div className="space-y-3">
+                  {savedCards.length > 0 ? (
+                    savedCards.map((card) => (
+                      <div key={card.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-12 h-8 bg-gradient-to-r from-blue-600 to-blue-800 rounded flex items-center justify-center">
+                            <CreditCard className="h-5 w-5 text-white" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{card.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {card.brand.toUpperCase()} •••• {card.last4}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => handlePayWithSavedCard(card)}
+                            className="px-3 py-1 text-sm bg-[#E67919] text-white rounded hover:bg-[#d56916] transition-colors"
+                          >
+                            Pay
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCard(card.id)}
+                            className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <CreditCard className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                      <p className="text-sm">No saved payment methods</p>
+                      <button
+                        onClick={handleAddCard}
+                        className="mt-3 text-sm text-[#E67919] hover:text-[#d56916] font-medium"
+                      >
+                        Add a payment method
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 pt-4 border-t">
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Close
+                </button>
+                {selectedBill.payment_status !== 'paid' && selectedBill.amount_due > 0 && (
+                  <button
+                    onClick={() => {
+                      setShowDetailsModal(false);
+                      handlePayNow(selectedBill);
+                    }}
+                    className="px-6 py-2 bg-gradient-to-r from-[#E67919] to-[#f59e42] text-white rounded-lg hover:shadow-lg transition-all"
+                  >
+                    Pay Now
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Card Modal */}
+      {showAddCardModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          onClick={() => setShowAddCardModal(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-gradient-to-r from-[#10b981] to-[#059669] px-6 py-4 flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-white">Add Payment Method</h3>
+              <button
+                onClick={() => setShowAddCardModal(false)}
+                className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              handleSaveCard({
+                name: formData.get('name'),
+                cardNumber: formData.get('cardNumber'),
+                expiry: formData.get('expiry'),
+                cvv: formData.get('cvv'),
+              });
+            }} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cardholder Name</label>
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#10b981]"
+                  placeholder="John Doe"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Card Number</label>
+                <input
+                  type="text"
+                  name="cardNumber"
+                  required
+                  maxLength={19}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#10b981]"
+                  placeholder="1234 5678 9012 3456"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Expiry</label>
+                  <input
+                    type="text"
+                    name="expiry"
+                    required
+                    maxLength={5}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#10b981]"
+                    placeholder="MM/YY"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">CVV</label>
+                  <input
+                    type="text"
+                    name="cvv"
+                    required
+                    maxLength={4}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#10b981]"
+                    placeholder="123"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAddCardModal(false)}
+                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 bg-gradient-to-r from-[#10b981] to-[#059669] text-white rounded-lg hover:shadow-lg transition-all flex items-center"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Card
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

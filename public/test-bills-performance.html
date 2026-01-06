@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bills Page Performance Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+        button { padding: 10px 20px; margin: 5px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; max-height: 400px; overflow-y: auto; }
+        .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 15px 0; }
+        .metric-card { padding: 15px; border: 1px solid #ddd; border-radius: 8px; text-align: center; }
+        .metric-value { font-size: 24px; font-weight: bold; color: #0f4d8a; }
+        .metric-label { font-size: 12px; color: #666; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Bills Page Performance Test</h1>
+    
+    <div class="test-section">
+        <h2>Performance Metrics</h2>
+        <button onclick="startPerformanceTest()">Start Performance Test</button>
+        <button onclick="stopPerformanceTest()">Stop Test</button>
+        <button onclick="clearResults()">Clear Results</button>
+        <div id="metrics" class="metrics"></div>
+        <div id="results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Request Analysis</h2>
+        <button onclick="analyzeRequests()">Analyze Request Pattern</button>
+        <div id="analysis"></div>
+    </div>
+    
+    <script>
+        let testInterval = null;
+        let requestCount = 0;
+        let startTime = null;
+        let responseTimes = [];
+        let requestLog = [];
+        
+        function startPerformanceTest() {
+            if (testInterval) return;
+            
+            requestCount = 0;
+            startTime = Date.now();
+            responseTimes = [];
+            requestLog = [];
+            
+            // Start monitoring requests
+            testInterval = setInterval(() => {
+                testBillsPage();
+            }, 1000); // Test every second
+            
+            updateMetrics();
+        }
+        
+        function stopPerformanceTest() {
+            if (testInterval) {
+                clearInterval(testInterval);
+                testInterval = null;
+            }
+        }
+        
+        async function testBillsPage() {
+            const requestStart = Date.now();
+            requestCount++;
+            
+            try {
+                const response = await fetch('/admin/bills', {
+                    method: 'GET',
+                    headers: {
+                        'Cache-Control': 'no-cache',
+                        'Pragma': 'no-cache'
+                    }
+                });
+                
+                const responseTime = Date.now() - requestStart;
+                responseTimes.push(responseTime);
+                
+                requestLog.push({
+                    timestamp: new Date().toISOString(),
+                    requestNumber: requestCount,
+                    responseTime,
+                    status: response.status,
+                    success: response.ok
+                });
+                
+                // Keep only last 50 entries
+                if (requestLog.length > 50) {
+                    requestLog = requestLog.slice(-50);
+                }
+                
+            } catch (error) {
+                responseTimes.push(-1); // Mark failed requests
+                requestLog.push({
+                    timestamp: new Date().toISOString(),
+                    requestNumber: requestCount,
+                    responseTime: -1,
+                    status: 'ERROR',
+                    success: false,
+                    error: error.message
+                });
+            }
+        }
+        
+        function updateMetrics() {
+            if (!testInterval) return;
+            
+            const metricsDiv = document.getElementById('metrics');
+            const elapsed = (Date.now() - startTime) / 1000;
+            const avgResponseTime = responseTimes.length > 0 
+                ? responseTimes.filter(t => t > 0).reduce((a, b) => a + b, 0) / responseTimes.filter(t => t > 0).length 
+                : 0;
+            const failedRequests = responseTimes.filter(t => t === -1).length;
+            const requestsPerSecond = requestCount / elapsed;
+            
+            metricsDiv.innerHTML = `
+                <div class="metric-card">
+                    <div class="metric-value">${requestCount}</div>
+                    <div class="metric-label">Total Requests</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${requestsPerSecond.toFixed(2)}</div>
+                    <div class="metric-label">Requests/Second</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${avgResponseTime.toFixed(0)}ms</div>
+                    <div class="metric-label">Avg Response Time</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${failedRequests}</div>
+                    <div class="metric-label">Failed Requests</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${elapsed.toFixed(1)}s</div>
+                    <div class="metric-label">Test Duration</div>
+                </div>
+            `;
+            
+            setTimeout(updateMetrics, 1000);
+        }
+        
+        function analyzeRequests() {
+            const analysisDiv = document.getElementById('analysis');
+            
+            if (requestLog.length === 0) {
+                analysisDiv.innerHTML = '<p>No request data available. Run performance test first.</p>';
+                return;
+            }
+            
+            const recentRequests = requestLog.slice(-20);
+            const avgResponseTime = recentRequests.filter(r => r.responseTime > 0)
+                .reduce((sum, r) => sum + r.responseTime, 0) / recentRequests.filter(r => r.responseTime > 0).length;
+            const maxResponseTime = Math.max(...recentRequests.filter(r => r.responseTime > 0).map(r => r.responseTime));
+            const minResponseTime = Math.min(...recentRequests.filter(r => r.responseTime > 0).map(r => r.responseTime));
+            
+            // Check for infinite loop pattern
+            const timeGaps = recentRequests.slice(1).map((req, i) => 
+                new Date(req.timestamp).getTime() - new Date(recentRequests[i].timestamp).getTime()
+            );
+            const avgTimeGap = timeGaps.reduce((sum, gap) => sum + gap, 0) / timeGaps.length;
+            
+            let loopStatus = 'Normal';
+            if (avgTimeGap < 2000 && recentRequests.length > 10) {
+                loopStatus = '⚠️ Possible Infinite Loop';
+            } else if (avgTimeGap < 5000) {
+                loopStatus = '⚠️ Frequent Requests';
+            }
+            
+            analysisDiv.innerHTML = `
+                <h3>Request Analysis (Last 20 requests)</h3>
+                <div class="metrics">
+                    <div class="metric-card">
+                        <div class="metric-value">${avgResponseTime.toFixed(0)}ms</div>
+                        <div class="metric-label">Avg Response Time</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${maxResponseTime}ms</div>
+                        <div class="metric-label">Max Response Time</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${minResponseTime}ms</div>
+                        <div class="metric-label">Min Response Time</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${(avgTimeGap/1000).toFixed(1)}s</div>
+                        <div class="metric-label">Avg Time Gap</div>
+                    </div>
+                </div>
+                <p><strong>Loop Status:</strong> ${loopStatus}</p>
+                <h4>Recent Requests:</h4>
+                <pre>${JSON.stringify(recentRequests.slice(-10), null, 2)}</pre>
+            `;
+        }
+        
+        function clearResults() {
+            stopPerformanceTest();
+            requestCount = 0;
+            startTime = null;
+            responseTimes = [];
+            requestLog = [];
+            document.getElementById('metrics').innerHTML = '';
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('analysis').innerHTML = '';
+        }
+        
+        // Auto-detect if bills page is making excessive requests
+        let requestCounter = 0;
+        const originalFetch = window.fetch;
+        window.fetch = function(...args) {
+            const url = args[0];
+            if (typeof url === 'string' && url.includes('/admin/bills')) {
+                requestCounter++;
+                console.log(`📊 Bills page request #${requestCounter} at ${new Date().toISOString()}`);
+            }
+            return originalFetch.apply(this, args);
+        };
+        
+        window.addEventListener('load', () => {
+            console.log('Performance monitor loaded. Navigate to /admin/bills to monitor requests.');
+        });
+    </script>
+</body>
+</html>

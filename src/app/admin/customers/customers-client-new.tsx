@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Loader2, Eye, User, Mail, Phone, MapPin, Calendar, Shield, X } from "lucide-react";
 import SharedModal from "@/components/admin/SharedModal";
 import AddButton from "@/components/admin/AddButton";
@@ -30,6 +30,7 @@ export default function CustomersPageClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const isLoadingRef = useRef(false); // Prevent multiple simultaneous loads
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
@@ -50,7 +51,11 @@ export default function CustomersPageClient() {
     }
   });
 
-  async function load() {
+  const load = useCallback(async () => {
+    // Prevent multiple simultaneous loads
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
+    
     setLoading(true);
     setError(null);
     try {
@@ -62,12 +67,18 @@ export default function CustomersPageClient() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
-  }
+  }, []); // Empty dependency array since it doesn't depend on any props/state
 
   useEffect(() => {
     load();
-  }, []);
+    
+    // Cleanup function to prevent memory leaks
+    return () => {
+      isLoadingRef.current = false;
+    };
+  }, [load]); // Include load as dependency
 
   function openAdd() {
     setEditing(null);
@@ -116,18 +127,43 @@ export default function CustomersPageClient() {
       alert("Password is required for new customers");
       return;
     }
-    const res = await fetch("/api/admin/customers", {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data?.error || "Request failed");
-      return;
+    
+    try {
+      const res = await fetch("/api/admin/customers", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      
+      // Check if response has content before parsing JSON
+      const contentType = res.headers.get("content-type");
+      let data = null;
+      
+      if (contentType && contentType.includes("application/json")) {
+        const text = await res.text();
+        if (text.trim()) {
+          try {
+            data = JSON.parse(text);
+          } catch (parseError) {
+            console.error("JSON parse error:", parseError, "Response text:", text);
+            alert("Invalid response from server");
+            return;
+          }
+        }
+      }
+      
+      if (!res.ok) {
+        alert(data?.error || "Request failed");
+        return;
+      }
+      
+      alert(editing ? "Customer updated successfully!" : "Customer created successfully!");
+      setShowForm(false);
+      await load();
+    } catch (error) {
+      console.error("Submit error:", error);
+      alert("Network error occurred. Please try again.");
     }
-    setShowForm(false);
-    await load();
   }
 
   function openDelete(customer: Customer) {

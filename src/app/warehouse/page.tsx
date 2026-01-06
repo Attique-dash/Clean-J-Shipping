@@ -46,7 +46,22 @@ export default function WarehouseDashboard() {
         throw new Error(`Failed to fetch analytics: ${response.statusText}`);
       }
       
-      const data = await response.json();
+      // Check if response has content before parsing JSON
+      const contentType = response.headers.get("content-type");
+      let data = null;
+      
+      if (contentType && contentType.includes("application/json")) {
+        const text = await response.text();
+        if (text.trim()) {
+          try {
+            data = JSON.parse(text);
+          } catch (parseError) {
+            console.error("JSON parse error in analytics:", parseError, "Response text:", text);
+            throw new Error("Invalid response from analytics server");
+          }
+        }
+      }
+      
       setAnalytics(data);
       setLastUpdated(new Date());
     } catch (err) {

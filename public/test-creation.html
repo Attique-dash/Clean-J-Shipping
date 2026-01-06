@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Staff & Customer Creation Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        input, button { padding: 8px; margin: 5px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>Staff & Customer Creation Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Staff Creation</h2>
+        <input type="text" id="staffFirstName" placeholder="First Name" value="Test" />
+        <input type="text" id="staffLastName" placeholder="Last Name" value="Staff" />
+        <input type="email" id="staffEmail" placeholder="Email" />
+        <input type="password" id="staffPassword" placeholder="Password" />
+        <input type="text" id="staffBranch" placeholder="Branch" value="Main" />
+        <button onclick="testStaffCreation()">Create Staff</button>
+        <div id="staffResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Customer Creation</h2>
+        <input type="text" id="custFirstName" placeholder="First Name" value="Test" />
+        <input type="text" id="custLastName" placeholder="Last Name" value="Customer" />
+        <input type="email" id="custEmail" placeholder="Email" />
+        <input type="password" id="custPassword" placeholder="Password" />
+        <input type="text" id="custPhone" placeholder="Phone" value="1234567890" />
+        <input type="text" id="custStreet" placeholder="Street" value="123 Test St" />
+        <input type="text" id="custCity" placeholder="City" value="Test City" />
+        <input type="text" id="custState" placeholder="State" value="Test State" />
+        <input type="text" id="custZip" placeholder="Zip Code" value="12345" />
+        <input type="text" id="custCountry" placeholder="Country" value="Test Country" />
+        <button onclick="testCustomerCreation()">Create Customer</button>
+        <div id="customerResult"></div>
+    </div>
+    
+    <script>
+        async function testStaffCreation() {
+            const firstName = document.getElementById('staffFirstName').value;
+            const lastName = document.getElementById('staffLastName').value;
+            const email = document.getElementById('staffEmail').value;
+            const password = document.getElementById('staffPassword').value;
+            const branch = document.getElementById('staffBranch').value;
+            const resultDiv = document.getElementById('staffResult');
+            
+            if (!firstName || !lastName || !email || !password) {
+                resultDiv.innerHTML = '<div class="error">❌ Please fill all required fields</div>';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/staff', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ firstName, lastName, email, password, branch })
+                });
+                
+                const contentType = response.headers.get("content-type");
+                let data = null;
+                
+                if (contentType && contentType.includes("application/json")) {
+                    const text = await response.text();
+                    if (text.trim()) {
+                        data = JSON.parse(text);
+                    }
+                }
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ Staff Created Successfully!</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Creation Failed: ${data?.error || 'Unknown error'}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Network Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function testCustomerCreation() {
+            const firstName = document.getElementById('custFirstName').value;
+            const lastName = document.getElementById('custLastName').value;
+            const email = document.getElementById('custEmail').value;
+            const password = document.getElementById('custPassword').value;
+            const phone = document.getElementById('custPhone').value;
+            const street = document.getElementById('custStreet').value;
+            const city = document.getElementById('custCity').value;
+            const state = document.getElementById('custState').value;
+            const zipCode = document.getElementById('custZip').value;
+            const country = document.getElementById('custCountry').value;
+            const resultDiv = document.getElementById('customerResult');
+            
+            if (!firstName || !lastName || !email || !password) {
+                resultDiv.innerHTML = '<div class="error">❌ Please fill all required fields</div>';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/customers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        firstName, lastName, email, password, phone,
+                        address: { street, city, state, zipCode, country }
+                    })
+                });
+                
+                const contentType = response.headers.get("content-type");
+                let data = null;
+                
+                if (contentType && contentType.includes("application/json")) {
+                    const text = await response.text();
+                    if (text.trim()) {
+                        data = JSON.parse(text);
+                    }
+                }
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ Customer Created Successfully!</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Creation Failed: ${data?.error || 'Unknown error'}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Network Error: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

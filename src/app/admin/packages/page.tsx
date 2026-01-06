@@ -127,7 +127,9 @@ export default function AdminPackagesPage() {
           setPackages(data.packages || []);
           setSelectedIds(new Set());
         } else {
-          throw new Error(data.error || data.message || 'Failed to load packages');
+          const errorMessage = data.error || data.message || 'Failed to load packages';
+          console.error('API Error:', errorMessage, data);
+          throw new Error(errorMessage);
         }
       } catch (error) {
         console.error('Error loading packages:', error);
@@ -587,6 +589,10 @@ export default function AdminPackagesPage() {
                           <span className="font-medium text-gray-900">{pkg.mailboxNumber || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Shipper:</span>
+                          <span className="font-medium text-gray-900">{pkg.shipper || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Weight:</span>
                           <span className="font-medium text-gray-900">{Number(pkg.weightLbs || 0).toFixed(2)} lbs</span>
                         </div>
@@ -642,6 +648,7 @@ export default function AdminPackagesPage() {
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Tracking</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Customer</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Mailbox</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Shipper</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Service</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Weight (lbs)</th>
@@ -681,6 +688,7 @@ export default function AdminPackagesPage() {
                         <div className="text-xs text-gray-500">{pkg.customerEmail || ''}</div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">{pkg.mailboxNumber || 'N/A'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.shipper || 'N/A'}</td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center border px-2 py-1 text-xs font-semibold rounded-full ${getServiceBadge(pkg.serviceMode || '')}`}>
                           {String(pkg.serviceMode).toUpperCase()}

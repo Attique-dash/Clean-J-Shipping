@@ -6,8 +6,16 @@ NODE_ENV=production
 # Database
 DATABASE_URL=mongodb://your-connection-string
 
-# Other services (add as needed)
+# Email Configuration (Required for staff notifications)
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
+EMAIL_SECURE=false
 EMAIL_USER=your-email@gmail.com
+EMAIL_PASSWORD=your-app-password
+EMAIL_FROM=Clean J Shipping <noreply@cleanjshipping.com>
 EMAIL_PASS=your-app-password
+
+# Other settings
+NEXT_PUBLIC_APP_NAME=Clean J Shipping
+NEXT_PUBLIC_APP_URL=https://your-domain.vercel.app
+ADMIN_EMAIL=admin@cleanjshipping.com

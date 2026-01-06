@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
 import { hashPassword } from "@/lib/auth";
+import { emailService } from "@/lib/email-service";
 
 export async function POST(req: Request) {
   try {
@@ -37,8 +38,39 @@ export async function POST(req: Request) {
       registrationStep: 4,
     });
 
+    // Send welcome email to new admin
+    try {
+      console.log('📧 Preparing to send admin welcome email...');
+      const adminName = `${firstName} ${lastName}`.trim();
+      console.log('👤 Admin details:', { adminName, email, userCode: user.userCode, hasPassword: !!password });
+        
+      const emailSent = await emailService.sendStaffWelcomeEmail({
+        to: email,
+        staffName: adminName,
+        userCode: user.userCode,
+        password,
+        branch: 'System Administration',
+      });
+      
+      console.log('📧 Email service result:', emailSent);
+      
+      if (!emailSent) {
+        console.error("❌ Failed to send admin welcome email to:", email);
+        // Continue with response even if email fails
+      } else {
+        console.log("✅ Admin welcome email sent successfully to:", email);
+      }
+    } catch (emailError: any) {
+      console.error("❌ Error sending admin welcome email:", {
+        message: emailError.message,
+        stack: emailError.stack,
+        code: emailError.code
+      });
+      // Continue with response even if email fails
+    }
+
     return NextResponse.json({ 
-      message: "Admin created successfully", 
+      message: "Admin created successfully. Welcome email sent.", 
       email: user.email,
       userCode: user.userCode,
       role: user.role,

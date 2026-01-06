@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
+import { ExportService } from '@/lib/export-service';
 import { 
   Search, 
   Plus, 
@@ -19,41 +20,55 @@ import {
   ChevronRight, 
   Loader2,
   Eye,
+  X,
   Mail,
+  Phone,
+  MapPin,
   Calendar,
-  X
+  DollarSign,
+  PackageCheck,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  FileText
 } from 'lucide-react';
 import Link from 'next/link';
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
 
-interface Package {
+type PackageRow = {
   _id: string;
   trackingNumber: string;
-  status:
-    | 'received'
-    | 'in_processing'
-    | 'ready_to_ship'
-    | 'shipped'
-    | 'in_transit'
-    | 'delivered'
-    | 'unknown';
+  customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  mailboxNumber?: string;
   userCode?: string;
-  weight?: number;
-  weightUnit?: string;
-  shipper?: string;
-  description?: string;
-  dimensions?: {
-    length?: number;
-    width?: number;
-    height?: number;
-    unit?: string;
-    weight?: number;
-    weightUnit?: string;
+  serviceMode?: 'air' | 'ocean' | 'local';
+  status: string;
+  weight: number;
+  weightUnit: string;
+  weightLbs: number;
+  itemValueUsd?: number;
+  dateReceived?: string | null;
+  daysInStorage: number;
+  warehouseLocation?: string;
+  customsRequired?: boolean;
+  customsStatus?: string;
+  paymentStatus?: string;
+  // Sender information
+  senderName?: string;
+  senderEmail?: string;
+  senderPhone?: string;
+  senderAddress?: string;
+  senderCountry?: string;
+  sender?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    country?: string;
   };
-  createdAt?: string;
-  updatedAt?: string;
-  branch?: string;
-  manifestId?: string;
+  // Recipient information
   recipient?: {
     name?: string;
     shippingId?: string;
@@ -62,55 +77,69 @@ interface Package {
     address?: string;
     country?: string;
   };
-  sender?: {
-    name?: string;
-    email?: string;
-    phone?: string;
-    address?: string;
-    country?: string;
-  };
-  // Database fields for recipient info
   receiverName?: string;
   receiverEmail?: string;
   receiverPhone?: string;
   receiverAddress?: string;
   receiverCountry?: string;
-  // Database fields for sender info
-  senderName?: string;
-  senderEmail?: string;
-  senderPhone?: string;
-  senderAddress?: string;
-  senderCountry?: string;
-  // Dimension fields
+  // Additional details
+  shipper?: string;
+  description?: string;
+  itemDescription?: string;
+  contents?: string;
+  specialInstructions?: string;
+  dimensions?: {
+    length?: number;
+    width?: number;
+    height?: number;
+    unit?: string;
+    weight?: number;
+    weightUnit?: string;
+  };
   length?: number;
   width?: number;
   height?: number;
   dimensionUnit?: string;
-  // Package details
-  itemDescription?: string;
-  itemValue?: number;
-  contents?: string;
-  specialInstructions?: string;
-}
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+type StatusOption = {
+  value: string;
+  label: string;
+};
+
+const STATUS_OPTIONS: StatusOption[] = [
+  { value: 'received', label: 'Received' },
+  { value: 'in_processing', label: 'In Processing' },
+  { value: 'ready_to_ship', label: 'Ready to Ship' },
+  { value: 'shipped', label: 'Shipped' },
+  { value: 'in_transit', label: 'In Transit' },
+  { value: 'delivered', label: 'Delivered' },
+];
 
 export default function WarehousePackagesPage() {
   const { status } = useSession();
   const router = useRouter();
-  const [packages, setPackages] = useState<Package[]>([]);
+  const [packages, setPackages] = useState<PackageRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [userCodeFilter, setUserCodeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState('');
   
   // Delete confirmation modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [packageToDelete, setPackageToDelete] = useState<Package | null>(null);
+  const [packageToDelete, setPackageToDelete] = useState<PackageRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   
   // View package modal state
   const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [packageToView, setPackageToView] = useState<Package | null>(null);
+  const [packageToView, setPackageToView] = useState<PackageRow | null>(null);
 
   // Get userCode from URL params on mount
   useEffect(() => {
@@ -135,7 +164,7 @@ export default function WarehousePackagesPage() {
         const params = new URLSearchParams();
         if (userCodeFilter) params.set('userCode', userCodeFilter);
         if (searchTerm) params.set('q', searchTerm);
-        if (statusFilter) params.set('status', statusFilter);
+        if (selectedStatuses.length > 0) params.set('statuses', selectedStatuses.join(','));
         
         const res = await fetch(`/api/warehouse/packages/search?${params.toString()}`, {
           credentials: 'include'
@@ -143,8 +172,11 @@ export default function WarehousePackagesPage() {
         const data = await res.json();
         if (res.ok) {
           setPackages(data.packages || []);
+          setSelectedIds(new Set());
         } else {
-          throw new Error(data.message || 'Failed to load packages');
+          const errorMessage = data.error || data.message || 'Failed to load packages';
+          console.error('API Error:', errorMessage, data);
+          throw new Error(errorMessage);
         }
       } catch (error) {
         console.error('Error loading packages:', error);
@@ -158,24 +190,140 @@ export default function WarehousePackagesPage() {
     if (status === 'authenticated') {
       fetchPackages();
     }
-  }, [status, userCodeFilter, searchTerm, statusFilter]);
+  }, [status, userCodeFilter, searchTerm, selectedStatuses, refreshToken]);
 
   const handleRefresh = () => {
     setRefreshing(true);
-    // Trigger useEffect to refetch
+    setRefreshToken((v) => v + 1);
   };
 
   // Filter packages based on search term (already filtered by API, but keep for client-side filtering if needed)
   const filteredPackages = packages;
 
+  const allSelectedOnPage = filteredPackages.length > 0 && filteredPackages.every((p) => selectedIds.has(p._id));
+
+  const toggleSelectAll = () => {
+    if (allSelectedOnPage) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredPackages.map((p) => p._id)));
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectedCount = selectedIds.size;
+
+  const formatUsd = (amount: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
+  };
+
+  const humanStatus = (s: string) => {
+    const found = STATUS_OPTIONS.find((o) => o.value === s);
+    if (found) return found.label;
+    return s.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+  };
+
+  const getServiceBadge = (mode: string) => {
+    if (mode === 'air') return 'bg-sky-100 text-sky-800 border-sky-200';
+    if (mode === 'ocean') return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+    if (mode === 'local') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+    return 'bg-gray-100 text-gray-800 border-gray-200';
+  };
+
+  const getStatusBadge = (s: string) => {
+    if (s === 'delivered') return 'bg-emerald-100 text-emerald-800';
+    if (s === 'out_for_delivery') return 'bg-blue-100 text-blue-800';
+    if (s === 'ready_for_delivery') return 'bg-cyan-100 text-cyan-800';
+    if (s === 'customs_pending') return 'bg-amber-100 text-amber-800';
+    if (s === 'customs_cleared') return 'bg-green-100 text-green-800';
+    if (s === 'in_transit') return 'bg-yellow-100 text-yellow-800';
+    if (s === 'received' || s === 'At Warehouse') return 'bg-purple-100 text-purple-800';
+    return 'bg-gray-100 text-gray-800';
+  };
+
+  const runBulkStatusUpdate = async () => {
+    if (!bulkStatus || selectedIds.size === 0) return;
+    try {
+      const ids = Array.from(selectedIds);
+      await Promise.all(
+        ids.map((id) =>
+          fetch('/api/warehouse/packages', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ id, status: bulkStatus }),
+          })
+        )
+      );
+      toast.success(`Updated ${ids.length} package(s)`);
+      setBulkStatus('');
+      setRefreshToken((v) => v + 1);
+    } catch (e) {
+      console.error(e);
+      toast.error('Bulk status update failed');
+    }
+  };
+
+  const clearAllFilters = () => {
+    setUserCodeFilter('');
+    setSearchTerm('');
+    setSelectedStatuses([]);
+  };
+
+  const exportSelected = (format: 'csv' | 'excel') => {
+    const rows = filteredPackages.filter((p) => selectedIds.has(p._id));
+    if (rows.length === 0) {
+      toast.info('No packages selected');
+      return;
+    }
+
+    const exportRows = rows.map((p) => ({
+      'Tracking Number': p.trackingNumber,
+      'Customer Name': p.customerName,
+      'Customer Email': p.customerEmail || '',
+      'Customer Phone': p.customerPhone || '',
+      'Mailbox Number': p.mailboxNumber,
+      'Service Type': String(p.serviceMode).toUpperCase(),
+      'Status': humanStatus(p.status),
+      'Weight (lbs)': Number(p.weightLbs || 0).toFixed(2),
+      'Value (USD)': Number(p.itemValueUsd || 0).toFixed(2),
+      'Date Received': p.dateReceived ? new Date(p.dateReceived).toLocaleDateString() : '',
+      'Days in Storage': p.daysInStorage,
+      'Warehouse Location': p.warehouseLocation,
+      'Customs Required': p.customsRequired ? 'Yes' : 'No',
+      'Customs Status': p.customsStatus,
+      'Payment Status': p.paymentStatus,
+      'Shipper': p.shipper || '',
+      'Sender Name': p.senderName || '',
+      'Sender Email': p.senderEmail || '',
+      'Sender Phone': p.senderPhone || '',
+      'Sender Country': p.senderCountry || '',
+    }));
+
+    const filename = `packages_${new Date().toISOString().slice(0, 10)}`;
+    if (format === 'csv') {
+      ExportService.toCSV(exportRows, filename);
+    } else {
+      ExportService.toExcel(exportRows, filename, 'Packages');
+    }
+  };
+
   // Handle package view
-  const handleViewPackage = async (pkg: Package) => {
+  const handleViewPackage = async (pkg: PackageRow) => {
     setPackageToView(pkg);
     setViewModalOpen(true);
   };
 
   // Handle package delete
-  const handleDeletePackage = async (pkg: Package) => {
+  const handleDeletePackage = async (pkg: PackageRow) => {
     setPackageToDelete(pkg);
     setDeleteModalOpen(true);
   };
@@ -275,37 +423,60 @@ export default function WarehousePackagesPage() {
                 <input
                   type="text"
                   className="block w-full h-12 pl-10 pr-4 text-sm border border-gray-300 rounded-xl bg-white/80 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                  placeholder="Search by tracking #, customer name, or ID"
+                  placeholder="Search by tracking #, customer name, mailbox, or phone"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
 
-              {/* Status Filter */}
+              {/* Customer Code Filter */}
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User className="h-5 w-5 text-blue-500" />
+                </div>
+                <input
+                  type="text"
+                  className="block w-full h-12 pl-10 pr-4 text-sm border border-gray-300 rounded-xl bg-white/80 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  placeholder="Customer code (e.g. MB-001)"
+                  value={userCodeFilter}
+                  onChange={(e) => setUserCodeFilter(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-gray-700">Package Status</h4>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Filter className="h-5 w-5 text-blue-500" />
                 </div>
                 <select
-                  className="block w-full h-12 pl-10 pr-8 text-sm border border-gray-300 rounded-xl bg-white/80 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="block w-full pl-10 pr-8 py-2.5 text-sm border border-gray-300 rounded-xl bg-white/80 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
+                  value={selectedStatuses[0] || ''}
+                  onChange={(e) => {
+                    setSelectedStatuses(e.target.value ? [e.target.value] : []);
+                  }}
                 >
-                  <option value="">All Status</option>
-                  <option value="received">Received</option>
-                  <option value="in_processing">In Processing</option>
-                  <option value="ready_to_ship">Ready to Ship</option>
-                  <option value="shipped">Shipped</option>
-                  <option value="in_transit">In Transit</option>
-                  <option value="delivered">Delivered</option>
-                  <option value="unknown">Unknown</option>
+                  <option value="">All Statuses</option>
+                  {STATUS_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
 
-          {/* Active Filters */}
-            {(userCodeFilter || statusFilter) && (
+            {/* Active Filters */}
+            {(userCodeFilter || searchTerm || selectedStatuses.length > 0) && (
               <div className="flex flex-wrap items-center gap-2">
+                {searchTerm && (
+                  <div className="flex items-center gap-2 rounded-lg bg-teal-100 px-3 py-1.5 text-sm">
+                    <Search className="h-4 w-4 text-teal-700" />
+                    <span className="font-medium text-teal-900">Search: {searchTerm}</span>
+                    <button onClick={() => setSearchTerm('')} className="ml-1 text-teal-700 hover:text-teal-900">×</button>
+                  </div>
+                )}
                 {userCodeFilter && (
                   <div className="flex items-center gap-2 rounded-lg bg-blue-100 px-3 py-1.5 text-sm">
                     <User className="h-4 w-4 text-blue-600" />
@@ -318,12 +489,12 @@ export default function WarehousePackagesPage() {
                     </button>
                   </div>
                 )}
-                {statusFilter && (
+                {selectedStatuses.length > 0 && (
                   <div className="flex items-center gap-2 rounded-lg bg-orange-100 px-3 py-1.5 text-sm">
                     <Filter className="h-4 w-4 text-orange-600" />
-                    <span className="font-medium text-orange-800">Status: {statusFilter.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                    <span className="font-medium text-orange-800">Status: {selectedStatuses.length === 1 ? humanStatus(selectedStatuses[0]) : `${selectedStatuses.length} selected`}</span>
                     <button
-                      onClick={() => setStatusFilter('')}
+                      onClick={() => setSelectedStatuses([])}
                       className="ml-1 text-orange-600 hover:text-orange-800"
                     >
                       ×
@@ -331,11 +502,7 @@ export default function WarehousePackagesPage() {
                   </div>
                 )}
                 <button
-                  onClick={() => {
-                    setUserCodeFilter('');
-                    setStatusFilter('');
-                    setSearchTerm('');
-                  }}
+                  onClick={clearAllFilters}
                   className="text-sm text-gray-600 hover:text-gray-800 underline"
                 >
                   Clear all filters
@@ -359,12 +526,61 @@ export default function WarehousePackagesPage() {
             </div>
           </div>
           
+          {selectedCount > 0 && (
+            <div className="border-b border-gray-200 bg-white px-6 py-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="text-sm text-gray-700">
+                  <span className="font-semibold">{selectedCount}</span> selected
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                  <select
+                    className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={bulkStatus}
+                    onChange={(e) => setBulkStatus(e.target.value)}
+                  >
+                    <option value="">Bulk status update…</option>
+                    {STATUS_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={runBulkStatusUpdate}
+                    disabled={!bulkStatus}
+                    className="h-10 rounded-lg bg-[#0f4d8a] px-4 text-sm font-medium text-white shadow-sm disabled:opacity-50"
+                  >
+                    Apply
+                  </button>
+                  <button
+                    onClick={() => exportSelected('csv')}
+                    className="h-10 rounded-lg bg-white px-4 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50"
+                  >
+                    Export CSV
+                  </button>
+                  <button
+                    onClick={() => exportSelected('excel')}
+                    className="h-10 rounded-lg bg-white px-4 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50"
+                  >
+                    Export Excel
+                  </button>
+                  <button
+                    onClick={() => setSelectedIds(new Set())}
+                    className="h-10 rounded-lg bg-white px-4 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {filteredPackages.length === 0 ? (
             <div className="p-12 text-center">
               <Package2 className="mx-auto h-12 w-12 text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No packages found</h3>
               <p className="text-sm text-gray-600 mb-6">
-                {searchTerm || statusFilter || userCodeFilter 
+                {searchTerm || selectedStatuses.length > 0 || userCodeFilter 
                   ? 'Try adjusting your search or filters' 
                   : 'Get started by adding your first package'}
               </p>
@@ -385,45 +601,57 @@ export default function WarehousePackagesPage() {
                     <div key={pkg._id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            className="mr-3 mt-1"
+                            checked={selectedIds.has(pkg._id)}
+                            onChange={() => toggleSelectOne(pkg._id)}
+                          />
                           <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                             <Package className="h-5 w-5 text-white" />
                           </div>
                           <div className="ml-3">
-                            <div className="text-sm font-medium text-gray-900 font-mono">
+                            <button
+                              type="button"
+                              onClick={() => handleViewPackage(pkg)}
+                              className="text-sm font-medium text-gray-900 font-mono hover:underline"
+                            >
                               {pkg.trackingNumber}
-                            </div>
+                            </button>
                             <div className="text-xs text-gray-500">
-                              {new Date(pkg.createdAt || Date.now()).toLocaleDateString()}
+                              {pkg.dateReceived ? new Date(pkg.dateReceived).toLocaleDateString() : ''}
                             </div>
                           </div>
                         </div>
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          pkg.status === 'received' ? 'bg-green-100 text-green-800' :
-                          pkg.status === 'in_processing' ? 'bg-purple-100 text-purple-800' :
-                          pkg.status === 'ready_to_ship' ? 'bg-orange-100 text-orange-800' :
-                          pkg.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
-                          pkg.status === 'in_transit' ? 'bg-yellow-100 text-yellow-800' :
-                          pkg.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {pkg.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(pkg.status)}`}>
+                          {humanStatus(pkg.status)}
                         </span>
                       </div>
                       
                       <div className="space-y-2 mb-3">
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Recipient:</span>
-                          <span className="font-medium text-gray-900">{pkg.recipient?.name || pkg.receiverName || 'Unknown'}</span>
+                          <span className="text-gray-600">Customer:</span>
+                          <span className="font-medium text-gray-900">{pkg.customerName || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Dimensions:</span>
-                          <span className="font-medium text-gray-900">
-                            {(pkg.dimensions?.length || pkg.length || 'N/A')}×{(pkg.dimensions?.width || pkg.width || 'N/A')}×{(pkg.dimensions?.height || pkg.height || 'N/A')} {pkg.dimensions?.unit || pkg.dimensionUnit || 'cm'}
-                          </span>
+                          <span className="text-gray-600">Mailbox:</span>
+                          <span className="font-medium text-gray-900">{pkg.mailboxNumber || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Shipper:</span>
+                          <span className="font-medium text-gray-900">{pkg.shipper || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Weight:</span>
-                          <span className="font-medium text-gray-900">{(pkg.dimensions?.weight || pkg.weight || 'N/A')} {(pkg.dimensions?.weightUnit || pkg.weightUnit || 'kg')}</span>
+                          <span className="font-medium text-gray-900">{Number(pkg.weightLbs || 0).toFixed(2)} lbs</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Value:</span>
+                          <span className="font-medium text-gray-900">{formatUsd(pkg.itemValueUsd || 0)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Days in storage:</span>
+                          <span className="font-medium text-gray-900">{pkg.daysInStorage}</span>
                         </div>
                       </div>
                       
@@ -463,10 +691,19 @@ export default function WarehousePackagesPage() {
                 <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Package</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Recipient</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Dimensions</th>
+                    <th className="px-6 py-3 text-left">
+                      <input type="checkbox" checked={allSelectedOnPage} onChange={toggleSelectAll} />
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Tracking</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Customer</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Mailbox</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Shipper</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Service</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Weight (lbs)</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Value (USD)</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date Received</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Days</th>
                     <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -474,52 +711,52 @@ export default function WarehousePackagesPage() {
                   {filteredPackages.map((pkg) => (
                     <tr key={pkg._id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4">
+                        <input type="checkbox" checked={selectedIds.has(pkg._id)} onChange={() => toggleSelectOne(pkg._id)} />
+                      </td>
+                      <td className="px-6 py-4">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                             <Package className="h-5 w-5 text-white" />
                           </div>
                           <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900 font-mono">
+                            <button
+                              type="button"
+                              onClick={() => handleViewPackage(pkg)}
+                              className="text-sm font-medium text-gray-900 font-mono hover:underline"
+                            >
                               {pkg.trackingNumber}
-                            </div>
+                            </button>
                             <div className="text-xs text-gray-500">
-                              {new Date(pkg.createdAt || Date.now()).toLocaleDateString()}
+                              {pkg.warehouseLocation}
                             </div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          {pkg.recipient?.name || pkg.receiverName || 'Unknown'}
-                        </div>
-                        {(pkg.recipient?.shippingId || pkg.shipper) && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            ID: <span className="font-mono">{pkg.recipient?.shippingId || pkg.shipper || 'N/A'}</span>
-                          </div>
-                        )}
+                        <div className="text-sm text-gray-900">{pkg.customerName || 'N/A'}</div>
+                        <div className="text-xs text-gray-500">{pkg.customerEmail || ''}</div>
                       </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.mailboxNumber || 'N/A'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.shipper || 'N/A'}</td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          {(pkg.dimensions?.length || pkg.length || 'N/A')}×{(pkg.dimensions?.width || pkg.width || 'N/A')}×{(pkg.dimensions?.height || pkg.height || 'N/A')} {pkg.dimensions?.unit || pkg.dimensionUnit || 'cm'}
-                        </div>
-                        <div className="text-xs text-gray-500 flex items-center mt-1">
-                          <Weight className="h-3 w-3 mr-1" />
-                          {(pkg.dimensions?.weight || pkg.weight || 'N/A')} {(pkg.dimensions?.weightUnit || pkg.weightUnit || 'kg')}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          pkg.status === 'received' ? 'bg-green-100 text-green-800' :
-                          pkg.status === 'in_processing' ? 'bg-purple-100 text-purple-800' :
-                          pkg.status === 'ready_to_ship' ? 'bg-orange-100 text-orange-800' :
-                          pkg.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
-                          pkg.status === 'in_transit' ? 'bg-yellow-100 text-yellow-800' :
-                          pkg.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {pkg.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        <span className={`inline-flex items-center border px-2 py-1 text-xs font-semibold rounded-full ${getServiceBadge(pkg.serviceMode || '')}`}>
+                          {String(pkg.serviceMode).toUpperCase()}
                         </span>
                       </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(pkg.status)}`}>
+                          {humanStatus(pkg.status)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        <span className="inline-flex items-center gap-1">
+                          <Weight className="h-3 w-3" />
+                          {Number(pkg.weightLbs || 0).toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{formatUsd(pkg.itemValueUsd || 0)}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.dateReceived ? new Date(pkg.dateReceived).toLocaleDateString() : ''}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.daysInStorage}</td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
@@ -588,52 +825,44 @@ export default function WarehousePackagesPage() {
               </div>
             </div>
             
-            <div className="p-6 space-y-8">
+            <div className="p-6 space-y-6">
               {/* Package Information */}
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
                 <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                   <Package className="h-5 w-5 text-blue-600" />
-                  Package Information
+                  Package
                 </h4>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Tracking Number:</span>
-                      <span className="text-sm font-medium text-gray-900 font-mono">{packageToView.trackingNumber}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Status:</span>
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        packageToView.status === 'received' ? 'bg-green-100 text-green-800' :
-                        packageToView.status === 'in_processing' ? 'bg-purple-100 text-purple-800' :
-                        packageToView.status === 'ready_to_ship' ? 'bg-orange-100 text-orange-800' :
-                        packageToView.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
-                        packageToView.status === 'in_transit' ? 'bg-yellow-100 text-yellow-800' :
-                        packageToView.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {packageToView.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Weight:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.weight || 'N/A'} kg</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Dimensions:</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {(packageToView.dimensions?.length || packageToView.length || 'N/A')}×{(packageToView.dimensions?.width || packageToView.width || 'N/A')}×{(packageToView.dimensions?.height || packageToView.height || 'N/A')} {packageToView.dimensions?.unit || packageToView.dimensionUnit || 'cm'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Shipper:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.shipper || 'N/A'}</span>
-                    </div>
-                  </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Tracking:</span><span className="text-sm font-medium text-gray-900 font-mono">{packageToView.trackingNumber}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Status:</span><span className={`text-xs font-semibold px-2 py-1 rounded-full ${getStatusBadge(packageToView.status)}`}>{humanStatus(packageToView.status)}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Service:</span><span className={`text-xs font-semibold px-2 py-1 rounded-full border ${getServiceBadge(packageToView?.serviceMode || '')}`}>{String(packageToView?.serviceMode || '').toUpperCase()}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Mailbox:</span><span className="text-sm font-medium text-gray-900">{packageToView.mailboxNumber || 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Customer:</span><span className="text-sm font-medium text-gray-900">{packageToView.customerName || 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.customerPhone || 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Weight:</span><span className="text-sm font-medium text-gray-900">{Number(packageToView.weightLbs || 0).toFixed(2)} lbs</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Value:</span><span className="text-sm font-medium text-gray-900">{formatUsd(packageToView.itemValueUsd || 0)}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Date Received:</span><span className="text-sm font-medium text-gray-900">{packageToView.dateReceived ? new Date(packageToView.dateReceived).toLocaleDateString() : ''}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Days in Storage:</span><span className="text-sm font-medium text-gray-900">{packageToView.daysInStorage}</span></div>
                 </div>
               </div>
 
-              {/* Recipient Information */}
+              {/* Additional Details */}
+              <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-6">
+                <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <Package className="h-5 w-5 text-purple-600" />
+                  Additional Details
+                </h4>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Shipper:</span><span className="text-sm font-medium text-gray-900">{packageToView.shipper || 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Warehouse:</span><span className="text-sm font-medium text-gray-900">{packageToView.warehouseLocation || 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Required:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsRequired ? 'Yes' : 'No'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsStatus || 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Payment Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.paymentStatus || 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Entry Date:</span><span className="text-sm font-medium text-gray-900">{packageToView.dateReceived ? new Date(packageToView.dateReceived).toLocaleDateString() : 'N/A'}</span></div>
+                </div>
+              </div>
+
+              {/* Additional Information */}
               <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6">
                 <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                   <User className="h-5 w-5 text-green-600" />

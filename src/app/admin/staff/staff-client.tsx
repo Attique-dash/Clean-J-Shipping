@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import SharedModal from "@/components/admin/SharedModal";
 import AddButton from "@/components/admin/AddButton";
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
@@ -12,6 +12,7 @@ type Staff = {
   firstName: string;
   lastName: string;
   email: string;
+  phone?: string;
   branch?: string;
   createdAt?: string;
 };
@@ -25,7 +26,8 @@ export default function StaffPageClient() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Staff | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; staff: Staff | null }>({ open: false, staff: null });
-  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "", branch: "" });
+  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "", branch: "", phone: "" });
+  const [showPassword, setShowPassword] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -48,37 +50,68 @@ export default function StaffPageClient() {
 
   function openAdd() {
     setEditing(null);
-    setForm({ firstName: "", lastName: "", email: "", password: "", branch: "" });
+    setForm({ firstName: "", lastName: "", email: "", password: "", branch: "", phone: "" });
     setShowForm(true);
   }
 
   function openEdit(s: Staff) {
     setEditing(s);
-    setForm({ firstName: s.firstName, lastName: s.lastName, email: s.email, password: "", branch: s.branch || "" });
+    setForm({ firstName: s.firstName, lastName: s.lastName, email: s.email, password: "", branch: s.branch || "", phone: s.phone || "" });
     setShowForm(true);
   }
 
   async function submitForm(e: React.FormEvent) {
     e.preventDefault();
     const method = editing ? "PUT" : "POST";
-    const body: { firstName: string; lastName: string; email: string; password: string; branch: string; id?: string } = { ...form };
+    const body: { firstName: string; lastName: string; email: string; password: string; branch: string; phone: string; id?: string } = { ...form };
     if (editing) body.id = editing._id;
     if (!editing && !form.password) {
       alert("Password is required for new staff");
       return;
     }
-    const res = await fetch("/api/admin/staff", {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data?.error || "Request failed");
-      return;
+    
+    try {
+      const res = await fetch("/api/admin/staff", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      
+      // Check if response has content before parsing JSON
+      const contentType = res.headers.get("content-type");
+      let data = null;
+      
+      if (contentType && contentType.includes("application/json")) {
+        const text = await res.text();
+        if (text.trim()) {
+          try {
+            data = JSON.parse(text);
+          } catch (parseError) {
+            console.error("JSON parse error:", parseError, "Response text:", text);
+            alert("Invalid response from server");
+            return;
+          }
+        }
+      }
+      
+      if (!res.ok) {
+        alert(data?.error || "Request failed");
+        return;
+      }
+      
+      // Show success message with email notification
+      if (!editing && data.message) {
+        alert(data.message);
+      } else {
+        alert(editing ? "Staff member updated successfully!" : "Staff member created successfully!");
+      }
+      
+      setShowForm(false);
+      await load();
+    } catch (error) {
+      console.error("Submit error:", error);
+      alert("Network error occurred. Please try again.");
     }
-    setShowForm(false);
-    await load();
   }
 
   function openDelete(s: Staff) {
@@ -409,6 +442,18 @@ export default function StaffPageClient() {
                     required
                   />
                 </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">Phone Number</label>
+                  <input
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                    placeholder="+1 (555) 123-4567"
+                    type="tel"
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Optional: Staff member's phone number</p>
+                </div>
               </div>
 
               <div className="space-y-3">
@@ -424,27 +469,45 @@ export default function StaffPageClient() {
                 {!editing && (
                   <div>
                     <label className="mb-1 block text-xs font-medium text-gray-700">Password *</label>
-                    <input
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
-                      placeholder="Enter secure password"
-                      type="password"
-                      value={form.password}
-                      onChange={(e) => setForm({ ...form, password: e.target.value })}
-                      required
-                    />
+                    <div className="relative">
+                      <input
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 pr-10 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                        placeholder="Enter secure password"
+                        type={showPassword ? "text" : "password"}
+                        value={form.password}
+                        onChange={(e) => setForm({ ...form, password: e.target.value })}
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                 )}
 
                 {editing && (
                   <div>
                     <label className="mb-1 block text-xs font-medium text-gray-700">New Password (Optional)</label>
-                    <input
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
-                      placeholder="Leave blank to keep current password"
-                      type="password"
-                      value={form.password}
-                      onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    />
+                    <div className="relative">
+                      <input
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 pr-10 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                        placeholder="Leave blank to keep current password"
+                        type={showPassword ? "text" : "password"}
+                        value={form.password}
+                        onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

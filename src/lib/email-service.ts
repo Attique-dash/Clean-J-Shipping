@@ -42,16 +42,42 @@ export class EmailService {
    */
   async sendEmail(options: EmailOptions): Promise<boolean> {
     try {
-      await this.transporter.sendMail({
+      console.log('📧 Attempting to send email:', {
+        to: options.to,
+        subject: options.subject,
+        from: options.from || this.defaultFrom,
+        hasHtml: !!options.html,
+        hasText: !!options.text
+      });
+
+      // Check email configuration
+      console.log('🔧 Email configuration:', {
+        host: process.env.EMAIL_HOST,
+        port: process.env.EMAIL_PORT,
+        hasUser: !!process.env.EMAIL_USER,
+        hasPassword: !!process.env.EMAIL_PASSWORD,
+        from: this.defaultFrom
+      });
+
+      const result = await this.transporter.sendMail({
         from: options.from || this.defaultFrom,
         to: options.to,
         subject: options.subject,
         html: options.html,
         text: options.text,
       });
+
+      console.log('✅ Email sent successfully:', result.messageId);
       return true;
-    } catch (error) {
-      console.error('Email send error:', error);
+    } catch (error: any) {
+      console.error('❌ Email send error details:', {
+        error: error.message,
+        code: error.code,
+        command: error.command,
+        response: error.response,
+        responseCode: error.responseCode,
+        stack: error.stack
+      });
       return false;
     }
   }
@@ -166,6 +192,25 @@ export class EmailService {
     return this.sendEmail({
       to: data.to,
       subject: '🎉 Welcome to Clean J Shipping!',
+      html,
+    });
+  }
+
+  /**
+   * Send staff welcome email with login credentials
+   */
+  async sendStaffWelcomeEmail(data: {
+    to: string;
+    staffName: string;
+    userCode: string;
+    password: string;
+    branch?: string;
+  }): Promise<boolean> {
+    const html = this.getStaffWelcomeTemplate(data);
+    
+    return this.sendEmail({
+      to: data.to,
+      subject: '👋 Welcome to Clean J Shipping - Staff Account Created',
       html,
     });
   }
@@ -387,6 +432,56 @@ export class EmailService {
       <a href="https://cleanjshipping.com/login" class="button">Access Your Account</a>
       
       <p>If you have any questions, our support team is here to help!</p>
+    `);
+  }
+
+  private getStaffWelcomeTemplate(data: {
+    staffName: string;
+    userCode: string;
+    password: string;
+    branch?: string;
+  }): string {
+    return this.getEmailWrapper(`
+      <h2>👋 Welcome to the Clean J Shipping Team!</h2>
+      <p>Dear ${data.staffName},</p>
+      <p>Your staff account has been created successfully. Welcome to the Clean J Shipping team!</p>
+      
+      <div class="info-box">
+        <p><strong>Your Staff Code:</strong> <span class="highlight">${data.userCode}</span></p>
+        <p><strong>Your Email:</strong> ${data.userCode.includes('@') ? data.userCode : 'staff@cleanjshipping.com'}</p>
+        <p><strong>Your Password:</strong> <span class="highlight">${data.password}</span></p>
+        ${data.branch ? `<p><strong>Assigned Branch:</strong> ${data.branch}</p>` : ''}
+      </div>
+
+      <h3>🔐 Important Security Information:</h3>
+      <ul>
+        <li>Keep your login credentials secure and confidential</li>
+        <li>Change your password after first login for security</li>
+        <li>Never share your credentials with anyone</li>
+        <li>Report any suspicious activity immediately</li>
+      </ul>
+
+      <h3>🚀 Your Responsibilities:</h3>
+      <ul>
+        <li>Process incoming packages efficiently</li>
+        <li>Update package statuses in real-time</li>
+        <li>Handle customer inquiries professionally</li>
+        <li>Maintain accurate inventory records</li>
+        <li>Follow all operational procedures</li>
+      </ul>
+      
+      <a href="https://cleanjshipping.com/login" class="button">Access Your Staff Account</a>
+      
+      <h3>📚 Quick Start Guide:</h3>
+      <ol>
+        <li>Log in with your email and password above</li>
+        <li>Familiarize yourself with the dashboard</li>
+        <li>Review the operational procedures</li>
+        <li>Start processing packages under supervision</li>
+      </ol>
+      
+      <p>For training and support, contact your supervisor or the admin team.</p>
+      <p>We're excited to have you on board! 🎉</p>
     `);
   }
 

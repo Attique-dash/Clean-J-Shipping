@@ -72,8 +72,12 @@ export async function GET(req: Request) {
     // Build query filter
     const filter: Record<string, unknown> = {};
     
+    function escapeRegex(str: string): string {
+      return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    
     if (q) {
-      const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      const regex = new RegExp(escapeRegex(q), "i");
       filter.$or = [
         { trackingNumber: regex },
         { description: regex },

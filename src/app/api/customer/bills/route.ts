@@ -128,20 +128,33 @@ export async function GET(req: Request) {
       };
       const recs = Array.isArray(pkg.invoiceRecords) ? pkg.invoiceRecords : [];
       
-      // Use package's totalAmount or shippingCost as fallback if no invoice records
-      // Handle missing fields - default to 0 if no financial data exists
-      const packageAmount = (typeof pkg.totalAmount === "number" && pkg.totalAmount > 0) ? pkg.totalAmount : 
-                           (typeof pkg.shippingCost === "number" && pkg.shippingCost > 0) ? pkg.shippingCost : 0;
-      
+      // Use package's totalAmount (includes tax) as primary source
+      // Fallback to shippingCost + 15% tax if totalAmount not set
+      let packageAmount = 0;
+      if (typeof pkg.totalAmount === "number" && pkg.totalAmount > 0) {
+        packageAmount = pkg.totalAmount;
+      } else if (typeof pkg.shippingCost === "number" && pkg.shippingCost > 0) {
+        packageAmount = pkg.shippingCost + (pkg.shippingCost * 0.15); // Add 15% tax
+      }
             
       if (recs.length === 0) {
         const docs = Array.isArray(pkg.invoiceDocuments) ? pkg.invoiceDocuments : [];
-        const payment_status: Bill["payment_status"] = docs.length > 0 ? "submitted" : "none";
+        let payment_status: Bill["payment_status"];
+        let description: string;
+        
+        if (packageAmount > 0) {
+          payment_status = "submitted"; // Package has automatic invoice
+          description = `${pkg.itemDescription || pkg.description} (Auto-generated invoice)`;
+        } else {
+          payment_status = docs.length > 0 ? "submitted" : "none";
+          description = pkg.itemDescription || pkg.description || "Invoice pending generation";
+        }
+        
         return [
           {
             tracking_number: pkg.trackingNumber,
-            description: pkg.itemDescription || pkg.description,
-            invoice_number: `PKG-${pkg.trackingNumber}`,
+            description,
+            invoice_number: packageAmount > 0 ? `AUTO-INV-${pkg.trackingNumber}` : `PKG-${pkg.trackingNumber}`,
             invoice_date: pkg.createdAt ? new Date(pkg.createdAt).toISOString() : undefined,
             amount_due: packageAmount,
             payment_status,

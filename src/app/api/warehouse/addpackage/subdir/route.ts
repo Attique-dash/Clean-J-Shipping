@@ -111,7 +111,16 @@ export async function POST(req: Request) {
         pieces: Number.isFinite(Number(item?.Pieces)) ? Number(item.Pieces) : undefined,
       };
 
-      await Package.findOneAndUpdate(
+      // Calculate shipping cost and generate invoice
+      const weightLbs = weight ? (weight * 2.20462) : 0; // Convert kg to lbs
+      const shippingCostJmd = 700 + (Math.max(0, Math.ceil(weightLbs) - 1) * 350); // First lb: 700JMD, additional: 350JMD each
+      const taxAmount = shippingCostJmd * 0.15; // 15% tax
+      const totalAmount = shippingCostJmd + taxAmount;
+      
+      // Generate invoice number
+      const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
+      
+      const updatedPackage = await Package.findOneAndUpdate(
         { trackingNumber },
         {
           $setOnInsert: {
@@ -139,6 +148,10 @@ export async function POST(req: Request) {
             width: initial.width,
             height: initial.height,
             pieces: initial.pieces,
+            // Add financial fields
+            shippingCost: shippingCostJmd,
+            totalAmount: totalAmount,
+            paymentStatus: "pending",
           },
           $push: {
             history: {
@@ -146,6 +159,14 @@ export async function POST(req: Request) {
               at: entryDate,
               note: "Received via external addpackage endpoint",
             },
+            invoiceRecords: {
+              invoiceNumber,
+              invoiceDate: entryDate,
+              totalValue: totalAmount,
+              currency: "JMD",
+              status: "sent",
+              amountPaid: 0,
+            }
           },
         },
         { upsert: true, new: true }

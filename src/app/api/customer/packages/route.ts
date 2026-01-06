@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       Package.find({
         userId: userId,
       })
-      .select('trackingNumber status itemDescription weight senderName currentLocation receiverName updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery')
+      .select('trackingNumber status itemDescription weight senderName currentLocation receiverName updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords')
       .sort({ createdAt: -1 })
       .limit(100)
       .lean(),
@@ -78,6 +78,18 @@ export async function GET(req: NextRequest) {
     const mapped = packages.map((p) => {
       const invoiceInfo = invoiceMap.get(p.trackingNumber) || { hasInvoice: false, invoiceNumber: null };
       
+      // Check for automatic invoice in package records
+      const hasAutoInvoice = Array.isArray((p as any).invoiceRecords) && (p as any).invoiceRecords.length > 0;
+      let invoiceStatus = 'pending';
+      
+      if (invoiceInfo.hasInvoice) {
+        invoiceStatus = 'submitted';
+      } else if (hasAutoInvoice) {
+        invoiceStatus = 'submitted'; // Auto-generated invoice
+      } else if ((p as any).totalAmount > 0 || (p as any).shippingCost > 0) {
+        invoiceStatus = 'submitted'; // Has financial data
+      }
+      
       return {
         id: p._id,
         tracking_number: p.trackingNumber,
@@ -95,9 +107,9 @@ export async function GET(req: NextRequest) {
         created_at: p.createdAt?.toISOString(),
         createdAt: p.createdAt?.toISOString(),
         estimated_delivery: p.estimatedDelivery?.toISOString(),
-        invoice_status: invoiceInfo.hasInvoice ? 'available' : 'pending',
-        hasInvoice: invoiceInfo.hasInvoice,
-        invoiceNumber: invoiceInfo.invoiceNumber,
+        invoice_status: invoiceStatus,
+        hasInvoice: invoiceInfo.hasInvoice || hasAutoInvoice,
+        invoiceNumber: invoiceInfo.invoiceNumber || (hasAutoInvoice ? `AUTO-${p.trackingNumber}` : null),
         shipping_cost: p.shippingCost,
         total_amount: p.totalAmount,
         last_scan: p.lastScan?.toISOString(),

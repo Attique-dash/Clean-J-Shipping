@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Receipt, Lock, CheckCircle, DollarSign, Calendar, MapPin, Plus, Eye, CreditCard, X, Loader2, Clock, Trash2 } from "lucide-react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import toast, { Toaster } from "react-hot-toast";
@@ -40,6 +40,7 @@ export default function BillsPage() {
   const [revenueData, setRevenueData] = useState<Array<{ month: string; revenue: number; packages: number }>>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; bill: Bill | null }>({ open: false, bill: null });
   const { selectedCurrency, setSelectedCurrency, convertAmount, formatCurrency } = useCurrency();
+  const loadingRef = useRef(false); // Prevent multiple simultaneous requests
 
   // Helper function to convert and format amounts
   const convertAndFormatAmount = async (amount: number, fromCurrency: string) => {
@@ -66,6 +67,9 @@ export default function BillsPage() {
   });
 
   async function loadBills() {
+    if (loadingRef.current) return; // Prevent multiple simultaneous requests
+    loadingRef.current = true;
+    
     setLoading(true);
     setError(null);
     try {
@@ -111,6 +115,7 @@ export default function BillsPage() {
       setError(e instanceof Error ? e.message : "Failed to load bills");
     } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
   }
 
@@ -119,28 +124,41 @@ export default function BillsPage() {
   }, []);
 
   const totalBills = bills.length;
-  const totalAmount = bills.reduce((sum, b) => sum + b.dueAmount, 0);
-  const totalBalance = bills.reduce((sum, b) => sum + b.balance, 0);
+  const totalAmount = useMemo(() => bills.reduce((sum, b) => sum + b.dueAmount, 0), [bills]);
+  const totalBalance = useMemo(() => bills.reduce((sum, b) => sum + b.balance, 0), [bills]);
 
   // Convert totals to selected currency
   const [displayTotalAmount, setDisplayTotalAmount] = useState<string>("");
   const [displayTotalBalance, setDisplayTotalBalance] = useState<string>("");
 
-  useEffect(() => {
-    const updateDisplayAmounts = async () => {
+  const updateDisplayAmounts = useCallback(async () => {
+    if (loadingRef.current) return; // Prevent multiple simultaneous conversions
+    loadingRef.current = true;
+    
+    try {
       const convertedTotal = await convertAndFormatAmount(totalAmount, "JMD");
       const convertedBalance = await convertAndFormatAmount(totalBalance, "JMD");
       setDisplayTotalAmount(convertedTotal);
       setDisplayTotalBalance(convertedBalance);
-    };
+    } catch (error) {
+      console.error('Currency conversion error:', error);
+    } finally {
+      loadingRef.current = false;
+    }
+  }, [totalAmount, totalBalance, convertAndFormatAmount]);
+
+  useEffect(() => {
     updateDisplayAmounts();
-  }, [totalAmount, totalBalance, selectedCurrency]);
+  }, [updateDisplayAmounts]);
 
   // State for converted bill amounts
   const [convertedBills, setConvertedBills] = useState<Array<{id: string, dueAmount: string, paidAmount: string, balance: string}>>([]);
 
-  useEffect(() => {
-    const updateBillAmounts = async () => {
+  const updateBillAmounts = useCallback(async () => {
+    if (loadingRef.current || bills.length === 0) return; // Prevent multiple simultaneous conversions
+    loadingRef.current = true;
+    
+    try {
       const converted = await Promise.all(
         bills.map(async (bill) => {
           const convertedDue = await convertAndFormatAmount(bill.dueAmount, bill.currency || "JMD");
@@ -155,9 +173,16 @@ export default function BillsPage() {
         })
       );
       setConvertedBills(converted);
-    };
+    } catch (error) {
+      console.error('Bill currency conversion error:', error);
+    } finally {
+      loadingRef.current = false;
+    }
+  }, [bills, convertAndFormatAmount]);
+
+  useEffect(() => {
     updateBillAmounts();
-  }, [bills, selectedCurrency]);
+  }, [updateBillAmounts]);
 
   async function handleDeleteBill(billId: string) {
     if (!confirm('Are you sure you want to delete this bill? This action cannot be undone.')) {
