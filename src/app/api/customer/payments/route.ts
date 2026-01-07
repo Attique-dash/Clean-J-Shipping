@@ -165,7 +165,7 @@ async function handlePaymentProcessing(payload: any, body: any) {
     trackingNumber,
     amount: Number(amount),
     currency: currency || "JMD",
-    method: (paymentMethod === "paypal" ? "paypal" : paymentMethod) as any,
+    method: (paymentMethod === "paypal" ? "paypal" : "visa") as any,
     status: "captured",
     gatewayId: paypalOrderId || undefined,
     reference: invoiceRecords[invoiceRecords.length - 1]?.invoiceNumber || trackingNumber,
