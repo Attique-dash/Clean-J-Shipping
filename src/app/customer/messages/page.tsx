@@ -9,6 +9,8 @@ type Msg = {
   subject?: string;
   body: string;
   sender: "customer" | "support";
+  broadcastId?: string;
+  read?: boolean;
   createdAt?: string;
 };
 
@@ -20,6 +22,7 @@ export default function CustomerMessagesPage() {
   const [form, setForm] = useState({ subject: "", body: "" });
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [dismissedBroadcasts, setDismissedBroadcasts] = useState<Set<string>>(new Set());
   const endRef = useRef<HTMLDivElement | null>(null);
 
   async function load() {
@@ -45,18 +48,39 @@ export default function CustomerMessagesPage() {
     return () => clearInterval(id);
   }, []);
 
-  // Group messages by subject (conversation key). Fallback to "Support Team"
+  // Group messages by subject (conversation key). Handle broadcasts separately
   const conversations = useMemo(() => {
-    const map = new Map<string, { key: string; title: string; lastAt?: string; unread: number; lastMessage?: string }>();
-    for (const m of items) {
+    const map = new Map<string, { key: string; title: string; lastAt?: string; unread: number; lastMessage?: string; isBroadcast?: boolean; broadcastId?: string }>();
+    
+    // Separate broadcast messages and regular messages
+    const broadcastMessages = items.filter(m => m.broadcastId);
+    const regularMessages = items.filter(m => !m.broadcastId);
+    
+    // Handle broadcast messages
+    if (broadcastMessages.length > 0) {
+      const latestBroadcast = broadcastMessages[0]; // Most recent broadcast
+      map.set("📢 Broadcasts", {
+        key: "📢 Broadcasts",
+        title: "📢 Broadcasts",
+        lastAt: latestBroadcast.createdAt,
+        unread: broadcastMessages.filter(m => !m.read && !dismissedBroadcasts.has(m.broadcastId || "")).length,
+        lastMessage: latestBroadcast.body,
+        isBroadcast: true,
+        broadcastId: latestBroadcast.broadcastId
+      });
+    }
+    
+    // Handle regular messages
+    for (const m of regularMessages) {
       const key = (m.subject || "Support Team").trim() || "Support Team";
-      const cur = map.get(key) || { key, title: key, lastAt: m.createdAt, unread: 0, lastMessage: m.body };
+      const cur = map.get(key) || { key, title: key, lastAt: m.createdAt, unread: 0, lastMessage: m.body, isBroadcast: false };
       if (!cur.lastAt || (m.createdAt && new Date(m.createdAt) > new Date(cur.lastAt))) {
         cur.lastAt = m.createdAt;
         cur.lastMessage = m.body;
       }
       map.set(key, cur);
     }
+    
     // Filter by search query
     let filtered = Array.from(map.values());
     if (searchQuery.trim()) {
@@ -66,14 +90,37 @@ export default function CustomerMessagesPage() {
         (c.lastMessage?.toLowerCase().includes(q))
       );
     }
-    // Sort by last activity desc
-    return filtered.sort((a, b) => new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime());
-  }, [items, searchQuery]);
+    // Sort by last activity desc, but keep broadcasts at top
+    return filtered.sort((a, b) => {
+      if (a.isBroadcast && !b.isBroadcast) return -1;
+      if (!a.isBroadcast && b.isBroadcast) return 1;
+      return new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime();
+    });
+  }, [items, searchQuery, dismissedBroadcasts]);
 
   const thread = useMemo(() => {
     const key = activeKey || conversations[0]?.key || null;
-    return key ? items.filter((m) => (m.subject || "Support Team").trim() === key) : [];
+    if (!key) return [];
+    
+    // Handle broadcast thread
+    if (key === "📢 Broadcasts") {
+      return items.filter(m => m.broadcastId);
+    }
+    
+    // Handle regular threads
+    return items.filter((m) => !m.broadcastId && (m.subject || "Support Team").trim() === key);
   }, [items, conversations, activeKey]);
+
+  function dismissBroadcast(broadcastId: string) {
+    setDismissedBroadcasts(prev => new Set([...prev, broadcastId]));
+    
+    // Also mark as read in the database
+    fetch("/api/customer/messages/dismiss-broadcast", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ broadcastId })
+    }).catch(console.error);
+  }
 
   useEffect(() => {
     // Scroll to bottom when thread changes
@@ -281,7 +328,11 @@ export default function CustomerMessagesPage() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center space-x-2 mb-1">
                                   <div className={`p-1.5 rounded-full ${isActive ? 'bg-[#0f4d8a]' : 'bg-gray-200'}`}>
-                                    <Headphones className={`h-3 w-3 ${isActive ? 'text-white' : 'text-gray-600'}`} />
+                                    {c.isBroadcast ? (
+                                      <MessageSquare className={`h-3 w-3 ${isActive ? 'text-white' : 'text-gray-600'}`} />
+                                    ) : (
+                                      <Headphones className={`h-3 w-3 ${isActive ? 'text-white' : 'text-gray-600'}`} />
+                                    )}
                                   </div>
                                   <div className={`text-sm font-semibold truncate ${isActive ? 'text-[#0f4d8a]' : 'text-gray-900'}`}>
                                     {c.title}
@@ -297,11 +348,25 @@ export default function CustomerMessagesPage() {
                                   <span>{c.lastAt ? new Date(c.lastAt).toLocaleString() : ""}</span>
                                 </div>
                               </div>
-                              {c.unread > 0 && (
-                                <span className="flex-shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-full bg-[#E67919] text-white text-xs font-bold">
-                                  {c.unread}
-                                </span>
-                              )}
+                              <div className="flex items-center space-x-2">
+                                {c.isBroadcast && c.unread > 0 && !dismissedBroadcasts.has(c.broadcastId || "") && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      dismissBroadcast(c.broadcastId || "");
+                                    }}
+                                    className="flex-shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-full bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition-colors"
+                                    title="Dismiss broadcast notification"
+                                  >
+                                    1
+                                  </button>
+                                )}
+                                {!c.isBroadcast && c.unread > 0 && (
+                                  <span className="flex-shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-full bg-[#E67919] text-white text-xs font-bold">
+                                    {c.unread}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </button>
                         );
@@ -317,11 +382,17 @@ export default function CustomerMessagesPage() {
                 <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8]">
                   <div className="flex items-center space-x-3">
                     <div className="p-2 bg-white/20 rounded-lg">
-                      <Headphones className="h-5 w-5 text-white" />
+                      {currentConversationTitle === "📢 Broadcasts" ? (
+                        <MessageSquare className="h-5 w-5 text-white" />
+                      ) : (
+                        <Headphones className="h-5 w-5 text-white" />
+                      )}
                     </div>
                     <div>
                       <h3 className="text-base font-semibold text-white">{currentConversationTitle}</h3>
-                      <p className="text-xs text-blue-100">Support Team - Online</p>
+                      <p className="text-xs text-blue-100">
+                        {currentConversationTitle === "📢 Broadcasts" ? "Admin Announcements" : "Support Team - Online"}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -346,6 +417,7 @@ export default function CustomerMessagesPage() {
                     <>
                       {thread.map((m) => {
                         const isCustomer = m.sender === "customer";
+                        const isBroadcast = !!m.broadcastId;
                         return (
                           <div 
                             key={m._id} 
@@ -356,10 +428,14 @@ export default function CustomerMessagesPage() {
                               <div className={`flex-shrink-0 p-2 rounded-full ${
                                 isCustomer 
                                   ? 'bg-gradient-to-br from-[#0f4d8a] to-[#1e6bb8]' 
+                                  : isBroadcast
+                                  ? 'bg-gradient-to-br from-purple-500 to-purple-600'
                                   : 'bg-gradient-to-br from-[#E67919] to-[#f59e42]'
                               }`}>
                                 {isCustomer ? (
                                   <User className="h-4 w-4 text-white" />
+                                ) : isBroadcast ? (
+                                  <MessageSquare className="h-4 w-4 text-white" />
                                 ) : (
                                   <Headphones className="h-4 w-4 text-white" />
                                 )}
@@ -370,11 +446,18 @@ export default function CustomerMessagesPage() {
                                 <div className={`rounded-2xl px-4 py-3 shadow-md ${
                                   isCustomer 
                                     ? "bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-br-none" 
+                                    : isBroadcast
+                                    ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-bl-none border-2 border-purple-300"
                                     : "bg-white text-gray-900 border border-gray-200 rounded-bl-none"
                                 }`}>
                                   <div className="text-sm whitespace-pre-wrap break-words">
                                     {m.body}
                                   </div>
+                                  {isBroadcast && (
+                                    <div className="mt-2 pt-2 border-t border-purple-300">
+                                      <p className="text-xs text-purple-100 italic">📢 Official Broadcast from Admin</p>
+                                    </div>
+                                  )}
                                 </div>
                                 <div className={`flex items-center space-x-1 mt-1 text-[10px] ${
                                   isCustomer ? 'justify-end text-gray-500' : 'text-gray-400'
@@ -397,61 +480,73 @@ export default function CustomerMessagesPage() {
                   )}
                 </div>
 
-                {/* Input Area */}
-                <form onSubmit={onSubmit} className="border-t border-gray-200 bg-white p-4">
-                  <div className="space-y-3">
-                    {/* Subject Input (optional, hidden on mobile) */}
-                    <input
-                      className="hidden md:block w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
-                      placeholder="Subject (optional)"
-                      value={form.subject}
-                      onChange={(e) => setForm({ ...form, subject: e.target.value })}
-                    />
+                {/* Input Area - Only show for non-broadcast conversations */}
+                {currentConversationTitle !== "📢 Broadcasts" && (
+                  <form onSubmit={onSubmit} className="border-t border-gray-200 bg-white p-4">
+                    <div className="space-y-3">
+                      {/* Subject Input (optional, hidden on mobile) */}
+                      <input
+                        className="hidden md:block w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
+                        placeholder="Subject (optional)"
+                        value={form.subject}
+                        onChange={(e) => setForm({ ...form, subject: e.target.value })}
+                      />
 
-                    {/* Message Input */}
-                    <div className="flex items-end gap-3">
-                      <div className="flex-1">
-                        <textarea
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm resize-none"
-                          placeholder="Type your message..."
-                          rows={2}
-                          value={form.body}
-                          onChange={(e) => setForm({ ...form, body: e.target.value })}
-                          required
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              onSubmit(e as any);
-                            }
-                          }}
-                        />
+                      {/* Message Input */}
+                      <div className="flex items-end gap-3">
+                        <div className="flex-1">
+                          <textarea
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm resize-none"
+                            placeholder="Type your message..."
+                            rows={2}
+                            value={form.body}
+                            onChange={(e) => setForm({ ...form, body: e.target.value })}
+                            required
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                onSubmit(e as any);
+                              }
+                            }}
+                          />
+                        </div>
+                        <button 
+                          type="submit"
+                          disabled={saving || !form.body.trim()}
+                          className="flex-shrink-0 p-4 bg-gradient-to-r from-[#E67919] to-[#f59e42] text-white rounded-lg hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {saving ? (
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                          ) : (
+                            <Send className="h-5 w-5" />
+                          )}
+                        </button>
                       </div>
-                      <button 
-                        type="submit"
-                        disabled={saving || !form.body.trim()}
-                        className="flex-shrink-0 p-4 bg-gradient-to-r from-[#E67919] to-[#f59e42] text-white rounded-lg hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {saving ? (
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : (
-                          <Send className="h-5 w-5" />
-                        )}
-                      </button>
+
+                      {/* Hint Text */}
+                      <p className="text-xs text-gray-400 text-center">
+                        Press Enter to send • Shift + Enter for new line
+                      </p>
                     </div>
 
-                    {/* Hint Text */}
-                    <p className="text-xs text-gray-400 text-center">
-                      Press Enter to send • Shift + Enter for new line
-                    </p>
+                    {/* Error Message */}
+                    {error && (
+                      <div className="mt-3 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                        {error}
+                      </div>
+                    )}
+                  </form>
+                )}
+
+                {/* Broadcast Notice */}
+                {currentConversationTitle === "📢 Broadcasts" && (
+                  <div className="border-t border-gray-200 bg-purple-50 p-4 text-center">
+                    <div className="flex items-center justify-center space-x-2 text-purple-600">
+                      <MessageSquare className="h-4 w-4" />
+                      <p className="text-sm font-medium">Broadcast messages are read-only announcements from admin</p>
+                    </div>
                   </div>
-
-                  {/* Error Message */}
-                  {error && (
-                    <div className="mt-3 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                      {error}
-                    </div>
-                  )}
-                </form>
+                )}
               </div>
             </div>
           </div>

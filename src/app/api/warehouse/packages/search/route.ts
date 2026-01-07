@@ -64,7 +64,10 @@ export async function GET(req: Request) {
   const limit = parseInt(url.searchParams.get("limit") || "50");
 
   // Build filter
-  const filter: Record<string, any> = {};
+  const filter: Record<string, unknown> = {
+    // IMPORTANT: Exclude soft-deleted packages (status = "returned")
+    status: { $ne: "returned" }
+  };
 
   function escapeRegex(str: string): string {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

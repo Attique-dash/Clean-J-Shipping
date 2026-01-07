@@ -3,10 +3,121 @@ import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
 import { User } from "@/models/User";
 import { PreAlert } from "@/models/PreAlert";
+import Invoice from "@/models/Invoice";
 import { getAuthFromRequest } from "@/lib/rbac";
 import { addPackageSchema } from "@/lib/validators";
 import { sendNewPackageEmail } from "@/lib/email";
 import { startSession } from "mongoose";
+
+function asNumber(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
+function calcShippingCostJmd(weightLbs: number): number {
+  if (weightLbs <= 0) return 0;
+  const first = 700;
+  const additional = Math.max(0, Math.ceil(weightLbs) - 1) * 350;
+  return first + additional;
+}
+
+function calculateTotalAmount(itemValue: number, weight: number): number {
+  // Convert item value from USD to JMD (assuming 1 USD = 155 JMD)
+  const itemValueJmd = itemValue * 155;
+  
+  // Calculate shipping cost based on weight (convert to lbs first)
+  const weightLbs = weight * 2.20462;
+  const shippingCostJmd = calcShippingCostJmd(weightLbs);
+  
+  // Calculate customs duty (15% of item value if > $100 USD)
+  const customsDutyJmd = itemValue > 100 ? itemValueJmd * 0.15 : 0;
+  
+  // Total: shipping + customs (item value is for customs only, not charged to customer)
+  return shippingCostJmd + customsDutyJmd;
+}
+
+async function createBillingInvoice(packageData: any, user: any, trackingNumber: string) {
+  try {
+    const itemValue = asNumber(packageData.value) || 0;
+    const weight = asNumber(packageData.weight) || 0;
+    const weightLbs = weight * 2.20462;
+    
+    // Calculate costs
+    const shippingCostJmd = calcShippingCostJmd(weightLbs);
+    const itemValueJmd = itemValue * 155;
+    const customsDutyJmd = itemValue > 100 ? itemValueJmd * 0.15 : 0;
+    const totalAmount = shippingCostJmd + customsDutyJmd;
+    
+    // Create invoice items
+    const invoiceItems = [];
+    
+    // Shipping charges
+    if (shippingCostJmd > 0) {
+      invoiceItems.push({
+        description: `Shipping charges (${weightLbs.toFixed(1)} lbs)`,
+        quantity: 1,
+        unitPrice: shippingCostJmd,
+        taxRate: 0,
+        amount: shippingCostJmd,
+        taxAmount: 0,
+        total: shippingCostJmd
+      });
+    }
+    
+    // Customs duty
+    if (customsDutyJmd > 0) {
+      invoiceItems.push({
+        description: `Customs duty (${itemValue > 100 ? '15%' : '0%'} of item value)`,
+        quantity: 1,
+        unitPrice: customsDutyJmd,
+        taxRate: 0,
+        amount: customsDutyJmd,
+        taxAmount: 0,
+        total: customsDutyJmd
+      });
+    }
+    
+    // Create invoice
+    const invoiceData = {
+      invoiceNumber: `INV-${trackingNumber}`,
+      invoiceType: "billing",
+      customer: {
+        id: user._id,
+        name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.userCode,
+        email: user.email || '',
+        address: user.address?.street || '',
+        phone: user.phone || ''
+      },
+      package: {
+        trackingNumber: trackingNumber,
+        userCode: user.userCode
+      },
+      status: "unpaid",
+      issueDate: new Date(),
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+      currency: "JMD",
+      subtotal: shippingCostJmd + customsDutyJmd,
+      taxTotal: 0,
+      discountAmount: 0,
+      total: totalAmount,
+      amountPaid: 0,
+      balanceDue: totalAmount,
+      items: invoiceItems,
+      notes: `Auto-generated billing invoice for package ${trackingNumber}`,
+      userId: user._id
+    };
+    
+    const invoice = await Invoice.create(invoiceData);
+    return invoice;
+  } catch (error) {
+    console.error('Error creating billing invoice:', error);
+    return null;
+  }
+}
 
 export async function POST(req: Request) {
   const auth = await getAuthFromRequest(req);
@@ -29,6 +140,11 @@ export async function POST(req: Request) {
   }
 
   const { trackingNumber, userCode, weight, shipper, description, itemDescription, entryDate, status, dimensions, recipient, sender, contents, value, specialInstructions, receivedBy, warehouse } = parsed.data;
+
+  // Calculate shipping costs like admin does
+  const itemValueNum = asNumber(value);
+  const weightNum = asNumber(weight);
+  const shippingCost = calculateTotalAmount(itemValueNum, weightNum);
 
   // Normalize received date to start of day UTC if a date-only string is supplied
   let now = new Date(entryDate ?? Date.now());
@@ -67,6 +183,10 @@ export async function POST(req: Request) {
           description: typeof description === "string" ? description : undefined,
           status: status || "received",
           updatedAt: now,
+          // Add calculated costs like admin
+          shippingCost: shippingCost,
+          totalAmount: shippingCost,
+          paymentMethod: "cash",
           // Recipient information
           receiverName: recipient?.name || undefined,
           receiverEmail: recipient?.email || undefined,
@@ -100,6 +220,22 @@ export async function POST(req: Request) {
           entryStaff: typeof receivedBy === "string" ? receivedBy : undefined,
           branch: typeof warehouse === "string" ? warehouse : undefined,
           entryDate: entryDate ? new Date(entryDate) : undefined,
+          // Add sender and recipient objects like admin API
+          recipient: {
+            name: recipient?.name || `${customer.firstName} ${customer.lastName}`.trim() || "Customer",
+            email: recipient?.email || customer.email,
+            shippingId: customer.userCode,
+            phone: recipient?.phone || customer.phone || "",
+            address: recipient?.address || customer.address?.street || "",
+            country: (recipient as any)?.country || customer.address?.country || ""
+          },
+          sender: sender || {
+            name: "Warehouse",
+            email: "warehouse@shipping.com",
+            phone: "0000000000",
+            address: warehouse || "Main Warehouse",
+            country: (sender as any)?.country || ""
+          },
         },
         $push: {
           history: {
@@ -130,6 +266,33 @@ export async function POST(req: Request) {
     }
 
     await session.commitTransaction();
+
+    // FIXED: Create proper billing invoice automatically (like admin does)
+    try {
+      const packageDataForInvoice = {
+        value: value,
+        weight: weight,
+        trackingNumber: trackingNumber
+      };
+      
+      const billingInvoice = await createBillingInvoice(packageDataForInvoice, customer, trackingNumber);
+      if (billingInvoice) {
+        // Link invoice to package
+        await Package.findOneAndUpdate(
+          { trackingNumber },
+          {
+            $set: { 
+              billingInvoiceId: billingInvoice._id,
+              invoiceStatus: 'billed'
+            }
+          }
+        );
+        console.log(`Billing invoice created for warehouse package ${trackingNumber}: ${billingInvoice.invoiceNumber}`);
+      }
+    } catch (invoiceError) {
+      console.error('Failed to create billing invoice for warehouse package:', invoiceError);
+      // Don't fail package creation if invoice creation fails
+    }
 
     // Fire-and-forget email after commit
     // We need customer context outside; reusing local var within this block

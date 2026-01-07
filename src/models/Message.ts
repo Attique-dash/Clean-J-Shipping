@@ -10,6 +10,7 @@ export interface IMessage {
   body: string;
   sender: MessageSender;
   read?: boolean;
+  broadcastId?: Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -22,6 +23,7 @@ const MessageSchema = new Schema<IMessage>(
     body: { type: String, required: true },
     sender: { type: String, enum: ["customer", "support"], required: true },
     read: { type: Boolean, default: false },
+    broadcastId: { type: Schema.Types.ObjectId, ref: "Broadcast" },
   },
   { timestamps: true }
 );

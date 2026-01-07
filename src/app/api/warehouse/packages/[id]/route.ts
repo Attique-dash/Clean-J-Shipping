@@ -4,6 +4,37 @@ import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
 import { getAuthFromRequest } from "@/lib/rbac";
 
+function asNumber(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
+function calcShippingCostJmd(weightLbs: number): number {
+  if (weightLbs <= 0) return 0;
+  const first = 700;
+  const additional = Math.max(0, Math.ceil(weightLbs) - 1) * 350;
+  return first + additional;
+}
+
+function calculateTotalAmount(itemValue: number, weight: number): number {
+  // Convert item value from USD to JMD (assuming 1 USD = 155 JMD)
+  const itemValueJmd = itemValue * 155;
+  
+  // Calculate shipping cost based on weight (convert to lbs first)
+  const weightLbs = weight * 2.20462;
+  const shippingCostJmd = calcShippingCostJmd(weightLbs);
+  
+  // Calculate customs duty (15% of item value if > $100 USD)
+  const customsDutyJmd = itemValue > 100 ? itemValueJmd * 0.15 : 0;
+  
+  // Total: shipping + customs (item value is for customs only, not charged to customer)
+  return shippingCostJmd + customsDutyJmd;
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const auth = await getAuthFromRequest(req);
@@ -44,9 +75,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
     }
     
+    // Calculate shipping costs if weight or value provided
+    const itemValueNum = asNumber(body.value !== undefined ? body.value : existingPackage.value);
+    const weightNum = asNumber(body.weight !== undefined ? body.weight : existingPackage.weight);
+    const shippingCost = calculateTotalAmount(itemValueNum, weightNum);
+    
     // Create update object with proper field mapping
     const updateData: any = {
       updatedAt: new Date(),
+      // Add calculated costs like admin
+      shippingCost: shippingCost,
+      totalAmount: shippingCost,
+      paymentMethod: "cash",
       // Basic fields - only update if provided
       ...(body.trackingNumber && { trackingNumber: body.trackingNumber }),
       ...(body.userCode && { userCode: body.userCode }),

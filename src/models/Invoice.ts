@@ -17,6 +17,7 @@ export interface IInvoiceItem {
 export interface IInvoice extends Document {
   userId?: string; // Add userId field for easier querying
   invoiceNumber: string;
+  invoiceType: 'billing' | 'commercial' | 'system'; // NEW: Invoice type separation
   customer: {
     id: string;
     name: string;
@@ -29,7 +30,7 @@ export interface IInvoice extends Document {
     phone?: string;
   };
   items: IInvoiceItem[];
-  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  status: 'draft' | 'sent' | 'paid' | 'unpaid' | 'overdue' | 'cancelled';
   issueDate: Date;
   dueDate: Date;
   paymentTerms: number;
@@ -98,6 +99,12 @@ const InvoiceSchema = new Schema<IInvoice>({
     unique: true,
     index: true
   },
+  invoiceType: {
+    type: String,
+    enum: ['billing', 'commercial', 'system'],
+    default: 'billing',
+    required: true
+  },
   customer: {
     id: { type: String, required: true },
     name: { type: String, required: true },
@@ -121,7 +128,7 @@ const InvoiceSchema = new Schema<IInvoice>({
   },
   status: {
     type: String,
-    enum: ['draft', 'sent', 'paid', 'overdue', 'cancelled'],
+    enum: ['draft', 'sent', 'paid', 'unpaid', 'overdue', 'cancelled'],
     default: 'draft'
   },
   issueDate: { type: Date, required: true, default: Date.now },

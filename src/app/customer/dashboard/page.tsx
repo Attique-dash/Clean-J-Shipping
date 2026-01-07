@@ -54,16 +54,35 @@ export default function CustomerDashboardPage() {
   const [upcomingShipments, setUpcomingShipments] = useState<PackageData[]>([]);
   const [pendingPayments, setPendingPayments] = useState<BillData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [trackingNumber, setTrackingNumber] = useState("");
   const [showTracker, setShowTracker] = useState(false);
   const [trackingError, setTrackingError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadStats();
-  }, []);
+    if (session?.user) {
+      loadStats();
+      
+      // Check for auto-fill tracking number from sessionStorage
+      const savedTrackingNumber = sessionStorage.getItem('trackingNumber');
+      if (savedTrackingNumber) {
+        setTrackingNumber(savedTrackingNumber);
+        // Clear it after using
+        sessionStorage.removeItem('trackingNumber');
+      }
+    } else if (session === null) {
+      // Session is explicitly null (not undefined), user is not authenticated
+      setLoading(false);
+    } else if (session === undefined) {
+      // Session is undefined, wait for it to load
+      return;
+    }
+  }, [session]);
 
   async function loadStats() {
     try {
+      console.log('Loading stats for user:', session?.user?.email);
+      
       // Load packages with proper authentication
       const packagesRes = await fetch("/api/customer/packages", {
         method: "GET",
@@ -74,10 +93,22 @@ export default function CustomerDashboardPage() {
         cache: "no-store", // Prevent caching to get fresh data
       });
 
+      console.log('Packages API response status:', packagesRes.status);
+
       if (!packagesRes.ok) {
         const errorData = await packagesRes.json();
         console.error("Packages API error:", errorData);
-        throw new Error(errorData?.error || `Failed to fetch packages: ${packagesRes.status}`);
+        
+        // Show specific error message based on status
+        if (packagesRes.status === 401) {
+          throw new Error("Please log in to view your packages");
+        } else if (packagesRes.status === 403) {
+          throw new Error("You don't have permission to access these packages");
+        } else if (packagesRes.status >= 500) {
+          throw new Error("Server error. Please try again later");
+        } else {
+          throw new Error(errorData?.error || `Failed to fetch packages: ${packagesRes.status}`);
+        }
       }
 
       const packagesData = await packagesRes.json();
@@ -134,6 +165,9 @@ export default function CustomerDashboardPage() {
       );
     } catch (error) {
       console.error("Error loading stats:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to load dashboard data";
+      setError(errorMessage);
+      
       // Set default values on error to prevent UI crashes
       setStats({
         totalPackages: 0,
@@ -196,12 +230,36 @@ export default function CustomerDashboardPage() {
     }
   };
 
-  if (loading) {
+  // Show loading while checking authentication
+  if (loading && session === undefined) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-12 w-12 text-[#0f4d8a] animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 font-medium">Loading your dashboard...</p>
+          <p className="text-gray-600 font-medium">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login prompt if user is not authenticated and not loading
+  if (!session && !loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-red-500 to-orange-600 mx-auto mb-6">
+              <AlertCircle className="h-8 w-8 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Authentication Required</h2>
+            <p className="text-gray-600 mb-6">Please log in to access your customer dashboard</p>
+            <Link
+              href="/login"
+              className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-xl hover:shadow-lg transition-all font-medium"
+            >
+              Sign In to Your Account
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -219,6 +277,35 @@ export default function CustomerDashboardPage() {
         </div>
 
         <div className="relative z-10 space-y-6">
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-start space-x-3">
+              <div className="flex-shrink-0">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-800">{error}</p>
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setError(null);
+                      loadStats();
+                    }}
+                    className="text-sm bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    Retry
+                  </button>
+                  <button
+                    onClick={() => setError(null)}
+                    className="text-sm text-red-600 hover:text-red-800 underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Header Section */}
           <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl">
             <div className="absolute inset-0 bg-white/10" />

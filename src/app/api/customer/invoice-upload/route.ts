@@ -115,7 +115,15 @@ export async function POST(req: Request) {
           purchase_date: upload.purchase_date,
           files: savedFiles,
           upload_date: new Date(),
-          status: "submitted"
+          status: "submitted",
+          invoiceType: "commercial", // NEW: Mark as commercial invoice for customs
+          invoiceNumber: `COMM-${Date.now()}`, // Different numbering for commercial
+          customer: {
+            id: userId,
+            name: "Customer Upload", // Will be updated with actual user data
+            email: "" // Will be updated with actual user data
+          },
+          items: [] // Commercial invoices don't have billing items
         };
 
         // Check if invoice already exists for this package

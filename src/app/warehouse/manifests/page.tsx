@@ -33,7 +33,7 @@ export default function WarehouseManifestsPage() {
   // Redirect if not authenticated or not warehouse staff
   useEffect(() => {
     if (status === 'unauthenticated') {
-      router.push('/warehouse/login');
+      router.push('/login');
     }
   }, [status, router]);
 

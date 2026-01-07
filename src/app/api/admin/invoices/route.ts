@@ -1,7 +1,7 @@
 // my-app/src/app/api/admin/invoices/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions } from '@/lib/auth-config';
 import { dbConnect } from '@/lib/db';
 import Invoice, { IInvoice, IInvoiceItem } from '@/models/Invoice';
 import { Types } from 'mongoose';
@@ -126,6 +126,7 @@ export async function GET(req: NextRequest) {
     const formattedInvoices = (invoices as unknown as InvoiceLean[]).map((inv) => ({
       _id: typeof inv._id === 'string' ? inv._id : inv._id?.toString() || '',
       invoiceNumber: String(inv.invoiceNumber || ''),
+      invoiceType: String(inv.invoiceType || 'billing'), // NEW: Include invoice type
       status: (() => {
         const totalAmount = Number(inv.total) || 0;
         const paidFromHistory = Array.isArray(inv.paymentHistory)
@@ -194,6 +195,15 @@ export async function GET(req: NextRequest) {
         date: payment.date ? new Date(String(payment.date)).toISOString() : new Date().toISOString(),
         method: String(payment.method || ''),
         reference: String(payment.reference || '')
+      })) : [],
+      // Commercial invoice fields
+      tracking_number: inv.tracking_number || '',
+      item_description: inv.item_description || '',
+      item_category: inv.item_category || '',
+      files: Array.isArray(inv.files) ? inv.files.map((file) => ({
+        originalName: file.originalName || '',
+        filename: file.filename || '',
+        path: file.path || ''
       })) : [],
       // Notes
       notes: String(inv.notes || ''),

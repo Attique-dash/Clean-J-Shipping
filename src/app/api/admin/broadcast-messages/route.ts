@@ -89,6 +89,7 @@ export async function POST(req: Request) {
         subject: string;
         body: string;
         sender: "support";
+        broadcastId: Types.ObjectId;
         createdAt: Date;
         updatedAt: Date;
       }> = withUserCode.map((u) => ({
@@ -97,6 +98,7 @@ export async function POST(req: Request) {
         subject: title,
         body,
         sender: "support",
+        broadcastId: created._id,
         createdAt: now,
         updatedAt: now,
       }));

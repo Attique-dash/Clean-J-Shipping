@@ -47,7 +47,7 @@ export default function WarehouseLayout({
   // Redirect if not authenticated
   useEffect(() => {
     if (status === 'unauthenticated') {
-      router.push('/warehouse/login');
+      router.push('/login');
     }
   }, [status, router]);
 

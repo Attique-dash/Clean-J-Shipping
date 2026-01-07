@@ -36,12 +36,13 @@ export async function GET(req: Request) {
     .limit(200)
     .lean();
 
-    // Transform the data to match frontend expectations
+    // Transform data to match frontend expectations
     const transformedMessages = messages.map(msg => ({
       _id: msg._id,
       subject: msg.subject,
       body: msg.body,
       sender: msg.sender,
+      broadcastId: msg.broadcastId,
       createdAt: msg.createdAt?.toISOString(),
       last_updated: msg.updatedAt?.toISOString(),
     }));

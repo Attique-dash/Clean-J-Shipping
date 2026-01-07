@@ -8,6 +8,7 @@ import { ExportService } from "@/lib/export-service";
 type Invoice = {
   _id: string;
   invoiceNumber: string;
+  invoiceType: "billing" | "commercial" | "system"; // NEW: Invoice type
   customer: {
     id: string;
     name: string;
@@ -51,6 +52,15 @@ type Invoice = {
     method: string;
     reference?: string;
   }>;
+  // Commercial invoice fields
+  tracking_number?: string;
+  item_description?: string;
+  item_category?: string;
+  files?: Array<{
+    originalName?: string;
+    filename?: string;
+    path?: string;
+  }>;
   createdAt: string;
   updatedAt: string;
 };
@@ -60,6 +70,7 @@ export default function InvoiceClient() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all"); // NEW: Invoice type filter
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [minAmount, setMinAmount] = useState<string>("");
@@ -94,6 +105,34 @@ export default function InvoiceClient() {
     }).format(Number(amount) || 0);
   };
 
+  // NEW: Helper functions for invoice types
+  const getInvoiceTypeColor = (type: string) => {
+    switch (type) {
+      case 'billing': return 'bg-blue-100 text-blue-700 border-blue-300';
+      case 'commercial': return 'bg-green-100 text-green-700 border-green-300';
+      case 'system': return 'bg-gray-100 text-gray-700 border-gray-300';
+      default: return 'bg-gray-100 text-gray-700 border-gray-300';
+    }
+  };
+
+  const getInvoiceTypeIcon = (type: string) => {
+    switch (type) {
+      case 'billing': return '💰';
+      case 'commercial': return '📋';
+      case 'system': return '⚙️';
+      default: return '📄';
+    }
+  };
+
+  const getInvoiceTypeLabel = (type: string) => {
+    switch (type) {
+      case 'billing': return 'Billing';
+      case 'commercial': return 'Commercial';
+      case 'system': return 'System';
+      default: return 'Unknown';
+    }
+  };
+
   const filteredInvoices = invoices.filter((invoice) => {
     const q = searchTerm.trim().toLowerCase();
     const matchesSearch =
@@ -103,6 +142,7 @@ export default function InvoiceClient() {
       invoice.customer?.email.toLowerCase().includes(q) ||
       (invoice.package?.trackingNumber || "").toLowerCase().includes(q);
     const matchesStatus = statusFilter === "all" || invoice.status === statusFilter;
+    const matchesType = typeFilter === "all" || invoice.invoiceType === typeFilter;
 
     const issue = invoice.issueDate ? new Date(invoice.issueDate) : null;
     const due = invoice.dueDate ? new Date(invoice.dueDate) : null;
@@ -133,7 +173,7 @@ export default function InvoiceClient() {
       return true;
     })();
 
-    return matchesSearch && matchesStatus && matchesDate && matchesAmount;
+    return matchesSearch && matchesStatus && matchesType && matchesDate && matchesAmount;
   });
 
   const getStatusColor = (status: string) => {
@@ -436,6 +476,20 @@ export default function InvoiceClient() {
                   <option value="cancelled">Cancelled</option>
                 </select>
               </div>
+
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold text-gray-600">Type:</span>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0891b2] focus:border-transparent transition-all"
+                >
+                  <option value="all">All Types</option>
+                  <option value="billing">💰 Billing</option>
+                  <option value="commercial">📋 Commercial</option>
+                  <option value="system">⚙️ System</option>
+                </select>
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mt-4">
@@ -532,6 +586,7 @@ export default function InvoiceClient() {
                 <thead className="bg-gray-50">
                   <tr className="text-xs font-semibold text-gray-600">
                     <th className="px-4 py-3">Invoice Number</th>
+                    <th className="px-4 py-3">Type</th>
                     <th className="px-4 py-3">Customer</th>
                     <th className="px-4 py-3">Date</th>
                     <th className="px-4 py-3">Due Date</th>
@@ -546,6 +601,12 @@ export default function InvoiceClient() {
                   {filteredInvoices.map((invoice) => (
                     <tr key={invoice._id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-semibold text-gray-900">{invoice.invoiceNumber}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold border ${getInvoiceTypeColor(invoice.invoiceType || 'billing')}`}>
+                          <span>{getInvoiceTypeIcon(invoice.invoiceType || 'billing')}</span>
+                          {getInvoiceTypeLabel(invoice.invoiceType || 'billing')}
+                        </span>
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col">
                           <span className="font-medium text-gray-900">{invoice.customer?.name || 'N/A'}</span>

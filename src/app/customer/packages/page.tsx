@@ -3,7 +3,8 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { Package, Search, MapPin, Filter, X, Calendar, Weight, Download, ExternalLink, RefreshCw, Loader2, Eye, User } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { Package, Search, MapPin, Filter, X, Calendar, Weight, Download, ExternalLink, RefreshCw, Loader2, Eye, User, Plane, Ship } from "lucide-react";
 import { toast } from "react-toastify";
 
 type UIPackage = {
@@ -40,9 +41,12 @@ type UIPackage = {
   senderPhone?: string;
   senderAddress?: string;
   senderCountry?: string;
+  total_amount?: number;
+  shipping_cost?: number;
 };
 
 export default function CustomerPackagesPage() {
+  const { data: session } = useSession();
   const [items, setItems] = useState<UIPackage[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -110,10 +114,16 @@ export default function CustomerPackagesPage() {
   }, []);
 
   useEffect(() => {
-    load();
-    const id = setInterval(() => load(), 30000);
-    return () => clearInterval(id);
-  }, [load]);
+    // Only load on initial mount if user is authenticated
+    // Don't auto-refresh - user must click refresh button
+    if (session?.user) {
+      load();
+    } else if (session === null) {
+      // Session is explicitly null (not undefined), user is not authenticated
+      setLoading(false);
+    }
+    // If session is undefined, wait for it to load
+  }, [session?.user ? 'authenticated' : session === null ? 'unauthenticated' : 'loading']); // Stable dependency
 
   const filtered = useMemo(() => {
     return items.filter((p) => {
@@ -217,10 +227,48 @@ export default function CustomerPackagesPage() {
       toast.info(`📍 ${trackingNumber} is already in tracking dashboard`, { position: "top-right", autoClose: 3000 });
     }
     
+    // Store tracking number in sessionStorage for auto-fill
+    sessionStorage.setItem('trackingNumber', trackingNumber);
+    
     window.open('/customer/dashboard', '_blank');
   }
 
   const hasActiveFilters = query || locationQuery || statusFilter || dateFrom || dateTo || weightMin || weightMax;
+
+  // Show loading while checking authentication
+  if (loading && session === undefined) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 text-[#0f4d8a] animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 font-medium">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login prompt if user is not authenticated and not loading
+  if (!session && !loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-red-500 to-orange-600 mx-auto mb-6">
+              <Package className="h-8 w-8 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Authentication Required</h2>
+            <p className="text-gray-600 mb-6">Please log in to view your packages</p>
+            <Link
+              href="/login"
+              className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-xl hover:shadow-lg transition-all font-medium"
+            >
+              Sign In to Your Account
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
@@ -408,8 +456,16 @@ export default function CustomerPackagesPage() {
                             <h3 className="text-sm font-bold text-white mb-1 group-hover:underline cursor-pointer" onClick={() => handleViewDetails(p)}>
                               {p.tracking_number}
                             </h3>
-                            <p className="text-xs text-blue-100">
-                              {p.serviceMode?.toUpperCase() || 'AIR'} • {p.weight || 'N/A'}
+                            <p className="text-xs text-blue-100 flex items-center gap-1">
+                              {p.serviceMode?.toLowerCase() === 'ocean' ? (
+                                <><Ship className="h-3 w-3" /> {p.serviceMode?.toUpperCase() || 'OCEAN'}</>
+                              ) : p.serviceMode?.toLowerCase() === 'air' ? (
+                                <><Plane className="h-3 w-3" /> {p.serviceMode?.toUpperCase() || 'AIR'}</>
+                              ) : (
+                                <><Package className="h-3 w-3" /> {p.serviceMode?.toUpperCase() || 'LOCAL'}</>
+                              )}
+                              <span className="text-blue-200">•</span>
+                              <span>{p.weight || 'N/A'}</span>
                             </p>
                           </div>
                         </div>
@@ -418,9 +474,24 @@ export default function CustomerPackagesPage() {
                       <div className="p-4 space-y-4">
                         <div>
                           <p className="text-sm text-gray-900 font-medium mb-1 line-clamp-2">{p.description || <span className="text-gray-400">No description</span>}</p>
-                          {p.itemValueUsd && (
-                            <p className="text-sm font-semibold text-green-600">${p.itemValueUsd.toFixed(2)}</p>
-                          )}
+                          <div className="flex flex-col gap-1">
+                            {p.itemValueUsd && (
+                              <p className="text-xs text-gray-500">Item Value: ${p.itemValueUsd.toFixed(2)} USD</p>
+                            )}
+                            {p.total_amount && p.total_amount > 0 ? (
+                              <p className="text-sm font-semibold text-green-600">
+                                Shipping Cost: ${p.total_amount.toFixed(2)} JMD
+                              </p>
+                            ) : p.shipping_cost && p.shipping_cost > 0 ? (
+                              <p className="text-sm font-semibold text-green-600">
+                                Shipping Cost: ${p.shipping_cost.toFixed(2)} JMD
+                              </p>
+                            ) : (
+                              <p className="text-sm font-semibold text-orange-600">
+                                Shipping cost pending
+                              </p>
+                            )}
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 text-xs">
@@ -429,8 +500,8 @@ export default function CustomerPackagesPage() {
                             <p className="font-semibold text-gray-900">{p.daysInStorage || 0}</p>
                           </div>
                           <div className="bg-gray-50 rounded-lg p-2">
-                            <p className="text-gray-500 mb-1">Customs</p>
-                            <p className="font-semibold text-gray-900">{p.customsRequired ? 'Yes' : 'No'}</p>
+                            <p className="text-gray-500 mb-1">Shipper</p>
+                            <p className="font-semibold text-gray-900 truncate">{p.shipper || 'N/A'}</p>
                           </div>
                         </div>
 
@@ -446,7 +517,11 @@ export default function CustomerPackagesPage() {
                         <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                           <div className="flex items-center gap-1">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getStatusColor(p.status)}`}>
-                              {p.invoice_status === 'submitted' ? 'Invoice Generated' : p.invoice_status === 'none' ? 'Invoice Pending' : p.invoice_status || 'Pending'}
+                              {p.invoice_status === 'submitted' ? 'Invoice Generated' : 
+                               p.invoice_status === 'none' ? 'Invoice Pending' : 
+                               p.customsRequired && p.customsStatus !== 'cleared' ? 'Customs Pending' :
+                               p.payment_status === 'pending' ? 'Payment Pending' :
+                               p.invoice_status || 'Pending'}
                             </span>
                           </div>
                           <div className="flex items-center gap-1">
@@ -492,9 +567,21 @@ export default function CustomerPackagesPage() {
                     <div className="grid gap-3 md:grid-cols-2">
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Tracking:</span><span className="text-sm font-medium text-gray-900 font-mono">{packageToView.tracking_number}</span></div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Status:</span><span className={`text-xs font-semibold px-2 py-1 rounded-full border ${getStatusColor(packageToView.status)}`}>{statusLabel(packageToView.status)}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Service:</span><span className="text-xs font-semibold px-2 py-1 rounded-full border bg-sky-100 text-sky-800 border-sky-200">{String(packageToView.serviceMode || '').toUpperCase()}</span></div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Service:</span>
+                        <span className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full border bg-sky-100 text-sky-800 border-sky-200">
+                          {packageToView.serviceMode?.toLowerCase() === 'ocean' ? (
+                            <><Ship className="h-3 w-3" /> OCEAN</>
+                          ) : packageToView.serviceMode?.toLowerCase() === 'air' ? (
+                            <><Plane className="h-3 w-3" /> AIR</>
+                          ) : (
+                            <><Package className="h-3 w-3" /> LOCAL</>
+                          )}
+                        </span>
+                      </div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Weight:</span><span className="text-sm font-medium text-gray-900">{packageToView.weight || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Value:</span><span className="text-sm font-medium text-gray-900">{packageToView.itemValueUsd ? `${packageToView.itemValueUsd.toFixed(2)}` : 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Item Value:</span><span className="text-sm font-medium text-gray-900">{packageToView.itemValueUsd ? `$${packageToView.itemValueUsd.toFixed(2)} USD` : 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Shipping Cost:</span><span className="text-sm font-medium text-gray-900">{packageToView.total_amount ? `$${packageToView.total_amount.toFixed(2)} JMD` : packageToView.shipping_cost ? `$${packageToView.shipping_cost.toFixed(2)} JMD` : 'Pending'}</span></div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Date Received:</span><span className="text-sm font-medium text-gray-900">{packageToView.dateReceived ? new Date(packageToView.dateReceived).toLocaleDateString() : 'N/A'}</span></div>
                     </div>
                   </div>
@@ -505,7 +592,7 @@ export default function CustomerPackagesPage() {
                       Sender Information
                     </h4>
                     <div className="grid gap-2 md:grid-cols-2">
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Name:</span><span className="text-sm font-medium text-gray-900">{packageToView.shipper || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Shipper:</span><span className="text-sm font-semibold text-gray-900 bg-gray-100 px-2 py-1 rounded">{packageToView.shipper || 'N/A'}</span></div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderEmail || 'N/A'}</span></div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderPhone || 'N/A'}</span></div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderCountry || 'N/A'}</span></div>

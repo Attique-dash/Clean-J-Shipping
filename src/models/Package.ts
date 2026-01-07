@@ -268,7 +268,7 @@ const PackageSchema = new Schema<IPackage>(
     senderCity: { type: String, required: true, trim: true },
     senderState: { type: String, required: true, trim: true },
     senderZipCode: { type: String, required: true, trim: true },
-    senderCountry: { type: String, default: 'Jamaica' },
+    senderCountry: { type: String },
     
     // Receiver Information
     receiverName: { type: String, required: true, trim: true },
@@ -279,7 +279,7 @@ const PackageSchema = new Schema<IPackage>(
     receiverCity: { type: String, required: true, trim: true },
     receiverState: { type: String, required: true, trim: true },
     receiverZipCode: { type: String, required: true, trim: true },
-    receiverCountry: { type: String, default: 'Jamaica' },
+    receiverCountry: { type: String },
     
     // Package Details
     weight: { type: Number, required: true, min: 0 },

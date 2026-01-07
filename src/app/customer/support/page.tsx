@@ -339,7 +339,7 @@ export default function CustomerSupportPage() {
               </div>
               <form onSubmit={submitTicket} className="p-4 sm:p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Subject *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Subject </label>
                   <input
                     type="text"
                     value={form.subject}
@@ -379,7 +379,7 @@ export default function CustomerSupportPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Message *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Message </label>
                   <textarea
                     value={form.message}
                     onChange={(e) => setForm({ ...form, message: e.target.value })}

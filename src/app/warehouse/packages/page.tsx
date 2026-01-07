@@ -26,7 +26,6 @@ import {
   MapPin,
   Calendar,
   DollarSign,
-  PackageCheck,
   Clock,
   CheckCircle,
   AlertCircle,
@@ -55,6 +54,9 @@ type PackageRow = {
   customsRequired?: boolean;
   customsStatus?: string;
   paymentStatus?: string;
+  // Add cost fields like admin
+  totalAmount?: number;
+  shippingCost?: number;
   // Sender information
   senderName?: string;
   senderEmail?: string;
@@ -153,7 +155,7 @@ export default function WarehousePackagesPage() {
   // Redirect if not authenticated or not warehouse staff
   useEffect(() => {
     if (status === 'unauthenticated') {
-      router.push('/warehouse/login');
+      router.push('/login');
     }
   }, [status, router]);
 
@@ -929,7 +931,7 @@ export default function WarehousePackagesPage() {
               </div>
 
               {/* Additional Details */}
-              {(packageToView.description || packageToView.itemDescription || packageToView.contents || packageToView.specialInstructions) && (
+              {(packageToView.description || packageToView.itemDescription || packageToView.specialInstructions) && (
                 <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-6">
                   <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <Calendar className="h-5 w-5 text-orange-600" />
@@ -946,12 +948,6 @@ export default function WarehousePackagesPage() {
                       <div>
                         <span className="text-sm font-medium text-gray-700">Item Description: </span>
                         <span className="text-sm text-gray-600">{packageToView.itemDescription}</span>
-                      </div>
-                    )}
-                    {packageToView.contents && (
-                      <div>
-                        <span className="text-sm font-medium text-gray-700">Contents: </span>
-                        <span className="text-sm text-gray-600">{packageToView.contents}</span>
                       </div>
                     )}
                     {packageToView.specialInstructions && (

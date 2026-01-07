@@ -141,11 +141,12 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
       mapInstanceRef.current = null;
     }
 
-    // Initialize Leaflet map
-    const mapInstance = L.map(mapRef.current).setView(
-      [packageData.currentLocation.latitude, packageData.currentLocation.longitude],
-      12
-    );
+    // Initialize Leaflet map only if we have valid coordinates
+    if (packageData.currentLocation?.latitude && packageData.currentLocation?.longitude) {
+      const mapInstance = L.map(mapRef.current).setView(
+        [packageData.currentLocation.latitude, packageData.currentLocation.longitude],
+        12
+      );
 
     // Add OpenStreetMap tiles
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -221,6 +222,7 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
       });
       mapInstance.fitBounds(bounds, { padding: [20, 20] });
     }
+    } // Close the if statement for valid coordinates
 
     return () => {
       if (mapInstanceRef.current) {
@@ -229,6 +231,17 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
       }
     };
   }, [packageData?.currentLocation, packageData?.history]);
+
+  if (!packageData?.currentLocation?.latitude || !packageData?.currentLocation?.longitude) {
+    return (
+      <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
+        <div className="flex items-center gap-2 text-yellow-800">
+          <AlertCircle className="h-5 w-5" />
+          <p className="font-medium">Location coordinates not available for this package</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

@@ -50,9 +50,9 @@ function WarehouseAddPackagePageContent() {
     senderEmail: "",
     senderPhone: "",
     senderAddress: "",
-    senderCity: "Kingston",
-    senderState: "St. Andrew",
-    senderZipCode: "00000",
+    senderCity: "",
+    senderState: "",
+    senderZipCode: "",
     senderCountry: "",
     itemValue: "",
     specialInstructions: "",
@@ -153,9 +153,9 @@ function WarehouseAddPackagePageContent() {
             senderEmail: packageData.senderEmail || packageData.sender?.email || "",
             senderPhone: packageData.senderPhone || packageData.sender?.phone || "",
             senderAddress: packageData.senderAddress || packageData.sender?.address || "",
-            senderCity: packageData.senderCity || "Kingston",
-            senderState: packageData.senderState || "St. Andrew",
-            senderZipCode: packageData.senderZipCode || "00000",
+            senderCity: packageData.senderCity || "",
+            senderState: packageData.senderState || "",
+            senderZipCode: packageData.senderZipCode || "",
             senderCountry: packageData.senderCountry || packageData.sender?.country || "",
             itemValue: packageData.itemValue?.toString() || packageData.value?.toString() || "",
             specialInstructions: packageData.specialInstructions || "",
@@ -261,9 +261,9 @@ function WarehouseAddPackagePageContent() {
           email: form.senderEmail.trim() || undefined,
           phone: form.senderPhone.trim() || undefined,
           address: form.senderAddress.trim() || undefined,
-          city: form.senderCity.trim() || "Kingston", // Default sender city
-          state: form.senderState.trim() || "St. Andrew", // Default sender state
-          zipCode: form.senderZipCode.trim() || "00000", // Default sender zipCode
+          city: form.senderCity.trim() || undefined, // Default sender city
+          state: form.senderState.trim() || undefined, // Default sender state
+          zipCode: form.senderZipCode.trim() || undefined, // Default sender zipCode
           country: form.senderCountry.trim() || undefined
         },
         // Additional fields matching the updated model
@@ -537,7 +537,7 @@ function WarehouseAddPackagePageContent() {
                   <input
                     type="text"
                     className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    placeholder="e.g., DHL, FedEx"
+                    placeholder="e.g., Amazon, Shein"
                     value={form.shipper}
                     onChange={(e) => setForm({ ...form, shipper: e.target.value })}
                   />
@@ -789,39 +789,6 @@ function WarehouseAddPackagePageContent() {
                     placeholder="Country"
                     value={form.senderCountry}
                     onChange={(e) => setForm({ ...form, senderCountry: e.target.value })}
-                  />
-                </div>
-              </div>
-              
-              <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Sender City</label>
-                  <input
-                    type="text"
-                    className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    placeholder="City"
-                    value={form.senderCity}
-                    onChange={(e) => setForm({ ...form, senderCity: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Sender State</label>
-                  <input
-                    type="text"
-                    className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    placeholder="State"
-                    value={form.senderState}
-                    onChange={(e) => setForm({ ...form, senderState: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Sender Zip Code</label>
-                  <input
-                    type="text"
-                    className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    placeholder="Zip Code"
-                    value={form.senderZipCode}
-                    onChange={(e) => setForm({ ...form, senderZipCode: e.target.value })}
                   />
                 </div>
               </div>

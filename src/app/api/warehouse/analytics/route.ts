@@ -26,11 +26,11 @@ export async function GET(req: Request) {
 
     console.log("📅 Analytics date ranges calculated");
 
-    // Total packages by status (excluding deleted packages)
+    // Total packages by status (excluding soft-deleted packages)
     const statusCounts = await Package.aggregate([
       {
         $match: {
-          status: { $ne: "Deleted" }
+          status: { $ne: "returned" }
         }
       },
       {

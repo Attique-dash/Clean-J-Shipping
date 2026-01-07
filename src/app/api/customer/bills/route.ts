@@ -97,13 +97,15 @@ export async function GET(req: Request) {
         paymentStatus = "none";
       }
       
+      // Ensure tracking_number is always a string
+      const trackingNumber = inv.package?.trackingNumber || inv.invoiceNumber || 'UNKNOWN';
             
       return {
-        tracking_number: inv.package?.trackingNumber || inv.invoiceNumber,
+        tracking_number: trackingNumber,
         description: inv.items?.[0]?.description || inv.notes || `Invoice ${inv.invoiceNumber}`,
         invoice_number: inv.invoiceNumber,
         invoice_date: inv.issueDate ? new Date(inv.issueDate).toISOString() : (inv.createdAt ? new Date(inv.createdAt).toISOString() : undefined),
-        currency: inv.currency || "USD",
+        currency: inv.currency || "JMD",
         amount_due: Math.max(0, balanceDue),
         payment_status: paymentStatus,
         last_updated: inv.updatedAt ? new Date(inv.updatedAt).toISOString() : (inv.createdAt ? new Date(inv.createdAt).toISOString() : undefined),

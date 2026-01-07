@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
 import { User } from "@/models/User";
+import Invoice from "@/models/Invoice";
+import { InventoryService } from "@/lib/inventory-service";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 
@@ -60,6 +62,88 @@ function calculateTotalAmount(itemValue: number, weight: number): number {
   return itemValueJmd + shippingCostJmd + customsDutyJmd;
 }
 
+async function createBillingInvoice(packageData: any, user: any, trackingNumber: string) {
+  try {
+    const itemValue = asNumber(packageData.value) || 0;
+    const weight = asNumber(packageData.weight) || 0;
+    const weightLbs = weight * 2.20462;
+    
+    // Calculate costs
+    const shippingCostJmd = calcShippingCostJmd(weightLbs);
+    const itemValueJmd = itemValue * 155;
+    const customsDutyJmd = itemValue > 100 ? itemValueJmd * 0.15 : 0;
+    const totalAmount = itemValueJmd + shippingCostJmd + customsDutyJmd;
+    
+    // Create invoice items
+    const invoiceItems = [];
+    
+    // Shipping charges
+    if (shippingCostJmd > 0) {
+      invoiceItems.push({
+        description: `Shipping charges (${weightLbs.toFixed(1)} lbs)`,
+        quantity: 1,
+        unitPrice: shippingCostJmd,
+        taxRate: 0,
+        amount: shippingCostJmd,
+        taxAmount: 0,
+        total: shippingCostJmd
+      });
+    }
+    
+    // Customs duty
+    if (customsDutyJmd > 0) {
+      invoiceItems.push({
+        description: `Customs duty (${itemValue > 100 ? '15%' : '0%'} of item value)`,
+        quantity: 1,
+        unitPrice: customsDutyJmd,
+        taxRate: 0,
+        amount: customsDutyJmd,
+        taxAmount: 0,
+        total: customsDutyJmd
+      });
+    }
+    
+    // Create billing invoice
+    const invoiceData = {
+      userId: user._id,
+      customer: {
+        id: user._id.toString(),
+        name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+        email: user.email,
+        address: user.address?.street || '',
+        phone: user.phone || '',
+        city: user.address?.city || '',
+        country: user.address?.country || ''
+      },
+      tracking_number: trackingNumber,
+      invoiceNumber: `INV-${Date.now()}`,
+      status: 'unpaid',
+      issueDate: new Date(),
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      currency: 'JMD',
+      subtotal: shippingCostJmd + customsDutyJmd,
+      taxTotal: 0,
+      discountAmount: 0,
+      total: shippingCostJmd + customsDutyJmd,
+      amountPaid: 0,
+      balanceDue: shippingCostJmd + customsDutyJmd,
+      items: invoiceItems,
+      invoiceType: 'billing', // NEW: Distinguish from commercial invoices
+      notes: `Billing invoice for package ${trackingNumber}`,
+      paymentTerms: 30
+    };
+    
+    const invoice = new Invoice(invoiceData);
+    await invoice.save();
+    
+    console.log(`Created billing invoice ${invoice.invoiceNumber} for package ${trackingNumber}`);
+    return invoice;
+  } catch (error) {
+    console.error('Error creating billing invoice:', error);
+    return null;
+  }
+}
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !['admin', 'warehouse_staff', 'customer_support'].includes(session.user.role)) {
@@ -113,10 +197,15 @@ export async function GET(req: Request) {
         .map((s) => s.trim())
         .filter(Boolean);
       if (list.length > 0) {
-        filter.status = { $in: list };
+        filter.status = { $in: list, $ne: "returned" };
       }
     } else if (status) {
       filter.status = status;
+    } else {
+      // Ensure we always exclude returned packages unless explicitly requested
+      if (!filter.status || (typeof filter.status === 'object' && !('$ne' in filter.status))) {
+        filter.status = { $ne: "returned" };
+      }
     }
 
     if (serviceMode) {
@@ -383,15 +472,11 @@ export async function POST(req: Request) {
       branch: branch || "Main Warehouse",
       // Required fields with defaults
       shippingCost: 0,
-      totalAmount: calculateTotalAmount(value || 0, weight || 0),
+      totalAmount: calculateTotalAmount(asNumber(value), asNumber(weight)),
       paymentMethod: "cash",
       // Legacy fields for compatibility
       itemDescription: description || "Package description",
-      itemValue: value || 0,
-      receiverName: (recipient as any)?.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Customer",
-      receiverPhone: (recipient as any)?.phone || user.phone || "",
-      receiverAddress: (recipient as any)?.address || user.address?.street || "",
-      receiverEmail: (recipient as any)?.email || user.email,
+      itemValue: asNumber(value) || 0,
       currentLocation: branch || "Main Warehouse",
       packageType: "parcel",
       serviceType: "standard",
@@ -404,12 +489,64 @@ export async function POST(req: Request) {
 
     const created = await Package.create(packageData);
 
+    // FIXED: Create proper billing invoice automatically
+    try {
+      const billingInvoice = await createBillingInvoice(packageData, user, asString(trackingNumber));
+      if (billingInvoice) {
+        // Link invoice to package
+        await Package.findByIdAndUpdate(created._id, {
+          $set: { 
+            billingInvoiceId: billingInvoice._id,
+            invoiceStatus: 'billed'
+          }
+        });
+      }
+    } catch (invoiceError) {
+      console.error('Failed to create billing invoice:', invoiceError);
+      // Don't fail package creation if invoice creation fails
+    }
+
+    // NEW: Automatically deduct inventory materials
+    try {
+      const session = await getServerSession(authOptions);
+      const inventoryResult = await InventoryService.deductPackageMaterials(
+        { ...packageData, trackingNumber },
+        created._id.toString(),
+        session?.user?.id
+      );
+      
+      if (inventoryResult.success) {
+        console.log(`Inventory deducted for package ${trackingNumber}:`, inventoryResult.transactions);
+        
+        // Update package with inventory info
+        await Package.findByIdAndUpdate(created._id, {
+          $set: { 
+            inventoryDeducted: true,
+            inventoryTransactionIds: inventoryResult.transactions?.map(t => t._id) || []
+          }
+        });
+
+        // Check for low stock alerts
+        if (inventoryResult.lowStockItems && inventoryResult.lowStockItems.length > 0) {
+          console.warn('Low stock alerts:', inventoryResult.lowStockItems);
+          // TODO: Send notification to warehouse manager
+        }
+      } else {
+        console.error('Inventory deduction failed:', inventoryResult.message);
+        // Don't fail package creation, but log the issue
+      }
+    } catch (inventoryError) {
+      console.error('Error during inventory deduction:', inventoryError);
+      // Don't fail package creation if inventory deduction fails
+    }
+
     return NextResponse.json({ 
       ok: true, 
       id: created._id, 
       trackingNumber: created.trackingNumber,
       userCode: created.userCode,
-      package: created
+      package: created,
+      message: "Package, billing invoice, and inventory deduction completed successfully"
     });
   } catch (error) {
     console.error("Error creating package:", error);
@@ -575,32 +712,26 @@ export async function DELETE(req: Request) {
   try {
     await dbConnect();
     
-    const url = new URL(req.url);
-    const id = url.searchParams.get("id");
-
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    
     if (!id) {
       return NextResponse.json({ error: "Package ID is required" }, { status: 400 });
     }
 
-    // Soft delete by setting status to "returned" (marked as deleted)
-    const updated = await Package.findByIdAndUpdate(
-      id, 
-      { 
-        status: "returned",
-        statusReason: "Deleted by admin",
-        updatedAt: new Date()
-      }, 
-      { new: true }
-    );
+    // Permanent delete - completely remove package from database
+    const deleted = await Package.findByIdAndDelete(id);
 
-    if (!updated) {
+    if (!deleted) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
     }
 
+    console.log(`Package ${deleted.trackingNumber} permanently deleted from system`);
     return NextResponse.json({ 
       ok: true, 
-      id: updated._id, 
-      message: "Package deleted successfully" 
+      id: deleted._id, 
+      trackingNumber: deleted.trackingNumber,
+      message: "Package permanently deleted" 
     });
   } catch (error) {
     console.error("Error deleting package:", error);

@@ -170,6 +170,9 @@ export async function GET(request: NextRequest) {
         itemValueUsd,
         dateReceived: dateReceived ? new Date(String(dateReceived)).toISOString() : null,
         daysInStorage,
+        // Add cost fields like admin API
+        totalAmount: totalCostJmd,
+        shippingCost: shippingCostJmd,
         // Sender information
         senderName: asString(p.senderName) || asString((p.sender as any)?.name) || '',
         senderEmail: asString(p.senderEmail) || asString((p.sender as any)?.email) || '',

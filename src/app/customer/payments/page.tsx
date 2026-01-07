@@ -101,7 +101,7 @@ function CustomerPaymentsInner() {
         const d: { bills?: CustomerBill[]; error?: string } = await r.json();
         if (!r.ok) throw new Error(d?.error || "Failed to load bills");
         const list: CustomerBill[] = Array.isArray(d?.bills) ? d.bills : [];
-        setBills(list.map((b) => ({ amount_due: Number(b.amount_due) || 0, currency: b.currency || "USD" })));
+        setBills(list.map((b) => ({ amount_due: Number(b.amount_due) || 0, currency: b.currency || "JMD" })));
         const total = list.reduce((s: number, b) => s + (Number(b.amount_due) || 0), 0);
         const detectedCurrency = list.find((b) => Boolean(b.currency))?.currency;
         setForm((f) => ({ ...f, amount: total ? String(total) : f.amount, currency: detectedCurrency || f.currency }));
@@ -110,7 +110,7 @@ function CustomerPaymentsInner() {
   }, []);
 
   const totalDue = useMemo(() => bills.reduce((s, b) => s + (Number(b.amount_due) || 0), 0), [bills]);
-  const ccy = useMemo(() => selectedCurrency || bills.find((b) => b.currency)?.currency || form.currency || "USD", [selectedCurrency, bills, form.currency]);
+  const ccy = useMemo(() => selectedCurrency || bills.find((b) => b.currency)?.currency || form.currency || "JMD", [selectedCurrency, bills, form.currency]);
 
   const [retryCount, setRetryCount] = useState(0);
   const [lastPaymentData, setLastPaymentData] = useState<Record<string, unknown> | null>(null);
@@ -409,10 +409,10 @@ function CustomerPaymentsInner() {
                     value={form.currency} 
                     onChange={(e) => setForm({ ...form, currency: e.target.value })}
                   >
+                    <option value="JMD">JMD</option>
                     <option value="USD">USD</option>
                     <option value="EUR">EUR</option>
                     <option value="GBP">GBP</option>
-                    <option value="JMD">JMD</option>
                   </select>
                 </div>
               </div>

@@ -13,7 +13,7 @@ interface CurrencyContextType {
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
-  const [selectedCurrency, setSelectedCurrencyState] = useState("USD");
+  const [selectedCurrency, setSelectedCurrencyState] = useState("JMD");
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {

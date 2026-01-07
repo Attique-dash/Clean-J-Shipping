@@ -536,7 +536,7 @@ function AdminAddPackagePageContent() {
                   <input
                     type="text"
                     className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    placeholder="e.g., DHL, FedEx"
+                    placeholder="e.g., Amazon, Shein"
                     value={form.shipper}
                     onChange={(e) => setForm({ ...form, shipper: e.target.value })}
                   />
