@@ -8,6 +8,7 @@ import { getAuthFromRequest } from "@/lib/rbac";
 import { addPackageSchema } from "@/lib/validators";
 import { sendNewPackageEmail } from "@/lib/email";
 import { startSession } from "mongoose";
+import { InventoryService } from "@/lib/inventory-service";
 
 function asNumber(value: unknown): number {
   if (typeof value === 'number') return value;
@@ -294,6 +295,51 @@ export async function POST(req: Request) {
       // Don't fail package creation if invoice creation fails
     }
 
+    // NEW: Automatically deduct inventory materials (like admin does)
+    try {
+      const packageDataForInventory = {
+        value: value,
+        weight: weight,
+        trackingNumber: trackingNumber,
+        dimensions: dimensions,
+        warehouseLocation: warehouse || 'Main Warehouse',
+        fragile: false // Can be added to schema if needed
+      };
+      
+      const inventoryResult = await InventoryService.deductPackageMaterials(
+        packageDataForInventory,
+        pkg._id.toString(),
+        auth.id
+      );
+      
+      if (inventoryResult.success) {
+        console.log(`Inventory deducted for warehouse package ${trackingNumber}:`, inventoryResult.transactions);
+        
+        // Update package with inventory info
+        await Package.findOneAndUpdate(
+          { trackingNumber },
+          {
+            $set: { 
+              inventoryDeducted: true,
+              inventoryTransactionIds: inventoryResult.transactions?.map(t => t._id) || []
+            }
+          }
+        );
+
+        // Check for low stock alerts
+        if (inventoryResult.lowStockItems && inventoryResult.lowStockItems.length > 0) {
+          console.warn('Low stock alerts from warehouse package creation:', inventoryResult.lowStockItems);
+          // TODO: Send notification to warehouse manager
+        }
+      } else {
+        console.error('Inventory deduction failed for warehouse package:', inventoryResult.message);
+        // Don't fail package creation, but log issue
+      }
+    } catch (inventoryError) {
+      console.error('Error during inventory deduction for warehouse package:', inventoryError);
+      // Don't fail package creation if inventory deduction fails
+    }
+
     // Fire-and-forget email after commit
     // We need customer context outside; reusing local var within this block
     const toEmail = (await User.findOne({ userCode, role: "customer" }).select("email firstName"))?.email;
@@ -325,6 +371,13 @@ export async function POST(req: Request) {
       received_date: new Date(now).toISOString(),
       received_by: receivedBy ?? null,
       warehouse: warehouse ?? null,
+      billingInvoice: billingInvoice ? {
+        id: billingInvoice._id,
+        invoiceNumber: billingInvoice.invoiceNumber,
+        total: billingInvoice.total
+      } : null,
+      inventoryTransactions: inventoryResult?.transactions || [],
+      message: "Package, billing invoice, and inventory deduction completed successfully"
     });
   } catch (error) {
     await session.abortTransaction();

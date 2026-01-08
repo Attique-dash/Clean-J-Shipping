@@ -29,11 +29,7 @@ const nextConfig = {
     ],
   },
   
-  // Turbopack configuration
-  turbopack: {
-    root: __dirname,
-  },
-
+  
   // CORS headers for warehouse API and video files
   async headers() {
     return [
