@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Package, FileText, CheckCircle, AlertCircle, Loader2, Printer, Plus, RefreshCw, Calendar, Truck, Download, FileDown } from "lucide-react";
+import { Package, FileText, CheckCircle, AlertCircle, Loader2, Printer, Plus, RefreshCw, FileDown } from "lucide-react";
 import { toast } from "react-toastify";
 
 type Manifest = {
@@ -51,7 +51,7 @@ export default function WarehouseManifestsPage() {
       } else {
         toast.error(data?.error || "Failed to load manifests");
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to load manifests");
     } finally {
       setLoadingManifests(false);

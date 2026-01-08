@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Package, Plus, Search, AlertCircle, CheckCircle, Clock, User, MapPin, Calendar, Weight, Truck, Mail, Phone } from "lucide-react";
+import { Package, Plus, Search, CheckCircle, User, MapPin, Calendar, Weight, Truck, Mail, Phone } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 interface WarehousePackage {
@@ -74,7 +74,7 @@ export default function WarehouseReceivingPage() {
           pkg.status === "At Warehouse" || pkg.status === "received"
         ));
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to load packages");
     } finally {
       setLoading(false);
@@ -89,7 +89,7 @@ export default function WarehouseReceivingPage() {
       if (data.items) {
         setCustomers(data.items);
       }
-    } catch (error) {
+    } catch (_error) {
       console.error("Failed to load customers");
     }
   };
@@ -139,7 +139,7 @@ export default function WarehouseReceivingPage() {
       } else {
         toast.error(data.error || "Failed to receive package");
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to receive package");
     } finally {
       setLoading(false);

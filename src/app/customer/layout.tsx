@@ -6,26 +6,19 @@ import type { ReactNode } from "react";
 import Image from "next/image";
 import { WebSocketProvider } from "@/components/providers/WebSocketProvider";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import EnhancedCurrencySelector from "@/components/EnhancedCurrencySelector";
 import {
   Home,
   Package,
   FileText,
-  CreditCard,
   MessageSquare,
-  Mail,
   Bell,
   Archive,
   User,
-  Settings,
   Menu,
   X,
   ChevronRight,
-  UserCog,
-  Contact,
   HelpCircle,
   Headphones,
-  Gift,
   ShoppingCart,
   MapPin,
 } from "lucide-react";
@@ -38,7 +31,7 @@ export default function CustomerLayout({
   const pathname = usePathname() || "";
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
-  const { selectedCurrency, setSelectedCurrency } = useCurrency();
+  const { selectedCurrency: _selectedCurrency, setSelectedCurrency: _setSelectedCurrency } = useCurrency();
 
   // Load cart count from localStorage
   useEffect(() => {
@@ -48,7 +41,7 @@ export default function CustomerLayout({
         try {
           const trackingNumbers = JSON.parse(cartData);
           setCartCount(trackingNumbers.length);
-        } catch (e) {
+        } catch (_e) {
           setCartCount(0);
         }
       } else {

@@ -5,9 +5,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { 
   ShoppingCart, 
-  CreditCard, 
   ArrowLeft, 
-  CheckCircle, 
   XCircle, 
   Loader2,
   FileText,
@@ -34,14 +32,12 @@ type Bill = {
 };
 
 function CheckoutPageContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const { formatCurrency } = useCurrency();
+  const [_router, _searchParams, formatCurrency] = [useRouter(), useSearchParams(), useCurrency().formatCurrency];
   const [items, setItems] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
-  const [paypalOrderId, setPaypalOrderId] = useState<string | null>(null);
+  const [_paypalOrderId, setPaypalOrderId] = useState<string | null>(null);
   const [cartTrackingNumbers, setCartTrackingNumbers] = useState<string[]>([]);
 
   useEffect(() => {
@@ -51,8 +47,8 @@ function CheckoutPageContent() {
       try {
         const trackingNumbers = JSON.parse(cartData);
         setCartTrackingNumbers(trackingNumbers);
-      } catch (e) {
-        console.error("Failed to parse cart data:", e);
+      } catch (_e) {
+        console.error("Failed to parse cart data:", _e);
       }
     }
     
@@ -81,21 +77,21 @@ function CheckoutPageContent() {
           );
           setItems(cartBills);
           setCartTrackingNumbers(trackingNumbers);
-        } catch (e) {
+        } catch (_e) {
           setItems([]);
         }
       } else {
         setItems([]);
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load bills");
+    } catch (_e) {
+      setError(_e instanceof Error ? _e.message : "Failed to load bills");
     } finally {
       setLoading(false);
     }
   }
 
   const totalAmount = items.reduce((sum, bill) => sum + (Number(bill.amount_due) || 0), 0);
-  const currency = items.find(b => b.currency)?.currency || "JMD";
+  const currencyCode = items.find(b => b.currency)?.currency || "JMD";
 
   const removeFromCart = (trackingNumber: string) => {
     const updated = cartTrackingNumbers.filter(tn => tn !== trackingNumber);
@@ -117,7 +113,7 @@ function CheckoutPageContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount: totalAmount,
-          currency: currency,
+          currency: currencyCode,
           description: `Payment for ${items.length} invoice${items.length !== 1 ? 's' : ''}`,
           trackingNumbers: items.map(b => b.tracking_number),
           items: items.map(b => ({
@@ -166,7 +162,7 @@ function CheckoutPageContent() {
             invoiceNumber: b.invoice_number,
           })),
           totalAmount: totalAmount,
-          currency: currency,
+          currency: currencyCode,
           paymentMethod: "paypal",
           paypalOrderId: data.orderID,
         }),
@@ -184,10 +180,10 @@ function CheckoutPageContent() {
       
       // Redirect to bills page
       setTimeout(() => {
-        router.push("/customer/bills?payment=success");
+        _router.push("/customer/bills?payment=success");
       }, 1500);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Payment failed");
+    } catch (_e) {
+      toast.error(_e instanceof Error ? _e.message : "Payment failed");
     } finally {
       setProcessing(false);
     }
@@ -295,7 +291,7 @@ function CheckoutPageContent() {
                     <div className="flex items-center gap-4">
                       <div className="text-right">
                         <p className="font-bold text-[#E67919]">
-                          {formatCurrency(bill.amount_due || 0, bill.currency || currency)}
+                          {formatCurrency(bill.amount_due || 0, bill.currency || currencyCode)}
                         </p>
                       </div>
                       <button
@@ -329,7 +325,7 @@ function CheckoutPageContent() {
                   <div className="flex justify-between items-center">
                     <span className="text-lg font-semibold text-gray-900">Total</span>
                     <span className="text-2xl font-bold text-[#E67919]">
-                      {formatCurrency(totalAmount, currency)}
+                      {formatCurrency(totalAmount, currencyCode)}
                     </span>
                   </div>
                 </div>
@@ -342,7 +338,7 @@ function CheckoutPageContent() {
                 <PayPalScriptProvider
                   options={{
                     clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "",
-                    currency: currency,
+                    currency: currencyCode,
                   }}
                 >
                   <PayPalButtons

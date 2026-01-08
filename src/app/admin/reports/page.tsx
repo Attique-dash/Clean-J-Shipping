@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Package, Users, Truck, DollarSign, TrendingUp, TrendingDown, AlertCircle, CheckCircle, Clock, FileText, Activity, RefreshCw, Calendar, ArrowUpRight, Loader2 } from "lucide-react";
+import { Package, Users, Truck, DollarSign, TrendingUp, AlertCircle, CheckCircle, Clock, FileText, Activity, RefreshCw, Calendar, ArrowUpRight, Loader2 } from "lucide-react";
 
 type Bill = {
   id: string;
@@ -146,16 +146,18 @@ export default function AdminReportsPage() {
           summary: {
             total_packages: packagesData.packages?.length || 0,
             total_customers: customersData.items?.length || 0,
-            packages_in_transit: packagesData.packages?.filter((p: any) => 
-              p.status?.toLowerCase().includes('transit') || 
-              p.status?.toLowerCase().includes('in transit')
-            ).length || 0,
+            packages_in_transit: packagesData.packages?.filter((p: unknown) => {
+              const pkg = p as { status?: string };
+              return pkg.status?.toLowerCase().includes('transit') || 
+                pkg.status?.toLowerCase().includes('in transit');
+            }).length || 0,
             total_revenue: billsData.bills?.reduce((sum: number, bill: Bill) => 
               sum + (bill.paidAmount || 0), 0) || 0
           },
           weekly_stats: {
-            packages_this_week: packagesData.packages?.filter((p: any) => {
-              const pkgDate = new Date(p.createdAt || p.date);
+            packages_this_week: packagesData.packages?.filter((p: unknown) => {
+              const pkg = p as { createdAt?: string; date?: string };
+              const pkgDate = new Date(pkg.createdAt || pkg.date || '');
               const weekAgo = new Date();
               weekAgo.setDate(weekAgo.getDate() - 7);
               return pkgDate >= weekAgo;
@@ -166,22 +168,25 @@ export default function AdminReportsPage() {
               weekAgo.setDate(weekAgo.getDate() - 7);
               return billDate >= weekAgo;
             }).reduce((sum: number, bill: Bill) => sum + (bill.paidAmount || 0), 0) || 0,
-            new_customers_this_week: customersData.items?.filter((c: any) => {
-              const custDate = new Date(c.createdAt);
+            new_customers_this_week: customersData.items?.filter((c: unknown) => {
+              const customer = c as { createdAt?: string };
+              const custDate = new Date(customer.createdAt || '');
               const weekAgo = new Date();
               weekAgo.setDate(weekAgo.getDate() - 7);
               return custDate >= weekAgo;
             }).length || 0
           },
           alerts: {
-            packages_awaiting_invoice: packagesData.packages?.filter((p: any) => 
-              p.status?.toLowerCase().includes('awaiting') || 
-              p.status?.toLowerCase().includes('pending')
-            ).length || 0,
-            packages_ready_for_pickup: packagesData.packages?.filter((p: any) => 
-              p.status?.toLowerCase().includes('ready') || 
-              p.status?.toLowerCase().includes('pickup')
-            ).length || 0,
+            packages_awaiting_invoice: packagesData.packages?.filter((p: unknown) => {
+              const pkg = p as { status?: string };
+              return pkg.status?.toLowerCase().includes('awaiting') ||
+                pkg.status?.toLowerCase().includes('pending');
+            }).length || 0,
+            packages_ready_for_pickup: packagesData.packages?.filter((p: unknown) => {
+              const pkg = p as { status?: string };
+              return pkg.status?.toLowerCase().includes('ready') ||
+                pkg.status?.toLowerCase().includes('pickup');
+            }).length || 0,
             overdue_payments: billsData.bills?.filter((bill: Bill) => 
               bill.status === 'unpaid' && new Date(bill.dueDate || bill.date) < new Date()
             ).length || 0
@@ -191,7 +196,7 @@ export default function AdminReportsPage() {
         
         setReport(realTimeSummary);
         setUsingDemo(false);
-      } catch (fallbackError) {
+      } catch (_fallbackError) {
         // If all attempts fail, use demo data
         setReport(demoReport);
         setUsingDemo(true);
@@ -319,7 +324,7 @@ export default function AdminReportsPage() {
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <Calendar className="w-5 h-5 text-[#E67919]" />
-                <h2 className="text-xl font-semibold text-slate-800">This Week's Performance</h2>
+                <h2 className="text-xl font-semibold text-slate-800">This Week&apos;s Performance</h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-gradient-to-br from-white to-blue-50 rounded-xl p-6 shadow-md border border-blue-100">

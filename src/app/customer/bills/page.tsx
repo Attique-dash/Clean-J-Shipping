@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { FileText, DollarSign, Calendar, CheckCircle, XCircle, Clock, ExternalLink, CreditCard, RefreshCw, Loader2, TrendingUp, Download, X, ShoppingCart, Plus, Eye, Save, Trash2, Filter, Lock, Unlock } from "lucide-react";
+import { FileText, DollarSign, Calendar, CheckCircle, XCircle, Clock, ExternalLink, CreditCard, RefreshCw, Loader2, TrendingUp, Download, X, ShoppingCart, Plus, Eye, Save, Lock, Unlock } from "lucide-react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { toast } from "react-toastify";
 import Link from "next/link";
@@ -42,7 +42,7 @@ export default function CustomerBillsPage() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showAddCardModal, setShowAddCardModal] = useState(false);
   const [savedCards, setSavedCards] = useState<any[]>([]);
-  const [selectedCard, setSelectedCard] = useState<any>(null);
+  const [_selectedCard, setSelectedCard] = useState<any>(null);
   const { selectedCurrency, setSelectedCurrency, convertAmount, formatCurrency } = useCurrency();
 
   // Bills History State
@@ -51,7 +51,7 @@ export default function CustomerBillsPage() {
   const [billCart, setBillCart] = useState<Set<string>>(new Set());
   const [showCartModal, setShowCartModal] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
-  const [showPaymentOptions, setShowPaymentOptions] = useState(false);
+  const [_showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [showCardPaymentModal, setShowCardPaymentModal] = useState(false);
   const [showSavedPaymentModal, setShowSavedPaymentModal] = useState(false);
 
@@ -100,7 +100,7 @@ export default function CustomerBillsPage() {
   };
 
   // Clear cart function
-  const handleClearCart = () => {
+  const _handleClearCart = () => {
     setBillCart(new Set());
     toast.success('Cart cleared!', {
       position: "top-right",
@@ -128,18 +128,18 @@ export default function CustomerBillsPage() {
   };
 
   // Show card payment modal function
-  const handleShowCardPayment = () => {
+  const _handleShowCardPayment = () => {
     setShowPaymentOptions(false);
     setShowCardPaymentModal(true);
   };
-  const convertAndFormatAmount = async (amount: number, fromCurrency: string) => {
+  const _convertAndFormatAmount = async (amount: number, fromCurrency: string) => {
     if (fromCurrency === selectedCurrency) {
       return formatCurrency(amount, selectedCurrency);
     }
     try {
       const convertedAmount = await convertAmount(amount, fromCurrency || "USD");
       return formatCurrency(convertedAmount, selectedCurrency);
-    } catch (error) {
+    } catch (_error) {
       return formatCurrency(amount, selectedCurrency);
     }
   };
@@ -214,7 +214,7 @@ export default function CustomerBillsPage() {
           try {
             const converted = await convertAmount(item.amount_due, item.currency || "USD");
             convertedAmount = formatCurrency(converted, selectedCurrency);
-          } catch (error) {
+          } catch (_error) {
             convertedAmount = formatCurrency(item.amount_due, selectedCurrency);
           }
         }
@@ -251,7 +251,7 @@ export default function CustomerBillsPage() {
           total += converted;
         }
         setConvertedTotalDue(formatCurrency(total, selectedCurrency));
-      } catch (error) {
+      } catch (_error) {
         setConvertedTotalDue(formatCurrency(totalDue, selectedCurrency));
       }
     };
@@ -264,7 +264,7 @@ export default function CustomerBillsPage() {
   const cartTotal = cartItems.reduce((sum, bill) => sum + (Number(bill.amount_due) || 0), 0);
 
   // Calculate converted cart total
-  const [convertedCartTotal, setConvertedCartTotal] = useState<string>("");
+  const [_convertedCartTotal, setConvertedCartTotal] = useState<string>("");
 
   useEffect(() => {
     const convertCartTotal = async () => {
@@ -280,15 +280,15 @@ export default function CustomerBillsPage() {
           total += converted;
         }
         setConvertedCartTotal(formatCurrency(total, selectedCurrency));
-      } catch (error) {
+      } catch (_error) {
         setConvertedCartTotal(formatCurrency(cartTotal, selectedCurrency));
       }
     };
 
     convertCartTotal();
-  }, [cartItems, selectedCurrency, convertAmount, formatCurrency]);
+  }, [cartItems, selectedCurrency, convertAmount, formatCurrency, cartTotal]);
 
-  const toggleCartItem = (trackingNumber: string) => {
+  const _toggleCartItem = (trackingNumber: string) => {
     setCart(prev => {
       const newCart = new Set(prev);
       if (newCart.has(trackingNumber)) {
@@ -302,7 +302,7 @@ export default function CustomerBillsPage() {
     });
   };
 
-  const addAllToCart = () => {
+  const _addAllToCart = () => {
     const payableBills = items.filter(b =>
       b.payment_status !== 'paid' && b.amount_due > 0
     );
@@ -312,7 +312,7 @@ export default function CustomerBillsPage() {
     toast.success(`${payableBills.length} items added to cart`);
   };
 
-  const clearCart = () => {
+  const _clearCart = () => {
     setCart(new Set());
     localStorage.removeItem('customer_cart');
     toast.info("Cart cleared");
@@ -490,37 +490,38 @@ export default function CustomerBillsPage() {
     setShowDetailsModal(true);
   };
 
-  const handleAddCard = () => {
+  const _handleAddCard = () => {
     setShowAddCardModal(true);
   };
 
-  const handleSaveCard = async (cardData: any) => {
+  const handleSaveCard = async (cardData: unknown) => {
     try {
       // Mock API call to save card
+      const card = cardData as Record<string, unknown>;
       const newCard = {
         id: Date.now().toString(),
-        ...cardData,
+        ...card,
         createdAt: new Date().toISOString()
       };
       
       setSavedCards(prev => [...prev, newCard]);
       setShowAddCardModal(false);
       toast.success("Card saved successfully!");
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to save card");
     }
   };
 
-  const handleDeleteCard = async (cardId: string) => {
+  const _handleDeleteCard = async (cardId: string) => {
     try {
       setSavedCards(prev => prev.filter(card => card.id !== cardId));
       toast.success("Card deleted successfully!");
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to delete card");
     }
   };
 
-  const handlePayWithSavedCard = (card: any) => {
+  const handlePayWithSavedCard = (card: unknown) => {
     setSelectedCard(card);
     setShowPaymentModal(true);
     setShowDetailsModal(false);
@@ -1059,7 +1060,7 @@ export default function CustomerBillsPage() {
                     ) : (
                       filteredAndSortedBills.map((bill) => {
                         const statusInfo = getStatusInfo(bill.payment_status);
-                        const StatusIcon = statusInfo.icon;
+                        const _StatusIcon = statusInfo.icon;
                         
                         return (
                           <tr key={`${bill.tracking_number}-${bill.invoice_number || 'doc'}`} className="border-b border-gray-100 hover:bg-gray-50">

@@ -1,8 +1,6 @@
 // src/components/LogoutButton.tsx
 "use client";
 
-import { signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 interface LogoutButtonProps {
@@ -11,7 +9,6 @@ interface LogoutButtonProps {
 }
 
 export function LogoutButton({ className, children }: LogoutButtonProps) {
-  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogout = async () => {

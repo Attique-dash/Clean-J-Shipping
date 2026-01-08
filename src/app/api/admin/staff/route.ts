@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     if (!payload || payload.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    let body: any;
+    let body: { firstName?: string; lastName?: string; email?: string; password?: string; branch?: string; phone?: string; };
     try {
       body = await req.json();
       console.log("📝 Staff creation request body:", body);
@@ -81,11 +81,11 @@ export async function POST(req: Request) {
       } else {
         console.log("✅ Staff welcome email sent successfully to:", email);
       }
-    } catch (emailError: any) {
+    } catch (emailError: unknown) {
       console.error("❌ Error sending staff welcome email:", {
-        message: emailError.message,
-        stack: emailError.stack,
-        code: emailError.code
+        message: emailError instanceof Error ? emailError.message : String(emailError),
+        stack: emailError instanceof Error ? emailError.stack : undefined,
+        code: (emailError as any).code
       });
       // Continue with response even if email fails
     }
@@ -105,11 +105,11 @@ export async function POST(req: Request) {
     });
     
     return response;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ Staff creation error:", {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : String(error)
     });
     return NextResponse.json({ 
       error: "Internal server error during staff creation" 
@@ -124,7 +124,7 @@ export async function PUT(req: Request) {
   if (!payload || payload.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  let body: any;
+  let body: { id?: string; firstName?: string; lastName?: string; email?: string; password?: string; branch?: string; phone?: string; };
   try {
     body = await req.json();
   } catch {
@@ -134,7 +134,7 @@ export async function PUT(req: Request) {
   if (!id || !Types.ObjectId.isValid(String(id))) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
-  const update: any = {};
+  const update: Partial<{ firstName?: string; lastName?: string; email?: string; phone?: string; branch?: string; passwordHash?: string; }> = {};
   if (firstName !== undefined) update.firstName = firstName;
   if (lastName !== undefined) update.lastName = lastName;
   if (email !== undefined) update.email = email;
@@ -154,7 +154,7 @@ export async function DELETE(req: Request) {
   if (!payload || payload.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  let body: any;
+  let body: { id?: string; firstName?: string; lastName?: string; email?: string; password?: string; branch?: string; phone?: string; };
   try {
     body = await req.json();
   } catch {

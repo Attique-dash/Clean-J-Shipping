@@ -10,14 +10,11 @@ import Image from 'next/image';
 import {
   FaBox,
   FaBoxes,
-  FaSearch,
   FaUsers,
   FaCog,
   FaSignOutAlt,
   FaHome,
-  FaExclamationTriangle,
   FaFileUpload,
-  FaBarcode,
   FaWarehouse,
 } from 'react-icons/fa';
 import type { IconType } from 'react-icons';
@@ -39,7 +36,7 @@ export default function WarehouseLayout({
 }: {
   children: ReactNode;
 }) {
-  const { data: session, status } = useSession();
+  const { data: _session, status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);

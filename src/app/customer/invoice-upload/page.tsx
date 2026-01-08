@@ -7,21 +7,16 @@ import { toast } from "react-toastify";
 import { 
   Upload, 
   FileText, 
-  DollarSign, 
-  Package, 
-  Plus, 
   X, 
   Loader2,
   CheckCircle,
   AlertCircle,
-  Calendar,
-  Weight,
-  User,
   Plane,
   Ship,
   RefreshCw,
   File,
-  ChevronDown
+  ChevronDown,
+  Package
 } from "lucide-react";
 import ReactCountryFlag from "react-country-flag";
 
@@ -265,7 +260,7 @@ export default function CustomerInvoiceUploadPage() {
   const [packages, setPackages] = useState<PackageData[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState<{[key: string]: boolean}>({});
-  const { selectedCurrency, setSelectedCurrency, formatCurrency } = useCurrency();
+  const { selectedCurrency, setSelectedCurrency } = useCurrency();
   
   const [currentUpload, setCurrentUpload] = useState<InvoiceUpload>({
     tracking_number: "",
@@ -596,7 +591,7 @@ export default function CustomerInvoiceUploadPage() {
                 </div>
                 <div className="text-center">
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">No packages available</h3>
-                  <p className="text-sm text-gray-600">You don't have any packages that require invoice upload at the moment.</p>
+                  <p className="text-sm text-gray-600">You don&apos;t have any packages that require invoice upload at the moment.</p>
                 </div>
               </div>
             </div>

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
     console.log("🔍 Testing database connection...");
     
@@ -44,20 +44,20 @@ export async function GET(req: Request) {
       testUserCode
     });
     
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ Database test failed:", {
-      message: error.message,
-      name: error.name,
-      errors: error.errors,
-      stack: error.stack
+      message: error instanceof Error ? error.message : String(error),
+      name: error instanceof Error ? error.name : String(error),
+      errors: (error as any).errors,
+      stack: error instanceof Error ? error.stack : undefined
     });
     
     return NextResponse.json({ 
       success: false, 
-      error: error.message,
+      error: error instanceof Error ? error.message : String(error),
       details: {
-        name: error.name,
-        errors: error.errors
+        name: (error as any).name || 'Unknown Error',
+        errors: (error as any).errors || []
       }
     }, { status: 500 });
   }

@@ -4,7 +4,6 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FaEnvelope, FaLock, FaArrowLeft, FaCheckCircle } from "react-icons/fa";
 import Link from "next/link";
-import Image from "next/image";
 
 interface FormData {
   email: string;
@@ -15,7 +14,7 @@ interface FormErrors {
 }
 
 function ForgotPasswordContent() {
-  const router = useRouter();
+  const _router = useRouter();
   const searchParams = useSearchParams();
   
   const [form, setForm] = useState<FormData>({ 
@@ -129,13 +128,13 @@ function ForgotPasswordContent() {
             
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Reset Link Sent!</h2>
             <p className="text-gray-600 mb-6">
-              We've sent a password reset link to your email address. 
+              We&apos;ve sent a password reset link to your email address. 
               Please check your inbox and follow the instructions to reset your password.
             </p>
             
             <div className="space-y-3">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-                <strong>Didn't receive the email?</strong>
+                <strong>Didn&apos;t receive the email?</strong>
                 <ul className="mt-2 space-y-1 text-left">
                   <li>• Check your spam/junk folder</li>
                   <li>• Make sure you entered the correct email</li>
@@ -196,7 +195,7 @@ function ForgotPasswordContent() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Forgot Password?</h1>
             <p className="text-gray-600 text-sm">
-              No worries! Enter your email address and we'll send you a link to reset your password.
+              No worries! Enter your email address and we&apos;ll send you a link to reset your password.
             </p>
           </div>
 
@@ -264,7 +263,7 @@ function ForgotPasswordContent() {
 
           <div className="mt-4 text-center">
             <p className="text-xs text-gray-500">
-              Don't have an account? 
+              Don&apos;t have an account? 
               <Link href="/register" className="text-[#0E7893] hover:text-[#E67919] font-medium transition-colors hover:underline ml-1">
                 Sign Up
               </Link>

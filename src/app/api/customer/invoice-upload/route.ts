@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     const uploadsDir = join(process.cwd(), "public", "uploads", "invoices");
     try {
       mkdirSync(uploadsDir, { recursive: true });
-    } catch (error) {
+    } catch (_error) {
       // Directory might already exist
     }
 

@@ -10,11 +10,19 @@ interface PackageMaterials {
   fillerPaper?: number; // in kg
 }
 
+interface ExtendedPackageData {
+  weight?: number;
+  dimensions?: { length?: number; width?: number; height?: number };
+  trackingNumber?: string;
+  warehouseLocation?: string;
+  fragile?: boolean;
+}
+
 interface InventoryUpdateResult {
   success: boolean;
   message: string;
-  transactions?: any[];
-  lowStockItems?: any[];
+  transactions?: { _id: string; type: string; inventoryId: string; quantity: number; previousStock: number; newStock: number; reason: string; location?: string; createdAt: Date }[];
+  lowStockItems?: { _id: string; name: string; category: string; currentStock: number; minStock: number; location?: string; supplier?: string; notes?: string; }[];
 }
 
 export class InventoryService {
@@ -22,7 +30,7 @@ export class InventoryService {
    * Automatically deduct materials when processing a package
    */
   static async deductPackageMaterials(
-    packageData: any,
+    packageData: ExtendedPackageData,
     packageId: string,
     userId?: string
   ): Promise<InventoryUpdateResult> {
@@ -81,10 +89,14 @@ export class InventoryService {
         // Check for low stock
         if (newStock <= inventoryItem.minStock) {
           lowStockItems.push({
-            item: inventoryItem.name,
+            _id: inventoryItem._id,
+            name: inventoryItem.name,
+            category: inventoryItem.category,
             currentStock: newStock,
             minStock: inventoryItem.minStock,
-            unit: inventoryItem.unit
+            location: inventoryItem.location,
+            supplier: inventoryItem.supplier,
+            notes: inventoryItem.notes
           });
         }
       }
@@ -110,7 +122,7 @@ export class InventoryService {
   /**
    * Calculate materials needed for a package based on its characteristics
    */
-  private static calculateMaterialsNeeded(packageData: any): PackageMaterials {
+  private static calculateMaterialsNeeded(packageData: ExtendedPackageData): PackageMaterials {
     const weight = packageData.weight || 0;
     const dimensions = packageData.dimensions || {};
     const length = dimensions.length || 0;
@@ -213,7 +225,7 @@ export class InventoryService {
     try {
       await dbConnect();
       
-      const query: any = {};
+      const query: Record<string, string> = {};
       if (location) {
         query.location = location;
       }
@@ -224,13 +236,29 @@ export class InventoryService {
         totalItems: items.length,
         lowStockItems: items.filter(item => item.currentStock <= item.minStock),
         outOfStockItems: items.filter(item => item.currentStock === 0),
-        categories: {} as Record<string, any>
+        categories: {} as Record<string, { 
+          name: string; 
+          currentStock: number; 
+          minStock: number; 
+          location?: string; 
+          supplier?: string; 
+          notes?: string; 
+          totalValue: number;
+          total: number;
+          lowStock: number;
+          outOfStock: number;
+          items: any[];
+        }>
       };
 
       // Group by category
       items.forEach(item => {
         if (!status.categories[item.category]) {
           status.categories[item.category] = {
+            name: item.category,
+            currentStock: 0,
+            minStock: 0,
+            totalValue: 0,
             total: 0,
             lowStock: 0,
             outOfStock: 0,

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { countries, getCountryByCode, parsePhoneNumber } from '@/utils/countries';
+import { countries, getCountryByCode } from '@/utils/countries';
 
 interface PhoneInputProps {
   value: string;

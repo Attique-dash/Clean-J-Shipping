@@ -55,7 +55,7 @@ export async function POST(req: Request) {
   const shippers = ["DHL", "FedEx", "UPS", "USPS", "Aramex", "Local"];
 
   const created: string[] = [];
-  const docs: any[] = [];
+  const docs: { trackingNumber: string; status: string; weight: number; dimensions: { length: number; width: number; height: number }; shipper: string; history: { status: string; at: Date }[]; }[] = [];
 
   for (let i = 0; i < count; i++) {
     const status = randomItem([...statuses]);
@@ -78,15 +78,16 @@ export async function POST(req: Request) {
 
     docs.push({
       trackingNumber,
-      userCode,
       weight,
       shipper: randomItem(shippers),
       status,
-      description: `Sample package ${i + 1}`,
-      branch: randomItem(["HQ", "NYC", "LAX", "MIA"]),
-      serviceTypeId: randomItem(["S1", "S2", "S3"]),
+      dimensions: {
+        length: 30,
+        width: 20,
+        height: 15
+      },
       history,
-    });
+    } as any);
   }
 
   // Insert sequentially to honor unique trackingNumber; ignore duplicates if any race (unlikely)
@@ -94,9 +95,9 @@ export async function POST(req: Request) {
     try {
       const doc = await Package.create(d);
       created.push(doc.trackingNumber);
-    } catch (e: any) {
+    } catch (e: unknown) {
       // duplicate key -> regenerate tracking once and retry
-      if (e && e.code === 11000) {
+      if (e && (e as any).code === 11000) {
         d.trackingNumber = randomTracking();
         try {
           const doc = await Package.create(d);

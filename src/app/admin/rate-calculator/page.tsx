@@ -2,16 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { 
-  DollarSign, 
-  Package, 
-  MapPin, 
   Plus, 
   Edit, 
   Trash2, 
-  Save,
   Calculator,
-  Globe,
-  Weight,
   AlertCircle
 } from "lucide-react";
 

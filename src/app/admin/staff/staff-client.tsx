@@ -452,7 +452,7 @@ export default function StaffPageClient() {
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                   />
-                  <p className="mt-1 text-xs text-gray-500">Optional: Staff member's phone number</p>
+                  <p className="mt-1 text-xs text-gray-500">Optional: Staff member&apos;s phone number</p>
                 </div>
               </div>
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Package, Plus, RefreshCw, Loader2, AlertCircle, CheckCircle, Edit, Trash2, TrendingDown, TrendingUp, Box } from "lucide-react";
+import { Package, Plus, RefreshCw, Loader2, AlertCircle, CheckCircle, Edit, Trash2, TrendingUp, Box } from "lucide-react";
 import { toast } from "react-toastify";
 
 type InventoryItem = {
@@ -26,7 +26,7 @@ export default function WarehouseInventoryPage() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [_deleting, setDeleting] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [form, setForm] = useState({
@@ -65,7 +65,7 @@ export default function WarehouseInventoryPage() {
       } else {
         toast.error(data?.error || "Failed to load inventory");
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to load inventory");
     } finally {
       setLoading(false);

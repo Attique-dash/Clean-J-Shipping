@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Archive, Package, MessageSquare, Calendar, FileText, CheckCircle, XCircle, Clock, Loader2, Search, Filter, X } from "lucide-react";
+import { Archive, Package, MessageSquare, Search, X, CheckCircle, XCircle, Clock, Loader2 } from "lucide-react";
 
 type ArchivedPackage = {
   tracking_number: string;
@@ -31,7 +31,7 @@ type ArchivedMessage = {
 export default function CustomerArchivesPage() {
   const [activeTab, setActiveTab] = useState<"packages" | "messages">("packages");
   const [packages, setPackages] = useState<ArchivedPackage[]>([]);
-  const [bills, setBills] = useState<ArchivedBill[]>([]);
+  const [_bills, setBills] = useState<ArchivedBill[]>([]);
   const [messages, setMessages] = useState<ArchivedMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +58,7 @@ export default function CustomerArchivesPage() {
     load();
   }, []);
 
-  const filteredPackages = packages.filter((p) =>
+  const filteredPackages = packages.filter((p: ArchivedPackage) =>
     !searchQuery ||
     p.tracking_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (p.description || "").toLowerCase().includes(searchQuery.toLowerCase())
@@ -96,7 +96,7 @@ export default function CustomerArchivesPage() {
     }
   }
 
-  function getPaymentStatusInfo(status: string) {
+  function _getPaymentStatusInfo(status: string) {
     switch (status.toLowerCase()) {
       case "paid":
         return {
@@ -258,7 +258,7 @@ export default function CustomerArchivesPage() {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-100">
-                          {filteredPackages.map((pkg, idx) => {
+                          {filteredPackages.map((pkg: ArchivedPackage, idx: number) => {
                             const statusInfo = getStatusInfo(pkg.status);
                             const StatusIcon = statusInfo.icon;
                             return (

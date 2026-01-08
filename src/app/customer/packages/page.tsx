@@ -123,6 +123,7 @@ export default function CustomerPackagesPage() {
       setLoading(false);
     }
     // If session is undefined, wait for it to load
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user ? 'authenticated' : session === null ? 'unauthenticated' : 'loading']); // Stable dependency
 
   const filtered = useMemo(() => {

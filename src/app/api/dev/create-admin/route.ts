@@ -63,11 +63,11 @@ export async function POST(req: Request) {
       } else {
         console.log("✅ Admin welcome email sent successfully (dev) to:", email);
       }
-    } catch (emailError: any) {
+    } catch (emailError: unknown) {
       console.error("❌ Error sending admin welcome email (dev):", {
-        message: emailError.message,
-        stack: emailError.stack,
-        code: emailError.code
+        message: emailError instanceof Error ? emailError.message : String(emailError),
+        stack: emailError instanceof Error ? emailError.stack : undefined,
+        code: (emailError as any).code
       });
     }
 

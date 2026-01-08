@@ -3,6 +3,16 @@ import { getAuthFromRequest } from "@/lib/rbac";
 import * as paypal from "@paypal/checkout-server-sdk";
 import { OrdersCreateRequest } from "@paypal/checkout-server-sdk";
 
+interface PayPalLink {
+  rel?: string;
+  href?: string;
+}
+
+interface PayPalOrderResult {
+  id?: string;
+  links?: PayPalLink[];
+}
+
 // PayPal client setup
 function paypalClient() {
   const clientId = process.env.PAYPAL_CLIENT_ID;
@@ -28,7 +38,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { amount, currency = "USD", description = "Payment", customerCode, receiptNo } = body;
+    const { amount, currency = "USD" } = body;
 
     if (!amount || amount <= 0) {
       return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
@@ -57,7 +67,7 @@ export async function POST(req: Request) {
 
     if (order.statusCode === 201 && order.result) {
       const orderId = order.result.id;
-      const approvalUrl = (order.result as any).links?.find((link: any) => link.rel === "approve")?.href as string;
+      const approvalUrl = (order.result as PayPalOrderResult).links?.find((link: PayPalLink) => link.rel === "approve")?.href as string;
 
       return NextResponse.json({
         success: true,

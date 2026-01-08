@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { ChevronDown } from "lucide-react";
 
 interface Currency {
@@ -30,9 +30,36 @@ export default function CurrencySelector({
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
 
+  const loadCurrencies = useCallback(async () => {
+    try {
+      console.log("Loading currencies...");
+      const res = await fetch("/api/currencies");
+      console.log("Currency API response status:", res.status);
+      if (res.ok) {
+        const data = await res.json();
+        console.log("Currency API response data:", data);
+        setCurrencies(data.currencies || []);
+        console.log("Currencies loaded:", data.currencies?.length || 0);
+        
+        // If no currencies exist, try to initialize them
+        if (!data.currencies || data.currencies.length === 0) {
+          console.log("No currencies found, initializing...");
+          await initializeCurrencies();
+        }
+      } else {
+        const errorData = await res.json();
+        console.error("Currency API error:", errorData);
+      }
+    } catch (error) {
+      console.error("Failed to load currencies:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadCurrencies();
-  }, []);
+  }, [loadCurrencies]);
 
   // Update dropdown position when it opens
   useEffect(() => {
@@ -60,33 +87,6 @@ export default function CurrencySelector({
       });
     }
   }, [isOpen]);
-
-  async function loadCurrencies() {
-    try {
-      console.log("Loading currencies...");
-      const res = await fetch("/api/currencies");
-      console.log("Currency API response status:", res.status);
-      if (res.ok) {
-        const data = await res.json();
-        console.log("Currency API response data:", data);
-        setCurrencies(data.currencies || []);
-        console.log("Currencies loaded:", data.currencies?.length || 0);
-        
-        // If no currencies exist, try to initialize them
-        if (!data.currencies || data.currencies.length === 0) {
-          console.log("No currencies found, initializing...");
-          await initializeCurrencies();
-        }
-      } else {
-        const errorData = await res.json();
-        console.error("Currency API error:", errorData);
-      }
-    } catch (error) {
-      console.error("Failed to load currencies:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function initializeCurrencies() {
     try {

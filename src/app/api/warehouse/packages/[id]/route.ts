@@ -81,7 +81,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const shippingCost = calculateTotalAmount(itemValueNum, weightNum);
     
     // Create update object with proper field mapping
-    const updateData: any = {
+    const updateData: {
+      updatedAt: Date;
+      shippingCost: number;
+      totalAmount: number;
+      paymentMethod: string;
+      trackingNumber?: string;
+      userCode?: string;
+      weight?: number;
+      shipper?: string;
+      description?: string;
+      status?: string;
+      entryDate?: Date;
+    } = {
       updatedAt: new Date(),
       // Add calculated costs like admin
       shippingCost: shippingCost,
@@ -133,7 +145,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // Add to history if status changed
     if (body.status && body.status !== existingPackage.status) {
-      updateData.$push = {
+      (updateData as any).$push = {
         history: {
           status: body.status,
           at: new Date(),
@@ -153,13 +165,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     return NextResponse.json(packageData);
-  } catch (error) {
+  } catch (error: unknown) {
     const err = error as any;
     console.error("Error updating package:", err);
     
     // Provide more specific error messages
     if (err.name === 'ValidationError') {
-      const validationErrors = Object.values(err.errors || {}).map((e: any) => e.message);
+      const validationErrors = Object.values(err.errors || {}).map((e: any) => e.message || 'Unknown validation error');
       return NextResponse.json({ 
         error: "Validation failed: " + validationErrors.join(", "),
         details: validationErrors 

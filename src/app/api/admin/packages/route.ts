@@ -8,7 +8,32 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 
 function asString(value: unknown): string {
-  return typeof value === 'string' ? value : '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  return '';
+}
+
+interface SenderInfo {
+  name?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+}
+
+interface RecipientInfo {
+  name?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  shippingId?: string;
 }
 
 function asNumber(value: unknown): number {
@@ -334,11 +359,11 @@ export async function GET(req: Request) {
         dateReceived: dateReceived ? new Date(String(dateReceived)).toISOString() : null,
         daysInStorage,
         // Sender information
-        senderName: asString(p.senderName) || asString((p.sender as any)?.name) || '',
-        senderEmail: asString(p.senderEmail) || asString((p.sender as any)?.email) || '',
-        senderPhone: asString(p.senderPhone) || asString((p.sender as any)?.phone) || '',
-        senderAddress: asString(p.senderAddress) || asString((p.sender as any)?.address) || '',
-        senderCountry: asString(p.senderCountry) || asString((p.sender as any)?.country) || '',
+        senderName: asString(p.senderName) || asString((p.sender as SenderInfo)?.name) || '',
+        senderEmail: asString(p.senderEmail) || asString((p.sender as SenderInfo)?.email) || '',
+        senderPhone: asString(p.senderPhone) || asString((p.sender as SenderInfo)?.phone) || '',
+        senderAddress: asString(p.senderAddress) || asString((p.sender as SenderInfo)?.address) || '',
+        senderCountry: asString(p.senderCountry) || asString((p.sender as SenderInfo)?.country) || '',
         // Additional details
         shipper: asString(p.shipper) || '',
         createdAt: createdAt ? new Date(String(createdAt)).toISOString() : null,
@@ -435,30 +460,30 @@ export async function POST(req: Request) {
         unit: "cm"
       },
       // Required sender fields
-      senderName: (sender as any)?.name || "Warehouse",
-      senderPhone: (sender as any)?.phone || "0000000000",
-      senderEmail: (sender as any)?.email || "warehouse@shipping.com",
-      senderAddress: (sender as any)?.address || branch || "Main Warehouse",
-      senderCity: (sender as any)?.city || "Kingston",
-      senderState: (sender as any)?.state || "St. Andrew",
-      senderZipCode: (sender as any)?.zipCode || "00000",
-      senderCountry: (sender as any)?.country || "Jamaica",
+      senderName: (sender as SenderInfo)?.name || "Warehouse",
+      senderPhone: (sender as SenderInfo)?.phone || "0000000000",
+      senderEmail: (sender as SenderInfo)?.email || "warehouse@shipping.com",
+      senderAddress: (sender as SenderInfo)?.address || branch || "Main Warehouse",
+      senderCity: (sender as SenderInfo)?.city || "Kingston",
+      senderState: (sender as SenderInfo)?.state || "St. Andrew",
+      senderZipCode: (sender as SenderInfo)?.zipCode || "00000",
+      senderCountry: (sender as SenderInfo)?.country || "Jamaica",
       // Required receiver fields
-      receiverName: (recipient as any)?.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Customer",
-      receiverPhone: (recipient as any)?.phone || user.phone || "0000000000",
-      receiverEmail: (recipient as any)?.email || user.email || "",
-      receiverAddress: (recipient as any)?.address || user.address?.street || "No Address",
-      receiverCity: (recipient as any)?.city || user.address?.city || "Kingston",
-      receiverState: (recipient as any)?.state || user.address?.state || "St. Andrew",
-      receiverZipCode: (recipient as any)?.zipCode || user.address?.zipCode || "00000",
-      receiverCountry: (recipient as any)?.country || user.address?.country || "Jamaica",
+      receiverName: (recipient as RecipientInfo)?.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Customer",
+      receiverPhone: (recipient as RecipientInfo)?.phone || user.phone || "0000000000",
+      receiverEmail: (recipient as RecipientInfo)?.email || user.email || "",
+      receiverAddress: (recipient as RecipientInfo)?.address || user.address?.street || "No Address",
+      receiverCity: (recipient as RecipientInfo)?.city || user.address?.city || "Kingston",
+      receiverState: (recipient as RecipientInfo)?.state || user.address?.state || "St. Andrew",
+      receiverZipCode: (recipient as RecipientInfo)?.zipCode || user.address?.zipCode || "00000",
+      receiverCountry: (recipient as RecipientInfo)?.country || user.address?.country || "Jamaica",
       // Additional fields
       recipient: {
-        name: (recipient as any)?.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Customer",
-        email: (recipient as any)?.email || user.email,
-        shippingId: (recipient as any)?.shippingId || user.userCode,
-        phone: (recipient as any)?.phone || user.phone || "",
-        address: (recipient as any)?.address || user.address?.street || ""
+        name: (recipient as RecipientInfo)?.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Customer",
+        email: (recipient as RecipientInfo)?.email || user.email,
+        shippingId: (recipient as RecipientInfo)?.shippingId || user.userCode,
+        phone: (recipient as RecipientInfo)?.phone || user.phone || "",
+        address: (recipient as RecipientInfo)?.address || user.address?.street || ""
       },
       sender: sender || {
         name: "Warehouse",
@@ -510,7 +535,7 @@ export async function POST(req: Request) {
     try {
       const session = await getServerSession(authOptions);
       const inventoryResult = await InventoryService.deductPackageMaterials(
-        { ...packageData, trackingNumber },
+        { ...packageData, trackingNumber: String(trackingNumber), warehouseLocation: (packageData as Record<string, unknown>).warehouseLocation as string || 'Main Warehouse' },
         created._id.toString(),
         session?.user?.id
       );

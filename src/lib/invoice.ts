@@ -1,5 +1,4 @@
 import { generateInvoicePdf } from './pdfGenerator';
-import { IInvoice } from '@/models/Invoice';
 
 // Re-export the PDF generation function
 export { generateInvoicePdf };

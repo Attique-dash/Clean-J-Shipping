@@ -22,14 +22,8 @@ import {
   Eye,
   X,
   Mail,
-  Phone,
   MapPin,
-  Calendar,
-  DollarSign,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  FileText
+  Calendar
 } from 'lucide-react';
 import Link from 'next/link';
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";

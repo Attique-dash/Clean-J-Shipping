@@ -29,7 +29,7 @@ interface PackageData {
   status: string;
   tracking_number?: string;
   destination?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface BillData {
@@ -38,7 +38,7 @@ interface BillData {
   invoice_number?: string;
   amount_due?: number;
   tracking_number?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export default function CustomerDashboardPage() {
@@ -77,6 +77,7 @@ export default function CustomerDashboardPage() {
       // Session is undefined, wait for it to load
       return;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
   async function loadStats() {
@@ -628,7 +629,7 @@ function StatCard({
 }: {
   title: string;
   value: number;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
   color: "blue" | "orange" | "green";
   href: string;
 }) {

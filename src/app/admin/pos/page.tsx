@@ -13,7 +13,6 @@ import {
   FileText,
   Package,
   PieChart,
-  Printer,
   Receipt,
   RefreshCw,
   ShoppingCart,
@@ -110,7 +109,7 @@ export default function AdminPosPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [showPayPal, setShowPayPal] = useState(false);
-  const [paypalOrderId, setPaypalOrderId] = useState<string | null>(null);
+  const [_paypalOrderId, setPaypalOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/customers", { cache: "no-store" })
@@ -123,12 +122,15 @@ export default function AdminPosPage() {
           : Array.isArray(d)
           ? d
           : [];
-        const mapped = list.map((c: any) => ({
-          id: String(c.customer_id ?? c._id ?? c.id ?? c.userCode ?? Math.random()),
-          name: c.full_name ?? c.name ?? c.email ?? c.userCode ?? "Customer",
-          email: c.email,
-          userCode: c.userCode,
-        }));
+        const mapped = list.map((c: unknown) => {
+          const customer = c as { customer_id?: string; _id?: string; id?: string; userCode?: string; full_name?: string; name?: string; email?: string };
+          return {
+            id: String(customer.customer_id ?? customer._id ?? customer.id ?? customer.userCode ?? Math.random()),
+            name: customer.full_name ?? customer.name ?? customer.email ?? customer.userCode ?? "Customer",
+            email: customer.email,
+            userCode: customer.userCode,
+          };
+        });
         setCustomers(mapped);
       })
       .catch(() => {});
@@ -325,7 +327,7 @@ export default function AdminPosPage() {
   function buildReceiptHtml(txn: Txn) {
     const createdAt = txn.created_at ? new Date(txn.created_at) : new Date();
     const items = txn.items ?? [];
-    const currency = "USD";
+    const _currency = "USD";
 
     const rowsHtml =
       items.length > 0

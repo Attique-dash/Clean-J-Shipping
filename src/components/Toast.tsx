@@ -1,5 +1,4 @@
 // src/components/Toast.tsx
-import { useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/20/solid';
 import { useNotification } from '@/contexts/NotificationContext';
 

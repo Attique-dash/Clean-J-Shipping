@@ -32,7 +32,7 @@ export async function GET(req: Request) {
     console.log(`📊 Fetching inventory items: limit=${limit}, skip=${skip}`);
 
     // Build query
-    const query: any = {};
+    const query: Record<string, string | number | { $lte: number }> = {};
     if (location) query.location = location;
     if (category) query.category = category;
     if (lowStock === 'true') {
@@ -60,16 +60,16 @@ export async function GET(req: Request) {
       total: items.length
     });
     
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ Inventory GET error:", {
-      message: error.message,
-      name: error.name
+      message: error instanceof Error ? error.message : String(error),
+      name: error instanceof Error ? error.name : String(error)
     });
     
     return NextResponse.json(
       { 
         error: "Failed to fetch inventory",
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
       },
       { status: 500 }
     );
@@ -121,16 +121,16 @@ export async function POST(req: Request) {
       { status: 201 }
     );
     
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ Inventory POST error:", {
-      message: error.message,
-      name: error.name
+      message: error instanceof Error ? error.message : String(error),
+      name: error instanceof Error ? error.name : String(error)
     });
     
     return NextResponse.json(
       { 
         error: "Failed to create inventory item",
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
       },
       { status: 500 }
     );

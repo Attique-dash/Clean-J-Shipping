@@ -7,13 +7,13 @@ import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 interface Column {
   key: string;
   header: string;
-  render?: (value: any, row: any) => React.ReactNode;
+  render?: (value: unknown, row: unknown) => React.ReactNode;
   className?: string;
 }
 
 interface DataTableProps {
   columns: Column[];
-  data: any[];
+  data: unknown[];
   page: number;
   pageSize: number;
   totalItems: number;
@@ -41,7 +41,7 @@ export default function DataTable({
   error = null,
 }: DataTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const router = useRouter();
+  const _router = useRouter();
   const totalPages = Math.ceil(totalItems / pageSize);
 
   // Debounce search
@@ -169,9 +169,11 @@ export default function DataTable({
                       </td>
                     </tr>
                   ) : (
-                    data.map((row) => (
+                    data.map((row) => {
+                      const rowData = row as Record<string, unknown>;
+                      return (
                       <tr
-                        key={row[keyField]}
+                        key={String(rowData[keyField])}
                         className="hover:bg-gray-50 cursor-pointer"
                         onClick={() => {
                           // Example: Navigate to detail view
@@ -180,16 +182,17 @@ export default function DataTable({
                       >
                         {columns.map((column) => (
                           <td
-                            key={`${row[keyField]}-${column.key}`}
+                            key={`${String(rowData[keyField])}-${column.key}`}
                             className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
                           >
                             {column.render
-                              ? column.render(row[column.key], row)
-                              : row[column.key]}
+                              ? column.render(rowData[column.key], row)
+                              : String(rowData[column.key] ?? '')}
                           </td>
                         ))}
                       </tr>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>

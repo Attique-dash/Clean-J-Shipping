@@ -4,7 +4,7 @@ import { Inventory } from "@/models/Inventory";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 
-export async function POST(req: Request) {
+export async function POST() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user || session.user.role !== 'admin') {

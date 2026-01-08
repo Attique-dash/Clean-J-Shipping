@@ -22,7 +22,11 @@ const eslintConfig = [
     rules: {
       // Disable rules that are causing build failures
       "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-unused-vars": "warn", 
+      "@typescript-eslint/no-unused-vars": ["warn", { 
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }], 
       "@typescript-eslint/no-empty-object-type": "warn",
       "@typescript-eslint/ban-ts-comment": "warn",
       "react-hooks/exhaustive-deps": "warn",

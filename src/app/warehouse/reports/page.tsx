@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart3, Download, Calendar, TrendingUp, Users, Package, Loader2 } from "lucide-react";
+import { BarChart3, Download, Calendar, TrendingUp, Loader2 } from "lucide-react";
 
 type ReportData = {
   reportType: string;

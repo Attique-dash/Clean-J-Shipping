@@ -71,7 +71,7 @@ export default function TrackingPage() {
       <div className="mt-12 bg-muted/50 p-6 rounded-lg">
         <h2 className="text-xl font-semibold mb-4">Need Help?</h2>
         <p className="text-muted-foreground">
-          If you're having trouble finding your tracking number or need assistance, 
+          If you&apos;re having trouble finding your tracking number or need assistance, 
           please contact our customer support team.
         </p>
       </div>

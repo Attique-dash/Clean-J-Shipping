@@ -26,7 +26,25 @@ function formatCurrency(amount: number, currency: string = 'USD'): string {
   }).format(amount);
 }
 
-const emailTemplates: Record<NotificationType, (data: any) => { subject: string; html: string }> = {
+interface ExtendedEmailData {
+  orderNumber?: string;
+  customerName?: string;
+  shippingAddress?: string;
+  trackingNumber?: string;
+  estimatedDeliveryDate?: string | Date;
+  status?: string;
+  location?: string;
+  notes?: string;
+  signedBy?: string;
+  invoiceNumber?: string;
+  amount?: number;
+  currency?: string;
+  dueDate?: string | Date;
+  paymentMethod?: string;
+  transactionId?: string;
+}
+
+const emailTemplates: Record<NotificationType, (data: ExtendedEmailData) => { subject: string; html: string }> = {
   order_confirmation: (data) => ({
     subject: `Order Confirmation - #${data.orderNumber || 'N/A'}`,
     html: `
@@ -165,7 +183,7 @@ const emailTemplates: Record<NotificationType, (data: any) => { subject: string;
 
 export async function sendEmail(
   type: NotificationType,
-  options: Omit<EmailOptions, 'subject' | 'html'> & { data: any }
+  options: Omit<EmailOptions, 'subject' | 'html'> & { data: ExtendedEmailData }
 ): Promise<{ success: boolean; message?: string }> {
   const transporter = getTransporter();
   if (!transporter) {

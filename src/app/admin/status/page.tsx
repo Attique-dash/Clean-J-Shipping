@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
-import { Package, DollarSign, Users, AlertTriangle } from 'lucide-react';
+import { Package, DollarSign, AlertTriangle } from 'lucide-react';
 
 interface DashboardStats {
   totalPackages: number;

@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, TrendingUp, TrendingDown, CreditCard, Search, Filter, Calendar, ChevronDown, CheckCircle, XCircle, Clock, AlertCircle, Download, Eye, User, Building, Receipt, RefreshCw, Settings, Loader2, Trash2 } from "lucide-react";
-import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
+import { DollarSign, TrendingUp, TrendingDown, CreditCard, Search, Filter, Calendar, ChevronDown, CheckCircle, XCircle, Clock, AlertCircle, Download, Eye, User, Building, Receipt, RefreshCw, Loader2, Trash2 } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import EnhancedCurrencySelector from "@/components/EnhancedCurrencySelector";
 
@@ -81,10 +80,11 @@ export default function TransactionsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load transactions");
       
-      const mapped: Transaction[] = (data.transactions || []).map((t: any) => {
+      const mapped: Transaction[] = (data.transactions || []).map((t: unknown) => {
+        const transaction = t as { id?: string; reference?: string; gateway_id?: string; method?: string; status?: string; amount?: number; tracking_number?: string; user_code?: string; payment_gateway?: string; paymentGateway?: string; created_at?: string };
         // Determine payment method display
-        let methodDisplay = t.method || "unknown";
-        const paymentGateway = t.payment_gateway || t.paymentGateway;
+        let methodDisplay = transaction.method || "unknown";
+        const paymentGateway = transaction.payment_gateway || transaction.paymentGateway;
         if (paymentGateway === "paypal") {
           methodDisplay = "PayPal";
         } else if (paymentGateway === "Testing") {
@@ -92,18 +92,18 @@ export default function TransactionsPage() {
         }
 
         return {
-          id: t.id,
-          transactionId: t.reference || t.gateway_id || t.id,
-          type: t.method === "refund" ? "refund" : "sale" as TransactionType,
-          status: t.status as TransactionStatus,
-          amount: t.amount || 0,
-          description: `Payment - ${t.tracking_number || t.user_code || "Transaction"}`,
-          customer: t.user_code || undefined,
+          id: transaction.id || '',
+          transactionId: transaction.reference || transaction.gateway_id || transaction.id || '',
+          type: transaction.method === "refund" ? "refund" : "sale" as TransactionType,
+          status: transaction.status as TransactionStatus,
+          amount: transaction.amount || 0,
+          description: `Payment - ${transaction.tracking_number || transaction.user_code || "Transaction"}`,
+          customer: transaction.user_code || undefined,
           paymentMethod: methodDisplay,
-          reference: t.reference || t.gateway_id || undefined,
-          date: t.created_at || new Date().toISOString(),
-          reconciled: t.status === "captured" || t.status === "completed",
-          category: t.method === "refund" ? "Refunds" : paymentGateway === "paypal" ? "PayPal Payments" : "Sales",
+          reference: transaction.reference || transaction.gateway_id || undefined,
+          date: transaction.created_at || new Date().toISOString(),
+          reconciled: transaction.status === "captured" || transaction.status === "completed",
+          category: transaction.method === "refund" ? "Refunds" : paymentGateway === "paypal" ? "PayPal Payments" : "Sales",
         };
       });
       
@@ -117,6 +117,7 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     loadTransactions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, statusFilter, typeFilter]);
 
   async function deleteTransaction(transactionId: string) {
@@ -215,7 +216,7 @@ export default function TransactionsPage() {
     updateDisplayStats();
   }, [transactions, selectedCurrency]);
 
-  const stats = {
+  const _stats = {
     totalRevenue: transactions.filter(t => t.type === "sale" && (t.status === "completed" || t.status === "captured")).reduce((sum, t) => sum + t.amount, 0),
     totalExpenses: transactions.filter(t => (t.type === "expense" || t.type === "purchase") && (t.status === "completed" || t.status === "captured")).reduce((sum, t) => sum + t.amount, 0),
     totalRefunds: transactions.filter(t => (t.type === "refund" || t.status === "refunded") && (t.status === "completed" || t.status === "captured" || t.status === "refunded")).reduce((sum, t) => sum + t.amount, 0),

@@ -66,6 +66,7 @@ export default function CustomerFAQPage() {
 
   useEffect(() => {
     loadFAQs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory]);
 
   useEffect(() => {
@@ -75,6 +76,7 @@ export default function CustomerFAQPage() {
     } else {
       loadFAQs();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
   function toggleItem(id: string) {

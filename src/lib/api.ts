@@ -49,7 +49,7 @@ export const apiFetch = async (
 
     if (!response.ok) {
       const error = new Error(response.statusText);
-      // @ts-ignore
+      // @ts-expect-error - response property added dynamically
       error.response = await response.json().catch(() => ({}));
       throw error;
     }

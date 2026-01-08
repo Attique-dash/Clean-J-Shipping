@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Trash2, X } from "lucide-react";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import SharedModal from "./SharedModal";
 
 type DeleteConfirmationModalProps = {

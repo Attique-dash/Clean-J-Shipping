@@ -22,7 +22,7 @@ export const EXTERNAL_STATUS_LABELS: Record<number, string> = {
 
 // Map external numeric statuses into our internal PackageStatus enum
 // Internal enum: "Unknown" | "At Warehouse" | "In Transit" | "At Local Port" | "Delivered" | "Deleted"
-export function mapExternalToInternalStatus(n: any): "Unknown" | "At Warehouse" | "In Transit" | "At Local Port" | "Delivered" | "Deleted" {
+export function mapExternalToInternalStatus(n: number | string): "Unknown" | "At Warehouse" | "In Transit" | "At Local Port" | "Delivered" | "Deleted" {
   const v = typeof n === "number" ? n : Number.isFinite(Number(n)) ? Number(n) : NaN;
   switch (v) {
     case 0:
@@ -43,7 +43,7 @@ export function mapExternalToInternalStatus(n: any): "Unknown" | "At Warehouse" 
   }
 }
 
-export function getExternalStatusLabel(n: any): string {
+export function getExternalStatusLabel(n: number | string): string {
   const v = typeof n === "number" ? n : Number.isFinite(Number(n)) ? Number(n) : NaN;
   return EXTERNAL_STATUS_LABELS[v] || "AT WAREHOUSE";
 }

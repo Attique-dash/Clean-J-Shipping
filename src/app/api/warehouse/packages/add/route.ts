@@ -41,7 +41,7 @@ function calculateTotalAmount(itemValue: number, weight: number): number {
   return shippingCostJmd + customsDutyJmd;
 }
 
-async function createBillingInvoice(packageData: any, user: any, trackingNumber: string) {
+async function createBillingInvoice(packageData: { value?: number; weight?: number; dimensions?: { length?: string; width?: string; height?: string } }, user: { _id: string; firstName: string; lastName: string; email: string; userCode?: string; address?: { street?: string }; phone?: string }, trackingNumber: string) {
   try {
     const itemValue = asNumber(packageData.value) || 0;
     const weight = asNumber(packageData.weight) || 0;
@@ -88,14 +88,14 @@ async function createBillingInvoice(packageData: any, user: any, trackingNumber:
       invoiceType: "billing",
       customer: {
         id: user._id,
-        name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.userCode,
+        name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.userCode || '',
         email: user.email || '',
         address: user.address?.street || '',
         phone: user.phone || ''
       },
       package: {
         trackingNumber: trackingNumber,
-        userCode: user.userCode
+        userCode: user.userCode || ''
       },
       status: "unpaid",
       issueDate: new Date(),
@@ -193,13 +193,13 @@ export async function POST(req: Request) {
           receiverEmail: recipient?.email || undefined,
           receiverPhone: recipient?.phone || undefined,
           receiverAddress: recipient?.address || undefined,
-          receiverCountry: (recipient as any)?.country || undefined,
+          receiverCountry: (recipient as { country?: string })?.country || undefined,
           // Sender information
           senderName: sender?.name || undefined,
           senderEmail: sender?.email || undefined,
           senderPhone: sender?.phone || undefined,
           senderAddress: sender?.address || undefined,
-          senderCountry: (sender as any)?.country || undefined,
+          senderCountry: (sender as { country?: string })?.country || undefined,
           // Package dimensions
           length: dimensions?.length ? Number(dimensions.length) : undefined,
           width: dimensions?.width ? Number(dimensions.width) : undefined,
@@ -228,7 +228,7 @@ export async function POST(req: Request) {
             shippingId: customer.userCode,
             phone: recipient?.phone || customer.phone || "",
             address: recipient?.address || customer.address?.street || "",
-            country: (recipient as any)?.country || customer.address?.country || ""
+            country: (recipient as { country?: string })?.country || customer.address?.country || ""
           },
           sender: sender || {
             name: "Warehouse",
@@ -269,7 +269,7 @@ export async function POST(req: Request) {
     await session.commitTransaction();
 
     // FIXED: Create proper billing invoice automatically (like admin does)
-    let billingInvoice: any = null;
+    let billingInvoice: { _id?: string; invoiceNumber?: string; totalAmount?: number; status?: string; } | null = null;
     try {
       const packageDataForInvoice = {
         value: value,
@@ -297,7 +297,7 @@ export async function POST(req: Request) {
     }
 
     // NEW: Automatically deduct inventory materials (like admin does)
-    let inventoryResult: any = null;
+    let inventoryResult: { success?: boolean; transactions?: { _id: string }[]; lowStockItems?: any[]; } | null = null;
     try {
       const packageDataForInventory = {
         value: value,
@@ -323,7 +323,7 @@ export async function POST(req: Request) {
           {
             $set: { 
               inventoryDeducted: true,
-              inventoryTransactionIds: inventoryResult.transactions?.map((t: any) => t._id) || []
+              inventoryTransactionIds: inventoryResult.transactions?.map((t: { _id: string }) => t._id) || []
             }
           }
         );
@@ -334,7 +334,7 @@ export async function POST(req: Request) {
           // TODO: Send notification to warehouse manager
         }
       } else {
-        console.error('Inventory deduction failed for warehouse package:', inventoryResult.message);
+        console.error('Inventory deduction failed for warehouse package:', (inventoryResult as any).message);
         // Don't fail package creation, but log issue
       }
     } catch (inventoryError) {
@@ -376,7 +376,7 @@ export async function POST(req: Request) {
       billingInvoice: billingInvoice ? {
         id: billingInvoice._id,
         invoiceNumber: billingInvoice.invoiceNumber,
-        total: billingInvoice.total
+        total: (billingInvoice as any).total || 0
       } : null,
       inventoryTransactions: inventoryResult?.transactions || [],
       message: "Package, billing invoice, and inventory deduction completed successfully"

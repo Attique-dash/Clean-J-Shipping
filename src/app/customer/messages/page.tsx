@@ -505,7 +505,7 @@ export default function CustomerMessagesPage() {
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();
-                                onSubmit(e as any);
+                                onSubmit(e as unknown as React.FormEvent);
                               }
                             }}
                           />

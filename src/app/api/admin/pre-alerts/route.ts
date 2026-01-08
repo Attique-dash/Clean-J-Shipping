@@ -4,10 +4,6 @@ import { getAuthFromRequest } from "@/lib/rbac";
 import { PreAlert } from "@/models/PreAlert";
 import { IPreAlert } from "@/models/PreAlert";
 
-type PreAlertLean = Omit<IPreAlert, "_id"> & {
-  _id?: { toString(): string };
-};
-
 export async function GET(req: Request) {
   await dbConnect();
   const payload = await getAuthFromRequest(req);

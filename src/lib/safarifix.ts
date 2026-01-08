@@ -6,7 +6,7 @@ export function detectAndFixSafari() {
   if (isSafari) {
     // Force style recalculation
     document.documentElement.style.display = 'none';
-    document.documentElement.offsetHeight; // Trigger reflow
+    void document.documentElement.offsetHeight; // Trigger reflow
     document.documentElement.style.display = '';
     
     // Log for debugging

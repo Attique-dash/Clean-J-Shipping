@@ -88,11 +88,11 @@ export default function TrackingResultPage() {
     }
   }, [trackingNumber]);
 
-  const getStatusColor = (status: Status) => {
+  const _getStatusColor = (status: Status) => {
     return statusConfig[status]?.color || 'bg-gray-100 text-gray-800';
   };
 
-  const getStatusLabel = (status: Status) => {
+  const _getStatusLabel = (status: Status) => {
     return statusConfig[status]?.label || 'Unknown';
   };
 

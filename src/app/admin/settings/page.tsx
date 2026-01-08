@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings, Plus, Edit2, Trash2, DollarSign, Package, Calendar, Shield, CheckCircle, XCircle } from "lucide-react";
+import { Settings, Plus, Edit2, Trash2, DollarSign, Package, Shield } from "lucide-react";
 
 type Service = {
   _id: string;

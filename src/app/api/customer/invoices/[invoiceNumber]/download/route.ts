@@ -5,10 +5,49 @@ import { getAuthFromRequest } from "@/lib/rbac";
 import { ExportService } from "@/lib/export-service";
 import { Types } from "mongoose";
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ invoiceNumber: string }> }
-) {
+interface InvoiceItem {
+  description?: string;
+  quantity?: number;
+  unitPrice?: number;
+  taxRate?: number;
+  amount?: number;
+  taxAmount?: number;
+  total?: number;
+}
+
+interface PaymentHistory {
+  amount?: number;
+  date?: string | Date;
+  method?: string;
+  reference?: string;
+}
+
+interface InvoiceCustomer {
+  name?: string;
+  email?: string;
+  address?: string;
+  phone?: string;
+}
+
+interface InvoiceData {
+  invoiceNumber?: string;
+  issueDate?: string | Date;
+  dueDate?: string | Date;
+  status?: string;
+  customer?: InvoiceCustomer;
+  items?: InvoiceItem[];
+  subtotal?: number;
+  taxTotal?: number;
+  discountAmount?: number;
+  total?: number;
+  amountPaid?: number;
+  balanceDue?: number;
+  currency?: string;
+  notes?: string;
+  paymentHistory?: PaymentHistory[];
+}
+
+export async function GET(req: Request, { params }: { params: Promise<{ invoiceNumber: string }> }) {
   try {
     const { invoiceNumber } = await params;
     const payload = await getAuthFromRequest(req);
@@ -28,12 +67,12 @@ export async function GET(
     }
 
     // Find the invoice
-    const invoice = await Invoice.findOne({ 
+    const invoiceResult = await Invoice.findOne({ 
       invoiceNumber: invoiceNumber,
       userId: new Types.ObjectId(userId) 
     }).lean();
 
-    if (!invoice) {
+    if (!invoiceResult) {
       return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
     }
 
@@ -42,18 +81,19 @@ export async function GET(
     const format = searchParams.get('format') || 'pdf';
 
     // Prepare invoice data for export
+    const invoice = invoiceResult as InvoiceData;
     const invoiceData = {
-      invoiceNumber: (invoice as any).invoiceNumber,
-      issueDate: (invoice as any).issueDate ? new Date((invoice as any).issueDate).toISOString() : new Date().toISOString(),
-      dueDate: (invoice as any).dueDate ? new Date((invoice as any).dueDate).toISOString() : new Date().toISOString(),
-      status: (invoice as any).status || 'draft',
+      invoiceNumber: invoice.invoiceNumber || invoiceNumber,
+      issueDate: invoice.issueDate ? new Date(String(invoice.issueDate)).toISOString() : new Date().toISOString(),
+      dueDate: invoice.dueDate ? new Date(String(invoice.dueDate)).toISOString() : new Date().toISOString(),
+      status: invoice.status || 'draft',
       customer: {
-        name: (invoice as any).customer?.name || 'N/A',
-        email: (invoice as any).customer?.email || 'N/A',
-        address: (invoice as any).customer?.address || '',
-        phone: (invoice as any).customer?.phone || ''
+        name: invoice.customer?.name || 'N/A',
+        email: invoice.customer?.email || 'N/A',
+        address: invoice.customer?.address || '',
+        phone: invoice.customer?.phone || ''
       },
-      items: ((invoice as any).items || []).map((item: any) => ({
+      items: (invoice.items || []).map((item: InvoiceItem) => ({
         description: item.description || 'Service',
         quantity: Number(item.quantity) || 1,
         unitPrice: Number(item.unitPrice) || 0,
@@ -62,17 +102,17 @@ export async function GET(
         taxAmount: Number(item.taxAmount) || 0,
         total: Number(item.total) || 0
       })),
-      subtotal: Number((invoice as any).subtotal) || 0,
-      taxTotal: Number((invoice as any).taxTotal) || 0,
-      discountAmount: Number((invoice as any).discountAmount) || 0,
-      total: Number((invoice as any).total) || 0,
-      amountPaid: Number((invoice as any).amountPaid) || 0,
-      balanceDue: Number((invoice as any).balanceDue) || 0,
-      currency: (invoice as any).currency || 'USD',
-      notes: (invoice as any).notes || '',
-      paymentHistory: ((invoice as any).paymentHistory || []).map((payment: any) => ({
+      subtotal: Number(invoice.subtotal) || 0,
+      taxTotal: Number(invoice.taxTotal) || 0,
+      discountAmount: Number(invoice.discountAmount) || 0,
+      total: Number(invoice.total) || 0,
+      amountPaid: Number(invoice.amountPaid) || 0,
+      balanceDue: Number(invoice.balanceDue) || 0,
+      currency: invoice.currency || 'USD',
+      notes: invoice.notes || '',
+      paymentHistory: (invoice.paymentHistory || []).map((payment: PaymentHistory) => ({
         amount: Number(payment.amount) || 0,
-        date: payment.date ? new Date(payment.date).toISOString() : new Date().toISOString(),
+        date: payment.date ? new Date(String(payment.date)).toISOString() : new Date().toISOString(),
         method: payment.method || 'Unknown',
         reference: payment.reference || ''
       }))

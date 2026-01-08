@@ -87,8 +87,8 @@ export async function POST(req: Request) {
       }
       invoiceNumber = invoice.invoiceNumber || `GEN-${actualBillId}`;
       currency = invoice.currency || "USD";
-      totalAmount = invoice.total || 0;
-      balanceAmount = invoice.balance;
+      const _totalAmount = invoice.total || 0;
+      const _balanceAmount = invoice.balance;
     } else if (billType === 'pos') {
       invoice = await PosTransaction.findById(actualBillId);
       if (!invoice) {

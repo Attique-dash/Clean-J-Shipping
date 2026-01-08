@@ -139,7 +139,7 @@ export async function GET(req: Request) {
         title: manifest.title || null,
         mode: manifest.mode || 'air',
         batchDate: manifest.batchDate || null,
-        shipments: (manifest.shipments || []).map((shipment: any) => ({
+        shipments: (manifest.shipments || []).map((shipment: { id?: string; trackingNumber?: string; status?: string; notes?: string; }) => ({
           ...shipment,
           notes: shipment.notes || null
         }))

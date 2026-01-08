@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef } from "react";
 import { MapPin, Package, Clock, Navigation, Loader2, AlertCircle } from "lucide-react";
 import { useWebSocket } from "@/components/providers/WebSocketProvider";
-import dynamic from "next/dynamic";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -44,8 +43,8 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
   const [packageData, setPackageData] = useState<PackageTrackingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [map, setMap] = useState<L.Map | null>(null);
-  const [markers, setMarkers] = useState<L.Marker[]>([]);
+  const [_map, setMap] = useState<L.Map | null>(null);
+  const [_markers, setMarkers] = useState<L.Marker[]>([]);
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const { socket, isConnected } = useWebSocket();
@@ -59,21 +58,22 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
       socket.emit('subscribe:packages');
       socket.emit('track:package', { trackingNumber });
       
-      socket.on('package:location', (data: any) => {
-        if (data.trackingNumber === trackingNumber) {
+      socket.on('package:location', (data: unknown) => {
+        if ((data as { trackingNumber?: string })?.trackingNumber === trackingNumber) {
           updateLocation(data);
         }
       });
       
-      socket.on('package:update', (data: any) => {
-        if (data.trackingNumber === trackingNumber) {
+      socket.on('package:update', (data: unknown) => {
+        const packageUpdate = data as { trackingNumber?: string; status?: string; location?: { latitude: number; longitude: number; address?: string } };
+        if (packageUpdate.trackingNumber === trackingNumber) {
           setPackageData(prev => prev ? {
             ...prev,
-            status: data.status,
-            currentLocation: data.location ? {
-              latitude: data.location.latitude,
-              longitude: data.location.longitude,
-              address: data.location.address,
+            status: packageUpdate.status || prev.status,
+            currentLocation: packageUpdate.location ? {
+              latitude: packageUpdate.location.latitude,
+              longitude: packageUpdate.location.longitude,
+              address: packageUpdate.location.address,
               timestamp: new Date(data.timestamp),
             } : prev.currentLocation,
           } : null);
@@ -87,7 +87,7 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
         socket.off('package:update');
       }
     };
-  }, [trackingNumber, socket, isConnected]);
+  }, [trackingNumber, socket, isConnected, loadPackageData]);
 
   async function loadPackageData() {
     setLoading(true);
@@ -104,14 +104,15 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
     }
   }
 
-  function updateLocation(data: any) {
-    if (data.location) {
+  function updateLocation(data: unknown) {
+    const dataWithLocation = data as { location?: { latitude: number; longitude: number; address?: string } };
+    if (dataWithLocation.location) {
       setPackageData(prev => prev ? {
         ...prev,
         currentLocation: {
-          latitude: data.location.latitude,
-          longitude: data.location.longitude,
-          address: data.location.address,
+          latitude: dataWithLocation.location!.latitude,
+          longitude: dataWithLocation.location!.longitude,
+          address: dataWithLocation.location!.address,
           timestamp: new Date(data.timestamp),
         },
         history: [
@@ -187,7 +188,7 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
 
     // Add history markers
     const historyMarkers: L.Marker[] = [];
-    packageData.history.forEach((entry, index) => {
+    packageData.history.forEach((entry, _index) => {
       if (entry.location) {
         const marker = L.marker(
           [entry.location.latitude, entry.location.longitude],
@@ -230,7 +231,7 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
         mapInstanceRef.current = null;
       }
     };
-  }, [packageData?.currentLocation, packageData?.history]);
+  }, [packageData?.currentLocation?.latitude, packageData?.currentLocation?.longitude, packageData?.trackingNumber, packageData?.status, packageData?.history]);
 
   if (!packageData?.currentLocation?.latitude || !packageData?.currentLocation?.longitude) {
     return (

@@ -49,7 +49,7 @@ export default function CustomerContactPage() {
             <div>
               <h1 className="text-2xl font-bold text-[#0f4d8a]">Contact Us</h1>
               <p className="text-sm text-gray-600 mt-1">
-                We're here to help! Reach out to our support team
+                We&apos;re here to help! Reach out to our support team
               </p>
             </div>
           </div>

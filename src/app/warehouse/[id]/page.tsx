@@ -9,16 +9,10 @@ import { toast } from 'react-toastify';
 import {
   FaArrowLeft,
   FaBox,
-  FaUser,
-  FaEnvelope,
-  FaRuler,
-  FaWeight,
-  FaCalendarAlt,
   FaEdit,
   FaSave,
   FaTimes,
   FaTrash,
-  FaHistory,
   FaCheck,
   FaExclamationTriangle,
 } from 'react-icons/fa';
@@ -64,7 +58,7 @@ export default function PackageDetailsPage() {
   const params = useParams() as { id?: string } | null;
   const id = params?.id;
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { data: _session } = useSession();
   const [pkg, setPackage] = useState<Package | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);

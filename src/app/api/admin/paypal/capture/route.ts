@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getAuthFromRequest } from "@/lib/rbac";
-import { prisma } from "@/lib/prisma";
 import { dbConnect } from "@/lib/db";
 import { Payment } from "@/models/Payment";
 import * as paypal from "@paypal/checkout-server-sdk";

@@ -3,14 +3,14 @@ import { Server } from 'socket.io';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 const ioHandler = (req: NextApiRequest, res: NextApiResponse) => {
-  // @ts-ignore
+  // @ts-expect-error
   if (!res.socket.server.io) {
     console.log('*First use, starting socket.io');
     
-    // @ts-ignore
+    // @ts-expect-error
     const io = new Server(res.socket.server, {
       path: '/api/socket',
-      // @ts-ignore
+      // @ts-expect-error
       addTrailingSlash: false,
     });
 
@@ -29,7 +29,7 @@ const ioHandler = (req: NextApiRequest, res: NextApiResponse) => {
       });
     });
 
-    // @ts-ignore
+    // @ts-expect-error
     res.socket.server.io = io;
   } else {
     console.log('Socket.io already running');

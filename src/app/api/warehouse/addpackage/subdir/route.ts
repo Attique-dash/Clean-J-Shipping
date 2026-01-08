@@ -73,7 +73,7 @@ export async function POST(req: Request) {
       const description = typeof item?.Description === "string" ? item.Description : undefined;
       const serviceTypeId = typeof item?.ServiceTypeID === "string" ? item.ServiceTypeID : "";
       const serviceTypeName = getServiceTypeName(serviceTypeId);
-      const externalStatusLabel = getExternalStatusLabel(item?.PackageStatus);
+      const externalStatusLabel = getExternalStatusLabel(String(item?.PackageStatus || ''));
       const entryDateStr = typeof item?.EntryDateTime === "string" && item.EntryDateTime.trim()
         ? item.EntryDateTime
         : typeof item?.EntryDate === "string"
@@ -120,7 +120,7 @@ export async function POST(req: Request) {
       // Generate invoice number
       const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
       
-      const updatedPackage = await Package.findOneAndUpdate(
+      const _updatedPackage = await Package.findOneAndUpdate(
         { trackingNumber },
         {
           $setOnInsert: {

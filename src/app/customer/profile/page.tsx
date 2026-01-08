@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, Mail, Phone, MapPin, Shield, Calendar, Clock, Edit2, Lock, Check, X, Building, Globe, CreditCard, LogOut, Trash2, AlertTriangle } from "lucide-react";
+import { User, Mail, Phone, MapPin, Shield, Calendar, Clock, Edit2, Lock, Check, X, Building, Globe, LogOut, Trash2, AlertTriangle } from "lucide-react";
 
 type Address = { street?: string; city?: string; state?: string; zip_code?: string; country?: string };
 

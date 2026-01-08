@@ -8,7 +8,6 @@ import {
   DollarSign, 
   ArrowUpRight,
   ArrowDownRight,
-  Calendar,
   BarChart3,
   PieChart,
   Activity,
@@ -326,7 +325,7 @@ function MetricCard({
   title: string; 
   value: string; 
   growth: number; 
-  icon: any; 
+  icon: React.ComponentType<{ className?: string }>; 
   color: string;
 }) {
   const isPositive = growth >= 0;

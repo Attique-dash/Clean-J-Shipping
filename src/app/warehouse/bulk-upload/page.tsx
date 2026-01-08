@@ -14,7 +14,7 @@ export default function BulkUploadPage() {
   const [jsonText, setJsonText] = useState("");
   const [csvText, setCsvText] = useState("");
   const [uploadFormat, setUploadFormat] = useState<"json" | "csv">("json");
-  const [preview, setPreview] = useState<any[]>([]);
+  const [preview, setPreview] = useState<Record<string, any>[]>([]);
   const [results, setResults] = useState<UploadResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState({ total: 0, success: 0, failed: 0 });
@@ -73,7 +73,7 @@ export default function BulkUploadPage() {
     }
   }
 
-  function parseCSV(text: string): any[] {
+  function parseCSV(text: string): Record<string, string>[] {
     const lines = text.trim().split("\n");
     if (lines.length < 2) throw new Error("CSV must have at least a header row and one data row");
     
@@ -82,7 +82,7 @@ export default function BulkUploadPage() {
     
     for (let i = 1; i < lines.length; i++) {
       const values = lines[i].split(",").map(v => v.trim());
-      const pkg: any = {};
+      const pkg: Record<string, string> = {};
       headers.forEach((header, idx) => {
         pkg[header] = values[idx] || "";
       });
@@ -105,7 +105,7 @@ export default function BulkUploadPage() {
           try {
             const parsed = parseCSV(text);
             setPreview(parsed.slice(0, 5)); // Preview first 5 rows
-          } catch (err) {
+          } catch {
             setPreview([]);
           }
         } else {
@@ -114,7 +114,7 @@ export default function BulkUploadPage() {
           try {
             const data = JSON.parse(text);
             setPreview(data.packages?.slice(0, 5) || []);
-          } catch (err) {
+          } catch {
             setPreview([]);
           }
         }
@@ -138,7 +138,7 @@ export default function BulkUploadPage() {
     setSummary({ total: 0, success: 0, failed: 0 });
 
     try {
-      let packages: any[] = [];
+      let packages: Record<string, any>[] = [];
       
       if (uploadFormat === "csv") {
         packages = parseCSV(csvText);
@@ -155,7 +155,7 @@ export default function BulkUploadPage() {
       }
 
       // Validate required fields
-      const invalid = packages.find((pkg: any) => !pkg.trackingNumber || !pkg.userCode);
+      const invalid = packages.find((pkg: Record<string, any>) => !pkg.trackingNumber || !pkg.userCode);
       if (invalid) {
         throw new Error("All packages must have 'trackingNumber' and 'userCode' fields");
       }
@@ -178,8 +178,8 @@ export default function BulkUploadPage() {
       } else {
         alert(result.error || "Upload failed");
       }
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Invalid JSON format");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Invalid JSON format");
     } finally {
       setLoading(false);
     }
@@ -377,8 +377,8 @@ export default function BulkUploadPage() {
                     <tbody>
                       {preview.map((row, idx) => (
                         <tr key={idx} className="border-t border-blue-200">
-                          {Object.values(row).map((val: any, i) => (
-                            <td key={i} className="px-2 py-1 text-blue-800">{String(val || "-")}</td>
+                          {Object.values(row).map((value, i) => (
+                            <td key={i} className="px-2 py-1 text-blue-800">{String(value)}</td>
                           ))}
                         </tr>
                       ))}

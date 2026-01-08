@@ -2,7 +2,6 @@
 'use client';
 
 import { useEffect } from "react";
-import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
@@ -26,13 +25,13 @@ export default function RootLayout({
       
       // Force style recalculation
       document.documentElement.style.display = 'none';
-      document.documentElement.offsetHeight; // Trigger reflow
+      void document.documentElement.offsetHeight; // Trigger reflow
       document.documentElement.style.display = '';
       
       // Force repaint after a short delay
       setTimeout(() => {
         document.body.style.display = 'none';
-        document.body.offsetHeight;
+        void document.body.offsetHeight;
         document.body.style.display = '';
       }, 100);
     }
