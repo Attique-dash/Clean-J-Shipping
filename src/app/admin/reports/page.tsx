@@ -8,6 +8,7 @@ type Bill = {
   billNumber: string;
   trackingNumber: string;
   date: string;
+  dueDate?: string;
   branch: string;
   dueAmount: number;
   paidAmount: number;

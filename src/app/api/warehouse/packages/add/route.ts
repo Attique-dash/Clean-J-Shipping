@@ -269,6 +269,7 @@ export async function POST(req: Request) {
     await session.commitTransaction();
 
     // FIXED: Create proper billing invoice automatically (like admin does)
+    let billingInvoice: any = null;
     try {
       const packageDataForInvoice = {
         value: value,
@@ -276,7 +277,7 @@ export async function POST(req: Request) {
         trackingNumber: trackingNumber
       };
       
-      const billingInvoice = await createBillingInvoice(packageDataForInvoice, customer, trackingNumber);
+      billingInvoice = await createBillingInvoice(packageDataForInvoice, customer, trackingNumber);
       if (billingInvoice) {
         // Link invoice to package
         await Package.findOneAndUpdate(
@@ -296,6 +297,7 @@ export async function POST(req: Request) {
     }
 
     // NEW: Automatically deduct inventory materials (like admin does)
+    let inventoryResult: any = null;
     try {
       const packageDataForInventory = {
         value: value,
@@ -306,7 +308,7 @@ export async function POST(req: Request) {
         fragile: false // Can be added to schema if needed
       };
       
-      const inventoryResult = await InventoryService.deductPackageMaterials(
+      inventoryResult = await InventoryService.deductPackageMaterials(
         packageDataForInventory,
         pkg._id.toString(),
         auth.id
@@ -321,7 +323,7 @@ export async function POST(req: Request) {
           {
             $set: { 
               inventoryDeducted: true,
-              inventoryTransactionIds: inventoryResult.transactions?.map(t => t._id) || []
+              inventoryTransactionIds: inventoryResult.transactions?.map((t: any) => t._id) || []
             }
           }
         );

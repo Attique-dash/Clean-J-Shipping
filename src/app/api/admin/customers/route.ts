@@ -142,7 +142,7 @@ export async function POST(req: Request) {
       console.log('👤 Customer details:', { customerName, email, userCode, hasPassword: !!passwordStr });
       
       const emailSent = await emailService.sendWelcomeEmail({
-        to: email,
+        to: String(email),
         customerName,
         userCode,
       });

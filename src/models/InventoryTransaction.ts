@@ -1,14 +1,14 @@
-import { Schema, model, models, Document } from "mongoose";
+import { Schema, model, models, Document, Types } from "mongoose";
 
 export interface IInventoryTransaction extends Document {
-  inventoryId: string; // Reference to inventory item
+  inventoryId: Types.ObjectId; // Reference to inventory item
   transactionType: 'consumption' | 'restock' | 'adjustment' | 'damage' | 'return';
   quantity: number; // Positive for restock, negative for consumption
   referenceType: 'package' | 'manifest' | 'manual' | 'system';
   referenceId?: string; // Package ID, manifest ID, etc.
   reason: string;
   location?: string;
-  userId?: string; // Who performed the transaction
+  userId?: Types.ObjectId; // Who performed the transaction
   previousStock: number;
   newStock: number;
   createdAt: Date;

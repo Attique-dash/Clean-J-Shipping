@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     console.error("❌ Import test failed:", error);
     return NextResponse.json({ 
       error: "Import test failed",
-      details: error.message 
+      details: error instanceof Error ? error.message : String(error)
     }, { status: 500 });
   }
 }

@@ -520,7 +520,7 @@ export default function CustomerPackagesPage() {
                               {p.invoice_status === 'submitted' ? 'Invoice Generated' : 
                                p.invoice_status === 'none' ? 'Invoice Pending' : 
                                p.customsRequired && p.customsStatus !== 'cleared' ? 'Customs Pending' :
-                               p.payment_status === 'pending' ? 'Payment Pending' :
+                               p.paymentStatus === 'pending' ? 'Payment Pending' :
                                p.invoice_status || 'Pending'}
                             </span>
                           </div>

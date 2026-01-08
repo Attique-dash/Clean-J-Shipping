@@ -43,6 +43,7 @@ import { Types } from 'mongoose';
  type InvoiceLean = {
    _id?: { toString: () => string } | string;
    invoiceNumber?: unknown;
+   invoiceType?: unknown;
    status?: unknown;
    issueDate?: unknown;
    dueDate?: unknown;
@@ -60,6 +61,11 @@ import { Types } from 'mongoose';
    notes?: unknown;
    createdAt?: unknown;
    updatedAt?: unknown;
+   // Commercial invoice fields
+   tracking_number?: unknown;
+   item_description?: unknown;
+   item_category?: unknown;
+   files?: unknown[];
  };
 
 // Get all invoices with pagination and filters
@@ -200,7 +206,7 @@ export async function GET(req: NextRequest) {
       tracking_number: inv.tracking_number || '',
       item_description: inv.item_description || '',
       item_category: inv.item_category || '',
-      files: Array.isArray(inv.files) ? inv.files.map((file) => ({
+      files: Array.isArray(inv.files) ? inv.files.map((file: any) => ({
         originalName: file.originalName || '',
         filename: file.filename || '',
         path: file.path || ''

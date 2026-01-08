@@ -121,14 +121,14 @@ export async function GET(req: Request) {
   }
 
   if (dateFrom || dateTo) {
-    filter.createdAt = {};
+    (filter as any).createdAt = {};
     if (dateFrom) {
-      filter.createdAt.$gte = new Date(dateFrom);
+      (filter as any).createdAt.$gte = new Date(dateFrom);
     }
     if (dateTo) {
       const endDate = new Date(dateTo);
       endDate.setHours(23, 59, 59, 999);
-      filter.createdAt.$lte = endDate;
+      (filter as any).createdAt.$lte = endDate;
     }
   }
 

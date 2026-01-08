@@ -9,6 +9,8 @@ declare module 'lucide-react' {
   export const Check: any;
   export const Receipt: any;
   export const Lock: any;
+  export const Unlock: any;
+  export const LogOut: any;
   export const CheckCircle: any;
   export const DollarSign: any;
   export const Calendar: any;

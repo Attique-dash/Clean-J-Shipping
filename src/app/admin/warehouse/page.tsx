@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Package, Plus, Search, AlertCircle, CheckCircle, Clock, User, MapPin, Calendar, Scale, Truck, Mail, Phone } from "lucide-react";
+import { Package, Plus, Search, AlertCircle, CheckCircle, Clock, User, MapPin, Calendar, Weight, Truck, Mail, Phone } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 interface WarehousePackage {
@@ -450,7 +450,7 @@ export default function WarehouseReceivingPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Scale className="w-4 h-4 text-slate-400" />
+                              <Weight className="w-4 h-4 text-slate-400" />
                               <div>
                                 <p className="text-slate-600">Weight</p>
                                 <p className="font-medium text-slate-800">{pkg.weight} kg</p>

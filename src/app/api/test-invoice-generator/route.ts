@@ -33,7 +33,7 @@ export async function GET(req: Request) {
       const invoice = await generateInvoice(mockShipment);
       console.log("✅ Invoice generated successfully:", invoice.invoiceNumber);
     } catch (invoiceError) {
-      console.log("ℹ️ Invoice generation failed with mock data (expected):", invoiceError.message);
+      console.log("ℹ️ Invoice generation failed with mock data (expected):", invoiceError instanceof Error ? invoiceError.message : String(invoiceError));
     }
     
     return NextResponse.json({ 
@@ -48,7 +48,7 @@ export async function GET(req: Request) {
     console.error("❌ InvoiceGenerator test failed:", error);
     return NextResponse.json({ 
       error: "InvoiceGenerator test failed",
-      details: error.message 
+      details: error instanceof Error ? error.message : String(error)
     }, { status: 500 });
   }
 }

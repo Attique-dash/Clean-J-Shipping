@@ -190,7 +190,7 @@ async function handlePaymentProcessing(payload: any, body: any) {
       trackingNumber,
       amount: Number(amount),
       currency: currency || "JMD",
-      paymentMethod: paymentMethod === "paypal" ? "PayPal" : "Card",
+      method: paymentMethod === "paypal" ? "PayPal" : "Card",
     }).catch((err) => {
       console.error("Failed to send payment receipt email:", err);
     });

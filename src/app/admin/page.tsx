@@ -253,8 +253,8 @@ export default function AdminDashboard() {
     const total = packages.length;
     return Object.entries(statusCounts).map(([status, count]) => ({
       status,
-      count,
-      percentage: total > 0 ? ((count / total) * 100).toFixed(1) : '0'
+      count: count as number,
+      percentage: total > 0 ? ((count as number / total) * 100).toFixed(1) : '0'
     }));
   };
 
@@ -317,7 +317,7 @@ export default function AdminDashboard() {
     
     return Object.entries(branchCounts).map(([branch, count]) => ({
       branch,
-      count
+      count: count as number
     }));
   };
 
