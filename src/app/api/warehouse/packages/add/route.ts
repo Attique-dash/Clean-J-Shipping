@@ -342,17 +342,23 @@ export async function POST(req: Request) {
       // Don't fail package creation if inventory deduction fails
     }
 
-    // Fire-and-forget email after commit
+    // Fire-and-forget email after commit with invoice PDF attachment
     // We need customer context outside; reusing local var within this block
-    const toEmail = (await User.findOne({ userCode, role: "customer" }).select("email firstName"))?.email;
+    const customerForEmail = await User.findOne({ userCode, role: "customer" }).select("email firstName");
+    const toEmail = customerForEmail?.email;
     if (toEmail) {
+      const invoiceId = billingInvoice?._id?.toString();
       sendNewPackageEmail({
         to: toEmail,
-        firstName: "",
+        firstName: customerForEmail?.firstName || "",
         trackingNumber,
         status: "At Warehouse",
         weight,
         shipper,
+        warehouse: warehouse || "Main Warehouse",
+        receivedBy: receivedBy || "Warehouse Staff",
+        receivedDate: now,
+        invoiceId: invoiceId, // Attach invoice PDF if available
       }).catch((err) => {
         console.error('[Package Add] Email failed:', err);
       });

@@ -104,7 +104,7 @@ export async function POST(req: Request) {
 }
 
 async function handlePaymentProcessing(payload: any, body: any) {
-  const { trackingNumber, amount, currency, paymentMethod, paypalOrderId } = body;
+  const { trackingNumber, amount, currency, paymentMethod, paypalOrderId, cardDetails } = body;
 
   if (!trackingNumber || !amount || !paymentMethod) {
     return NextResponse.json(
@@ -116,7 +116,7 @@ async function handlePaymentProcessing(payload: any, body: any) {
   await dbConnect();
 
   // Get user
-  const userId = (payload as any).uid || (payload as any)._id;
+  const userId = (payload as any).uid || (payload as any)._id || payload.id;
   const user = await User.findById(userId).select("email firstName lastName name");
   if (!user) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -131,6 +131,19 @@ async function handlePaymentProcessing(payload: any, body: any) {
   // Verify user owns this package
   if (pkg.userCode !== (payload as any).userCode) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
+  // Handle test card payments (for testing purposes)
+  if (paymentMethod === "card" && cardDetails) {
+    // Validate test card format (for testing only)
+    const cardNumber = String(cardDetails.cardNumber || "").replace(/\s/g, "");
+    // Accept common test card numbers
+    const testCards = ["4242424242424242", "4000000000000002", "4000000000009995"];
+    if (!testCards.includes(cardNumber) && !cardNumber.startsWith("4")) {
+      return NextResponse.json({ error: "Invalid test card number. Use test cards like 4242 4242 4242 4242" }, { status: 400 });
+    }
+    // For test payments, we accept any card with valid format
+    console.log("Processing test card payment:", { cardNumber: cardNumber.substring(0, 4) + "****" });
   }
 
   // Update invoice record

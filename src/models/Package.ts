@@ -116,6 +116,18 @@ export interface IPackage extends Document {
     uploadedAt?: Date;
   }>;
   
+  // International Shipping Fields (NEW)
+  countryOfOrigin?: string; // Country where goods were manufactured
+  countryOfDestination?: string; // Auto-detected from receiverCountry
+  exportLicenseNumber?: string; // Required for certain goods
+  importLicenseNumber?: string; // Required for certain goods
+  certificateOfOrigin?: string; // Certificate of origin document URL
+  dangerousGoods?: boolean; // Whether package contains dangerous goods
+  dangerousGoodsClass?: string; // UN class for dangerous goods (e.g., "Class 3", "Class 8")
+  dangerousGoodsUnNumber?: string; // UN number for dangerous goods
+  exportDeclarationNumber?: string; // Export declaration number
+  importDeclarationNumber?: string; // Import declaration number
+  
   // Payment & Pricing
   shippingCost: number;
   insurance: number;
@@ -329,6 +341,18 @@ const PackageSchema = new Schema<IPackage>(
       url: { type: String, trim: true },
       uploadedAt: { type: Date },
     }],
+    
+    // International Shipping Fields (NEW)
+    countryOfOrigin: { type: String, trim: true },
+    countryOfDestination: { type: String, trim: true },
+    exportLicenseNumber: { type: String, trim: true },
+    importLicenseNumber: { type: String, trim: true },
+    certificateOfOrigin: { type: String, trim: true },
+    dangerousGoods: { type: Boolean, default: false },
+    dangerousGoodsClass: { type: String, trim: true },
+    dangerousGoodsUnNumber: { type: String, trim: true },
+    exportDeclarationNumber: { type: String, trim: true },
+    importDeclarationNumber: { type: String, trim: true },
     
     // Payment & Pricing
     shippingCost: { type: Number, required: true, min: 0 },

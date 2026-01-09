@@ -594,10 +594,24 @@ export default function CustomerPackagesPage() {
                     </h4>
                     <div className="grid gap-2 md:grid-cols-2">
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Shipper:</span><span className="text-sm font-semibold text-gray-900 bg-gray-100 px-2 py-1 rounded">{packageToView.shipper || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderEmail || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderPhone || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderCountry || 'N/A'}</span></div>
-                      <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderAddress || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderEmail || (packageToView.sender as any)?.email || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderPhone || (packageToView.sender as any)?.phone || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderCountry || (packageToView.sender as any)?.country || 'N/A'}</span></div>
+                      <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderAddress || (packageToView.sender as any)?.address || 'N/A'}</span></div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6">
+                    <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <User className="h-5 w-5 text-blue-600" />
+                      Recipient Information
+                    </h4>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Name:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverName || (packageToView.recipient as any)?.name || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverEmail || (packageToView.recipient as any)?.email || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverPhone || (packageToView.recipient as any)?.phone || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverCountry || (packageToView.recipient as any)?.country || 'N/A'}</span></div>
+                      <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverAddress || (packageToView.recipient as any)?.address || 'N/A'}</span></div>
                     </div>
                   </div>
 

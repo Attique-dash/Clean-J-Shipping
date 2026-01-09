@@ -6,6 +6,7 @@ import { getAuthFromRequest } from "@/lib/rbac";
 import { writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { Types } from "mongoose";
+import { validateFileUpload } from "@/lib/validators";
 
 export async function POST(req: Request) {
   try {
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
       try {
         // Verify package exists and belongs to user
         const pkg = await Package.findOne({ 
-          tracking_number: upload.tracking_number,
+          trackingNumber: upload.tracking_number,
           userId: new Types.ObjectId(userId) 
         });
 
@@ -74,9 +75,23 @@ export async function POST(req: Request) {
           continue;
         }
 
-        // Save uploaded files
+        // Validate and save uploaded files
         const savedFiles = [];
+        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+        const maxSizeMB = 10;
+        
         for (const file of upload.files) {
+          // Server-side validation
+          const validation = validateFileUpload(file, maxSizeMB, allowedTypes);
+          if (!validation.valid) {
+            results.push({
+              tracking_number: upload.tracking_number,
+              success: false,
+              error: validation.error || "File validation failed"
+            });
+            continue;
+          }
+          
           const bytes = await file.arrayBuffer();
           const buffer = Buffer.from(bytes);
           
@@ -96,6 +111,35 @@ export async function POST(req: Request) {
             size: file.size,
             type: file.type
           });
+        }
+        
+        // Check if at least one file was saved
+        if (savedFiles.length === 0) {
+          results.push({
+            tracking_number: upload.tracking_number,
+            success: false,
+            error: "No valid files were uploaded"
+          });
+          continue;
+        }
+        
+        // Validate required fields
+        if (!upload.price_paid || upload.price_paid <= 0) {
+          results.push({
+            tracking_number: upload.tracking_number,
+            success: false,
+            error: "Price paid is required and must be greater than 0"
+          });
+          continue;
+        }
+        
+        if (!upload.currency || upload.currency.length < 3) {
+          results.push({
+            tracking_number: upload.tracking_number,
+            success: false,
+            error: "Valid currency code is required"
+          });
+          continue;
         }
 
         // Create or update invoice record

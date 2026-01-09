@@ -100,6 +100,13 @@ export default function WarehouseLayout({
       color: "from-pink-500 to-pink-600",
     },
     {
+      href: "/warehouse/messages",
+      label: "Messages",
+      icon: FaComments,
+      description: "Customer messages and support",
+      color: "from-green-500 to-green-600",
+    },
+    {
       href: "/warehouse/settings",
       label: "Settings",
       icon: FaCog,

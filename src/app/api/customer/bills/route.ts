@@ -152,11 +152,32 @@ export async function GET(req: Request) {
           description = pkg.itemDescription || pkg.description || "Invoice pending generation";
         }
         
+        // Get invoice number from linked invoice if exists
+        let invoiceNumber = `PKG-${pkg.trackingNumber}`;
+        if (packageAmount > 0) {
+          // Try to get invoice number from linked invoice
+          try {
+            const linkedInvoice = await Invoice.findOne({ 
+              $or: [
+                { 'package.trackingNumber': pkg.trackingNumber },
+                { userId: new Types.ObjectId(userId), invoiceType: 'billing' }
+              ]
+            }).sort({ createdAt: -1 }).select('invoiceNumber').lean();
+            if (linkedInvoice && (linkedInvoice as any).invoiceNumber) {
+              invoiceNumber = (linkedInvoice as any).invoiceNumber;
+            } else {
+              invoiceNumber = `INV-${pkg.trackingNumber}`;
+            }
+          } catch (err) {
+            invoiceNumber = `INV-${pkg.trackingNumber}`;
+          }
+        }
+        
         return [
           {
             tracking_number: pkg.trackingNumber,
             description,
-            invoice_number: packageAmount > 0 ? `AUTO-INV-${pkg.trackingNumber}` : `PKG-${pkg.trackingNumber}`,
+            invoice_number: invoiceNumber,
             invoice_date: pkg.createdAt ? new Date(pkg.createdAt).toISOString() : undefined,
             amount_due: packageAmount,
             payment_status,

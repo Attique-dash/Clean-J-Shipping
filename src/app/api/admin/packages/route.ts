@@ -390,8 +390,38 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Rate limiting
+  const { rateLimit } = await import('@/lib/rateLimit');
+  const userIdentifier = session.user.id || session.user.email || 'unknown';
+  const rateLimitResult = rateLimit(`admin-packages-${userIdentifier}`, {
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 30 // 30 requests per minute
+  });
+
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      {
+        error: "Rate limit exceeded",
+        retryAfter: rateLimitResult.retryAfter,
+        resetAt: new Date(rateLimitResult.resetAt).toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": "30",
+          "X-RateLimit-Remaining": "0",
+          "X-RateLimit-Reset": String(rateLimitResult.resetAt),
+          "Retry-After": String(rateLimitResult.retryAfter ?? 60),
+        },
+      }
+    );
+  }
+
   try {
     await dbConnect();
+    
+    // Input sanitization
+    const { sanitizeObject } = await import('@/lib/security');
     
     let body: Record<string, unknown>;
     try {
@@ -417,7 +447,20 @@ export async function POST(req: Request) {
       specialInstructions,
       branch,
       customsRequired,
-      customsStatus
+      customsStatus,
+      // International Shipping Fields
+      isInternational,
+      countryOfOrigin,
+      countryOfDestination,
+      exportLicenseNumber,
+      importLicenseNumber,
+      certificateOfOrigin,
+      dangerousGoods,
+      dangerousGoodsClass,
+      dangerousGoodsUnNumber,
+      exportDeclarationNumber,
+      importDeclarationNumber,
+      hsCode
     } = body;
 
     if (!trackingNumber || !userCode) {
@@ -477,6 +520,10 @@ export async function POST(req: Request) {
       receiverState: (recipient as RecipientInfo)?.state || user.address?.state || "St. Andrew",
       receiverZipCode: (recipient as RecipientInfo)?.zipCode || user.address?.zipCode || "00000",
       receiverCountry: (recipient as RecipientInfo)?.country || user.address?.country || "Jamaica",
+      
+      // Determine if international based on countries
+      senderCountryValue: (sender as SenderInfo)?.country || "Jamaica",
+      receiverCountryValue: (recipient as RecipientInfo)?.country || user.address?.country || "Jamaica",
       // Additional fields
       recipient: {
         name: (recipient as RecipientInfo)?.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Customer",
@@ -509,7 +556,20 @@ export async function POST(req: Request) {
       receivedAt: new Date(),
       // Customs fields
       customsRequired: customsRequired !== undefined ? Boolean(customsRequired) : false,
-      customsStatus: customsStatus || "not_required"
+      customsStatus: customsStatus || "not_required",
+      // International Shipping Fields
+      isInternational: isInternational !== undefined ? Boolean(isInternational) : ((sender as SenderInfo)?.country && (sender as SenderInfo)?.country !== (user.address?.country || "Jamaica")),
+      countryOfOrigin: countryOfOrigin || undefined,
+      countryOfDestination: countryOfDestination || (recipient as RecipientInfo)?.country || user.address?.country || (sender as SenderInfo)?.country || "Jamaica",
+      exportLicenseNumber: exportLicenseNumber || undefined,
+      importLicenseNumber: importLicenseNumber || undefined,
+      certificateOfOrigin: certificateOfOrigin || undefined,
+      dangerousGoods: dangerousGoods !== undefined ? Boolean(dangerousGoods) : false,
+      dangerousGoodsClass: dangerousGoodsClass || undefined,
+      dangerousGoodsUnNumber: dangerousGoodsUnNumber || undefined,
+      exportDeclarationNumber: exportDeclarationNumber || undefined,
+      importDeclarationNumber: importDeclarationNumber || undefined,
+      hsCode: hsCode || undefined
     };
 
     const created = await Package.create(packageData);
@@ -529,6 +589,27 @@ export async function POST(req: Request) {
     } catch (invoiceError) {
       console.error('Failed to create billing invoice:', invoiceError);
       // Don't fail package creation if invoice creation fails
+    }
+
+    // Send email notification to customer with invoice PDF attachment
+    try {
+      const { sendNewPackageEmail } = await import('@/lib/email');
+      const invoiceId = billingInvoice?._id?.toString();
+      await sendNewPackageEmail({
+        to: user.email,
+        firstName: user.firstName || 'Customer',
+        trackingNumber: asString(trackingNumber),
+        status: status || 'received',
+        weight: asNumber(weight),
+        shipper: asString(shipper),
+        warehouse: asString(branch) || 'Main Warehouse',
+        receivedBy: session.user.name || 'Admin',
+        receivedDate: new Date(),
+        invoiceId: invoiceId, // Attach invoice PDF if available
+      });
+    } catch (emailError) {
+      console.error('Failed to send package notification email:', emailError);
+      // Don't fail package creation if email fails
     }
 
     // NEW: Automatically deduct inventory materials
@@ -585,12 +666,44 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Rate limiting
+  const { rateLimit } = await import('@/lib/rateLimit');
+  const userIdentifier = session.user.id || session.user.email || 'unknown';
+  const rateLimitResult = rateLimit(`admin-packages-update-${userIdentifier}`, {
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 50 // 50 requests per minute
+  });
+
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      {
+        error: "Rate limit exceeded",
+        retryAfter: rateLimitResult.retryAfter,
+        resetAt: new Date(rateLimitResult.resetAt).toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": "50",
+          "X-RateLimit-Remaining": "0",
+          "X-RateLimit-Reset": String(rateLimitResult.resetAt),
+          "Retry-After": String(rateLimitResult.retryAfter ?? 60),
+        },
+      }
+    );
+  }
+
   try {
     await dbConnect();
+    
+    // Input sanitization
+    const { sanitizeObject } = await import('@/lib/security');
     
     let body: Record<string, unknown>;
     try {
       body = await req.json();
+      // Sanitize input
+      body = sanitizeObject(body);
     } catch {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
@@ -715,6 +828,26 @@ export async function PUT(req: Request) {
 
     if (!updated) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
+    }
+
+    // Send email notification if status changed
+    if (changedFields.includes('status') && status && status !== currentPackage.status) {
+      try {
+        const user = await User.findById(updated.userId);
+        if (user && user.email) {
+          const { sendStatusUpdateEmail } = await import('@/lib/email');
+          await sendStatusUpdateEmail({
+            to: user.email,
+            firstName: user.firstName || 'Customer',
+            trackingNumber: updated.trackingNumber,
+            status: String(status),
+            note: `Package status updated from ${currentPackage.status} to ${status}`
+          });
+        }
+      } catch (emailError) {
+        console.error('Failed to send status update email:', emailError);
+        // Don't fail update if email fails
+      }
     }
 
     return NextResponse.json({ 

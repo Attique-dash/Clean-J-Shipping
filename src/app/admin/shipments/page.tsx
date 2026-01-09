@@ -344,14 +344,30 @@ export default function AdminShipmentsPage() {
           </div>
         </header>
 
-        {/* Create Manifest Form - Collapsible */}
+        {/* Create Manifest Form - Modal Popup */}
         {showCreateForm && (
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-[#E67919] to-[#d46a0f] px-6 py-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-[#E67919] to-[#d46a0f] px-6 py-4 flex items-center justify-between z-10">
               <h2 className="text-xl font-semibold text-white flex items-center gap-2">
                 <FileText className="w-5 h-5" />
                 Create New Manifest
               </h2>
+              <button
+                onClick={() => {
+                  setShowCreateForm(false);
+                  setManifestId("");
+                  setTitle("");
+                  setMode("air");
+                  setBatchDate("");
+                  setRows([{ tracking_number: "" }]);
+                  setError(null);
+                  setSuccess(null);
+                }}
+                className="text-white hover:text-gray-200 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
             <div className="p-6">
               <form onSubmit={onSubmit} className="space-y-6">

@@ -60,7 +60,19 @@ function AdminAddPackagePageContent() {
     isHazardous: false,
     requiresSignature: false,
     customsRequired: false,
-    customsStatus: "not_required"
+    customsStatus: "not_required",
+    // International Shipping Fields
+    isInternational: false,
+    countryOfOrigin: "",
+    exportLicenseNumber: "",
+    importLicenseNumber: "",
+    certificateOfOrigin: "",
+    dangerousGoods: false,
+    dangerousGoodsClass: "",
+    dangerousGoodsUnNumber: "",
+    exportDeclarationNumber: "",
+    importDeclarationNumber: "",
+    hsCode: ""
   });
 
   // Generate tracking number
@@ -163,7 +175,19 @@ function AdminAddPackagePageContent() {
             isHazardous: packageData.isHazardous || false,
             requiresSignature: packageData.requiresSignature || packageData.signatureRequired || false,
             customsRequired: packageData.customsRequired || false,
-            customsStatus: packageData.customsStatus || "not_required"
+            customsStatus: packageData.customsStatus || "not_required",
+            // International Shipping Fields
+            isInternational: packageData.isInternational || false,
+            countryOfOrigin: packageData.countryOfOrigin || "",
+            exportLicenseNumber: packageData.exportLicenseNumber || "",
+            importLicenseNumber: packageData.importLicenseNumber || "",
+            certificateOfOrigin: packageData.certificateOfOrigin || "",
+            dangerousGoods: packageData.dangerousGoods || false,
+            dangerousGoodsClass: packageData.dangerousGoodsClass || "",
+            dangerousGoodsUnNumber: packageData.dangerousGoodsUnNumber || "",
+            exportDeclarationNumber: packageData.exportDeclarationNumber || "",
+            importDeclarationNumber: packageData.importDeclarationNumber || "",
+            hsCode: packageData.hsCode || ""
           });
           
           if (packageData.userCode) {
@@ -275,6 +299,19 @@ function AdminAddPackagePageContent() {
         requiresSignature: form.requiresSignature,
         customsRequired: form.customsRequired,
         customsStatus: form.customsStatus,
+        // International Shipping Fields
+        isInternational: form.isInternational || (form.senderCountry && form.senderCountry !== (customerData?.address?.country || "Jamaica")),
+        countryOfOrigin: form.countryOfOrigin.trim() || undefined,
+        countryOfDestination: customerData?.address?.country || form.senderCountry || "Jamaica",
+        exportLicenseNumber: form.exportLicenseNumber.trim() || undefined,
+        importLicenseNumber: form.importLicenseNumber.trim() || undefined,
+        certificateOfOrigin: form.certificateOfOrigin.trim() || undefined,
+        dangerousGoods: form.dangerousGoods,
+        dangerousGoodsClass: form.dangerousGoodsClass.trim() || undefined,
+        dangerousGoodsUnNumber: form.dangerousGoodsUnNumber.trim() || undefined,
+        exportDeclarationNumber: form.exportDeclarationNumber.trim() || undefined,
+        importDeclarationNumber: form.importDeclarationNumber.trim() || undefined,
+        hsCode: form.hsCode.trim() || undefined,
         // Legacy fields for compatibility
         itemValue: form.itemValue ? Number(form.itemValue) : undefined,
         senderName: form.senderName.trim() || undefined,
@@ -755,8 +792,156 @@ function AdminAddPackagePageContent() {
                       </div>
                     </div>
                   </div>
+                  
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
+                      checked={form.isInternational}
+                      onChange={(e) => setForm({ ...form, isInternational: e.target.checked })}
+                    />
+                    <span className="text-sm text-gray-700">International Shipment</span>
+                  </label>
                 </div>
               </div>
+              
+              {/* International Shipping Fields Section */}
+              {form.isInternational && (
+                <div className="border-t pt-6 mt-6">
+                  <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Package className="h-5 w-5 text-blue-600" />
+                    International Shipping Information
+                  </h4>
+                  <div className="space-y-4 bg-blue-50 p-4 rounded-lg">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Country of Origin <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                          placeholder="e.g., China, USA, Germany"
+                          value={form.countryOfOrigin}
+                          onChange={(e) => setForm({ ...form, countryOfOrigin: e.target.value })}
+                          required={form.isInternational}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Country where goods were manufactured</p>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">HS Code</label>
+                        <input
+                          type="text"
+                          className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                          placeholder="e.g., 8517.12.00"
+                          pattern="\d{4}\.\d{2}\.\d{2}"
+                          value={form.hsCode}
+                          onChange={(e) => setForm({ ...form, hsCode: e.target.value })}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Format: XXXX.XX.XX (Harmonized System Code)</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Export License Number</label>
+                        <input
+                          type="text"
+                          className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                          placeholder="Enter export license number (if required)"
+                          value={form.exportLicenseNumber}
+                          onChange={(e) => setForm({ ...form, exportLicenseNumber: e.target.value })}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Import License Number</label>
+                        <input
+                          type="text"
+                          className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                          placeholder="Enter import license number (if required)"
+                          value={form.importLicenseNumber}
+                          onChange={(e) => setForm({ ...form, importLicenseNumber: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Export Declaration Number</label>
+                        <input
+                          type="text"
+                          className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                          placeholder="Enter export declaration number"
+                          value={form.exportDeclarationNumber}
+                          onChange={(e) => setForm({ ...form, exportDeclarationNumber: e.target.value })}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Import Declaration Number</label>
+                        <input
+                          type="text"
+                          className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                          placeholder="Enter import declaration number"
+                          value={form.importDeclarationNumber}
+                          onChange={(e) => setForm({ ...form, importDeclarationNumber: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Certificate of Origin</label>
+                      <input
+                        type="text"
+                        className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                        placeholder="URL or reference number for certificate of origin"
+                        value={form.certificateOfOrigin}
+                        onChange={(e) => setForm({ ...form, certificateOfOrigin: e.target.value })}
+                      />
+                    </div>
+                    
+                    <div className="border-t pt-4">
+                      <label className="flex items-center mb-4">
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
+                          checked={form.dangerousGoods}
+                          onChange={(e) => setForm({ ...form, dangerousGoods: e.target.checked })}
+                        />
+                        <span className="text-sm font-medium text-gray-700">Contains Dangerous Goods</span>
+                      </label>
+                      
+                      {form.dangerousGoods && (
+                        <div className="grid gap-4 md:grid-cols-2 mt-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Dangerous Goods Class</label>
+                            <input
+                              type="text"
+                              className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                              placeholder="e.g., Class 3, Class 8"
+                              value={form.dangerousGoodsClass}
+                              onChange={(e) => setForm({ ...form, dangerousGoodsClass: e.target.value })}
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">UN Number</label>
+                            <input
+                              type="text"
+                              className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                              placeholder="e.g., UN1202, UN1993"
+                              value={form.dangerousGoodsUnNumber}
+                              onChange={(e) => setForm({ ...form, dangerousGoodsUnNumber: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
               <p className="text-sm text-gray-600">Enter details about who is sending this package</p>
               
               <div className="grid gap-4 md:grid-cols-2">

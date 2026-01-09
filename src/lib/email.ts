@@ -107,14 +107,57 @@ export async function sendNewPackageEmail(opts: {
   warehouse?: string;
   receivedBy?: string;
   receivedDate?: Date;
+  invoiceId?: string; // NEW: Optional invoice ID to attach PDF
 }) {
   const t = getTransporter();
   if (!t) return { sent: false, reason: "Email not configured" };
 
-  const { to, firstName, trackingNumber, status, weight, shipper, warehouse, receivedBy, receivedDate } = opts;
+  const { to, firstName, trackingNumber, status, weight, shipper, warehouse, receivedBy, receivedDate, invoiceId } = opts;
 
   const subject = `Package Received at Warehouse — ${trackingNumber}`;
   const receivedDateStr = receivedDate ? new Date(receivedDate).toLocaleString() : new Date().toLocaleString();
+  
+  // Try to generate and attach invoice PDF if invoiceId is provided
+  let attachments: Array<{ filename: string; path: string; contentType: string }> = [];
+  if (invoiceId) {
+    try {
+      const { dbConnect } = await import('@/lib/db');
+      const Invoice = (await import('@/models/Invoice')).default;
+      const { generateInvoicePdf } = await import('@/lib/pdfGenerator');
+      
+      await dbConnect();
+      const invoice = await Invoice.findById(invoiceId).lean();
+      
+      if (invoice) {
+        const company = {
+          name: APP_NAME,
+          address: "Kingston",
+          city: "Kingston",
+          state: "Kingston",
+          zip: "00000",
+          country: "Jamaica",
+          phone: "+1-876-XXX-XXXX",
+          email: ADMIN_EMAIL || "info@cleanjshipping.com",
+          website: APP_URL || "https://cleanjshipping.com",
+        };
+        
+        const pdfResult = await generateInvoicePdf({
+          invoice: invoice as any,
+          company,
+        });
+        
+        attachments.push({
+          filename: pdfResult.fileName,
+          path: pdfResult.filePath,
+          contentType: 'application/pdf',
+        });
+      }
+    } catch (pdfError) {
+      console.error('Failed to generate invoice PDF for email:', pdfError);
+      // Continue without PDF attachment
+    }
+  }
+  
   const html = `
   <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111">
     <h2 style="margin:0 0 12px 0;">Package Received at Warehouse</h2>
@@ -160,7 +203,12 @@ export async function sendNewPackageEmail(opts: {
         </tbody>
       </table>
     </div>
-    
+    ${attachments.length > 0 ? `
+    <div style="background:#dbeafe;border:1px solid #3b82f6;border-radius:8px;padding:16px;margin:16px 0;">
+      <h4 style="margin:0 0 8px 0;color:#1e40af;">📄 Invoice Attached</h4>
+      <p style="margin:0;color:#1e40af;">Your billing invoice has been generated and attached to this email. Please review the invoice and make payment through the customer portal.</p>
+    </div>
+    ` : ''}
     <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:16px;margin:16px 0;">
       <h4 style="margin:0 0 8px 0;color:#92400e;">📋 Invoice Information Required</h4>
       <p style="margin:0;color:#92400e;">Please provide the invoice value of your goods through the customer portal. This information is required for customs clearance and will help us calculate any applicable duties and taxes.</p>
@@ -180,6 +228,7 @@ export async function sendNewPackageEmail(opts: {
     to,
     subject,
     html,
+    attachments: attachments.length > 0 ? attachments : undefined,
   });
   return { sent: true };
 }
