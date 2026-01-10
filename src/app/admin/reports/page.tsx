@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Package, Users, Truck, DollarSign, TrendingUp, AlertCircle, CheckCircle, Clock, FileText, Activity, RefreshCw, Calendar, ArrowUpRight, Loader2 } from "lucide-react";
+import { Package, Users, Truck, DollarSign, TrendingUp, AlertCircle, CheckCircle, Clock, FileText, Activity, RefreshCw, Calendar, ArrowUpRight } from "lucide-react";
 import Loading from "@/components/Loading";
 type Bill = {
   id: string;

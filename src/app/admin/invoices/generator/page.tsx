@@ -5,7 +5,6 @@ import { useState, useEffect } from "react";
 import { FileText, Plus, Trash2, Save, Download, User, Package, DollarSign, Calendar, Edit2, ArrowLeft } from "lucide-react";
 import { ExportService } from "@/lib/export-service";
 import toast, { Toaster } from "react-hot-toast";
-import Loading from "@/components/Loading";
 
 type InvoiceItem = {
   id: string;

@@ -37,7 +37,7 @@ export default function BillsPage() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [usePayPal, setUsePayPal] = useState(false);
-  const [paypalOrderId, setPaypalOrderId] = useState<string | null>(null); // Used for PayPal order tracking and validation
+  const [_paypalOrderId, setPaypalOrderId] = useState<string | null>(null); // Used for PayPal order tracking and validation
   const [revenueData, setRevenueData] = useState<Array<{ month: string; revenue: number; packages: number }>>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; bill: Bill | null }>({ open: false, bill: null });
   const { selectedCurrency, setSelectedCurrency, convertAmount, formatCurrency } = useCurrency();
@@ -51,7 +51,7 @@ export default function BillsPage() {
     try {
       const convertedAmount = await convertAmount(amount, fromCurrency || "USD");
       return formatCurrency(convertedAmount, selectedCurrency);
-    } catch (error) {
+    } catch (_error) {
       return formatCurrency(amount, selectedCurrency);
     }
   };

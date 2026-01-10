@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, TrendingUp, TrendingDown, CreditCard, Search, Filter, Calendar, ChevronDown, CheckCircle, XCircle, Clock, AlertCircle, Download, Eye, User, Building, Receipt, RefreshCw, Loader2, Trash2 } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, CreditCard, Search, Filter, Calendar, ChevronDown, CheckCircle, XCircle, Clock, AlertCircle, Download, Eye, User, Building, Receipt, RefreshCw, Trash2 } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import EnhancedCurrencySelector from "@/components/EnhancedCurrencySelector";
 import Loading from "@/components/Loading";

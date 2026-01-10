@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { title, body, channels = ["portal"], scheduled_at, audience = "all", priority = "normal" } = parsed.data as {
+  const { title, body, channels = ["portal"], scheduled_at, audience = "all", priority: _priority = "normal" } = parsed.data as {
     title: string;
     body: string;
     channels?: ("email" | "portal")[];
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     }));
   } else {
     // Get customers based on audience filter
-    let customerQuery: any = { role: "customer" };
+    const customerQuery: any = { role: "customer" };
     if (audience === "active") {
       customerQuery.accountStatus = "active";
     } else if (audience === "inactive") {

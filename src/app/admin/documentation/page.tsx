@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, FileText, Search, RefreshCw, AlertCircle, ChevronRight, File, Folder, Copy, Check, ZoomIn, ZoomOut, Loader2 } from "lucide-react";
+import { BookOpen, FileText, Search, RefreshCw, AlertCircle, ChevronRight, File, Folder, Copy, Check, ZoomIn, ZoomOut } from "lucide-react";
 import Loading from "@/components/Loading";
 
 type DocMeta = { path: string; name: string };

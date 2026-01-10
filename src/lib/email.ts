@@ -118,7 +118,7 @@ export async function sendNewPackageEmail(opts: {
   const receivedDateStr = receivedDate ? new Date(receivedDate).toLocaleString() : new Date().toLocaleString();
   
   // Try to generate and attach invoice PDF if invoiceId is provided
-  let attachments: Array<{ filename: string; path: string; contentType: string }> = [];
+  const attachments: Array<{ filename: string; path: string; contentType: string }> = [];
   if (invoiceId) {
     try {
       const { dbConnect } = await import('@/lib/db');

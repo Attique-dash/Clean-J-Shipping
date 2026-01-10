@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { UserCircle, Mail, Lock, Save, Eye, EyeOff, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { UserCircle, Mail, Lock, Save, Eye, EyeOff, CheckCircle, AlertCircle } from "lucide-react";
 import Loading from "@/components/Loading";
 
 type ProfileData = {

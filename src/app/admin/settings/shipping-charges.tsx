@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calculator, DollarSign, Package, Settings, HelpCircle } from "lucide-react";
+import { Calculator, Package, Settings, HelpCircle } from "lucide-react";
 import Loading from "@/components/Loading";
 
 interface ShippingSettings {

@@ -60,8 +60,8 @@ export async function POST(req: Request) {
     let packageData;
     let invoiceNumber;
     let currency = "USD";
-    let totalAmount = 0;
-    let balanceAmount = amount;
+    let _totalAmount = 0;
+    let _balanceAmount = amount;
 
     // Handle different bill types
     if (billType === 'invoice') {

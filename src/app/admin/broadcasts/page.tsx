@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Send, Calendar, Mail, Globe, Users, CheckCircle, XCircle, Clock, RefreshCw, Loader2 } from "lucide-react";
+import { Send, Calendar, Mail, Globe, Users, CheckCircle, XCircle, Clock, RefreshCw } from "lucide-react";
 import Loading from "@/components/Loading";
 type Broadcast = {
   id: string;

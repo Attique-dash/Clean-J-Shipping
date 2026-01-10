@@ -21,9 +21,7 @@ import {
   Calculator,
   UserCircle,
   Receipt,
-  Settings,
-  FileSearch,
-  Plug
+  Settings
 } from "lucide-react";
 
 export default function AdminLayout({

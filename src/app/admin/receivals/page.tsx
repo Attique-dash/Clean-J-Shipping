@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Package, Truck, MapPin, Calendar, Search, Filter, ChevronDown, ChevronRight, CheckCircle, Clock, AlertCircle, Box, ArrowRight, User, RefreshCw, Loader2 } from "lucide-react";
+import { Package, Truck, MapPin, Calendar, Search, Filter, ChevronDown, ChevronRight, CheckCircle, Clock, AlertCircle, Box, ArrowRight, User, RefreshCw } from "lucide-react";
 import Loading from "@/components/Loading";
 type ReceivalStatus = "pending" | "in_transit" | "received" | "delayed";
 

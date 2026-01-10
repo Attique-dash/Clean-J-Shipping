@@ -18,7 +18,6 @@ import {
   RefreshCw, 
   Filter, 
   ChevronRight, 
-  Loader2,
   Eye,
   X
 } from 'lucide-react';
