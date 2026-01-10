@@ -41,6 +41,11 @@ type UIPackage = {
   senderPhone?: string;
   senderAddress?: string;
   senderCountry?: string;
+  receiverName?: string;
+  receiverEmail?: string;
+  receiverPhone?: string;
+  receiverAddress?: string;
+  receiverCountry?: string;
   total_amount?: number;
   shipping_cost?: number;
 };
@@ -594,10 +599,10 @@ export default function CustomerPackagesPage() {
                     </h4>
                     <div className="grid gap-2 md:grid-cols-2">
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Shipper:</span><span className="text-sm font-semibold text-gray-900 bg-gray-100 px-2 py-1 rounded">{packageToView.shipper || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderEmail || (packageToView.sender as any)?.email || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderPhone || (packageToView.sender as any)?.phone || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderCountry || (packageToView.sender as any)?.country || 'N/A'}</span></div>
-                      <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderAddress || (packageToView.sender as any)?.address || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderEmail || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderPhone || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderCountry || 'N/A'}</span></div>
+                      <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderAddress || 'N/A'}</span></div>
                     </div>
                   </div>
 
@@ -607,11 +612,11 @@ export default function CustomerPackagesPage() {
                       Recipient Information
                     </h4>
                     <div className="grid gap-2 md:grid-cols-2">
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Name:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverName || (packageToView.recipient as any)?.name || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverEmail || (packageToView.recipient as any)?.email || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverPhone || (packageToView.recipient as any)?.phone || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverCountry || (packageToView.recipient as any)?.country || 'N/A'}</span></div>
-                      <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverAddress || (packageToView.recipient as any)?.address || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Name:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverName || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverEmail || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverPhone || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverCountry || 'N/A'}</span></div>
+                      <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverAddress || 'N/A'}</span></div>
                     </div>
                   </div>
 

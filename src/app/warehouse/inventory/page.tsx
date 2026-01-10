@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Package, Plus, RefreshCw, Loader2, AlertCircle, CheckCircle, Edit, Trash2, TrendingUp, Box } from "lucide-react";
 import { toast } from "react-toastify";
+import Loading from "@/components/Loading";
 
 type InventoryItem = {
   _id: string;
@@ -178,11 +179,7 @@ export default function WarehouseInventoryPage() {
   };
 
   if (status === 'loading' || loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-      </div>
-    );
+    return <Loading message="Loading inventory..." />;
   }
 
   return (
@@ -434,9 +431,7 @@ export default function WarehouseInventoryPage() {
           </div>
           <div className="p-6">
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-              </div>
+              <Loading message="Loading inventory..." />
             ) : filteredItems.length === 0 ? (
               <div className="text-center py-12">
                 <Box className="h-16 w-16 text-gray-300 mx-auto mb-4" />

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
+import Loading from "@/components/Loading";
 
 type PackageRow = {
   _id: string;
@@ -51,6 +52,19 @@ type PackageRow = {
   senderPhone?: string;
   senderAddress?: string;
   senderCountry?: string;
+  // Recipient information
+  receiverName?: string;
+  receiverEmail?: string;
+  receiverPhone?: string;
+  receiverAddress?: string;
+  receiverCountry?: string;
+  recipient?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    country?: string;
+  };
   // Additional details
   shipper?: string;
   createdAt?: string | null;
@@ -271,8 +285,33 @@ export default function AdminPackagesPage() {
 
   // Handle package view
   const handleViewPackage = async (pkg: PackageRow) => {
-    setPackageToView(pkg);
-    setViewModalOpen(true);
+    try {
+      // Fetch full package data including recipient information
+      const res = await fetch(`/api/admin/packages/${pkg._id}`, {
+        credentials: 'include'
+      });
+      if (res.ok) {
+        const fullPackageData = await res.json();
+        setPackageToView({
+          ...pkg,
+          ...fullPackageData,
+          receiverName: fullPackageData.receiverName || fullPackageData.recipient?.name || pkg.customerName,
+          receiverEmail: fullPackageData.receiverEmail || fullPackageData.recipient?.email || pkg.customerEmail,
+          receiverPhone: fullPackageData.receiverPhone || fullPackageData.recipient?.phone || pkg.customerPhone,
+          receiverAddress: fullPackageData.receiverAddress || fullPackageData.recipient?.address,
+          receiverCountry: fullPackageData.receiverCountry || fullPackageData.recipient?.country,
+        } as PackageRow & { recipient?: any });
+      } else {
+        // Fallback to list data if API fails
+        setPackageToView(pkg);
+      }
+      setViewModalOpen(true);
+    } catch (error) {
+      console.error('Error fetching package details:', error);
+      // Fallback to list data
+      setPackageToView(pkg);
+      setViewModalOpen(true);
+    }
   };
 
   // Handle package delete
@@ -310,11 +349,7 @@ export default function AdminPackagesPage() {
   };
 
   if (status === 'loading' || loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-      </div>
-    );
+    return <Loading message="Loading packages..." />;
   }
 
   return (
@@ -802,11 +837,11 @@ export default function AdminPackagesPage() {
                     Sender Information
                   </h4>
                   <div className="grid gap-2 md:grid-cols-2">
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Name:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderName || (packageToView.sender as any)?.name || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderEmail || (packageToView.sender as any)?.email || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderPhone || (packageToView.sender as any)?.phone || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderCountry || (packageToView.sender as any)?.country || 'N/A'}</span></div>
-                    <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderAddress || (packageToView.sender as any)?.address || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Name:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderName || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderEmail || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderPhone || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderCountry || 'N/A'}</span></div>
+                    <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderAddress || 'N/A'}</span></div>
                   </div>
                 </div>
 
@@ -816,11 +851,11 @@ export default function AdminPackagesPage() {
                     Recipient Information
                   </h4>
                   <div className="grid gap-2 md:grid-cols-2">
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Name:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverName || (packageToView.recipient as any)?.name || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverEmail || (packageToView.recipient as any)?.email || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverPhone || (packageToView.recipient as any)?.phone || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverCountry || (packageToView.recipient as any)?.country || 'N/A'}</span></div>
-                    <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverAddress || (packageToView.recipient as any)?.address || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Name:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverName || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverEmail || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverPhone || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverCountry || 'N/A'}</span></div>
+                    <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverAddress || 'N/A'}</span></div>
                   </div>
                 </div>
 

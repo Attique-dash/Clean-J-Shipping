@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { User, Package, FileText, TrendingUp, AlertCircle, Weight, Upload, RefreshCw, ChevronRight, Loader2, Clock } from "lucide-react";
 import dynamic from "next/dynamic";
+import Loading from "@/components/Loading";
 
 const StatusPieChart = dynamic(
   () => import('@/components/charts/StatusPieChart').then(mod => mod.StatusPieChart),
@@ -12,6 +13,7 @@ const StatusPieChart = dynamic(
 
 type Analytics = {
   totalPackages?: number;
+  totalWeight?: number;
   statusCounts: Record<string, number>;
   today: { packages: number; weight: number; delivered?: number };
   weeklyTrend: { _id: string; count: number }[];
@@ -137,9 +139,7 @@ export default function WarehouseDashboard() {
 
           {/* Main Content */}
           {loading && !analytics ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-            </div>
+            <Loading message="Loading dashboard..." />
           ) : error && !analytics ? (
             <ErrorState error={error} onRetry={fetchAnalytics} />
           ) : (

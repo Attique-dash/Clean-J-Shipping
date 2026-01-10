@@ -11,9 +11,20 @@ import {
   BarChart3,
   PieChart,
   Activity,
-  RefreshCw,
-  Loader2
+  RefreshCw
 } from "lucide-react";
+import dynamic from "next/dynamic";
+import Loading from "@/components/Loading";
+
+const RevenueChart = dynamic(
+  () => import('@/components/charts/RevenueChart').then(mod => mod.RevenueChart),
+  { ssr: false }
+);
+
+const StatusPieChart = dynamic(
+  () => import('@/components/charts/StatusPieChart').then(mod => mod.StatusPieChart),
+  { ssr: false }
+);
 
 type AnalyticsData = {
   overview: {
@@ -67,11 +78,7 @@ export default function AnalyticsDashboard() {
   }, [timeRange]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20">
-        <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-      </div>
-    );
+    return <Loading message="Loading analytics data..." />;
   }
 
   if (!data) return null;
@@ -195,61 +202,45 @@ export default function AnalyticsDashboard() {
 
         {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Revenue Trend */}
+          {/* Revenue Trend Chart */}
           <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-slate-800">Revenue Trend</h3>
               <BarChart3 className="w-5 h-5 text-slate-400" />
             </div>
-            <div className="space-y-3">
-              {data.revenueByMonth.map((item, idx) => (
-                <div key={idx} className="flex items-center gap-3">
-                  <div className="w-20 text-sm font-medium text-slate-600">{item.month}</div>
-                  <div className="flex-1">
-                    <div className="h-8 bg-slate-100 rounded-lg overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-[#0f4d8a] to-[#E67919] rounded-lg transition-all"
-                        style={{ 
-                          width: `${(item.revenue / Math.max(...data.revenueByMonth.map(m => m.revenue))) * 100}%` 
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div className="w-24 text-sm font-semibold text-slate-800 text-right">
-                    ${item.revenue.toLocaleString()}
-                  </div>
+            <div className="h-80">
+              {data.revenueByMonth && data.revenueByMonth.length > 0 ? (
+                <RevenueChart data={data.revenueByMonth.map(item => ({
+                  month: item.month,
+                  revenue: item.revenue,
+                  packages: item.packages
+                }))} />
+              ) : (
+                <div className="h-full flex items-center justify-center text-gray-400">
+                  No revenue data available
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
-          {/* Package Status Distribution */}
+          {/* Package Status Distribution Chart */}
           <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-slate-800">Package Status</h3>
+              <h3 className="text-lg font-semibold text-slate-800">Package Status Distribution</h3>
               <PieChart className="w-5 h-5 text-slate-400" />
             </div>
-            <div className="space-y-3">
-              {data.packagesByStatus.map((item, idx) => {
-                const colors = [
-                  'from-green-500 to-green-600',
-                  'from-blue-500 to-blue-600',
-                  'from-orange-500 to-orange-600',
-                  'from-purple-500 to-purple-600'
-                ];
-                return (
-                  <div key={idx} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${colors[idx % colors.length]}`} />
-                      <span className="text-sm font-medium text-slate-700">{item.status}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold text-slate-800">{item.count}</span>
-                      <span className="text-xs text-slate-500 w-12 text-right">{item.percentage}%</span>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="h-80">
+              {data.packagesByStatus && data.packagesByStatus.length > 0 ? (
+                <StatusPieChart data={data.packagesByStatus.map(item => ({
+                  status: item.status,
+                  count: item.count,
+                  percentage: item.percentage.toString()
+                }))} />
+              ) : (
+                <div className="h-full flex items-center justify-center text-gray-400">
+                  No package status data available
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Send, Calendar, Mail, Globe, Users, CheckCircle, XCircle, Clock, RefreshCw, Loader2 } from "lucide-react";
-
+import Loading from "@/components/Loading";
 type Broadcast = {
   id: string;
   title: string;
@@ -23,7 +23,7 @@ export default function BroadcastsPage() {
   const [portal, setPortal] = useState(true);
   const [email, setEmail] = useState(false);
   const [schedule, setSchedule] = useState<string>("");
-  const [audience, setAudience] = useState<"all" | "active" | "inactive">("all");
+  const [audience, setAudience] = useState<"all" | "active" | "inactive" | "staff">("all");
   const [priority, setPriority] = useState<"low" | "normal" | "high">("normal");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -230,12 +230,13 @@ export default function BroadcastsPage() {
                 </label>
                 <select
                   value={audience}
-                  onChange={(e) => setAudience(e.target.value as "all" | "active" | "inactive")}
+                  onChange={(e) => setAudience(e.target.value as "all" | "active" | "inactive" | "staff")}
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#0f4d8a] focus:border-transparent transition-shadow"
                 >
                   <option value="all">All Customers</option>
                   <option value="active">Active Customers</option>
                   <option value="inactive">Inactive Customers</option>
+                  <option value="staff">Staff (Warehouse)</option>
                 </select>
               </div>
               
@@ -313,9 +314,7 @@ export default function BroadcastsPage() {
           
           <div className="overflow-x-auto">
             {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-              </div>
+              <Loading message="Loading broadcasts..." />
             ) : items.length === 0 ? (
               <div className="text-center py-12">
                 <Send className="w-12 h-12 text-slate-300 mx-auto mb-3" />

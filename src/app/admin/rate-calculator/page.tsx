@@ -8,6 +8,7 @@ import {
   Calculator,
   AlertCircle
 } from "lucide-react";
+import Loading from "@/components/Loading";
 
 type PricingRule = {
   id: string;
@@ -26,7 +27,7 @@ export default function RateCalculatorPage() {
   const [rules, setRules] = useState<PricingRule[]>([]);
   const [editing, setEditing] = useState<PricingRule | null>(null);
   const [showForm, setShowForm] = useState(false);
-  
+  const [loading, setLoading] = useState(true);
   // Calculator state
   const [calcWeight, setCalcWeight] = useState("");
   const [calcOrigin, setCalcOrigin] = useState("");
@@ -48,6 +49,8 @@ export default function RateCalculatorPage() {
       }
     } catch (e) {
       console.error(e);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -143,19 +146,29 @@ export default function RateCalculatorPage() {
 
   async function saveRule(rule: Partial<PricingRule>) {
     try {
+      // Remove id from POST request body (only needed for PUT)
+      const { id, ...ruleData } = rule;
+      const requestBody = editing ? rule : ruleData;
+      
       const res = await fetch("/api/admin/pricing-rules", {
         method: editing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(rule)
+        body: JSON.stringify(requestBody)
       });
 
+      const data = await res.json();
+      
       if (res.ok) {
         await loadRules();
         setShowForm(false);
         setEditing(null);
+      } else {
+        console.error("Error saving rule:", data);
+        alert(data?.error || data?.details || "Failed to save pricing rule");
       }
     } catch (e) {
-      console.error(e);
+      console.error("Error saving rule:", e);
+      alert("Failed to save pricing rule. Please check the console for details.");
     }
   }
 
@@ -173,6 +186,10 @@ export default function RateCalculatorPage() {
     } catch (e) {
       console.error(e);
     }
+  }
+
+  if (loading) {
+    return <Loading message="Loading rate calculator..." />;
   }
 
   return (
@@ -369,12 +386,26 @@ export default function RateCalculatorPage() {
 
       {/* Add/Edit Pricing Rule Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-md">
-            <div className="p-6">
-              <h2 className="text-xl font-semibold mb-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-[#0f4d8a] to-[#E67919] px-6 py-4 flex items-center justify-between z-10">
+              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <Calculator className="w-5 h-5" />
                 {editing ? 'Edit' : 'Add'} Pricing Rule
               </h2>
+              <button
+                onClick={() => {
+                  setShowForm(false);
+                  setEditing(null);
+                }}
+                className="text-white hover:text-gray-200 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6">
               
               <form onSubmit={(e) => {
                 e.preventDefault();

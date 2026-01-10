@@ -165,7 +165,7 @@ const faqData = [
   },
   {
     question: "How do I contact customer support?",
-    answer: "Contact us through:\n\n• Customer Portal: Send a message in 'Messages' section\n• Email: support@cleanjshipping.com\n• Phone: +1-876-XXX-XXXX\n• Live Chat: Available in portal\n• Visit: Our warehouse locations\n\nWe typically respond within 24 hours.",
+    answer: "Contact us through:\n\n• Customer Portal: Send a message in 'Messages' section\n• Email: info@cleanshipping.com\n• Phone: 1 (876) 578-5945\n• Live Chat: Available in portal\n• Visit: Our warehouse locations\n\nWe typically respond within 24 hours.",
     category: "general",
     order: 3,
   },

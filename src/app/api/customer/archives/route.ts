@@ -19,8 +19,14 @@ export async function GET(req: Request) {
   }
   if (!userCode) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Archived packages: delivered or deleted
-  const pkgs = await Package.find({ userCode, status: { $in: ["Delivered", "Deleted"] } })
+  // Archived packages: delivered or deleted (case-insensitive match)
+  const pkgs = await Package.find({ 
+    userCode, 
+    $or: [
+      { status: { $regex: /^delivered$/i } },
+      { status: { $regex: /^deleted$/i } }
+    ]
+  })
     .select("trackingNumber description status updatedAt createdAt invoiceRecords invoiceDocuments")
     .sort({ updatedAt: -1 })
     .limit(500)

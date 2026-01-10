@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Package, Users, Truck, DollarSign, TrendingUp, AlertCircle, CheckCircle, Clock, FileText, Activity, RefreshCw, Calendar, ArrowUpRight, Loader2 } from "lucide-react";
-
+import Loading from "@/components/Loading";
 type Bill = {
   id: string;
   billNumber: string;
@@ -263,9 +263,7 @@ export default function AdminReportsPage() {
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-          </div>
+          <Loading message="Loading reports..." />
         ) : report ? (
           <>
             {/* Summary Stats */}

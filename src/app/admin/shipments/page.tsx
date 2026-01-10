@@ -23,6 +23,7 @@ import {
   FileText
 } from 'lucide-react';
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
+import Loading from "@/components/Loading";
 
 type ShipmentRow = {
   tracking_number: string;
@@ -298,11 +299,7 @@ export default function AdminShipmentsPage() {
   const filledShipments = rows.filter((r) => r.tracking_number.trim()).length;
 
   if (status === 'loading' || loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-      </div>
-    );
+    return <Loading message="Loading shipments..." />;
   }
 
   return (
@@ -697,6 +694,7 @@ export default function AdminShipmentsPage() {
           </div>
         </form>
             </div>
+          </div>
           </div>
         )}
 

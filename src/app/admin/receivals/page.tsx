@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Package, Truck, MapPin, Calendar, Search, Filter, ChevronDown, ChevronRight, CheckCircle, Clock, AlertCircle, Box, ArrowRight, User, RefreshCw, Loader2 } from "lucide-react";
-
+import Loading from "@/components/Loading";
 type ReceivalStatus = "pending" | "in_transit" | "received" | "delayed";
 
 type Receival = {
@@ -285,11 +285,7 @@ export default function ReceivalsPage() {
 
           <div className="divide-y divide-slate-200">
             {loading ? (
-              <div className="p-12">
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-                </div>
-              </div>
+              <Loading message="Loading receivals..." />
             ) : error ? (
               <div className="text-center py-12">
                 <AlertCircle className="w-12 h-12 text-red-300 mx-auto mb-3" />

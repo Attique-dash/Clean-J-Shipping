@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Package, Plus, Search, CheckCircle, User, MapPin, Calendar, Weight, Truck, Mail, Phone } from "lucide-react";
 import { toast } from "react-hot-toast";
+import Loading from "@/components/Loading";
 
 interface WarehousePackage {
   _id: string;
@@ -393,9 +394,7 @@ export default function WarehouseReceivingPage() {
           
           <div className="overflow-x-auto">
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0f4d8a]"></div>
-              </div>
+              <Loading message="Loading packages..." />
             ) : filteredPackages.length === 0 ? (
               <div className="text-center py-12">
                 <Package className="w-12 h-12 text-slate-300 mx-auto mb-3" />

@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { FileText, Plus, Trash2, Save, Download, User, Package, DollarSign, Calendar, Edit2, ArrowLeft } from "lucide-react";
 import { ExportService } from "@/lib/export-service";
 import toast, { Toaster } from "react-hot-toast";
+import Loading from "@/components/Loading";
 
 type InvoiceItem = {
   id: string;
@@ -1056,7 +1057,7 @@ export default function InvoiceGeneratorPage() {
                   className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-[#0f4d8a] to-[#E67919] text-white font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Save className="w-4 h-4" />
-                  {loading ? 'Saving...' : 'Save Invoice'}
+                  {loading   ? 'Saving...' : 'Save Invoice'}
                 </button>
                 
                 <button

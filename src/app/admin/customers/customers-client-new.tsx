@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Loader2, Eye, User, Mail, Phone, MapPin, Calendar, Shield, X } from "lucide-react";
+import { Eye, User, Mail, Phone, MapPin, Calendar, Shield, X, Loader2 } from "lucide-react";
+import Loading from "@/components/Loading";
 import SharedModal from "@/components/admin/SharedModal";
 import AddButton from "@/components/admin/AddButton";
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
@@ -200,12 +201,13 @@ export default function CustomersPageClient() {
   const filtered = items.filter((c) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
+    const addressStr = c.address ? `${c.address.street || ""} ${c.address.city || ""} ${c.address.state || ""} ${c.address.zipCode || ""} ${c.address.country || ""}`.toLowerCase().trim() : "";
     return (
       c.userCode.toLowerCase().includes(q) ||
       c.email.toLowerCase().includes(q) ||
       `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) ||
       (c.phone || "").toLowerCase().includes(q) ||
-      (c.address ? `${c.address.street || ""} ${c.address.city || ""} ${c.address.state || ""} ${c.address.zipCode || ""} ${c.address.country || ""}`.toLowerCase() : "")
+      (addressStr && addressStr.includes(q))
     );
   });
 
@@ -218,11 +220,7 @@ export default function CustomersPageClient() {
   }).length;
 
   if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-      </div>
-    );
+    return <Loading message="Loading customers..." />;
   }
 
   return (

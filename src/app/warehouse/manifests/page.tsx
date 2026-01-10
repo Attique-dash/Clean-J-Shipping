@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Package, FileText, CheckCircle, AlertCircle, Loader2, Printer, Plus, RefreshCw, FileDown } from "lucide-react";
 import { toast } from "react-toastify";
+import Loading from "@/components/Loading";
 
 type Manifest = {
   _id: string;
@@ -123,11 +124,7 @@ export default function WarehouseManifestsPage() {
   };
 
   if (status === 'loading' || loadingManifests) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-      </div>
-    );
+    return <Loading message="Loading manifests..." />;
   }
 
   return (

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DollarSign, Plus, ChevronLeft, ChevronRight, RefreshCw, Loader2, CheckCircle, XCircle } from "lucide-react";
+import Loading from "@/components/Loading";
 
 interface Currency {
   _id: string;
@@ -236,10 +237,7 @@ export default function CurrencyManagementPage() {
           </div>
           
           {loading ? (
-            <div className="p-8 text-center">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-blue-600" />
-              <p className="text-gray-600">Loading currencies...</p>
-            </div>
+            <Loading message="Loading currencies..." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">

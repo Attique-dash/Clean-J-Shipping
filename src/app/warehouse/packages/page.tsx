@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
+import Loading from "@/components/Loading";
 
 type PackageRow = {
   _id: string;
@@ -354,11 +355,7 @@ export default function WarehousePackagesPage() {
   };
 
   if (status === 'loading' || loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-      </div>
-    );
+    return <Loading message="Loading packages..." />;
   }
 
   return (
@@ -858,35 +855,18 @@ export default function WarehousePackagesPage() {
                 </div>
               </div>
 
-              {/* Additional Information */}
+              {/* Recipient Information */}
               <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6">
                 <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                   <User className="h-5 w-5 text-green-600" />
                   Recipient Information
                 </h4>
-                <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Name:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.recipient?.name || packageToView.receiverName || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Email:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.recipient?.email || packageToView.receiverEmail || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Phone:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.recipient?.phone || packageToView.receiverPhone || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Address:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.recipient?.address || packageToView.receiverAddress || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Country:</span>
-                      <span className="text-sm font-medium text-gray-900">{packageToView.recipient?.country || packageToView.receiverCountry || 'N/A'}</span>
-                    </div>
-                  </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Name:</span><span className="text-sm font-medium text-gray-900">{packageToView.recipient?.name || packageToView.receiverName || 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.recipient?.email || packageToView.receiverEmail || 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.recipient?.phone || packageToView.receiverPhone || 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.recipient?.address || packageToView.receiverAddress || 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.recipient?.country || packageToView.receiverCountry || 'N/A'}</span></div>
                 </div>
               </div>
 
@@ -924,29 +904,41 @@ export default function WarehousePackagesPage() {
                 </div>
               </div>
 
-              {/* Additional Details */}
-              {(packageToView.description || packageToView.itemDescription || packageToView.specialInstructions) && (
+              {/* Additional Information */}
+              {(packageToView.description || packageToView.itemDescription || packageToView.specialInstructions || packageToView.contents) && (
                 <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-6">
                   <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <Calendar className="h-5 w-5 text-orange-600" />
                     Additional Information
                   </h4>
-                  <div className="space-y-4">
-                    {packageToView.description && (
-                      <div>
-                        <span className="text-sm font-medium text-gray-700">Description: </span>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {packageToView.description && packageToView.description !== packageToView.itemDescription && (
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-700 mb-1">Description:</span>
                         <span className="text-sm text-gray-600">{packageToView.description}</span>
                       </div>
                     )}
                     {packageToView.itemDescription && (
-                      <div>
-                        <span className="text-sm font-medium text-gray-700">Item Description: </span>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-700 mb-1">Item Description:</span>
                         <span className="text-sm text-gray-600">{packageToView.itemDescription}</span>
                       </div>
                     )}
+                    {packageToView.description && packageToView.description === packageToView.itemDescription && !packageToView.contents && (
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-700 mb-1">Description:</span>
+                        <span className="text-sm text-gray-600">{packageToView.description}</span>
+                      </div>
+                    )}
+                    {packageToView.contents && (
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-700 mb-1">Contents:</span>
+                        <span className="text-sm text-gray-600">{packageToView.contents}</span>
+                      </div>
+                    )}
                     {packageToView.specialInstructions && (
-                      <div>
-                        <span className="text-sm font-medium text-gray-700">Special Instructions: </span>
+                      <div className="flex flex-col md:col-span-2">
+                        <span className="text-sm font-medium text-gray-700 mb-1">Special Instructions:</span>
                         <span className="text-sm text-gray-600">{packageToView.specialInstructions}</span>
                       </div>
                     )}

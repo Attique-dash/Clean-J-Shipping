@@ -15,6 +15,7 @@ import {
   FaSignOutAlt,
   FaHome,
   FaFileUpload,
+  FaComments,
   FaWarehouse,
 } from 'react-icons/fa';
 import type { IconType } from 'react-icons';

@@ -32,16 +32,42 @@ export async function GET(
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
     }
 
-    // Extract location from package
-    const pkgLocation = (pkg as { currentLocation?: { latitude?: number; longitude?: number; address?: string; branch?: string; lat?: number; lng?: number } }).currentLocation 
-    const currentLocation = pkgLocation
-      ? {
-          latitude: pkgLocation.latitude || pkgLocation.lat,
-          longitude: pkgLocation.longitude || pkgLocation.lng,
-          address: pkgLocation.address || pkgLocation.branch || undefined,
-          timestamp: (pkg as { updatedAt?: Date }).updatedAt || new Date(),
-        }
-      : undefined;
+    // Extract location from package with fallback to warehouse location
+    const pkgData = pkg as { 
+      currentLocation?: { latitude?: number; longitude?: number; address?: string; branch?: string; lat?: number; lng?: number };
+      warehouseLocation?: string;
+      branch?: string;
+      status?: string;
+      updatedAt?: Date;
+    };
+    
+    const pkgLocation = pkgData.currentLocation;
+    let currentLocation;
+    
+    if (pkgLocation && (pkgLocation.latitude || pkgLocation.lat || pkgLocation.longitude || pkgLocation.lng)) {
+      currentLocation = {
+        latitude: pkgLocation.latitude || pkgLocation.lat || 0,
+        longitude: pkgLocation.longitude || pkgLocation.lng || 0,
+        address: pkgLocation.address || pkgLocation.branch || pkgData.warehouseLocation || pkgData.branch || undefined,
+        timestamp: pkgData.updatedAt || new Date(),
+      };
+    } else if (pkgData.warehouseLocation || pkgData.branch) {
+      // Fallback: Use warehouse location as address (without coordinates)
+      currentLocation = {
+        latitude: undefined,
+        longitude: undefined,
+        address: pkgData.warehouseLocation || pkgData.branch || undefined,
+        timestamp: pkgData.updatedAt || new Date(),
+      };
+    } else {
+      // No location available - return status-based location
+      currentLocation = {
+        latitude: undefined,
+        longitude: undefined,
+        address: pkgData.status === 'Delivered' ? 'Delivered' : pkgData.status || 'In Processing',
+        timestamp: pkgData.updatedAt || new Date(),
+      };
+    }
 
     // Build history from package history array
     const pkgHistory = (pkg as { history?: Array<{ location?: { latitude?: number; longitude?: number; address?: string; lat?: number; lng?: string }; note?: string; status?: string; at?: Date }> }).history || [];
@@ -63,7 +89,15 @@ export async function GET(
     return NextResponse.json({
       trackingNumber: pkg.trackingNumber,
       status: pkg.status,
-      currentLocation,
+      currentLocation: currentLocation ? {
+        ...currentLocation,
+        // Ensure we have valid coordinates or provide a helpful message
+        hasCoordinates: !!(currentLocation.latitude && currentLocation.longitude),
+      } : {
+        address: pkgData.status === 'Delivered' ? 'Delivered' : pkgData.status || 'In Processing',
+        hasCoordinates: false,
+        timestamp: pkgData.updatedAt || new Date(),
+      },
       history,
     });
   } catch (error) {

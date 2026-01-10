@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { Package, ArrowLeft, Save, Loader2, ChevronDown, AlertCircle, RefreshCw, Check } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import Loading from "@/components/Loading";
 
 interface Customer {
   _id: string;
@@ -31,6 +32,7 @@ function AdminAddPackagePageContent() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isEditing, setIsEditing] = useState(() => !!editId);
+  const [loading, setLoading] = useState(true);
   
   const [form, setForm] = useState({
     weight: "",
@@ -103,6 +105,7 @@ function AdminAddPackagePageContent() {
     } catch (err) {
       console.error("Failed to load customers:", err);
     }
+    setLoading(false);
   }
 
   // Handle customer selection
@@ -124,6 +127,7 @@ function AdminAddPackagePageContent() {
     } catch {
       setSelectedCustomer(customer);
     }
+    setLoading(false);
   };
 
   // Initialize - load customers and check for edit mode
@@ -212,6 +216,8 @@ function AdminAddPackagePageContent() {
           
         } catch (error) {
           console.error('Error loading package for edit:', error);
+        } finally {
+          setLoading(false);
         }
       };
       
@@ -395,6 +401,10 @@ function AdminAddPackagePageContent() {
       setTrackingError("An error occurred. Please try again.");
       setSubmitting(false);
     }
+  }
+
+  if (loading) {
+    return <Loading message="Loading customers..." />;
   }
 
   return (

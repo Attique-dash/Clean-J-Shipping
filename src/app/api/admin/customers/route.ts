@@ -192,32 +192,74 @@ export async function PUT(req: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  const { id, firstName, lastName, email, password, phone, address, country, accountStatus } = body || {};
-  if (!id || !Types.ObjectId.isValid(String(id))) {
-    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
-  }
-  const update: Record<string, unknown> = {};
-  if (firstName !== undefined) update.firstName = firstName;
-  if (lastName !== undefined) update.lastName = lastName;
-  if (email !== undefined) update.email = email;
-  if (phone !== undefined) update.phone = phone;
-  if (address !== undefined || country !== undefined) {
-    update.address = {
-      ...(address !== undefined && { street: address }),
-      ...(country !== undefined && { country }),
-    };
-  }
-  if (accountStatus !== undefined) update.accountStatus = accountStatus;
-  if (password) {
-    const passwordStr = String(password);
-    if (passwordStr.trim() !== '') {
-      update.passwordHash = await hashPassword(passwordStr);
+  try {
+    const { id, firstName, lastName, email, password, phone, address, country, accountStatus } = body || {};
+    if (!id || !Types.ObjectId.isValid(String(id))) {
+      return NextResponse.json({ error: "Invalid id" }, { status: 400 });
     }
-  }
+    
+    const update: Record<string, unknown> = {};
+    if (firstName !== undefined) update.firstName = String(firstName).trim();
+    if (lastName !== undefined) update.lastName = String(lastName).trim();
+    if (email !== undefined) {
+      const emailStr = String(email).trim();
+      if (emailStr) {
+        // Check if email is already taken by another user
+        const existingUser = await User.findOne({ 
+          email: emailStr,
+          _id: { $ne: new Types.ObjectId(String(id)) }
+        });
+        if (existingUser) {
+          return NextResponse.json({ error: "Email already exists" }, { status: 409 });
+        }
+        update.email = emailStr;
+      }
+    }
+    if (phone !== undefined) update.phone = String(phone).trim();
+    
+    // Handle address - can be object or individual fields
+    if (address !== undefined || country !== undefined) {
+      const addressObj = (address && typeof address === 'object') ? address as Record<string, string> : {};
+      update.address = {
+        street: addressObj.street || (typeof address === 'string' ? address : ''),
+        city: addressObj.city || '',
+        state: addressObj.state || '',
+        zipCode: addressObj.zipCode || addressObj.zip_code || '',
+        country: addressObj.country || country || '',
+      };
+    }
+    
+    if (accountStatus !== undefined) {
+      const statusStr = String(accountStatus);
+      if (['active', 'inactive', 'suspended'].includes(statusStr)) {
+        update.accountStatus = statusStr;
+      }
+    }
+    
+    if (password) {
+      const passwordStr = String(password);
+      if (passwordStr.trim() !== '') {
+        update.passwordHash = await hashPassword(passwordStr);
+      }
+    }
 
-  const updated = await User.findOneAndUpdate({ _id: id, role: "customer" }, { $set: update }, { new: true });
-  if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ ok: true });
+    const updated = await User.findOneAndUpdate(
+      { _id: new Types.ObjectId(String(id)), role: "customer" }, 
+      { $set: update }, 
+      { new: true }
+    );
+    
+    if (!updated) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    }
+    
+    return NextResponse.json({ ok: true, id: String(updated._id) });
+  } catch (error: any) {
+    console.error("Error updating customer:", error);
+    return NextResponse.json({ 
+      error: error.message || "Internal server error during customer update" 
+    }, { status: 500 });
+  }
 }
 
 export async function DELETE(req: Request) {

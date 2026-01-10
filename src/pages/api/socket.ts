@@ -3,15 +3,13 @@ import { Server } from 'socket.io';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 const ioHandler = (req: NextApiRequest, res: NextApiResponse) => {
-  // @ts-expect-error
+  // @ts-expect-error - NextApiResponse.socket is not in types but exists at runtime
   if (!res.socket.server.io) {
     console.log('*First use, starting socket.io');
     
-    // @ts-expect-error
+    // @ts-expect-error - NextApiResponse.socket is not in types but exists at runtime
     const io = new Server(res.socket.server, {
       path: '/api/socket',
-      // @ts-expect-error
-      addTrailingSlash: false,
     });
 
     io.on('connection', (socket) => {
@@ -29,7 +27,7 @@ const ioHandler = (req: NextApiRequest, res: NextApiResponse) => {
       });
     });
 
-    // @ts-expect-error
+    // @ts-expect-error - NextApiResponse.socket is not in types but exists at runtime
     res.socket.server.io = io;
   } else {
     console.log('Socket.io already running');

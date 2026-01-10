@@ -75,6 +75,8 @@ export const adminBroadcastCreateSchema = z.object({
   body: z.string().min(1).max(5000),
   channels: z.array(z.enum(["email", "portal"])).min(1),
   scheduled_at: z.string().datetime().optional(),
+  audience: z.enum(["all", "active", "inactive", "staff"]).optional(),
+  priority: z.enum(["low", "normal", "high"]).optional(),
 });
 
 // POS Transaction Validation

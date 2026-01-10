@@ -17,13 +17,36 @@ export async function GET(
   try {
     await dbConnect();
     
-    const packageData = await Package.findById(packageId).lean();
+    const packageData = await Package.findById(packageId)
+      .populate('userId', 'firstName lastName email phone userCode')
+      .lean();
     
     if (!packageData) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
     }
 
-    return NextResponse.json(packageData);
+    // Format package data with recipient information
+    const pkg = packageData as any;
+    const formattedData = {
+      ...pkg,
+      recipient: {
+        name: pkg.receiverName || pkg.recipient?.name || (pkg.userId?.firstName && pkg.userId?.lastName ? `${pkg.userId.firstName} ${pkg.userId.lastName}` : null) || null,
+        email: pkg.receiverEmail || pkg.recipient?.email || pkg.userId?.email || null,
+        phone: pkg.receiverPhone || pkg.recipient?.phone || pkg.userId?.phone || null,
+        address: pkg.receiverAddress || pkg.recipient?.address || null,
+        country: pkg.receiverCountry || pkg.recipient?.country || null,
+        city: pkg.receiverCity || pkg.recipient?.city || null,
+        state: pkg.receiverState || pkg.recipient?.state || null,
+        zipCode: pkg.receiverZipCode || pkg.recipient?.zipCode || null,
+      },
+      receiverName: pkg.receiverName || pkg.recipient?.name || (pkg.userId?.firstName && pkg.userId?.lastName ? `${pkg.userId.firstName} ${pkg.userId.lastName}` : null),
+      receiverEmail: pkg.receiverEmail || pkg.recipient?.email || pkg.userId?.email || null,
+      receiverPhone: pkg.receiverPhone || pkg.recipient?.phone || pkg.userId?.phone || null,
+      receiverAddress: pkg.receiverAddress || pkg.recipient?.address || null,
+      receiverCountry: pkg.receiverCountry || pkg.recipient?.country || null,
+    };
+
+    return NextResponse.json(formattedData);
   } catch (error) {
     console.error("Error fetching package:", error);
     return NextResponse.json({ error: "Failed to fetch package" }, { status: 500 });

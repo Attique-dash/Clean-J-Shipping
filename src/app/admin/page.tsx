@@ -8,6 +8,7 @@ import {
   Download, Radio, Loader2, X, User
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import Loading from "@/components/Loading";
 
 // Dynamic imports for charts to avoid SSR issues
 const RevenueChart = dynamic(
@@ -381,11 +382,7 @@ export default function AdminDashboard() {
   };
 
   if (isLoading && !stats) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20">
-        <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-      </div>
-    );
+    return <Loading message="Loading dashboard..." />;
   }
 
   if (error && !stats) {
@@ -394,9 +391,7 @@ export default function AdminDashboard() {
 
   if (!stats && !isLoading && !error) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20">
-        <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-      </div>
+      <Loading message="Loading dashboard..." />
     );
   }
 
@@ -614,61 +609,30 @@ export default function AdminDashboard() {
               <div className="lg:col-span-2 space-y-6">
                 {activeTab === 'overview' && (
                   <>
-                    {/* Revenue Chart */}
-                    <div className="group overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-gray-200">
-                      <div className="border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-6">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="text-xl font-bold text-gray-900">Revenue Overview</h3>
-                            <p className="mt-1 text-sm text-gray-600">Monthly performance tracking</p>
-                          </div>
-                          <div className="flex gap-2">
-                            {(['day', 'week', 'month', 'year'] as const).map((filter) => (
-                              <button
-                                key={filter}
-                                onClick={() => setRevenueTimeFilter(filter)}
-                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                                  revenueTimeFilter === filter
-                                    ? 'bg-blue-600 text-white shadow-md'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                }`}
-                              >
-                                {filter.charAt(0).toUpperCase() + filter.slice(1)}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+                    {/* Revenue Trend Chart - Matching admin/reporting style */}
+                    <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-slate-800">Revenue Trend</h3>
+                        <BarChart3 className="w-5 h-5 text-slate-400" />
                       </div>
-                      <div className="p-6">
-                        <div className="h-80">
-                          {(() => {
-                            console.log('Overview chart render check:', {
-                              chartsLoaded,
-                              hasRevenueData: stats?.revenueByMonth && stats.revenueByMonth.length > 0,
-                              revenueDataLength: stats?.revenueByMonth?.length,
-                              isLoading
-                            });
-                            return chartsLoaded && stats?.revenueByMonth && stats.revenueByMonth.length > 0 ? (
-                              <RevenueChart data={stats.revenueByMonth} />
+                      <div className="h-80">
+                        {stats?.revenueByMonth && stats.revenueByMonth.length > 0 ? (
+                          <RevenueChart data={stats.revenueByMonth.map(item => ({
+                            month: item.month,
+                            revenue: typeof item.revenue === 'number' ? item.revenue : 0,
+                            packages: typeof item.packages === 'number' ? item.packages : 0
+                          }))} />
+                        ) : (
+                          <div className="h-full flex items-center justify-center text-gray-400">
+                            {isLoading ? (
+                              <Loading message="Loading chart..." />
+                            ) : (!stats?.revenueByMonth || stats.revenueByMonth.length === 0) ? (
+                              <p>No revenue data available</p>
                             ) : (
-                              <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg">
-                                {isLoading ? (
-                                  <div className="flex items-center justify-center">
-                                    <Loader2 className="h-6 w-6 animate-spin text-gray-400 mr-2" />
-                                    <p className="text-gray-400">Loading chart...</p>
-                                  </div>
-                                ) : chartsLoaded && (!stats?.revenueByMonth || stats.revenueByMonth.length === 0) ? (
-                                  <p className="text-gray-400">No revenue data available</p>
-                                ) : (
-                                  <div className="flex items-center justify-center">
-                                    <Loader2 className="h-6 w-6 animate-spin text-gray-400 mr-2" />
-                                    <p className="text-gray-400">Preparing chart...</p>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </div>
+                              <Loading message="Preparing chart..." />
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -760,17 +724,11 @@ export default function AdminDashboard() {
                         ) : (
                           <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg">
                             {isLoading ? (
-                              <div className="flex items-center justify-center">
-                                <Loader2 className="h-6 w-6 animate-spin text-gray-400 mr-2" />
-                                <p className="text-gray-400">Loading chart...</p>
-                              </div>
+                              <Loading message="Loading chart..." />
                             ) : chartsLoaded && (!stats?.revenueByMonth || stats.revenueByMonth.length === 0) ? (
                               <p className="text-gray-400">No revenue data available</p>
                             ) : (
-                              <div className="flex items-center justify-center">
-                                <Loader2 className="h-6 w-6 animate-spin text-gray-400 mr-2" />
-                                <p className="text-gray-400">Preparing chart...</p>
-                              </div>
+                              <Loading message="Preparing chart..." />
                             )}
                           </div>
                         )}
@@ -819,17 +777,11 @@ export default function AdminDashboard() {
                           ) : (
                             <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg">
                               {isLoading ? (
-                                <div className="flex items-center justify-center">
-                                  <Loader2 className="h-6 w-6 animate-spin text-gray-400 mr-2" />
-                                  <p className="text-gray-400">Loading chart...</p>
-                                </div>
+                                <Loading message="Loading chart..." />
                               ) : chartsLoaded && (!customerData || customerData.length === 0) ? (
                                 <p className="text-gray-400">No customer data available</p>
                               ) : (
-                                <div className="flex items-center justify-center">
-                                  <Loader2 className="h-6 w-6 animate-spin text-gray-400 mr-2" />
-                                  <p className="text-gray-400">Preparing chart...</p>
-                                </div>
+                                <Loading message="Preparing chart..." />
                               )}
                             </div>
                           );

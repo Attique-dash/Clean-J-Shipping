@@ -315,10 +315,10 @@ export default function CustomerMessagesPage() {
                       {conversations.map((c) => {
                         const isActive = (activeKey || conversations[0]?.key) === c.key;
                         return (
-                          <button
+                          <div
                             key={c.key}
                             onClick={() => setActiveKey(c.key)}
-                            className={`w-full p-4 text-left transition-all duration-200 ${
+                            className={`w-full p-4 text-left transition-all duration-200 cursor-pointer ${
                               isActive 
                                 ? "bg-gradient-to-r from-blue-50 to-cyan-50 border-l-4 border-[#0f4d8a]" 
                                 : "hover:bg-gray-50"
@@ -350,16 +350,16 @@ export default function CustomerMessagesPage() {
                               </div>
                               <div className="flex items-center space-x-2">
                                 {c.isBroadcast && c.unread > 0 && !dismissedBroadcasts.has(c.broadcastId || "") && (
-                                  <button
+                                  <div
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       dismissBroadcast(c.broadcastId || "");
                                     }}
-                                    className="flex-shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-full bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition-colors"
+                                    className="flex-shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-full bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition-colors cursor-pointer"
                                     title="Dismiss broadcast notification"
                                   >
                                     1
-                                  </button>
+                                  </div>
                                 )}
                                 {!c.isBroadcast && c.unread > 0 && (
                                   <span className="flex-shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-full bg-[#E67919] text-white text-xs font-bold">
@@ -368,7 +368,7 @@ export default function CustomerMessagesPage() {
                                 )}
                               </div>
                             </div>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>

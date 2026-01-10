@@ -7,6 +7,7 @@ import toast, { Toaster } from "react-hot-toast";
 import dynamic from "next/dynamic";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import EnhancedCurrencySelector from "@/components/EnhancedCurrencySelector";
+import Loading from "@/components/Loading";
 
 const RevenueChart = dynamic(
   () => import('@/components/charts/RevenueChart').then(mod => mod.RevenueChart),
@@ -487,9 +488,7 @@ export default function BillsPage() {
 
         {/* Bills Grid */}
         {loading ? (
-          <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20">
-            <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-          </div>
+            <Loading message="Loading bills..." />
         ) : error ? (
           <div className="text-center py-12">
             <p className="text-red-500">{error}</p>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { MapPin, Package, Clock, Navigation, Loader2, AlertCircle } from "lucide-react";
+import { MapPin, Package, Clock, Navigation, Loader2, AlertCircle, X } from "lucide-react";
 import { useWebSocket } from "@/components/providers/WebSocketProvider";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -65,7 +65,12 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
       });
       
       socket.on('package:update', (data: unknown) => {
-        const packageUpdate = data as { trackingNumber?: string; status?: string; location?: { latitude: number; longitude: number; address?: string } };
+        const packageUpdate = data as { 
+          trackingNumber?: string; 
+          status?: string; 
+          location?: { latitude: number; longitude: number; address?: string };
+          timestamp?: string | number | Date;
+        };
         if (packageUpdate.trackingNumber === trackingNumber) {
           setPackageData(prev => prev ? {
             ...prev,
@@ -74,7 +79,7 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
               latitude: packageUpdate.location.latitude,
               longitude: packageUpdate.location.longitude,
               address: packageUpdate.location.address,
-              timestamp: new Date(data.timestamp),
+              timestamp: packageUpdate.timestamp ? new Date(packageUpdate.timestamp) : new Date(),
             } : prev.currentLocation,
           } : null);
         }
@@ -105,27 +110,32 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
   }
 
   function updateLocation(data: unknown) {
-    const dataWithLocation = data as { location?: { latitude: number; longitude: number; address?: string } };
+    const dataWithLocation = data as { 
+      location?: { latitude: number; longitude: number; address?: string };
+      status?: string;
+      timestamp?: string | number | Date;
+    };
     if (dataWithLocation.location) {
+      const timestamp = dataWithLocation.timestamp ? new Date(dataWithLocation.timestamp) : new Date();
       setPackageData(prev => prev ? {
         ...prev,
         currentLocation: {
           latitude: dataWithLocation.location!.latitude,
           longitude: dataWithLocation.location!.longitude,
           address: dataWithLocation.location!.address,
-          timestamp: new Date(data.timestamp),
+          timestamp,
         },
         history: [
           ...prev.history,
           {
-            status: data.status || prev.status,
+            status: dataWithLocation.status || prev.status,
             location: {
-              latitude: data.location.latitude,
-              longitude: data.location.longitude,
-              address: data.location.address,
-              timestamp: new Date(data.timestamp),
+              latitude: dataWithLocation.location!.latitude,
+              longitude: dataWithLocation.location!.longitude,
+              address: dataWithLocation.location!.address,
+              timestamp,
             },
-            timestamp: new Date(data.timestamp),
+            timestamp,
           },
         ],
       } : null);
@@ -143,7 +153,16 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
     }
 
     // Initialize Leaflet map only if we have valid coordinates
-    if (packageData.currentLocation?.latitude && packageData.currentLocation?.longitude) {
+    // Check if hasCoordinates flag is set, or if we have both latitude and longitude
+    const hasCoordinates = (packageData.currentLocation as any)?.hasCoordinates !== false &&
+                          packageData.currentLocation.latitude && 
+                          packageData.currentLocation.longitude &&
+                          typeof packageData.currentLocation.latitude === 'number' &&
+                          typeof packageData.currentLocation.longitude === 'number' &&
+                          !isNaN(packageData.currentLocation.latitude) &&
+                          !isNaN(packageData.currentLocation.longitude);
+    
+    if (hasCoordinates) {
       const mapInstance = L.map(mapRef.current).setView(
         [packageData.currentLocation.latitude, packageData.currentLocation.longitude],
         12
@@ -233,12 +252,87 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
     };
   }, [packageData?.currentLocation?.latitude, packageData?.currentLocation?.longitude, packageData?.trackingNumber, packageData?.status, packageData?.history]);
 
+  // Show package info even without coordinates
   if (!packageData?.currentLocation?.latitude || !packageData?.currentLocation?.longitude) {
     return (
-      <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
-        <div className="flex items-center gap-2 text-yellow-800">
-          <AlertCircle className="h-5 w-5" />
-          <p className="font-medium">Location coordinates not available for this package</p>
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <Package className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Package Tracking</h3>
+                <p className="text-sm text-blue-100">{trackingNumber}</p>
+              </div>
+            </div>
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5 text-white" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Package Info without Map */}
+        <div className="p-6">
+          <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4 mb-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-yellow-800 mb-1">Location coordinates not available</p>
+                <p className="text-sm text-yellow-700">The package location is being tracked, but GPS coordinates are not yet available. Status and address information is shown below.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Status Information */}
+          <div className="space-y-4">
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-600">Status:</span>
+                <span className="text-sm font-semibold text-gray-900">{packageData?.status || 'Unknown'}</span>
+              </div>
+              {packageData?.currentLocation?.address && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-600">Location:</span>
+                  <span className="text-sm font-semibold text-gray-900">{packageData.currentLocation.address}</span>
+                </div>
+              )}
+              {packageData?.currentLocation?.timestamp && (
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-sm font-medium text-gray-600">Last Updated:</span>
+                  <span className="text-sm text-gray-700">{new Date(packageData.currentLocation.timestamp).toLocaleString()}</span>
+                </div>
+              )}
+            </div>
+
+            {/* History */}
+            {packageData?.history && packageData.history.length > 0 && (
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-gray-900 mb-3">Tracking History</h4>
+                <div className="space-y-2">
+                  {packageData.history.map((entry, index) => (
+                    <div key={index} className="flex items-start gap-3 pb-2 border-b border-gray-200 last:border-0">
+                      <div className="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-1.5"></div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{entry.status || 'Status Update'}</p>
+                        {entry.location?.address && (
+                          <p className="text-xs text-gray-600 mt-1">{entry.location.address}</p>
+                        )}
+                        <p className="text-xs text-gray-500 mt-1">{new Date(entry.timestamp).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );

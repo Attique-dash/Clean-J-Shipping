@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { User, Mail, Phone, MapPin, Shield, Calendar, Clock, Edit2, Lock, Check, X, Building, Globe, LogOut, Trash2, AlertTriangle } from "lucide-react";
+import Loading from "@/components/Loading";
 
 type Address = { street?: string; city?: string; state?: string; zip_code?: string; country?: string };
 
@@ -103,14 +104,7 @@ export default function CustomerProfilePage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-[#0f4d8a]"></div>
-          <span className="text-lg text-gray-600">Loading profile...</span>
-        </div>
-      </div>
-    );
+    return <Loading message="Loading profile..." />;
   }
 
   if (error && !profile) {

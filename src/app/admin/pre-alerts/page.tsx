@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import Loading from "@/components/Loading";
 
 interface PreAlertData {
   _id: string;
@@ -54,18 +54,7 @@ export default function PreAlertsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="flex items-center justify-center h-64">
-            <div className="flex items-center gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-              <span className="text-lg text-gray-600">Loading pre-alerts...</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <Loading message="Loading pre-alerts..." />;
   }
 
   return (

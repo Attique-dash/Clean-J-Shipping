@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings, Plus, Edit2, Trash2, DollarSign, Package, Shield } from "lucide-react";
+import { Settings, Plus, Edit2, Trash2, DollarSign, Package, Shield, Calculator } from "lucide-react";
+import Loading from "@/components/Loading";
+import ShippingChargesSettings from "./shipping-charges";
 
 type Service = {
   _id: string;
@@ -33,6 +35,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const [activeTab, setActiveTab] = useState<'services' | 'shipping-charges'>('services');
   const [formData, setFormData] = useState<{
     name: string;
     description: string;
@@ -271,112 +274,142 @@ export default function SettingsPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-200">
-                  Service Settings
+                  Services Setting
                 </h1>
                 <p className="mt-1 text-sm text-blue-100">
-                  Configure available services for invoice generation
+                  Configure available services and shipping charges for invoice generation
                 </p>
               </div>
 
+              {activeTab === 'services' && (
+                <button
+                  onClick={() => openModal()}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-white/15 px-5 py-3 text-sm font-semibold shadow-md backdrop-blur transition hover:bg-white/25 hover:shadow-xl hover:scale-105 active:scale-95"
+                >
+                  <Plus className="h-5 w-5" />
+                  Add Service
+                </button>
+              )}
+            </div>
+            
+            {/* Tabs */}
+            <div className="flex gap-2 border-t border-white/20 pt-4">
               <button
-                onClick={() => openModal()}
-                className="inline-flex items-center gap-2 rounded-2xl bg-white/15 px-5 py-3 text-sm font-semibold shadow-md backdrop-blur transition hover:bg-white/25 hover:shadow-xl hover:scale-105 active:scale-95"
+                onClick={() => setActiveTab('services')}
+                className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                  activeTab === 'services'
+                    ? 'bg-white/20 text-white shadow-md'
+                    : 'text-blue-100 hover:bg-white/10'
+                }`}
               >
-                <Plus className="h-5 w-5" />
-                Add Service
+                <Package className="h-4 w-4 inline-block mr-2" />
+                Services
+              </button>
+              <button
+                onClick={() => setActiveTab('shipping-charges')}
+                className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                  activeTab === 'shipping-charges'
+                    ? 'bg-white/20 text-white shadow-md'
+                    : 'text-blue-100 hover:bg-white/10'
+                }`}
+              >
+                <Calculator className="h-4 w-4 inline-block mr-2" />
+                Shipping Charges
               </button>
             </div>
           </div>
         </header>
 
-        {/* Services List - Matching Rate Calculator Table Style */}
-        <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-slate-700 to-slate-600 px-6 py-4">
-            <h2 className="text-xl font-semibold text-white">Available Services</h2>
-          </div>
-          
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        {/* Content based on active tab */}
+        {activeTab === 'services' ? (
+          <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-slate-700 to-slate-600 px-6 py-4">
+              <h2 className="text-xl font-semibold text-white">Available Services</h2>
             </div>
-          ) : services.length === 0 ? (
-            <div className="text-center py-12">
-              <Settings className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">No services configured</p>
-              <p className="text-sm text-gray-400 mt-1">Add services to enable them in invoice generation</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Service</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Description</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Unit Price</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Method</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {services.map((service) => (
-                    <tr key={service._id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-slate-900">{service.name}</span>
-                          {service.isDefault && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                              Default
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${getServiceColor(service.serviceType)}`}>
-                          {getServiceIcon(service.serviceType)}
-                          <span>{service.serviceType}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600 max-w-xs truncate">
-                        {service.description}
-                      </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-green-600">
-                        ${service.unitPrice.toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600 capitalize">
-                        {service.calculationMethod.replace('_', ' ')}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          service.isActive 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {service.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right space-x-2">
-                        <button
-                          onClick={() => openModal(service)}
-                          className="inline-flex items-center px-3 py-1 rounded-lg border border-[#0f4d8a] text-[#0f4d8a] hover:bg-[#0f4d8a] hover:text-white transition-colors"
-                        >
-                          <Edit2 className="w-3 h-3" />
-                        </button>
-                        <button
-                          onClick={() => deleteService(service._id)}
-                          className="inline-flex items-center px-3 py-1 rounded-lg border border-red-300 text-red-600 hover:bg-red-600 hover:text-white transition-colors"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </td>
+            
+            {loading ? (
+              <Loading message="Loading services..." />
+            ) : services.length === 0 ? (
+              <div className="text-center py-12">
+                <Settings className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 font-medium">No services configured</p>
+                <p className="text-sm text-gray-400 mt-1">Add services to enable them in invoice generation</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Service</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Description</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Unit Price</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Method</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {services.map((service) => (
+                      <tr key={service._id} className="hover:bg-slate-50">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-slate-900">{service.name}</span>
+                            {service.isDefault && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                Default
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${getServiceColor(service.serviceType)}`}>
+                            {getServiceIcon(service.serviceType)}
+                            <span>{service.serviceType}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-600 max-w-xs truncate">
+                          {service.description}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-semibold text-green-600">
+                          ${service.unitPrice.toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-600 capitalize">
+                          {service.calculationMethod.replace('_', ' ')}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            service.isActive 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {service.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right space-x-2">
+                          <button
+                            onClick={() => openModal(service)}
+                            className="inline-flex items-center px-3 py-1 rounded-lg border border-[#0f4d8a] text-[#0f4d8a] hover:bg-[#0f4d8a] hover:text-white transition-colors"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => deleteService(service._id)}
+                            className="inline-flex items-center px-3 py-1 rounded-lg border border-red-300 text-red-600 hover:bg-red-600 hover:text-white transition-colors"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : (
+          <ShippingChargesSettings />
+        )}
       </div>
 
       {/* Service Modal - Updated to match style */}

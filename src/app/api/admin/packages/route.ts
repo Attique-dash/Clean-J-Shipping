@@ -575,8 +575,9 @@ export async function POST(req: Request) {
     const created = await Package.create(packageData);
 
     // FIXED: Create proper billing invoice automatically
+    let billingInvoice: { _id: any } | null = null;
     try {
-      const billingInvoice = await createBillingInvoice(packageData, user, asString(trackingNumber));
+      billingInvoice = await createBillingInvoice(packageData, user, asString(trackingNumber));
       if (billingInvoice) {
         // Link invoice to package
         await Package.findByIdAndUpdate(created._id, {
@@ -594,12 +595,12 @@ export async function POST(req: Request) {
     // Send email notification to customer with invoice PDF attachment
     try {
       const { sendNewPackageEmail } = await import('@/lib/email');
-      const invoiceId = billingInvoice?._id?.toString();
+      const invoiceId = billingInvoice?._id?.toString() || '';
       await sendNewPackageEmail({
         to: user.email,
         firstName: user.firstName || 'Customer',
         trackingNumber: asString(trackingNumber),
-        status: status || 'received',
+        status: (status && typeof status === 'string') ? status : 'received',
         weight: asNumber(weight),
         shipper: asString(shipper),
         warehouse: asString(branch) || 'Main Warehouse',
@@ -828,6 +829,38 @@ export async function PUT(req: Request) {
 
     if (!updated) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
+    }
+
+    // Update related invoices if payment amount changed
+    if (changedFields.includes('amountPaid') || changedFields.includes('totalAmount') || changedFields.includes('shippingCost')) {
+      try {
+        const Invoice = (await import('@/models/Invoice')).default;
+        const invoices = await Invoice.find({ 
+          $or: [
+            { 'package.trackingNumber': updated.trackingNumber },
+            { 'package': updated._id }
+          ]
+        });
+
+        for (const invoice of invoices) {
+          const newAmountPaid = updated.amountPaid || 0;
+          const invoiceTotal = invoice.total || 0;
+          const newBalanceDue = Math.max(0, invoiceTotal - newAmountPaid);
+          const newStatus = newBalanceDue <= 0 ? 'paid' : newAmountPaid > 0 ? 'partially_paid' : invoice.status;
+
+          await Invoice.findByIdAndUpdate(invoice._id, {
+            $set: {
+              amountPaid: newAmountPaid,
+              balanceDue: newBalanceDue,
+              status: newStatus,
+              updatedAt: new Date()
+            }
+          });
+        }
+      } catch (invoiceError) {
+        console.error('Failed to update related invoices:', invoiceError);
+        // Don't fail package update if invoice update fails
+      }
     }
 
     // Send email notification if status changed

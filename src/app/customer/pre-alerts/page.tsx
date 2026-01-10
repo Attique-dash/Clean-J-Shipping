@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { Bell, Package, Plus, X, Loader2, CheckCircle, XCircle, Clock, Plane, MapPin, Calendar, FileText, Send } from "lucide-react";
+import { toast } from "react-toastify";
 
 type PreAlert = {
   _id: string;
@@ -68,11 +69,14 @@ export default function PreAlertsPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to create pre-alert");
+      toast.success("Pre-alert created successfully! We'll notify you when your package arrives.");
       setForm({ tracking_number: "", carrier: "", origin: "", expected_date: "", notes: "" });
       await load();
       setShowForm(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed");
+      const errorMessage = e instanceof Error ? e.message : "Failed to create pre-alert";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }

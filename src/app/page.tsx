@@ -297,17 +297,25 @@ export default function Home() {
               playsInline
               controls={false}
               preload="auto"
+              style={{ display: 'block' }}
               onError={(e) => {
                 console.error('Video failed to load:', e);
                 // Fallback to image if video fails
                 const video = e.currentTarget;
-                const fallbackImg = document.createElement('img');
-                fallbackImg.src = '/images/deliver.png';
-                fallbackImg.className = 'h-full w-full object-cover';
-                fallbackImg.alt = 'Shopping illustration';
-                video.parentNode?.replaceChild(fallbackImg, video);
+                const parent = video.parentNode;
+                if (parent) {
+                  const fallbackImg = document.createElement('img');
+                  fallbackImg.src = '/images/deliver.png';
+                  fallbackImg.className = 'h-full w-full object-cover';
+                  fallbackImg.alt = 'Shopping illustration';
+                  fallbackImg.style.display = 'block';
+                  parent.replaceChild(fallbackImg, video);
+                }
               }}
-            />
+            >
+              <source src="/videos/Shoping.mp4" type="video/mp4" />
+              <img src="/images/deliver.png" alt="Shopping illustration" className="h-full w-full object-cover" />
+            </video>
           </div>
 
           {/* Right: Steps */}

@@ -8,6 +8,7 @@ import { toast } from "react-toastify";
 import Link from "next/link";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import EnhancedCurrencySelector from "@/components/EnhancedCurrencySelector";
+import Loading from "@/components/Loading";
 
 type Bill = {
   _id?: string;
@@ -616,14 +617,7 @@ export default function CustomerBillsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 text-[#0f4d8a] animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 font-medium">Loading your bills...</p>
-        </div>
-      </div>
-    );
+    return <Loading message="Loading your bills..." />;
   }
 
   return (

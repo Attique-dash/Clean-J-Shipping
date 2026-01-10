@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MessageSquare, Send, Loader2, User, Headphones, Clock, Search, RefreshCw, XCircle } from "lucide-react";
 import { toast } from "react-toastify";
+import Loading from "@/components/Loading";
 
 type Conversation = {
   userCode: string;
@@ -182,10 +183,7 @@ export default function WarehouseMessagesPage() {
 
               <div className="overflow-y-auto" style={{ maxHeight: "calc(100vh - 280px)" }}>
                 {loading ? (
-                  <div className="flex flex-col items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 text-[#0f4d8a] animate-spin mb-3" />
-                    <p className="text-sm text-gray-600">Loading conversations...</p>
-                  </div>
+                  <Loading message="Loading conversations..." />
                 ) : filteredConversations.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 px-4">
                     <MessageSquare className="h-12 w-12 text-gray-300 mb-3" />

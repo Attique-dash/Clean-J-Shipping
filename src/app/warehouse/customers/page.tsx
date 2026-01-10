@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Users, Search, Trash2, Copy, CheckCircle, Package, Mail, Phone, MapPin, AlertCircle, Loader2 } from "lucide-react";
+import Loading from "@/components/Loading";
 
 type Customer = {
   user_code: string;
@@ -81,11 +82,7 @@ export default function WarehouseCustomersPage() {
   };
 
   if (status === 'loading') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-      </div>
-    );
+    return <Loading message="Loading customers..." />;
   }
 
   return (

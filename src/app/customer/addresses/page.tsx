@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Plus, Edit2, Trash2, MapPin, Plane, Ship, Home, Building, Package, Check, X } from "lucide-react";
+import Loading from "@/components/Loading";
 
 interface ShippingAddress {
   id: string;
@@ -203,14 +204,7 @@ export default function CustomerAddressesPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
-        <div className="text-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-[#0f4d8a] mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading your addresses...</p>
-        </div>
-      </div>
-    );
+    return <Loading message="Loading your addresses..." />;
   }
 
   return (

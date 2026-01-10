@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FileText, Plus, Download, DollarSign, Search, Filter, Trash2, FileDown, TrendingUp, Clock, CheckCircle } from "lucide-react";
+import { FileText, Plus, Download, DollarSign, Search, Filter, Trash2, FileDown, TrendingUp, Clock, CheckCircle, Eye, X } from "lucide-react";
 import Link from "next/link";
 import { ExportService } from "@/lib/export-service";
+import Loading from "@/components/Loading";
 
 type Invoice = {
   _id: string;
@@ -76,6 +77,7 @@ export default function InvoiceClient() {
   const [minAmount, setMinAmount] = useState<string>("");
   const [maxAmount, setMaxAmount] = useState<string>("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 
   useEffect(() => {
     loadInvoices();
@@ -363,17 +365,17 @@ export default function InvoiceClient() {
             </div>
 
             {/* Enhanced Stats Cards */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="group relative overflow-hidden rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-6 transition-all hover:bg-white/15 hover:scale-105">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl" />
                 <div className="relative flex items-center justify-between">
-                  <div>
+                  <div className="flex-1 min-w-0 pr-2">
                     <p className="text-sm font-medium text-blue-200">Total Invoices</p>
-                    <p className="mt-2 text-3xl font-bold">{invoices.length}</p>
+                    <p className="mt-2 text-2xl font-bold">{invoices.length}</p>
                     <p className="mt-1 text-xs text-blue-300">All time</p>
                   </div>
-                  <div className="rounded-xl bg-white/20 p-3">
-                    <FileText className="h-6 w-6" />
+                  <div className="rounded-xl bg-white/20 p-2 flex-shrink-0">
+                    <FileText className="h-5 w-5" />
                   </div>
                 </div>
               </div>
@@ -381,13 +383,13 @@ export default function InvoiceClient() {
               <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 backdrop-blur-md border border-indigo-400/30 p-6 transition-all hover:scale-105">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-400/20 rounded-full blur-2xl" />
                 <div className="relative flex items-center justify-between">
-                  <div>
+                  <div className="flex-1 min-w-0 pr-2">
                     <p className="text-sm font-medium text-indigo-100">Total Amount</p>
-                    <p className="mt-2 text-2xl font-bold">{formatJMD(totalStats.totalAmount)}</p>
+                    <p className="mt-2 text-xl font-bold">{formatJMD(totalStats.totalAmount)}</p>
                     <p className="mt-1 text-xs text-indigo-200">JMD</p>
                   </div>
-                  <div className="rounded-xl bg-indigo-400/30 p-3">
-                    <DollarSign className="h-6 w-6" />
+                  <div className="rounded-xl bg-indigo-400/30 p-2 flex-shrink-0">
+                    <DollarSign className="h-5 w-5" />
                   </div>
                 </div>
               </div>
@@ -395,13 +397,13 @@ export default function InvoiceClient() {
               <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-500/20 backdrop-blur-md border border-green-400/30 p-6 transition-all hover:scale-105">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-green-400/20 rounded-full blur-2xl" />
                 <div className="relative flex items-center justify-between">
-                  <div>
+                  <div className="flex-1 min-w-0 pr-2">
                     <p className="text-sm font-medium text-green-100">Paid Amount</p>
-                    <p className="mt-2 text-2xl font-bold">{formatJMD(totalStats.paidAmount)}</p>
-                    <p className="mt-1 text-xs text-green-200">Collected (JMD)</p>
+                    <p className="mt-2 text-xl font-bold">{formatJMD(totalStats.paidAmount)}</p>
+                    <p className="mt-1 text-xs text-green-200">Collected</p>
                   </div>
-                  <div className="rounded-xl bg-green-400/30 p-3">
-                    <DollarSign className="h-6 w-6" />
+                  <div className="rounded-xl bg-green-400/30 p-2 flex-shrink-0">
+                    <DollarSign className="h-5 w-5" />
                   </div>
                 </div>
               </div>
@@ -409,27 +411,13 @@ export default function InvoiceClient() {
               <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 backdrop-blur-md border border-blue-400/30 p-6 transition-all hover:scale-105">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-blue-400/20 rounded-full blur-2xl" />
                 <div className="relative flex items-center justify-between">
-                  <div>
+                  <div className="flex-1 min-w-0 pr-2">
                     <p className="text-sm font-medium text-blue-100">Unpaid Amount</p>
-                    <p className="mt-2 text-2xl font-bold">{formatJMD(totalStats.unpaidAmount)}</p>
-                    <p className="mt-1 text-xs text-blue-200">Outstanding (JMD)</p>
+                    <p className="mt-2 text-xl font-bold">{formatJMD(totalStats.unpaidAmount)}</p>
+                    <p className="mt-1 text-xs text-blue-200">Outstanding</p>
                   </div>
-                  <div className="rounded-xl bg-blue-400/30 p-3">
-                    <TrendingUp className="h-6 w-6" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-500/20 to-rose-500/20 backdrop-blur-md border border-red-400/30 p-6 transition-all hover:scale-105">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-red-400/20 rounded-full blur-2xl" />
-                <div className="relative flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-red-100">Overdue</p>
-                    <p className="mt-2 text-2xl font-bold">{formatJMD(totalStats.overdueAmount)}</p>
-                    <p className="mt-1 text-xs text-red-200">Requires action</p>
-                  </div>
-                  <div className="rounded-xl bg-red-400/30 p-3">
-                    <Clock className="h-6 w-6" />
+                  <div className="rounded-xl bg-blue-400/30 p-2 flex-shrink-0">
+                    <TrendingUp className="h-5 w-5" />
                   </div>
                 </div>
               </div>
@@ -551,12 +539,7 @@ export default function InvoiceClient() {
           
           <div className="overflow-x-auto">
             {loading ? (
-              <div className="flex items-center justify-center py-16">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#0f4d8a] border-t-transparent"></div>
-                  <p className="text-gray-500 font-medium">Loading invoices...</p>
-                </div>
-              </div>
+              <Loading message="Loading invoices..." />
             ) : filteredInvoices.length === 0 ? (
               <div className="text-center py-16">
                 <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
@@ -637,6 +620,13 @@ export default function InvoiceClient() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <button
+                            onClick={() => setViewingInvoice(invoice)}
+                            className="p-2.5 rounded-xl bg-gradient-to-br from-purple-50 to-violet-50 hover:from-purple-100 hover:to-violet-100 transition-all group"
+                            title="View Invoice Details"
+                          >
+                            <Eye className="w-4 h-4 text-purple-600 group-hover:scale-110 transition-transform" />
+                          </button>
+                          <button
                             onClick={() => downloadInvoice(invoice, 'pdf')}
                             className="p-2.5 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-all group"
                             title="Download as PDF"
@@ -668,6 +658,199 @@ export default function InvoiceClient() {
           </div>
         </div>
       </div>
+
+      {/* Invoice Details Modal */}
+      {viewingInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-[#0f4d8a] to-[#E67919] p-6 rounded-t-2xl flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-white">Invoice Details</h2>
+              <button
+                onClick={() => setViewingInvoice(null)}
+                className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Invoice Header */}
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Invoice Number</p>
+                  <p className="font-semibold text-lg">{viewingInvoice.invoiceNumber}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Status</p>
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(viewingInvoice.status)}`}>
+                    {getStatusIcon(viewingInvoice.status)}
+                    {viewingInvoice.status === 'partially_paid' ? 'Partially Paid' : viewingInvoice.status.charAt(0).toUpperCase() + viewingInvoice.status.slice(1)}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Issue Date</p>
+                  <p className="font-medium">{new Date(viewingInvoice.issueDate).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Due Date</p>
+                  <p className="font-medium">{new Date(viewingInvoice.dueDate).toLocaleDateString()}</p>
+                </div>
+              </div>
+
+              {/* Customer Information */}
+              <div className="border-t pt-6">
+                <h3 className="font-semibold text-gray-900 mb-4">Customer Information</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-500 mb-1">Name</p>
+                    <p className="font-medium">{viewingInvoice.customer?.name || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 mb-1">Email</p>
+                    <p className="font-medium">{viewingInvoice.customer?.email || 'N/A'}</p>
+                  </div>
+                  {viewingInvoice.customer?.phone && (
+                    <div>
+                      <p className="text-gray-500 mb-1">Phone</p>
+                      <p className="font-medium">{viewingInvoice.customer.phone}</p>
+                    </div>
+                  )}
+                  {viewingInvoice.package?.trackingNumber && (
+                    <div>
+                      <p className="text-gray-500 mb-1">Tracking Number</p>
+                      <p className="font-medium font-mono">{viewingInvoice.package.trackingNumber}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Invoice Items with Breakdown */}
+              {viewingInvoice.items && viewingInvoice.items.length > 0 && (
+                <div className="border-t pt-6">
+                  <h3 className="font-semibold text-gray-900 mb-4">Invoice Items & Charges</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Description</th>
+                          <th className="px-4 py-3 text-right font-semibold text-gray-700">Quantity</th>
+                          <th className="px-4 py-3 text-right font-semibold text-gray-700">Unit Price</th>
+                          <th className="px-4 py-3 text-right font-semibold text-gray-700">Amount</th>
+                          <th className="px-4 py-3 text-right font-semibold text-gray-700">Tax ({viewingInvoice.items[0]?.taxRate || 0}%)</th>
+                          <th className="px-4 py-3 text-right font-semibold text-gray-700">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {viewingInvoice.items.map((item, idx) => (
+                          <tr key={idx}>
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-gray-900">{item.description}</div>
+                              {/* Categorize charge type if description contains keywords */}
+                              {(item.description.toLowerCase().includes('shipping') || 
+                                item.description.toLowerCase().includes('freight') ||
+                                item.description.toLowerCase().includes('transport')) && (
+                                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded mt-1 inline-block">Shipping</span>
+                              )}
+                              {(item.description.toLowerCase().includes('customs') || 
+                                item.description.toLowerCase().includes('duty')) && (
+                                <span className="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded mt-1 inline-block">Customs Duty</span>
+                              )}
+                              {(item.description.toLowerCase().includes('storage') || 
+                                item.description.toLowerCase().includes('warehouse')) && (
+                                <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded mt-1 inline-block">Storage</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right">{item.quantity}</td>
+                            <td className="px-4 py-3 text-right">{formatJMD(item.unitPrice)}</td>
+                            <td className="px-4 py-3 text-right">{formatJMD(item.amount)}</td>
+                            <td className="px-4 py-3 text-right">{formatJMD(item.taxAmount)}</td>
+                            <td className="px-4 py-3 text-right font-semibold">{formatJMD(item.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Summary */}
+              <div className="border-t pt-6">
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Subtotal:</span>
+                    <span className="font-medium">{formatJMD(viewingInvoice.subtotal || 0)}</span>
+                  </div>
+                  {viewingInvoice.discountAmount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount:</span>
+                      <span className="font-medium">-{formatJMD(viewingInvoice.discountAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Tax Total ({viewingInvoice.items?.[0]?.taxRate || 0}%):</span>
+                    <span className="font-medium">{formatJMD(viewingInvoice.taxTotal || 0)}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-2 mt-2">
+                    <span className="font-semibold text-lg text-gray-900">Total:</span>
+                    <span className="font-bold text-lg text-[#0f4d8a]">{formatJMD(viewingInvoice.total || 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-green-700 pt-2">
+                    <span>Amount Paid:</span>
+                    <span className="font-medium">{formatJMD(viewingInvoice.amountPaid || 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-orange-700 pt-2 border-t">
+                    <span className="font-semibold">Balance Due:</span>
+                    <span className="font-bold">{formatJMD(viewingInvoice.balanceDue || 0)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment History */}
+              {viewingInvoice.paymentHistory && viewingInvoice.paymentHistory.length > 0 && (
+                <div className="border-t pt-6">
+                  <h3 className="font-semibold text-gray-900 mb-4">Payment History</h3>
+                  <div className="space-y-2">
+                    {viewingInvoice.paymentHistory.map((payment, idx) => (
+                      <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg text-sm">
+                        <div>
+                          <p className="font-medium">{formatJMD(payment.amount)}</p>
+                          <p className="text-gray-500 text-xs">{payment.method} • {new Date(payment.date).toLocaleDateString()}</p>
+                        </div>
+                        {payment.reference && (
+                          <p className="text-gray-400 text-xs font-mono">{payment.reference}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {viewingInvoice.notes && (
+                <div className="border-t pt-6">
+                  <h3 className="font-semibold text-gray-900 mb-2">Notes</h3>
+                  <p className="text-sm text-gray-600 bg-gray-50 p-4 rounded-lg">{viewingInvoice.notes}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="sticky bottom-0 bg-gray-50 p-6 rounded-b-2xl flex justify-end gap-3 border-t">
+              <button
+                onClick={() => downloadInvoice(viewingInvoice, 'pdf')}
+                className="px-4 py-2 bg-[#0f4d8a] text-white rounded-lg hover:bg-[#0e447d] transition-colors"
+              >
+                Download PDF
+              </button>
+              <button
+                onClick={() => setViewingInvoice(null)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BookOpen, FileText, Search, RefreshCw, AlertCircle, ChevronRight, File, Folder, Copy, Check, ZoomIn, ZoomOut, Loader2 } from "lucide-react";
+import Loading from "@/components/Loading";
 
 type DocMeta = { path: string; name: string };
 
@@ -196,17 +197,9 @@ export default function DocumentationPage() {
               {/* Document List */}
               <div className="max-h-[calc(100vh-20rem)] overflow-y-auto">
                 {loading ? (
-                  <div className="p-6">
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-                    </div>
-                  </div>
+                  <Loading message="Loading documents..." />
                 ) : filteredDocs.length === 0 ? (
-                  <div className="p-6 text-center">
-                    <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                    <p className="text-sm text-slate-500 font-medium">No documents found</p>
-                    <p className="text-xs text-slate-400 mt-1">Try adjusting your search</p>
-                  </div>
+                  <Loading message="No documents found" />
                 ) : (
                   <div className="p-2">
                     {Object.entries(groupedDocs).map(([folder, folderDocs]) => (

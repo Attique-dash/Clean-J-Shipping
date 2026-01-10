@@ -48,14 +48,30 @@ export async function GET(req: Request) {
     const todayStats = await Package.aggregate([
       {
         $match: {
-          createdAt: { $gte: startOfToday }
+          createdAt: { $gte: startOfToday },
+          status: { $ne: "Deleted" }
         }
       },
       {
         $group: {
           _id: null,
           total: { $sum: 1 },
-          totalWeight: { $sum: "$weight" }
+          totalWeight: { $sum: { $ifNull: ["$weight", 0] } }
+        }
+      }
+    ]);
+
+    // Calculate total weight for all packages (not just today)
+    const totalWeightStats = await Package.aggregate([
+      {
+        $match: {
+          status: { $ne: "Deleted" }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalWeight: { $sum: { $ifNull: ["$weight", 0] } }
         }
       }
     ]);
@@ -156,13 +172,15 @@ export async function GET(req: Request) {
 
     const analyticsData = {
       totalPackages,
+      totalWeight: totalWeightStats[0]?.totalWeight || 0,
       statusCounts: statusCounts.reduce((acc, item) => {
         acc[item._id || "Unknown"] = item.count;
         return acc;
       }, {} as Record<string, number>),
       today: {
         packages: todayStats[0]?.total || 0,
-        weight: todayStats[0]?.totalWeight || 0
+        weight: todayStats[0]?.totalWeight || 0,
+        delivered: statusCounts.find(item => item._id === "delivered" || item._id === "Delivered")?.count || 0
       },
       weeklyTrend,
       monthly: {

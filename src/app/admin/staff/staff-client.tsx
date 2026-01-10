@@ -5,6 +5,7 @@ import { Loader2, Eye, EyeOff } from "lucide-react";
 import SharedModal from "@/components/admin/SharedModal";
 import AddButton from "@/components/admin/AddButton";
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
+import Loading from "@/components/Loading";
 
 type Staff = {
   _id: string;
@@ -255,11 +256,7 @@ export default function StaffPageClient() {
         {/* Staff Cards */}
         <div className="grid gap-4 lg:grid-cols-2">
           {loading ? (
-            <div className="lg:col-span-2">
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-              </div>
-            </div>
+            <Loading message="Loading staff..." />
           ) : filtered.length === 0 ? (
             <div className="lg:col-span-2 rounded-xl border border-gray-200 bg-white p-12 text-center shadow-lg">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">

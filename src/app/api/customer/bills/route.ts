@@ -112,6 +112,48 @@ export async function GET(req: Request) {
       };
     });
 
+    // Pre-fetch invoice numbers for packages that need them
+    const packagesNeedingInvoiceNumbers = (pkgs as unknown[]).filter((p) => {
+      const pkg = p as IPackage & { 
+        invoiceRecords?: Array<unknown>;
+        totalAmount?: number;
+        shippingCost?: number;
+      };
+      const recs = Array.isArray(pkg.invoiceRecords) ? pkg.invoiceRecords : [];
+      const packageAmount = (typeof pkg.totalAmount === "number" && pkg.totalAmount > 0) 
+        ? pkg.totalAmount 
+        : (typeof pkg.shippingCost === "number" && pkg.shippingCost > 0)
+          ? pkg.shippingCost + (pkg.shippingCost * 0.15)
+          : 0;
+      return recs.length === 0 && packageAmount > 0;
+    });
+
+    const trackingNumbers = packagesNeedingInvoiceNumbers.map((p) => (p as IPackage).trackingNumber);
+    const invoiceNumberMap = new Map<string, string>();
+    
+    if (trackingNumbers.length > 0) {
+      try {
+        const linkedInvoices = await Invoice.find({
+          $or: [
+            { 'package.trackingNumber': { $in: trackingNumbers } },
+            { userId: new Types.ObjectId(userId), invoiceType: 'billing' }
+          ]
+        })
+        .sort({ createdAt: -1 })
+        .select('invoiceNumber package.trackingNumber')
+        .lean();
+        
+        linkedInvoices.forEach((inv: any) => {
+          const trackingNum = inv.package?.trackingNumber;
+          if (trackingNum && inv.invoiceNumber) {
+            invoiceNumberMap.set(trackingNum, inv.invoiceNumber);
+          }
+        });
+      } catch (err) {
+        console.error("Error fetching invoice numbers:", err);
+      }
+    }
+
     // Create bills from package records (legacy)
     const packageBills: Bill[] = (pkgs as unknown[]).flatMap((p) => {
       const pkg = p as IPackage & { 
@@ -152,23 +194,13 @@ export async function GET(req: Request) {
           description = pkg.itemDescription || pkg.description || "Invoice pending generation";
         }
         
-        // Get invoice number from linked invoice if exists
+        // Get invoice number from pre-fetched map or generate default
         let invoiceNumber = `PKG-${pkg.trackingNumber}`;
         if (packageAmount > 0) {
-          // Try to get invoice number from linked invoice
-          try {
-            const linkedInvoice = await Invoice.findOne({ 
-              $or: [
-                { 'package.trackingNumber': pkg.trackingNumber },
-                { userId: new Types.ObjectId(userId), invoiceType: 'billing' }
-              ]
-            }).sort({ createdAt: -1 }).select('invoiceNumber').lean();
-            if (linkedInvoice && (linkedInvoice as any).invoiceNumber) {
-              invoiceNumber = (linkedInvoice as any).invoiceNumber;
-            } else {
-              invoiceNumber = `INV-${pkg.trackingNumber}`;
-            }
-          } catch (err) {
+          const linkedInvoiceNumber = invoiceNumberMap.get(pkg.trackingNumber);
+          if (linkedInvoiceNumber) {
+            invoiceNumber = linkedInvoiceNumber;
+          } else {
             invoiceNumber = `INV-${pkg.trackingNumber}`;
           }
         }
@@ -226,29 +258,58 @@ export async function GET(req: Request) {
     });
 
     // Combine both types of bills, with admin invoices taking precedence
-    // Create a map to track the most recent status for each tracking number
-    const billStatusMap = new Map<string, { bill: Bill; source: string; lastUpdated: Date }>();
+    // Create a map keyed by invoice_number to prevent duplicates
+    const billMap = new Map<string, Bill>();
     
-    // Add admin invoices first (highest priority)
+    // Track which tracking numbers have real invoices from Invoice model
+    const trackingNumbersWithRealInvoices = new Set<string>();
     invoiceBills.forEach(bill => {
-      const lastUpdated = new Date(bill.last_updated || 0);
-      billStatusMap.set(bill.tracking_number, { bill, source: 'admin', lastUpdated });
-    });
-    
-    // Add package bills only if no admin invoice exists or if package bill is more recent
-    packageBills.forEach(bill => {
-      const lastUpdated = new Date(bill.last_updated || 0);
-      const existing = billStatusMap.get(bill.tracking_number);
-      
-      if (!existing || lastUpdated > existing.lastUpdated) {
-        billStatusMap.set(bill.tracking_number, { bill, source: 'package', lastUpdated });
+      if (bill.invoice_number && bill.invoice_number.startsWith('INV-')) {
+        // Skip auto-generated invoices like "INV-1768063947790" - these are temporary
+        if (!bill.invoice_number.match(/^INV-\d{13}$/)) {
+          billMap.set(bill.invoice_number, bill);
+          if (bill.tracking_number) {
+            trackingNumbersWithRealInvoices.add(bill.tracking_number);
+          }
+        }
       }
     });
     
-    // Convert map back to array, sorted by last updated date
-    const bills = Array.from(billStatusMap.values())
-      .map(({ bill }) => bill)
-      .sort((a, b) => new Date(b.last_updated || 0).getTime() - new Date(a.last_updated || 0).getTime());
+    // Add package bills only if no real invoice exists for this tracking number
+    packageBills.forEach(bill => {
+      // Skip if there's already a real invoice for this tracking number
+      if (bill.tracking_number && trackingNumbersWithRealInvoices.has(bill.tracking_number)) {
+        return;
+      }
+      
+      // Skip auto-generated package invoices if they match the pattern "INV-CJS-..."
+      if (bill.invoice_number && bill.invoice_number.startsWith('INV-CJS-')) {
+        // Check if there's a better invoice already
+        const hasBetterInvoice = Array.from(billMap.values()).some(b => 
+          b.tracking_number === bill.tracking_number && 
+          b.invoice_number && 
+          !b.invoice_number.startsWith('INV-CJS-') &&
+          !b.invoice_number.match(/^INV-\d{13}$/)
+        );
+        if (hasBetterInvoice) {
+          return;
+        }
+      }
+      
+      // Use invoice_number as key, or tracking_number + source as fallback
+      const key = bill.invoice_number || `${bill.tracking_number}-package`;
+      if (!billMap.has(key)) {
+        billMap.set(key, bill);
+      }
+    });
+    
+    // Convert map back to array, sorted by last updated date (most recent first)
+    const bills = Array.from(billMap.values())
+      .sort((a, b) => {
+        const dateA = new Date(a.last_updated || a.invoice_date || 0).getTime();
+        const dateB = new Date(b.last_updated || b.invoice_date || 0).getTime();
+        return dateB - dateA;
+      });
     
     return NextResponse.json({ bills });
   } catch (error) {

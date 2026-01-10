@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { formatPhoneNumber } from "@/utils/countries";
-import { Loader2 } from "lucide-react";
+import Loading from "@/components/Loading";
 import SharedModal from "@/components/admin/SharedModal";
 import AddButton from "@/components/admin/AddButton";
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
@@ -158,11 +158,7 @@ export default function CustomersPageClient() {
   );
 
   if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-      </div>
-    );
+    return <Loading message="Loading customers..." />;
   }
 
   return (

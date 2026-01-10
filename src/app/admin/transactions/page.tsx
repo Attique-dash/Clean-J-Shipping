@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { DollarSign, TrendingUp, TrendingDown, CreditCard, Search, Filter, Calendar, ChevronDown, CheckCircle, XCircle, Clock, AlertCircle, Download, Eye, User, Building, Receipt, RefreshCw, Loader2, Trash2 } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import EnhancedCurrencySelector from "@/components/EnhancedCurrencySelector";
+import Loading from "@/components/Loading";
 
 type TransactionType = "sale" | "refund" | "purchase" | "expense";
 type TransactionStatus = "completed" | "pending" | "failed" | "reconciled" | "captured" | "authorized" | "refunded";
@@ -432,9 +433,7 @@ export default function TransactionsPage() {
           <div className="divide-y divide-slate-200">
             {loading ? (
               <div className="p-12">
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
-                </div>
+                <Loading message="Loading transactions..." />
               </div>
             ) : error ? (
               <div className="text-center py-12">
