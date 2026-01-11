@@ -147,7 +147,7 @@ export default function RateCalculatorPage() {
   async function saveRule(rule: Partial<PricingRule>) {
     try {
       // Remove id from POST request body (only needed for PUT)
-      const { id, ...ruleData } = rule;
+      const { id: _id, ...ruleData } = rule;
       const requestBody = editing ? rule : ruleData;
       
       const res = await fetch("/api/admin/pricing-rules", {

@@ -97,8 +97,6 @@ async function createBillingInvoice(packageData: any, user: any, trackingNumber:
     const shippingCostJmd = calcShippingCostJmd(weightLbs);
     const itemValueJmd = itemValue * 155;
     const customsDutyJmd = itemValue > 100 ? itemValueJmd * 0.15 : 0;
-    const totalAmount = itemValueJmd + shippingCostJmd + customsDutyJmd;
-    
     // Create invoice items
     const invoiceItems = [];
     
@@ -329,7 +327,6 @@ export async function GET(req: Request) {
 
       const shippingCostJmd = calcShippingCostJmd(weightLbs);
       const storageFeeJmd = calcStorageFeeJmd(daysInStorage);
-      const customsDutyUsd = calcCustomsDutyUsd(itemValueUsd);
 
       const deliveryFeeJmd = asNumber(p.deliveryFee);
       const additionalFees = Array.isArray(p.additionalFees) ? (p.additionalFees as Array<Record<string, unknown>>) : [];
@@ -337,7 +334,6 @@ export async function GET(req: Request) {
 
       const totalCostJmd = shippingCostJmd + storageFeeJmd + deliveryFeeJmd + additionalFeesTotalJmd;
       const amountPaidJmd = asNumber(p.amountPaid);
-      const outstandingBalanceJmd = Math.max(0, totalCostJmd - amountPaidJmd);
 
       return {
         _id: String(p._id || ''),
@@ -419,9 +415,6 @@ export async function POST(req: Request) {
 
   try {
     await dbConnect();
-    
-    // Input sanitization
-    const { sanitizeObject } = await import('@/lib/security');
     
     let body: Record<string, unknown>;
     try {

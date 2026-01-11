@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import HeroSlider from "@/components/HeroSlider";
 import { FiPhone, FiCheckCircle, } from "react-icons/fi";
 import { PiCurrencyCircleDollarLight } from "react-icons/pi";
@@ -314,7 +314,7 @@ export default function Home() {
               }}
             >
               <source src="/videos/Shoping.mp4" type="video/mp4" />
-              <img src="/images/deliver.png" alt="Shopping illustration" className="h-full w-full object-cover" />
+              <Image src="/images/deliver.png" alt="Shopping illustration" fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" />
             </video>
           </div>
 

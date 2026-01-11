@@ -60,7 +60,7 @@ export default function WarehouseMessagesPage() {
       load();
     }, 30000);
     return () => clearInterval(id);
-  }, []);
+  }, [load]);
 
   useEffect(() => {
     // Update active conversation when conversations change
@@ -68,7 +68,7 @@ export default function WarehouseMessagesPage() {
       const updated = conversations.find(c => c.userCode === activeConversation.userCode);
       if (updated) setActiveConversation(updated);
     }
-  }, [conversations]);
+  }, [conversations, activeConversation]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });

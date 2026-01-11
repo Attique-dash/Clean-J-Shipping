@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { 
   TrendingUp, 
   Package, 
@@ -48,7 +48,7 @@ export default function AnalyticsDashboard() {
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState("30d");
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/admin/analytics?range=${timeRange}`);
@@ -71,11 +71,11 @@ export default function AnalyticsDashboard() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [timeRange]);
 
   useEffect(() => {
     loadData();
-  }, [timeRange]);
+  }, [timeRange, loadData]);
 
   if (loading) {
     return <Loading message="Loading analytics data..." />;
@@ -301,40 +301,6 @@ export default function AnalyticsDashboard() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({ 
-  title, 
-  value, 
-  growth, 
-  icon: Icon, 
-  color 
-}: { 
-  title: string; 
-  value: string; 
-  growth: number; 
-  icon: React.ComponentType<{ className?: string }>; 
-  color: string;
-}) {
-  const isPositive = growth >= 0;
-  
-  return (
-    <div className="bg-white rounded-xl p-6 shadow-lg border border-slate-200 hover:shadow-xl transition-shadow">
-      <div className="flex items-start justify-between mb-3">
-        <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${color} flex items-center justify-center`}>
-          <Icon className="w-6 h-6 text-white" />
-        </div>
-        <div className={`flex items-center gap-1 text-sm font-semibold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-          {isPositive ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
-          {Math.abs(growth)}%
-        </div>
-      </div>
-      <div>
-        <div className="text-sm font-medium text-slate-600 mb-1">{title}</div>
-        <div className="text-3xl font-bold text-slate-800">{value}</div>
       </div>
     </div>
   );

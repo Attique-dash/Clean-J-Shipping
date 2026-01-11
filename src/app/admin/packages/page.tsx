@@ -299,7 +299,7 @@ export default function AdminPackagesPage() {
           receiverPhone: fullPackageData.receiverPhone || fullPackageData.recipient?.phone || pkg.customerPhone,
           receiverAddress: fullPackageData.receiverAddress || fullPackageData.recipient?.address,
           receiverCountry: fullPackageData.receiverCountry || fullPackageData.recipient?.country,
-        } as PackageRow & { recipient?: any });
+        } as PackageRow & { recipient?: { address: string; country: string } });
       } else {
         // Fallback to list data if API fails
         setPackageToView(pkg);

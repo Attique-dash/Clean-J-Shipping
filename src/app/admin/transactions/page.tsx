@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { DollarSign, TrendingUp, TrendingDown, CreditCard, Search, Filter, Calendar, ChevronDown, CheckCircle, XCircle, Clock, AlertCircle, Download, Eye, User, Building, Receipt, RefreshCw, Trash2 } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import EnhancedCurrencySelector from "@/components/EnhancedCurrencySelector";
@@ -37,17 +37,17 @@ export default function TransactionsPage() {
   const { selectedCurrency, setSelectedCurrency, convertAmount, formatCurrency } = useCurrency();
 
   // Helper function to convert and format amounts
-  const convertAndFormatAmount = async (amount: number, fromCurrency: string) => {
+  const convertAndFormatAmount = useCallback(async (amount: number, fromCurrency: string) => {
     if (fromCurrency === selectedCurrency) {
       return formatCurrency(amount, selectedCurrency);
     }
     try {
       const convertedAmount = await convertAmount(amount, fromCurrency || "USD");
       return formatCurrency(convertedAmount, selectedCurrency);
-    } catch (error) {
+    } catch (_error) {
       return formatCurrency(amount, selectedCurrency);
     }
-  };
+  }, [selectedCurrency, convertAmount, formatCurrency]);
 
   // State for converted transaction amounts
   const [convertedTransactions, setConvertedTransactions] = useState<Array<{id: string, amount: string}>>([]);
@@ -66,7 +66,7 @@ export default function TransactionsPage() {
       setConvertedTransactions(converted);
     };
     updateTransactionAmounts();
-  }, [transactions, selectedCurrency]);
+  }, [transactions, selectedCurrency, convertAndFormatAmount]);
 
   async function loadTransactions() {
     setLoading(true);
@@ -215,7 +215,7 @@ export default function TransactionsPage() {
       });
     };
     updateDisplayStats();
-  }, [transactions, selectedCurrency]);
+  }, [transactions, selectedCurrency, convertAndFormatAmount]);
 
   const _stats = {
     totalRevenue: transactions.filter(t => t.type === "sale" && (t.status === "completed" || t.status === "captured")).reduce((sum, t) => sum + t.amount, 0),

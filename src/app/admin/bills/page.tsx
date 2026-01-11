@@ -44,7 +44,7 @@ export default function BillsPage() {
   const loadingRef = useRef(false); // Prevent multiple simultaneous requests
 
   // Helper function to convert and format amounts
-  const convertAndFormatAmount = async (amount: number, fromCurrency: string) => {
+  const convertAndFormatAmount = useCallback(async (amount: number, fromCurrency: string) => {
     if (fromCurrency === selectedCurrency) {
       return formatCurrency(amount, selectedCurrency);
     }
@@ -54,7 +54,7 @@ export default function BillsPage() {
     } catch (_error) {
       return formatCurrency(amount, selectedCurrency);
     }
-  };
+  }, [selectedCurrency, convertAmount, formatCurrency]);
 
   // Payment form state
   const [paymentForm, setPaymentForm] = useState({
@@ -309,47 +309,7 @@ export default function BillsPage() {
     }
   }
 
-  async function handleTestPayment() {
-    if (!selectedBill) return;
-
-    try {
-      setProcessing(true);
-      
-      // Simulate a test PayPal payment
-      const testOrderId = `TEST_${Date.now()}`;
-      
-      // Process the test payment as if it was successful
-      const paymentRes = await fetch("/api/admin/bills/pay", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          billId: selectedBill.id,
-          amount: selectedBill.balance,
-          paymentMethod: "paypal",
-          usePayPal: false, // Don't create actual PayPal order for test
-          paypalOrderId: testOrderId,
-          isTestPayment: true,
-        }),
-      });
-
-      const paymentData = await paymentRes.json();
-      if (!paymentRes.ok) {
-        throw new Error(paymentData?.error || "Failed to process test payment");
-      }
-
-      setShowPaymentModal(false);
-      setSelectedBill(null);
-      setUsePayPal(false);
-      setPaypalOrderId(null);
-      await loadBills();
-      toast.success("Test payment completed successfully! Transaction stored in PayPal history.");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Test payment failed");
-    } finally {
-      setProcessing(false);
-    }
-  }
-
+  
   async function handlePayPalApprove(data: { orderID: string }) {
     if (!selectedBill) return;
 

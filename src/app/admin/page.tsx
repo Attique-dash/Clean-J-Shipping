@@ -1,14 +1,100 @@
 "use client";
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { 
-  Package, Users, DollarSign, TrendingUp, RefreshCw, AlertCircle,
-  Clock, Truck, BarChart3, ArrowUpRight, ArrowDownRight, 
-  Activity, ChevronRight, FileText, CreditCard, 
-  Download, Radio, Loader2, X, User
-} from 'lucide-react';
-import dynamic from 'next/dynamic';
+  Users, 
+  Package, 
+  DollarSign, 
+  TrendingUp, 
+  CreditCard,
+  Activity,
+  BarChart3,
+  ArrowUpRight,
+  ArrowDownRight,
+  Truck,
+  RefreshCw,
+  Download,
+  ChevronRight,
+  AlertCircle,
+  X,
+  FileText,
+  User,
+  Radio,
+  Loader2,
+  Clock
+} from "lucide-react";
 import Loading from "@/components/Loading";
+
+// Type definitions
+interface Bill {
+  paidAmount?: number;
+  balance?: number;
+  status?: string;
+  [key: string]: unknown;
+}
+
+interface PackageData {
+  status?: string;
+  [key: string]: unknown;
+}
+
+interface CustomerData {
+  createdAt?: string | number | Date;
+  [key: string]: unknown;
+}
+
+interface DashboardStats {
+  overview: {
+    totalRevenue: number;
+    revenueGrowth: number;
+    totalPackages: number;
+    packagesGrowth: number;
+    totalCustomers: number;
+    customersGrowth: number;
+    averageValue: number;
+    valueGrowth: number;
+    activePackages: number;
+    pendingDeliveries: number;
+    newCustomersThisMonth: number;
+    outstandingPayments: number;
+    packagesInCustoms: number;
+  };
+  packagesByStatus: Array<{
+    status: string;
+    count: number;
+    percentage: string;
+  }>;
+  revenueByMonth: Array<{
+    month: string;
+    revenue: number;
+    packages: number;
+  }>;
+  topCustomers: Array<{
+    name: string;
+    packages: number;
+    revenue: number;
+  }>;
+  packagesByBranch: Array<{
+    branch: string;
+    count: number;
+  }>;
+  recentActivity?: Array<{
+    title?: string;
+    description?: string;
+    timestamp?: string;
+    icon?: string;
+  }>;
+  alerts?: Array<{
+    id: string;
+    type: 'overdue_payment' | 'delayed_delivery' | 'customs_issue' | 'storage_fee' | 'failed_delivery';
+    title: string;
+    description: string;
+    count: number;
+    severity: 'high' | 'medium' | 'low';
+  }>;
+}
 
 // Dynamic imports for charts to avoid SSR issues
 const RevenueChart = dynamic(
@@ -128,7 +214,6 @@ export default function AdminDashboard() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [activeTab, setActiveTab] = useState<'overview' | 'revenue' | 'customers'>('overview');
   const [chartsLoaded, setChartsLoaded] = useState(false);
-  const [revenueTimeFilter, setRevenueTimeFilter] = useState<'day' | 'week' | 'month' | 'year'>('month');
   const [showAlerts, setShowAlerts] = useState(true);
 
   const fetchStats = useCallback(async () => {
@@ -187,7 +272,7 @@ export default function AdminDashboard() {
           // Calculate real-time stats from actual data
           const calculatedStats: DashboardStats = {
             overview: {
-              totalRevenue: billsData.bills?.reduce((sum: number, bill: any) => 
+              totalRevenue: billsData.bills?.reduce((sum: number, bill: Bill) => 
                 sum + (bill.paidAmount || 0), 0) || 0,
               revenueGrowth: 0, // Calculate growth if needed
               totalPackages: packagesData.packages?.length || 0,
@@ -195,26 +280,26 @@ export default function AdminDashboard() {
               totalCustomers: customersData.items?.length || 0,
               customersGrowth: 0,
               averageValue: packagesData.packages?.length > 0 ? 
-                (billsData.bills?.reduce((sum: number, bill: any) => sum + (bill.paidAmount || 0), 0) || 0) / packagesData.packages.length : 0,
+                (billsData.bills?.reduce((sum: number, bill: Bill) => sum + (bill.paidAmount || 0), 0) || 0) / packagesData.packages.length : 0,
               valueGrowth: 0,
-              activePackages: packagesData.packages?.filter((p: any) => 
-                !['delivered', 'cancelled'].includes(p.status?.toLowerCase())
+              activePackages: packagesData.packages?.filter((p: PackageData) => 
+                !['delivered', 'cancelled'].includes(p.status?.toLowerCase() || '')
               ).length || 0,
-              pendingDeliveries: packagesData.packages?.filter((p: any) => 
-                p.status?.toLowerCase().includes('pending') || 
-                p.status?.toLowerCase().includes('transit')
+              pendingDeliveries: packagesData.packages?.filter((p: PackageData) => 
+                (p.status?.toLowerCase() || '').includes('pending') || 
+                (p.status?.toLowerCase() || '').includes('transit')
               ).length || 0,
-              newCustomersThisMonth: customersData.items?.filter((c: any) => {
-                const custDate = new Date(c.createdAt);
+              newCustomersThisMonth: customersData.items?.filter((c: CustomerData) => {
+                const custDate = new Date(c.createdAt || '');
                 const thisMonth = new Date();
                 return custDate.getMonth() === thisMonth.getMonth() && 
                        custDate.getFullYear() === thisMonth.getFullYear();
               }).length || 0,
-              outstandingPayments: billsData.bills?.filter((bill: any) => 
+              outstandingPayments: billsData.bills?.filter((bill: Bill) => 
                 bill.status === 'unpaid'
-              ).reduce((sum: number, bill: any) => sum + (bill.balance || 0), 0) || 0,
-              packagesInCustoms: packagesData.packages?.filter((p: any) => 
-                p.status?.toLowerCase().includes('customs')
+              ).reduce((sum: number, bill: Bill) => sum + (bill.balance || 0), 0) || 0,
+              packagesInCustoms: packagesData.packages?.filter((p: PackageData) => 
+                (p.status?.toLowerCase() || '').includes('customs')
               ).length || 0
             },
             packagesByStatus: calculatePackageStatuses(packagesData.packages || []),
@@ -227,7 +312,7 @@ export default function AdminDashboard() {
           
           setStats(calculatedStats);
           setLastUpdated(new Date());
-        } catch (calculationError) {
+        } catch (_calculationError) {
           throw new Error('Invalid response format from server - missing overview and failed to calculate');
         }
       } else {

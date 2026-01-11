@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     }
 
     // Check if this is a payment processing request (from customer bills page)
-    const { trackingNumber, amount, currency, paymentMethod, paypalOrderId, cardDetails } = raw as any;
+    const { trackingNumber } = raw as any;
     
     // If it has trackingNumber, it's a payment processing request
     if (trackingNumber) {
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     }
     
     // Otherwise, it's a payment creation request (for PayPal orders)
-    const { amount: createAmount, currency: createCurrency = "USD", method = "card", package_id, invoice_number } = raw as any;
+    const { amount: createAmount, currency: createCurrency = "USD", package_id, invoice_number } = raw as any;
 
     if (!createAmount || createAmount < 0.5) {
       return NextResponse.json({ error: "Invalid amount" }, { status: 400 });

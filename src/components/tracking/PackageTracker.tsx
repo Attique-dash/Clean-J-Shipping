@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { MapPin, Package, Clock, Navigation, Loader2, AlertCircle, X } from "lucide-react";
 import { useWebSocket } from "@/components/providers/WebSocketProvider";
 import L from "leaflet";
@@ -49,52 +49,7 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
   const mapInstanceRef = useRef<L.Map | null>(null);
   const { socket, isConnected } = useWebSocket();
 
-  // Load package data
-  useEffect(() => {
-    loadPackageData();
-    
-    // Subscribe to package updates via WebSocket
-    if (socket && isConnected) {
-      socket.emit('subscribe:packages');
-      socket.emit('track:package', { trackingNumber });
-      
-      socket.on('package:location', (data: unknown) => {
-        if ((data as { trackingNumber?: string })?.trackingNumber === trackingNumber) {
-          updateLocation(data);
-        }
-      });
-      
-      socket.on('package:update', (data: unknown) => {
-        const packageUpdate = data as { 
-          trackingNumber?: string; 
-          status?: string; 
-          location?: { latitude: number; longitude: number; address?: string };
-          timestamp?: string | number | Date;
-        };
-        if (packageUpdate.trackingNumber === trackingNumber) {
-          setPackageData(prev => prev ? {
-            ...prev,
-            status: packageUpdate.status || prev.status,
-            currentLocation: packageUpdate.location ? {
-              latitude: packageUpdate.location.latitude,
-              longitude: packageUpdate.location.longitude,
-              address: packageUpdate.location.address,
-              timestamp: packageUpdate.timestamp ? new Date(packageUpdate.timestamp) : new Date(),
-            } : prev.currentLocation,
-          } : null);
-        }
-      });
-    }
-
-    return () => {
-      if (socket) {
-        socket.off('package:location');
-        socket.off('package:update');
-      }
-    };
-  }, [trackingNumber, socket, isConnected, loadPackageData]);
-
-  async function loadPackageData() {
+  const loadPackageData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -107,7 +62,7 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
     } finally {
       setLoading(false);
     }
-  }
+  }, [trackingNumber]);
 
   function updateLocation(data: unknown) {
     const dataWithLocation = data as { 
@@ -250,7 +205,7 @@ export default function PackageTracker({ trackingNumber, onClose }: PackageTrack
         mapInstanceRef.current = null;
       }
     };
-  }, [packageData?.currentLocation?.latitude, packageData?.currentLocation?.longitude, packageData?.trackingNumber, packageData?.status, packageData?.history]);
+  }, [packageData?.currentLocation?.latitude, packageData?.currentLocation?.longitude, packageData?.trackingNumber, packageData?.status, packageData?.history, packageData?.currentLocation]);
 
   // Show package info even without coordinates
   if (!packageData?.currentLocation?.latitude || !packageData?.currentLocation?.longitude) {
