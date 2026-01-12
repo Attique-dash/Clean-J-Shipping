@@ -390,7 +390,7 @@ export default function InvoiceGeneratorPage() {
         issueDate: new Date(issueDate),
         dueDate: dueDate ? new Date(dueDate) : undefined,
         paymentTerms: 30,
-        currency: "JMD",
+        currency: "USD",
         amountPaid: 0,
         notes,
       };
@@ -469,7 +469,7 @@ export default function InvoiceGeneratorPage() {
         'Discount': `${discount}% ($${discountAmount.toFixed(2)})`,
         'Tax': `${taxRate}% ($${taxAmount.toFixed(2)})`,
         'Total': total.toFixed(2),
-        'Currency': 'JMD',
+        'Currency': 'USD',
         'Status': 'Draft',
         'Payment Terms': '30 days',
         'Notes': notes || 'N/A'
@@ -519,7 +519,7 @@ export default function InvoiceGeneratorPage() {
         'Total Amount': total.toFixed(2),
         'Tax Rate': `${taxRate}%`,
         'Discount Rate': `${discount}%`,
-        'Currency': 'JMD',
+        'Currency': 'USD',
         'Payment Terms': '30 days',
         'Status': 'Draft'
       }];
@@ -545,7 +545,7 @@ export default function InvoiceGeneratorPage() {
         issueDate,
         dueDate,
         status: 'draft',
-        currency: 'JMD',
+        currency: 'USD',
         total,
         amountPaid: 0,
         balanceDue: total,

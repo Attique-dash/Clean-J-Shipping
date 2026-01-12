@@ -188,7 +188,7 @@ export async function POST(req: Request) {
     await dbConnect();
     
     const body = await req.json();
-    const { packageId, trackingNumber, date, branch, dueAmount, currency = "JMD" } = body;
+    const { packageId, trackingNumber, date, branch, dueAmount, currency = "USD" } = body;
 
     if (!packageId || !trackingNumber || !date || !branch || !dueAmount) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -208,7 +208,7 @@ export async function POST(req: Request) {
       invoiceNumber,
       issueDate: new Date(date),
       dueDate: new Date(date), // Same as issue date for now
-      currency,
+      currency: "USD", // Default to USD instead of JMD
       customer: {
         id: packageData.userId,
         name: packageData.receiverName,
@@ -236,6 +236,33 @@ export async function POST(req: Request) {
       package: packageId,
       status: "sent", // Equivalent to "unpaid" in Prisma
     });
+
+    // Create pre-alert automatically when bill is created
+    try {
+      const { PreAlert } = await import('@/models/PreAlert');
+      const { User } = await import('@/models/User');
+      const user = await User.findById(packageData.userId);
+      if (user) {
+        const existingPreAlert = await PreAlert.findOne({ trackingNumber });
+        if (!existingPreAlert) {
+          await PreAlert.create({
+            userCode: user.userCode,
+            customer: user._id,
+            trackingNumber,
+            carrier: packageData.shipper || "Unknown Carrier",
+            origin: branch || "Main Warehouse",
+            expectedDate: new Date(date),
+            status: "approved",
+            notes: `Bill created for package ${trackingNumber}`,
+            decidedAt: new Date(),
+          });
+          console.log(`Pre-alert created for bill ${invoice.invoiceNumber}`);
+        }
+      }
+    } catch (preAlertError) {
+      console.error('Failed to create pre-alert for bill:', preAlertError);
+      // Don't fail bill creation if pre-alert creation fails
+    }
 
     return NextResponse.json({ bill: { id: invoice._id, billNumber: invoice.invoiceNumber } });
   } catch (error) {

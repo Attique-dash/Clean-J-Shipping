@@ -396,12 +396,12 @@ export default function CustomerInvoiceUploadPage() {
 
   const handleSubmit = async (trackingNumber: string) => {
     if (!currentUpload.invoice_files || currentUpload.invoice_files.length === 0) {
-      toast.error("Please select at least one invoice file");
+      toast.error("Please upload at least one invoice file. Invoice files are required for customs clearance.");
       return;
     }
 
     if (!currentUpload.price_paid || currentUpload.price_paid <= 0) {
-      toast.error("Please enter a valid price paid");
+      toast.error("Please enter a valid price paid. The price paid must be greater than 0.");
       return;
     }
 
@@ -410,16 +410,16 @@ export default function CustomerInvoiceUploadPage() {
     try {
       const formData = new FormData();
       
-      // Add files
+      // Add files with correct field names expected by API
       currentUpload.invoice_files.forEach((file, index) => {
-        formData.append(`invoice_files_${index}`, file);
+        formData.append(`files_${index}`, file);
       });
 
-      // Add other data
+      // Add upload data as JSON
       const uploadData = {
         tracking_number: trackingNumber,
         price_paid: currentUpload.price_paid,
-        currency: currentUpload.currency,
+        currency: currentUpload.currency || "USD",
         description: currentUpload.description,
         item_description: currentUpload.item_description,
         item_category: currentUpload.item_category,
@@ -429,10 +429,9 @@ export default function CustomerInvoiceUploadPage() {
         supplier_name: currentUpload.supplier_name,
         supplier_address: currentUpload.supplier_address,
         purchase_date: currentUpload.purchase_date,
-        files_count: currentUpload.invoice_files.length
       };
 
-      formData.append('data', JSON.stringify(uploadData));
+      formData.append(`upload_0`, JSON.stringify(uploadData));
 
       const res = await fetch("/api/customer/invoice-upload", {
         method: "POST",
@@ -441,9 +440,28 @@ export default function CustomerInvoiceUploadPage() {
       });
 
       const result = await res.json();
-      if (!res.ok) throw new Error(result?.error || "Failed to upload invoice");
+      if (!res.ok) {
+        // Show detailed error messages from API
+        if (result.results && Array.isArray(result.results)) {
+          result.results.forEach((r: any) => {
+            if (!r.success && r.error) {
+              toast.error(`Error for ${r.tracking_number}: ${r.error}`);
+            }
+          });
+        }
+        throw new Error(result?.error || result?.message || "Failed to upload invoice");
+      }
 
-      toast.success(`Invoice uploaded successfully for ${trackingNumber}!`);
+      // Show success messages for each successful upload
+      if (result.results && Array.isArray(result.results)) {
+        result.results.forEach((r: any) => {
+          if (r.success) {
+            toast.success(`Invoice uploaded successfully for ${r.tracking_number}!`);
+          }
+        });
+      } else {
+        toast.success(`Invoice uploaded successfully for ${trackingNumber}!`);
+      }
       
       // Reset form for this package
       setCurrentUpload({

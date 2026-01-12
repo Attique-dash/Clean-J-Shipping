@@ -251,13 +251,35 @@ export default function CustomerFAQPage() {
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-12 text-center">
             <HelpCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No FAQs found</h3>
-            <p className="text-gray-500">Try adjusting your search or category filter</p>
+            <p className="text-sm text-gray-500 mb-6">Try adjusting your search or category filter</p>
+            
+            {/* Contact Information */}
+            <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6 mt-6">
+              <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <HelpCircle className="h-5 w-5 text-blue-600" />
+                Still Need Help?
+              </h4>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="text-center">
+                  <div className="text-sm font-medium text-gray-700 mb-1">Call Us</div>
+                  <a href="tel:+18765785945" className="text-lg font-bold text-blue-600 hover:underline">
+                    1 (876) 578-5945
+                  </a>
+                </div>
+                <div className="text-center">
+                  <div className="text-sm font-medium text-gray-700 mb-1">Email Us</div>
+                  <a href="mailto:info@cleanshipping.com" className="text-lg font-bold text-blue-600 hover:underline">
+                    info@cleanshipping.com
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
         )}
-        </div>
       </div>
     </div>
-  );
+  </div>
+);
 }
 
 function FAQItem({

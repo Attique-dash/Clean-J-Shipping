@@ -213,7 +213,7 @@ export async function sendNewPackageEmail(opts: {
       <h4 style="margin:0 0 8px 0;color:#92400e;">📋 Invoice Information Required</h4>
       <p style="margin:0;color:#92400e;">Please provide the invoice value of your goods through the customer portal. This information is required for customs clearance and will help us calculate any applicable duties and taxes.</p>
       <p style="margin:8px 0 0 0;">
-        <a href="${APP_URL}/customer/invoice-upload" style="display:inline-block;background:#E67919;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:600;">
+        <a href="https://clean-j-shipping.vercel.app/customer/invoice-upload" style="display:inline-block;background:#E67919;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:600;">
           Upload Invoice
         </a>
       </p>

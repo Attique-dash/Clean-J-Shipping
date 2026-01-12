@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Package, Search, MapPin, Filter, X, Calendar, Weight, Download, ExternalLink, RefreshCw, Loader2, Eye, User, Plane, Ship } from "lucide-react";
 import { toast } from "react-toastify";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 type UIPackage = {
   id?: string;
@@ -52,6 +53,7 @@ type UIPackage = {
 
 export default function CustomerPackagesPage() {
   const { data: session } = useSession();
+  const { selectedCurrency, convertAmount, formatCurrency } = useCurrency();
   const [items, setItems] = useState<UIPackage[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -185,7 +187,7 @@ export default function CustomerPackagesPage() {
 
   async function downloadInvoice(pkg: UIPackage, format: 'pdf' | 'excel' = 'pdf') {
     if (!pkg?.invoiceNumber) {
-      setError("No invoice available for this package");
+      toast.error("No invoice available for this package. Please contact support if you believe an invoice should exist.");
       return;
     }
     
@@ -194,11 +196,17 @@ export default function CustomerPackagesPage() {
     try {
       const res = await fetch(`/api/customer/invoices/${encodeURIComponent(pkg.invoiceNumber)}/download?format=${format}`, {
         method: "GET",
+        credentials: "include",
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Download failed");
+      if (!res.ok) {
+        throw new Error(data?.error || "Download failed");
+      }
+      toast.success(`Invoice ${pkg.invoiceNumber} download started`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Download failed");
+      const errorMessage = e instanceof Error ? e.message : "Download failed";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setUploadingId(null);
     }
@@ -482,15 +490,15 @@ export default function CustomerPackagesPage() {
                           <p className="text-sm text-gray-900 font-medium mb-1 line-clamp-2">{p.description || <span className="text-gray-400">No description</span>}</p>
                           <div className="flex flex-col gap-1">
                             {p.itemValueUsd && (
-                              <p className="text-xs text-gray-500">Item Value: ${p.itemValueUsd.toFixed(2)} USD</p>
+                              <p className="text-xs text-gray-500">Item Value: {formatCurrency(p.itemValueUsd, "USD")}</p>
                             )}
                             {p.total_amount && p.total_amount > 0 ? (
                               <p className="text-sm font-semibold text-green-600">
-                                Shipping Cost: ${p.total_amount.toFixed(2)} JMD
+                                Shipping Cost: {formatCurrency(p.total_amount, "USD")}
                               </p>
                             ) : p.shipping_cost && p.shipping_cost > 0 ? (
                               <p className="text-sm font-semibold text-green-600">
-                                Shipping Cost: ${p.shipping_cost.toFixed(2)} JMD
+                                Shipping Cost: {formatCurrency(p.shipping_cost, "USD")}
                               </p>
                             ) : (
                               <p className="text-sm font-semibold text-orange-600">
@@ -523,7 +531,7 @@ export default function CustomerPackagesPage() {
                         <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                           <div className="flex items-center gap-1">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getStatusColor(p.status)}`}>
-                              {p.invoice_status === 'submitted' ? 'Invoice Generated' : 
+                              {p.invoice_status === 'submitted' || p.invoice_status === 'Invoice Generated' ? 'Invoice Generated' : 
                                p.invoice_status === 'none' ? 'Invoice Pending' : 
                                p.customsRequired && p.customsStatus !== 'cleared' ? 'Customs Pending' :
                                p.paymentStatus === 'pending' ? 'Payment Pending' :
@@ -531,8 +539,8 @@ export default function CustomerPackagesPage() {
                             </span>
                           </div>
                           <div className="flex items-center gap-1">
-                            {p.hasInvoice && p.invoiceNumber && (
-                              <button onClick={() => downloadInvoice(p, 'pdf')} disabled={uploadingId === p.id} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-all disabled:opacity-50" title="Download PDF">
+                            {p.invoiceNumber && (
+                              <button onClick={() => downloadInvoice(p, 'pdf')} disabled={uploadingId === p.id} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-all disabled:opacity-50" title="Download Invoice PDF">
                                 {uploadingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                               </button>
                             )}
@@ -586,8 +594,8 @@ export default function CustomerPackagesPage() {
                         </span>
                       </div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Weight:</span><span className="text-sm font-medium text-gray-900">{packageToView.weight || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Item Value:</span><span className="text-sm font-medium text-gray-900">{packageToView.itemValueUsd ? `$${packageToView.itemValueUsd.toFixed(2)} USD` : 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Shipping Cost:</span><span className="text-sm font-medium text-gray-900">{packageToView.total_amount ? `$${packageToView.total_amount.toFixed(2)} JMD` : packageToView.shipping_cost ? `$${packageToView.shipping_cost.toFixed(2)} JMD` : 'Pending'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Item Value:</span><span className="text-sm font-medium text-gray-900">{packageToView.itemValueUsd ? formatCurrency(packageToView.itemValueUsd, "USD") : 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Shipping Cost:</span><span className="text-sm font-medium text-gray-900">{packageToView.total_amount ? formatCurrency(packageToView.total_amount, "USD") : packageToView.shipping_cost ? formatCurrency(packageToView.shipping_cost, "USD") : 'Pending'}</span></div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Date Received:</span><span className="text-sm font-medium text-gray-900">{packageToView.dateReceived ? new Date(packageToView.dateReceived).toLocaleDateString() : 'N/A'}</span></div>
                     </div>
                   </div>

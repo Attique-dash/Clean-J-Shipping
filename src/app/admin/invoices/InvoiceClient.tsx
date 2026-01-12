@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FileText, Plus, Download, DollarSign, Search, Filter, Trash2, FileDown, TrendingUp, Clock, CheckCircle, Eye, X } from "lucide-react";
+import { FileText, Plus, Download, DollarSign, Search, Filter, Trash2, FileDown, TrendingUp, Clock, CheckCircle, Eye, X, Info } from "lucide-react";
 import Link from "next/link";
 import { ExportService } from "@/lib/export-service";
 import Loading from "@/components/Loading";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import EnhancedCurrencySelector from "@/components/EnhancedCurrencySelector";
 
 type Invoice = {
   _id: string;
@@ -67,6 +69,7 @@ type Invoice = {
 };
 
 export default function InvoiceClient() {
+  const { selectedCurrency, setSelectedCurrency, convertAmount, formatCurrency } = useCurrency();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -74,10 +77,10 @@ export default function InvoiceClient() {
   const [typeFilter, setTypeFilter] = useState<string>("all"); // NEW: Invoice type filter
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
-  const [minAmount, setMinAmount] = useState<string>("");
-  const [maxAmount, setMaxAmount] = useState<string>("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [showInvoiceTypeInfo, setShowInvoiceTypeInfo] = useState(false);
+  const [displayAmounts, setDisplayAmounts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadInvoices();
@@ -98,13 +101,39 @@ export default function InvoiceClient() {
     }
   }
 
-  const formatJMD = (amount: number) => {
-    return new Intl.NumberFormat("en-JM", {
-      style: "currency",
-      currency: "JMD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(Number(amount) || 0);
+  // Convert and format amounts based on selected currency
+  useEffect(() => {
+    const convertAmounts = async () => {
+      const amounts: Record<string, string> = {};
+      
+      try {
+        // Convert total stats
+        amounts.totalAmount = formatCurrency(await convertAmount(totalStats.totalAmount, "USD"), selectedCurrency);
+        amounts.paidAmount = formatCurrency(await convertAmount(totalStats.paidAmount, "USD"), selectedCurrency);
+        amounts.unpaidAmount = formatCurrency(await convertAmount(totalStats.unpaidAmount, "USD"), selectedCurrency);
+        amounts.overdueAmount = formatCurrency(await convertAmount(totalStats.overdueAmount, "USD"), selectedCurrency);
+        
+        // Convert invoice amounts (all stored in USD)
+        for (const invoice of invoices) {
+          const key = `invoice_${invoice._id}`;
+          amounts[`${key}_total`] = formatCurrency(await convertAmount(invoice.total || 0, "USD"), selectedCurrency);
+          amounts[`${key}_paid`] = formatCurrency(await convertAmount(invoice.amountPaid || 0, "USD"), selectedCurrency);
+          amounts[`${key}_balance`] = formatCurrency(await convertAmount(invoice.balanceDue || 0, "USD"), selectedCurrency);
+        }
+      } catch (error) {
+        console.error("Currency conversion error:", error);
+      }
+      
+      setDisplayAmounts(amounts);
+    };
+    
+    if (invoices.length > 0) {
+      convertAmounts();
+    }
+  }, [invoices, selectedCurrency, convertAmount, formatCurrency]);
+
+  const formatAmount = (amount: number, currency: string = "USD") => {
+    return formatCurrency(amount, selectedCurrency);
   };
 
   // NEW: Helper functions for invoice types
@@ -166,16 +195,7 @@ export default function InvoiceClient() {
       return true;
     })();
 
-    const min = minAmount.trim() ? Number(minAmount) : null;
-    const max = maxAmount.trim() ? Number(maxAmount) : null;
-    const total = Number(invoice.total) || 0;
-    const matchesAmount = (() => {
-      if (min !== null && !Number.isNaN(min) && total < min) return false;
-      if (max !== null && !Number.isNaN(max) && total > max) return false;
-      return true;
-    })();
-
-    return matchesSearch && matchesStatus && matchesType && matchesDate && matchesAmount;
+    return matchesSearch && matchesStatus && matchesType && matchesDate;
   });
 
   const getStatusColor = (status: string) => {
@@ -355,13 +375,20 @@ export default function InvoiceClient() {
                 </div>
               </div>
 
-              <Link
-                href="/admin/invoices/generator"
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#E67919] to-[#ff8c2e] px-6 py-3.5 text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all"
-              >
-                <Plus className="h-5 w-5" />
-                Create Invoice
-              </Link>
+              <div className="flex items-center gap-3">
+                <EnhancedCurrencySelector
+                  selectedCurrency={selectedCurrency}
+                  onCurrencyChange={setSelectedCurrency}
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                />
+                <Link
+                  href="/admin/invoices/generator"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#E67919] to-[#ff8c2e] px-6 py-3.5 text-sm font-semibold shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all"
+                >
+                  <Plus className="h-5 w-5" />
+                  Create Invoice
+                </Link>
+              </div>
             </div>
 
             {/* Enhanced Stats Cards */}
@@ -385,8 +412,8 @@ export default function InvoiceClient() {
                 <div className="relative flex items-center justify-between">
                   <div className="flex-1 min-w-0 pr-2">
                     <p className="text-sm font-medium text-indigo-100">Total Amount</p>
-                    <p className="mt-2 text-xl font-bold">{formatJMD(totalStats.totalAmount)}</p>
-                    <p className="mt-1 text-xs text-indigo-200">JMD</p>
+                    <p className="mt-2 text-xl font-bold">{displayAmounts.totalAmount || formatAmount(totalStats.totalAmount)}</p>
+                    <p className="mt-1 text-xs text-indigo-200">{selectedCurrency}</p>
                   </div>
                   <div className="rounded-xl bg-indigo-400/30 p-2 flex-shrink-0">
                     <DollarSign className="h-5 w-5" />
@@ -399,7 +426,7 @@ export default function InvoiceClient() {
                 <div className="relative flex items-center justify-between">
                   <div className="flex-1 min-w-0 pr-2">
                     <p className="text-sm font-medium text-green-100">Paid Amount</p>
-                    <p className="mt-2 text-xl font-bold">{formatJMD(totalStats.paidAmount)}</p>
+                    <p className="mt-2 text-xl font-bold">{displayAmounts.paidAmount || formatAmount(totalStats.paidAmount)}</p>
                     <p className="mt-1 text-xs text-green-200">Collected</p>
                   </div>
                   <div className="rounded-xl bg-green-400/30 p-2 flex-shrink-0">
@@ -413,7 +440,7 @@ export default function InvoiceClient() {
                 <div className="relative flex items-center justify-between">
                   <div className="flex-1 min-w-0 pr-2">
                     <p className="text-sm font-medium text-blue-100">Unpaid Amount</p>
-                    <p className="mt-2 text-xl font-bold">{formatJMD(totalStats.unpaidAmount)}</p>
+                    <p className="mt-2 text-xl font-bold">{displayAmounts.unpaidAmount || formatAmount(totalStats.unpaidAmount)}</p>
                     <p className="mt-1 text-xs text-blue-200">Outstanding</p>
                   </div>
                   <div className="rounded-xl bg-blue-400/30 p-2 flex-shrink-0">
@@ -477,10 +504,32 @@ export default function InvoiceClient() {
                   <option value="commercial">📋 Commercial</option>
                   <option value="system">⚙️ System</option>
                 </select>
+                <button
+                  onClick={() => setShowInvoiceTypeInfo(!showInvoiceTypeInfo)}
+                  className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors"
+                  title="Invoice Type Information"
+                >
+                  <Info className="h-4 w-4 text-blue-600" />
+                </button>
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mt-4">
+            {/* Invoice Type Information */}
+            {showInvoiceTypeInfo && (
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                  <Info className="h-4 w-4" />
+                  Invoice Types Explained
+                </h4>
+                <div className="space-y-2 text-sm text-blue-800">
+                  <p><strong>💰 Billing:</strong> Standard invoices created for customer charges (shipping fees, customs duties, storage fees, etc.). These are the most common invoices and are generated automatically when packages are added or bills are created.</p>
+                  <p><strong>📋 Commercial:</strong> Commercial invoices used for international shipments. These include detailed item descriptions, HS codes, and customs information. Created when packages require customs clearance or international shipping documentation.</p>
+                  <p><strong>⚙️ System:</strong> System-generated invoices for internal processes, adjustments, or automated billing. These are typically created by the system for administrative purposes.</p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-4 sm:grid-cols-2 mt-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Start date</label>
                 <input
@@ -497,26 +546,6 @@ export default function InvoiceClient() {
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0891b2] focus:border-transparent transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Min amount (JMD)</label>
-                <input
-                  inputMode="decimal"
-                  value={minAmount}
-                  onChange={(e) => setMinAmount(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0891b2] focus:border-transparent transition-all"
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Max amount (JMD)</label>
-                <input
-                  inputMode="decimal"
-                  value={maxAmount}
-                  onChange={(e) => setMaxAmount(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0891b2] focus:border-transparent transition-all"
-                  placeholder="100000"
                 />
               </div>
             </div>
@@ -573,7 +602,7 @@ export default function InvoiceClient() {
                     <th className="px-4 py-3">Customer</th>
                     <th className="px-4 py-3">Date</th>
                     <th className="px-4 py-3">Due Date</th>
-                    <th className="px-4 py-3">Amount (JMD)</th>
+                    <th className="px-4 py-3">Amount</th>
                     <th className="px-4 py-3">Paid Amount</th>
                     <th className="px-4 py-3">Outstanding</th>
                     <th className="px-4 py-3">Status</th>
@@ -603,9 +632,9 @@ export default function InvoiceClient() {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">{new Date(invoice.issueDate).toLocaleDateString()}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{new Date(invoice.dueDate).toLocaleDateString()}</td>
-                      <td className="px-4 py-3 font-semibold">{formatJMD(invoice.total || 0)}</td>
-                      <td className="px-4 py-3 text-green-700">{formatJMD(invoice.amountPaid || 0)}</td>
-                      <td className="px-4 py-3 text-orange-700">{formatJMD(invoice.balanceDue || 0)}</td>
+                      <td className="px-4 py-3 font-semibold">{displayAmounts[`invoice_${invoice._id}_total`] || formatAmount(invoice.total || 0, "USD")}</td>
+                      <td className="px-4 py-3 text-green-700">{displayAmounts[`invoice_${invoice._id}_paid`] || formatAmount(invoice.amountPaid || 0, "USD")}</td>
+                      <td className="px-4 py-3 text-orange-700">{displayAmounts[`invoice_${invoice._id}_balance`] || formatAmount(invoice.balanceDue || 0, "USD")}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(invoice.status)}`}>
                           {getStatusIcon(invoice.status)}
@@ -761,10 +790,10 @@ export default function InvoiceClient() {
                               )}
                             </td>
                             <td className="px-4 py-3 text-right">{item.quantity}</td>
-                            <td className="px-4 py-3 text-right">{formatJMD(item.unitPrice)}</td>
-                            <td className="px-4 py-3 text-right">{formatJMD(item.amount)}</td>
-                            <td className="px-4 py-3 text-right">{formatJMD(item.taxAmount)}</td>
-                            <td className="px-4 py-3 text-right font-semibold">{formatJMD(item.total)}</td>
+                            <td className="px-4 py-3 text-right">{formatAmount(item.unitPrice, "USD")}</td>
+                            <td className="px-4 py-3 text-right">{formatAmount(item.amount, "USD")}</td>
+                            <td className="px-4 py-3 text-right">{formatAmount(item.taxAmount, "USD")}</td>
+                            <td className="px-4 py-3 text-right font-semibold">{formatAmount(item.total, "USD")}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -778,29 +807,29 @@ export default function InvoiceClient() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Subtotal:</span>
-                    <span className="font-medium">{formatJMD(viewingInvoice.subtotal || 0)}</span>
+                    <span className="font-medium">{formatAmount(viewingInvoice.subtotal || 0, "USD")}</span>
                   </div>
                   {viewingInvoice.discountAmount > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Discount:</span>
-                      <span className="font-medium">-{formatJMD(viewingInvoice.discountAmount)}</span>
+                      <span className="font-medium">-{formatAmount(viewingInvoice.discountAmount, "USD")}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tax Total ({viewingInvoice.items?.[0]?.taxRate || 0}%):</span>
-                    <span className="font-medium">{formatJMD(viewingInvoice.taxTotal || 0)}</span>
+                    <span className="font-medium">{formatAmount(viewingInvoice.taxTotal || 0, "USD")}</span>
                   </div>
                   <div className="flex justify-between border-t pt-2 mt-2">
                     <span className="font-semibold text-lg text-gray-900">Total:</span>
-                    <span className="font-bold text-lg text-[#0f4d8a]">{formatJMD(viewingInvoice.total || 0)}</span>
+                    <span className="font-bold text-lg text-[#0f4d8a]">{formatAmount(viewingInvoice.total || 0, "USD")}</span>
                   </div>
                   <div className="flex justify-between text-green-700 pt-2">
                     <span>Amount Paid:</span>
-                    <span className="font-medium">{formatJMD(viewingInvoice.amountPaid || 0)}</span>
+                    <span className="font-medium">{formatAmount(viewingInvoice.amountPaid || 0, "USD")}</span>
                   </div>
                   <div className="flex justify-between text-orange-700 pt-2 border-t">
                     <span className="font-semibold">Balance Due:</span>
-                    <span className="font-bold">{formatJMD(viewingInvoice.balanceDue || 0)}</span>
+                    <span className="font-bold">{formatAmount(viewingInvoice.balanceDue || 0, "USD")}</span>
                   </div>
                 </div>
               </div>
@@ -813,7 +842,7 @@ export default function InvoiceClient() {
                     {viewingInvoice.paymentHistory.map((payment, idx) => (
                       <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg text-sm">
                         <div>
-                          <p className="font-medium">{formatJMD(payment.amount)}</p>
+                          <p className="font-medium">{formatAmount(payment.amount, "USD")}</p>
                           <p className="text-gray-500 text-xs">{payment.method} • {new Date(payment.date).toLocaleDateString()}</p>
                         </div>
                         {payment.reference && (

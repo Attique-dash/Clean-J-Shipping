@@ -4,6 +4,7 @@ import { getAuthFromRequest } from '@/lib/rbac';
 import { connectToDatabase } from '@/lib/db';
 import Package from '@/models/Package';
 import User from '@/models/User';
+import Invoice from '@/models/Invoice';
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
@@ -43,6 +44,102 @@ function calcCustomsDutyUsd(valueUsd: number): number {
   // Placeholder: requirement says "Customs duty (if > $100 USD)" but not a specific rate.
   // Keep it explicit and configurable later.
   return valueUsd > 100 ? 0 : 0;
+}
+
+function calculateTotalAmount(itemValue: number, weight: number): number {
+  // Convert item value from USD to JMD (assuming 1 USD = 155 JMD)
+  const itemValueJmd = itemValue * 155;
+  
+  // Calculate shipping cost based on weight (convert to lbs first)
+  const weightLbs = weight * 2.20462;
+  const shippingCostJmd = calcShippingCostJmd(weightLbs);
+  
+  // Calculate customs duty (15% of item value if > $100 USD)
+  const customsDutyJmd = itemValue > 100 ? itemValueJmd * 0.15 : 0;
+  
+  // Total: item value + shipping + customs
+  return itemValueJmd + shippingCostJmd + customsDutyJmd;
+}
+
+async function createBillingInvoice(packageData: any, user: any, trackingNumber: string) {
+  try {
+    const itemValue = asNumber(packageData.value) || 0;
+    const weight = asNumber(packageData.weight) || 0;
+    const weightLbs = weight * 2.20462;
+    
+    // Calculate costs
+    const shippingCostJmd = calcShippingCostJmd(weightLbs);
+    const itemValueJmd = itemValue * 155;
+    const customsDutyJmd = itemValue > 100 ? itemValueJmd * 0.15 : 0;
+    
+    // Create invoice items
+    const invoiceItems = [];
+    
+    // Shipping charges
+    if (shippingCostJmd > 0) {
+      invoiceItems.push({
+        description: `Shipping charges (${weightLbs.toFixed(1)} lbs)`,
+        quantity: 1,
+        unitPrice: shippingCostJmd,
+        taxRate: 0,
+        amount: shippingCostJmd,
+        taxAmount: 0,
+        total: shippingCostJmd
+      });
+    }
+    
+    // Customs duty
+    if (customsDutyJmd > 0) {
+      invoiceItems.push({
+        description: `Customs duty (${itemValue > 100 ? '15%' : '0%'} of item value)`,
+        quantity: 1,
+        unitPrice: customsDutyJmd,
+        taxRate: 0,
+        amount: customsDutyJmd,
+        taxAmount: 0,
+        total: customsDutyJmd
+      });
+    }
+    
+    // Create billing invoice
+    const invoiceData = {
+      userId: user._id,
+      customer: {
+        id: user._id.toString(),
+        name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+        email: user.email,
+        address: user.address?.street || '',
+        phone: user.phone || '',
+        city: user.address?.city || '',
+        country: user.address?.country || ''
+      },
+      tracking_number: trackingNumber,
+      invoiceNumber: `INV-${Date.now()}`,
+      status: 'unpaid',
+      issueDate: new Date(),
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      currency: 'JMD',
+      subtotal: shippingCostJmd + customsDutyJmd,
+      taxTotal: 0,
+      discountAmount: 0,
+      total: shippingCostJmd + customsDutyJmd,
+      amountPaid: 0,
+      balanceDue: shippingCostJmd + customsDutyJmd,
+      items: invoiceItems,
+      invoiceType: 'billing', // NEW: Distinguish from commercial invoices
+      notes: `Billing invoice for package ${trackingNumber} (created by warehouse)`,
+      paymentTerms: 30
+    };
+    
+    const invoice = new Invoice(invoiceData);
+    await invoice.save();
+    
+    console.log(`Created billing invoice ${invoice.invoiceNumber} for warehouse package ${trackingNumber}`);
+    return invoice;
+  } catch (error) {
+    console.error('Error creating billing invoice for warehouse package:', error);
+    return null;
+  }
 }
 
 // Get all packages
@@ -265,7 +362,42 @@ export async function POST(request: NextRequest) {
     const newPackage = new Package(data);
     await newPackage.save();
 
-    return new NextResponse(JSON.stringify(newPackage), { status: 201 });
+    // FIXED: Create proper billing invoice automatically (like admin package creation)
+    let billingInvoice: { _id: any } | null = null;
+    try {
+      // Find the user for this package
+      const user = await User.findOne({ 
+        $or: [
+          { userCode: data.recipient?.shippingId },
+          { shippingId: data.recipient?.shippingId }
+        ]
+      });
+      
+      if (user) {
+        billingInvoice = await createBillingInvoice(data, user, data.trackingNumber);
+        if (billingInvoice) {
+          // Link invoice to package
+          await Package.findByIdAndUpdate(newPackage._id, {
+            $set: { 
+              billingInvoiceId: billingInvoice._id,
+              invoiceStatus: 'billed',
+              totalAmount: calculateTotalAmount(asNumber(data.value), asNumber(data.weight))
+            }
+          });
+        }
+      }
+    } catch (invoiceError) {
+      console.error('Failed to create billing invoice for warehouse package:', invoiceError);
+      // Don't fail package creation if invoice creation fails
+    }
+
+    return new NextResponse(JSON.stringify({
+      ...newPackage.toObject(),
+      billingInvoice: billingInvoice ? {
+        invoiceNumber: billingInvoice.invoiceNumber,
+        total: billingInvoice.total
+      } : null
+    }), { status: 201 });
   } catch (error) {
     console.error('Error creating package:', error);
     return new NextResponse(

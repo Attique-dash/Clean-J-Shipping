@@ -3,8 +3,12 @@ import { dbConnect } from "@/lib/db";
 import { getAuthFromRequest } from "@/lib/rbac";
 import { User } from "@/models/User";
 import { PreAlert } from "@/models/PreAlert";
+import { Package } from "@/models/Package";
+import Invoice from "@/models/Invoice";
+import { Message } from "@/models/Message";
 import { customerPreAlertCreateSchema } from "@/lib/validators";
 import { IPreAlert } from "@/models/PreAlert";
+import { Types } from "mongoose";
 
 type PreAlertLean = Omit<IPreAlert, "_id"> & {
   _id?: { toString(): string };
@@ -20,9 +24,51 @@ export async function GET(req: Request) {
   const userCode = payload.userCode as string | undefined;
   if (!userCode) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const items = await PreAlert.find({ userCode }).sort({ createdAt: -1 }).limit(100).lean();
+  // Get user ID for queries
+  const userId = (payload as any).id || (payload as any)._id || (payload as any).uid;
+  
+  // Fetch pre-alerts
+  const preAlerts = await PreAlert.find({ userCode }).sort({ createdAt: -1 }).limit(100).lean();
+  
+  // Fetch recent packages (as alerts)
+  const recentPackages = await Package.find({ 
+    $or: [
+      { userCode },
+      ...(userId ? [{ userId: new Types.ObjectId(userId) }] : [])
+    ]
+  })
+    .select("trackingNumber status createdAt updatedAt")
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .lean();
+  
+  // Fetch recent bills/invoices (as alerts)
+  let recentBills: any[] = [];
+  try {
+    recentBills = await Invoice.find({
+      $or: [
+        { userId: userId ? new Types.ObjectId(userId) : undefined },
+        { 'customer.id': userId }
+      ]
+    })
+      .select("invoiceNumber status createdAt total balanceDue")
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+  } catch (err) {
+    console.error("Error fetching invoices for pre-alerts:", err);
+    recentBills = [];
+  }
+  
+  // Fetch recent messages (as alerts)
+  const recentMessages = await Message.find({ userCode })
+    .select("subject body sender createdAt read")
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .lean();
+  
   return NextResponse.json({ 
-    pre_alerts: items.map((p: any) => ({
+    pre_alerts: preAlerts.map((p: any) => ({
       _id: p._id?.toString() || "",
       trackingNumber: p.trackingNumber,
       carrier: p.carrier || null,
@@ -33,7 +79,37 @@ export async function GET(req: Request) {
       createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : null,
       decidedAt: p.decidedAt ? new Date(p.decidedAt).toISOString() : null,
       userCode: p.userCode,
-    }))
+    })),
+    alerts: {
+      packages: recentPackages.map((p: any) => ({
+        type: 'package',
+        id: p._id?.toString() || "",
+        trackingNumber: p.trackingNumber,
+        status: p.status,
+        createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : null,
+        message: `Package ${p.trackingNumber} - ${p.status}`
+      })),
+      bills: recentBills.map((b: any) => ({
+        type: 'bill',
+        id: b._id?.toString() || "",
+        invoiceNumber: b.invoiceNumber,
+        status: b.status,
+        total: b.total,
+        balanceDue: b.balanceDue,
+        createdAt: b.createdAt ? new Date(b.createdAt).toISOString() : null,
+        message: `Invoice ${b.invoiceNumber} - ${b.status}`
+      })),
+      messages: recentMessages.map((m: any) => ({
+        type: 'message',
+        id: m._id?.toString() || "",
+        subject: m.subject,
+        body: m.body,
+        sender: m.sender,
+        read: m.read || false,
+        createdAt: m.createdAt ? new Date(m.createdAt).toISOString() : null,
+        message: m.subject || m.body?.substring(0, 50) || 'New message'
+      }))
+    }
   });
 }
 

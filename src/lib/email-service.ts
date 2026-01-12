@@ -186,6 +186,8 @@ export class EmailService {
     to: string;
     customerName: string;
     userCode: string;
+    email?: string;
+    password?: string;
   }): Promise<boolean> {
     const html = this.getWelcomeTemplate(data);
     
@@ -205,6 +207,7 @@ export class EmailService {
     userCode: string;
     password: string;
     branch?: string;
+    email?: string;
   }): Promise<boolean> {
     const html = this.getStaffWelcomeTemplate(data);
     
@@ -410,7 +413,13 @@ export class EmailService {
   private getWelcomeTemplate(data: {
     customerName: string;
     userCode: string;
+    email?: string;
+    password?: string;
   }): string {
+    const loginUrl = data.email && data.password 
+      ? `https://clean-j-shipping.vercel.app/login?email=${encodeURIComponent(data.email)}&password=${encodeURIComponent(data.password)}`
+      : 'https://clean-j-shipping.vercel.app/login';
+    
     return this.getEmailWrapper(`
       <h2>🎉 Welcome to Clean J Shipping!</h2>
       <p>Dear ${data.customerName},</p>
@@ -418,7 +427,9 @@ export class EmailService {
       
       <div class="info-box">
         <p><strong>Your Customer Code:</strong> <span class="highlight">${data.userCode}</span></p>
-        <p>Keep this code handy - you'll need it for all your shipments!</p>
+        ${data.email ? `<p><strong>Your Email:</strong> <span class="highlight">${data.email}</span></p>` : ''}
+        ${data.password ? `<p><strong>Your Password:</strong> <span class="highlight">${data.password}</span></p>` : ''}
+        <p>Keep this information handy - you'll need it for all your shipments!</p>
       </div>
 
       <h3>Getting Started:</h3>
@@ -429,7 +440,7 @@ export class EmailService {
         <li>Access your complete shipping history</li>
       </ul>
       
-      <a href="https://cleanjshipping.com/login" class="button">Access Your Account</a>
+      <a href="${loginUrl}" class="button">Access Your Account</a>
       
       <p>If you have any questions, our support team is here to help!</p>
     `);

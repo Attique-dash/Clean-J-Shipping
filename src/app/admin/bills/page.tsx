@@ -40,6 +40,8 @@ export default function BillsPage() {
   const [_paypalOrderId, setPaypalOrderId] = useState<string | null>(null); // Used for PayPal order tracking and validation
   const [revenueData, setRevenueData] = useState<Array<{ month: string; revenue: number; packages: number }>>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; bill: Bill | null }>({ open: false, bill: null });
+  const [invoiceDetails, setInvoiceDetails] = useState<any>(null);
+  const [loadingInvoiceDetails, setLoadingInvoiceDetails] = useState(false);
   const { selectedCurrency, setSelectedCurrency, convertAmount, formatCurrency } = useCurrency();
   const loadingRef = useRef(false); // Prevent multiple simultaneous requests
 
@@ -137,8 +139,8 @@ export default function BillsPage() {
     loadingRef.current = true;
     
     try {
-      const convertedTotal = await convertAndFormatAmount(totalAmount, "JMD");
-      const convertedBalance = await convertAndFormatAmount(totalBalance, "JMD");
+      const convertedTotal = await convertAndFormatAmount(totalAmount, "USD");
+      const convertedBalance = await convertAndFormatAmount(totalBalance, "USD");
       setDisplayTotalAmount(convertedTotal);
       setDisplayTotalBalance(convertedBalance);
     } catch (error) {
@@ -162,9 +164,9 @@ export default function BillsPage() {
     try {
       const converted = await Promise.all(
         bills.map(async (bill) => {
-          const convertedDue = await convertAndFormatAmount(bill.dueAmount, bill.currency || "JMD");
-          const convertedPaid = await convertAndFormatAmount(bill.paidAmount, bill.currency || "JMD");
-          const convertedBalance = await convertAndFormatAmount(bill.balance, bill.currency || "JMD");
+          const convertedDue = await convertAndFormatAmount(bill.dueAmount, "USD");
+          const convertedPaid = await convertAndFormatAmount(bill.paidAmount, "USD");
+          const convertedBalance = await convertAndFormatAmount(bill.balance, "USD");
           return {
             id: bill.id,
             dueAmount: convertedDue,
@@ -457,9 +459,9 @@ export default function BillsPage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {bills.map((bill) => (
-              <div key={bill.id} className="group relative bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[320px] flex flex-col">
+              <div key={bill.id} className="group relative bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[320px] flex flex-col w-full max-w-lg">
                 {/* Gradient Header */}
                 <div className={`h-3 bg-gradient-to-r ${
                   bill.status === "paid" 
@@ -529,7 +531,7 @@ export default function BillsPage() {
                       <div className="flex justify-between items-center">
                         <span className="text-xs text-gray-600 font-semibold uppercase tracking-wide">Due</span>
                         <span className="text-sm font-bold text-gray-900">
-                          {convertedBills.find(cb => cb.id === bill.id)?.dueAmount || `$${bill.dueAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ${bill.currency}`}
+                          {convertedBills.find(cb => cb.id === bill.id)?.dueAmount || formatCurrency(bill.dueAmount, bill.currency || "USD")}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
@@ -542,7 +544,7 @@ export default function BillsPage() {
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-700 font-bold uppercase tracking-wide">Balance</span>
                           <span className={`text-xl font-bold ${bill.balance > 0 ? "text-[#0f4d8a]" : "text-green-600"}`}>
-                            {convertedBills.find(cb => cb.id === bill.id)?.balance || `$${bill.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ${bill.currency}`}
+                            {convertedBills.find(cb => cb.id === bill.id)?.balance || formatCurrency(bill.balance, bill.currency || "USD")}
                           </span>
                         </div>
                       </div>
@@ -567,9 +569,29 @@ export default function BillsPage() {
                       PAY
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         setSelectedBill(bill);
                         setShowDetailsModal(true);
+                        // Fetch full invoice details if this is an invoice bill
+                        if (bill.source === 'invoice' && bill.id.startsWith('invoice-')) {
+                          setLoadingInvoiceDetails(true);
+                          try {
+                            const invoiceId = bill.id.replace('invoice-', '');
+                            const res = await fetch(`/api/admin/invoices/${invoiceId}`, {
+                              credentials: 'include'
+                            });
+                            if (res.ok) {
+                              const invoiceData = await res.json();
+                              setInvoiceDetails(invoiceData);
+                            }
+                          } catch (error) {
+                            console.error('Error fetching invoice details:', error);
+                          } finally {
+                            setLoadingInvoiceDetails(false);
+                          }
+                        } else {
+                          setInvoiceDetails(null);
+                        }
                       }}
                       className="flex items-center justify-center gap-1 rounded-lg border border-[#0f4d8a] text-[#0f4d8a] px-3 py-2 text-xs font-semibold hover:bg-blue-50 hover:border-blue-600 hover:text-blue-600 transition-all active:scale-95"
                     >
@@ -610,7 +632,7 @@ export default function BillsPage() {
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                   <p className="text-sm text-gray-600 mb-1">Total Due</p>
                   <p className="text-2xl font-bold text-[#0f4d8a]">
-                    {convertedBills.find(cb => cb.id === selectedBill.id)?.balance || `$${selectedBill.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${selectedBill.currency || "JMD"}`}
+                    {convertedBills.find(cb => cb.id === selectedBill.id)?.balance || formatCurrency(selectedBill.balance, selectedBill.currency || "USD")}
                   </p>
                 </div>
 
@@ -839,7 +861,7 @@ export default function BillsPage() {
                     <div className="flex justify-between">
                       <span className="text-gray-600">Paid Amount:</span>
                       <span className="font-semibold text-green-600">
-                        {convertedBills.find(cb => cb.id === selectedBill.id)?.paidAmount || `$${selectedBill.paidAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${selectedBill.currency}`}
+                        {convertedBills.find(cb => cb.id === selectedBill.id)?.paidAmount || formatCurrency(selectedBill.paidAmount, selectedBill.currency || "USD")}
                       </span>
                     </div>
                     <div className="flex justify-between font-bold text-lg border-t pt-2">
@@ -899,7 +921,7 @@ export default function BillsPage() {
                   <div className="space-y-1 text-sm text-red-700">
                     <p><strong>Bill Number:</strong> {deleteConfirm.bill.billNumber}</p>
                     <p><strong>Tracking:</strong> #{deleteConfirm.bill.trackingNumber}</p>
-                    <p><strong>Amount:</strong> {convertedBills.find(cb => cb.id === deleteConfirm?.bill?.id)?.balance || `$${deleteConfirm?.bill?.balance?.toLocaleString('en-US', { minimumFractionDigits: 2 })} ${deleteConfirm?.bill?.currency}`}</p>
+                    <p><strong>Amount:</strong> {convertedBills.find(cb => cb.id === deleteConfirm?.bill?.id)?.balance || formatCurrency(deleteConfirm?.bill?.balance || 0, deleteConfirm?.bill?.currency || "USD")}</p>
                   </div>
                 </div>
                 <p className="text-xs text-slate-600">

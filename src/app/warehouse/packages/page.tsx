@@ -250,22 +250,40 @@ export default function WarehousePackagesPage() {
     if (!bulkStatus || selectedIds.size === 0) return;
     try {
       const ids = Array.from(selectedIds);
-      await Promise.all(
-        ids.map((id) =>
-          fetch('/api/warehouse/packages', {
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          const res = await fetch(`/api/warehouse/packages/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ id, status: bulkStatus }),
-          })
-        )
+            body: JSON.stringify({ status: bulkStatus }),
+          });
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data?.error || 'Update failed');
+          }
+          return res.json();
+        })
       );
+      
+      // Update local state immediately
+      setPackages(prevPackages => 
+        prevPackages.map(pkg => {
+          if (selectedIds.has(pkg._id)) {
+            return { ...pkg, status: bulkStatus };
+          }
+          return pkg;
+        })
+      );
+      
       toast.success(`Updated ${ids.length} package(s)`);
       setBulkStatus('');
+      setSelectedIds(new Set());
+      // Trigger refresh to get latest data from server
       setRefreshToken((v) => v + 1);
     } catch (e) {
       console.error(e);
-      toast.error('Bulk status update failed');
+      toast.error(e instanceof Error ? e.message : 'Bulk status update failed');
     }
   };
 
@@ -847,11 +865,11 @@ export default function WarehousePackagesPage() {
                 </h4>
                 <div className="grid gap-2 md:grid-cols-2">
                   <div className="flex justify-between"><span className="text-sm text-gray-600">Shipper:</span><span className="text-sm font-medium text-gray-900">{packageToView.shipper || 'N/A'}</span></div>
-                  <div className="flex justify-between"><span className="text-sm text-gray-600">Warehouse:</span><span className="text-sm font-medium text-gray-900">{packageToView.warehouseLocation || 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Warehouse:</span><span className="text-sm font-medium text-gray-900">{packageToView.warehouseLocation || packageToView.branch || 'N/A'}</span></div>
                   <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Required:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsRequired ? 'Yes' : 'No'}</span></div>
-                  <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsStatus || 'N/A'}</span></div>
-                  <div className="flex justify-between"><span className="text-sm text-gray-600">Payment Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.paymentStatus || 'N/A'}</span></div>
-                  <div className="flex justify-between"><span className="text-sm text-gray-600">Entry Date:</span><span className="text-sm font-medium text-gray-900">{packageToView.dateReceived ? new Date(packageToView.dateReceived).toLocaleDateString() : 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsStatus || 'Not Required'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Payment Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.paymentStatus || 'Pending'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Entry Date:</span><span className="text-sm font-medium text-gray-900">{packageToView.dateReceived ? new Date(packageToView.dateReceived).toLocaleDateString() : packageToView.createdAt ? new Date(packageToView.createdAt).toLocaleDateString() : 'N/A'}</span></div>
                 </div>
               </div>
 
@@ -866,7 +884,7 @@ export default function WarehousePackagesPage() {
                   <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.recipient?.email || packageToView.receiverEmail || 'N/A'}</span></div>
                   <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.recipient?.phone || packageToView.receiverPhone || 'N/A'}</span></div>
                   <div className="flex justify-between"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.recipient?.address || packageToView.receiverAddress || 'N/A'}</span></div>
-                  <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.recipient?.country || packageToView.receiverCountry || 'N/A'}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.recipient?.country || packageToView.receiverCountry || packageToView.receiverCountryValue || 'N/A'}</span></div>
                 </div>
               </div>
 
@@ -905,7 +923,7 @@ export default function WarehousePackagesPage() {
               </div>
 
               {/* Additional Information */}
-              {(packageToView.description || packageToView.itemDescription || packageToView.specialInstructions || packageToView.contents) && (
+              {(packageToView.description || packageToView.itemDescription || packageToView.specialInstructions) && (
                 <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-6">
                   <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <Calendar className="h-5 w-5 text-orange-600" />
@@ -928,12 +946,6 @@ export default function WarehousePackagesPage() {
                       <div className="flex flex-col">
                         <span className="text-sm font-medium text-gray-700 mb-1">Description:</span>
                         <span className="text-sm text-gray-600">{packageToView.description}</span>
-                      </div>
-                    )}
-                    {packageToView.contents && (
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium text-gray-700 mb-1">Contents:</span>
-                        <span className="text-sm text-gray-600">{packageToView.contents}</span>
                       </div>
                     )}
                     {packageToView.specialInstructions && (

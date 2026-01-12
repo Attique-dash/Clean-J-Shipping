@@ -402,8 +402,8 @@ export default function AdminPackagesPage() {
             <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-3">
               {/* Search Input */}
               <div className="relative sm:col-span-2 md:col-span-2">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-5 w-5 text-blue-500" />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+                  <Search className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   type="text"
@@ -416,8 +416,8 @@ export default function AdminPackagesPage() {
 
               {/* Customer Code Filter */}
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-blue-500" />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+                  <User className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   type="text"
@@ -432,8 +432,8 @@ export default function AdminPackagesPage() {
             <div className="space-y-3">
               <h4 className="text-sm font-medium text-gray-700">Package Status</h4>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Filter className="h-5 w-5 text-blue-500" />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+                  <Filter className="h-5 w-5 text-gray-400" />
                 </div>
                 <select
                   className="block w-full pl-10 pr-8 py-2.5 text-sm border border-gray-300 rounded-xl bg-white/80 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"

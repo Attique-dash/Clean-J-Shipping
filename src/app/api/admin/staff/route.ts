@@ -71,6 +71,7 @@ export async function POST(req: Request) {
         userCode,
         password,
         branch: branch || undefined,
+        email: email,
       });
       
       console.log('📧 Email service result:', emailSent);

@@ -201,8 +201,8 @@ export default function CustomerContactPage() {
                   </div>
                   <div>
                     <div className="text-sm font-semibold text-gray-900 mb-1">Phone</div>
-                    <a href="tel:+15551346" className="text-sm text-[#0f4d8a] hover:underline font-medium">
-                      +1 (555) 13-467
+                    <a href="tel:+18765785945" className="text-sm text-[#0f4d8a] hover:underline font-medium">
+                      1 (876) 578-5945
                     </a>
                   </div>
                 </div>
@@ -214,8 +214,8 @@ export default function CustomerContactPage() {
                   </div>
                   <div>
                     <div className="text-sm font-semibold text-gray-900 mb-1">Email</div>
-                    <a href="mailto:support@speedyship.com" className="text-sm text-[#0f4d8a] hover:underline font-medium">
-                      support@speedyship.com
+                    <a href="mailto:info@cleanshipping.com" className="text-sm text-[#0f4d8a] hover:underline font-medium">
+                      info@cleanshipping.com
                     </a>
                   </div>
                 </div>
@@ -289,7 +289,7 @@ export default function CustomerContactPage() {
                 <span>Start Live Chat</span>
               </a>
               <a
-                href="tel:+15551346"
+                href="tel:+18765785945"
                 className="inline-flex items-center space-x-2 bg-[#E67919] text-white px-6 py-3 rounded-lg font-bold hover:bg-[#d66a15] transition-all duration-200 shadow-lg"
               >
                 <Phone className="h-5 w-5" />

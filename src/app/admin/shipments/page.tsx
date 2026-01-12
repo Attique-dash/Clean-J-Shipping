@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { toast } from "react-toastify";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import { 
   Search, 
   Plus, 
@@ -266,6 +267,7 @@ export default function AdminShipmentsPage() {
       console.log('API response:', data); // Debug log
       if (!res.ok) throw new Error(data?.error || "Failed to update manifest");
       setSuccess(`Manifest ${payload.manifestId} saved successfully!`);
+      toast.success(`Manifest ${payload.manifestId} created successfully! Pre-alerts have been automatically created.`);
       // Reset form
       setManifestId("");
       setTitle("");
@@ -697,6 +699,32 @@ export default function AdminShipmentsPage() {
           </div>
         )}
 
+        {/* Explanation Section */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0f4d8a] to-[#E67919] px-6 py-4">
+            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              How Shipments Work
+            </h2>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="prose max-w-none">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Understanding the Shipments Page</h3>
+              <p className="text-sm text-gray-700 mb-4">
+                The Shipments page allows you to create and manage shipment manifests, which are collections of packages grouped together for transportation. This page connects with other parts of the system:
+              </p>
+              <ul className="list-disc list-inside space-y-2 text-sm text-gray-700 mb-4">
+                <li><strong>Admin Portal:</strong> Admins create manifests here to organize packages for shipping. Manifests can be created for air, sea, or land transport.</li>
+                <li><strong>Warehouse Portal:</strong> Warehouse staff can view manifests and update package statuses as they process shipments.</li>
+                <li><strong>Customer Portal:</strong> Customers can see when their packages are included in manifests and track shipment progress.</li>
+              </ul>
+              <p className="text-sm text-gray-700">
+                <strong>How it works:</strong> When you create a manifest, you group multiple packages together with a manifest ID. This helps track packages as they move through the shipping process. The manifest includes details like transport mode (air/sea/land), batch date, and individual package tracking numbers.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Search Section */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
           <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
@@ -709,8 +737,8 @@ export default function AdminShipmentsPage() {
             <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-3">
               {/* Search Input */}
               <div className="relative sm:col-span-2 md:col-span-2">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-5 w-5 text-blue-500" />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+                  <Search className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   type="text"
@@ -723,8 +751,8 @@ export default function AdminShipmentsPage() {
 
               {/* Transport Mode Filter */}
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Filter className="h-5 w-5 text-blue-500" />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+                  <Filter className="h-5 w-5 text-gray-400" />
                 </div>
                 <select
                   className="block w-full h-12 pl-10 pr-8 text-sm border border-gray-300 rounded-xl bg-white/80 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
@@ -852,9 +880,6 @@ export default function AdminShipmentsPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">
-                          {manifest.totalItems} items
-                        </div>
-                        <div className="text-xs text-gray-500">
                           {manifest.shipments?.length || 0} shipments
                         </div>
                       </td>
@@ -1021,6 +1046,7 @@ export default function AdminShipmentsPage() {
           </div>
         </div>
       )}
+      <ToastContainer position="top-right" autoClose={3000} />
     </div>
   );
 }

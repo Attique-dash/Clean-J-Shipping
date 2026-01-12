@@ -52,47 +52,57 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { title, body, channels = ["portal"], scheduled_at, audience = "all", priority: _priority = "normal" } = parsed.data as {
+  const { title, body, channels = ["portal"], scheduled_at, audience = "customer", priority: _priority = "normal" } = parsed.data as {
     title: string;
     body: string;
     channels?: ("email" | "portal")[];
     scheduled_at?: string;
-    audience?: "all" | "active" | "inactive" | "staff";
+    audience?: "customer" | "staff" | "both";
     priority?: "low" | "normal" | "high";
   };
 
   // Determine recipients based on audience
   let recipients: Array<{ _id: Types.ObjectId; email?: string; userCode?: string; role: string }> = [];
   
-  if (audience === "staff") {
+  if (audience === "staff" || audience === "both") {
     // Get all staff (admin and warehouse roles)
     const staffUsers = await User.find({ role: { $in: ["admin", "warehouse"] } })
       .select("_id email userCode role")
       .lean();
-    recipients = staffUsers.map((u: any) => ({
-      _id: u._id as Types.ObjectId,
-      email: u.email as string | undefined,
-      userCode: u.userCode as string | undefined,
-      role: (u.role || 'admin') as string
-    }));
-  } else {
-    // Get customers based on audience filter
-    const customerQuery: any = { role: "customer" };
-    if (audience === "active") {
-      customerQuery.accountStatus = "active";
-    } else if (audience === "inactive") {
-      customerQuery.accountStatus = { $ne: "active" };
-    }
-    
-    const customerUsers = await User.find(customerQuery)
+    const staffRecipients = staffUsers.map((u: any) => {
+      // Ensure userCode exists - use email or ID as fallback
+      let userCode = u.userCode;
+      if (!userCode || userCode.trim().length === 0) {
+        userCode = u.email || `STAFF-${u._id}`;
+        // Update user with generated userCode for future use
+        User.findByIdAndUpdate(u._id, { $set: { userCode } }, { new: false }).catch(err => 
+          console.error(`Failed to update userCode for user ${u._id}:`, err)
+        );
+      }
+      return {
+        _id: u._id as Types.ObjectId,
+        email: u.email as string | undefined,
+        userCode: userCode as string,
+        role: (u.role || 'admin') as string
+      };
+    });
+    recipients = recipients.concat(staffRecipients);
+    console.log(`[Broadcast] Found ${staffUsers.length} staff users, ${staffRecipients.filter(u => u.userCode).length} with userCode`);
+  }
+  
+  if (audience === "customer" || audience === "both") {
+    // Get all customers (no active/inactive filter)
+    const customerUsers = await User.find({ role: "customer" })
       .select("_id email userCode role")
       .lean();
-    recipients = customerUsers.map((u: any) => ({
+    const customerRecipients = customerUsers.map((u: any) => ({
       _id: u._id as Types.ObjectId,
       email: u.email as string | undefined,
       userCode: u.userCode as string | undefined,
       role: (u.role || 'customer') as string
     }));
+    recipients = recipients.concat(customerRecipients);
+    console.log(`[Broadcast] Found ${customerUsers.length} customer users`);
   }
   
   const withUserCode = recipients.filter((u) => typeof u.userCode === "string" && u.userCode.trim().length > 0) as Array<{
@@ -138,9 +148,31 @@ export async function POST(req: Request) {
       }));
       const res = await Message.insertMany(docs, { ordered: false });
       portalDelivered = res.length;
+      console.log(`[Broadcast] Created ${portalDelivered} portal messages for ${totalRecipients} recipients`);
     } catch (err) {
       console.error("Error delivering portal messages:", err);
-      // ignore per-user failures; continue
+      // Try to insert messages one by one to see which ones fail
+      if (err && typeof err === 'object' && 'writeErrors' in err) {
+        const writeErrors = (err as any).writeErrors || [];
+        const inserted = (err as any).insertedCount || 0;
+        portalDelivered = inserted;
+        console.error(`[Broadcast] Failed to create ${writeErrors.length} messages. Successfully created: ${inserted} out of ${totalRecipients}`);
+        // Log specific errors
+        writeErrors.forEach((error: any) => {
+          console.error(`[Broadcast] Failed to create message for userCode: ${error.op?.userCode}, error: ${error.errmsg || error.err}`);
+        });
+      } else {
+        // If it's a different error, try inserting one by one
+        console.log(`[Broadcast] Attempting individual message creation...`);
+        for (const doc of docs) {
+          try {
+            await Message.create(doc);
+            portalDelivered++;
+          } catch (individualErr) {
+            console.error(`[Broadcast] Failed to create message for userCode ${doc.userCode}:`, individualErr);
+          }
+        }
+      }
     }
   }
 
@@ -221,4 +253,34 @@ export async function POST(req: Request) {
     email_failed: emailFailed,
     sent_at: sentAt.toISOString(),
   });
+}
+
+export async function DELETE(req: Request) {
+  const payload = await getAuthFromRequest(req);
+  if (!payload || payload.role !== "admin") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  await dbConnect();
+
+  const url = new URL(req.url);
+  const id = url.searchParams.get("id");
+  
+  if (!id) {
+    return NextResponse.json({ error: "Broadcast ID is required" }, { status: 400 });
+  }
+
+  try {
+    const deleted = await Broadcast.findByIdAndDelete(id);
+    if (!deleted) {
+      return NextResponse.json({ error: "Broadcast not found" }, { status: 404 });
+    }
+    
+    // Also delete associated messages
+    await Message.deleteMany({ broadcastId: id });
+    
+    return NextResponse.json({ success: true, message: "Broadcast deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting broadcast:", error);
+    return NextResponse.json({ error: "Failed to delete broadcast" }, { status: 500 });
+  }
 }

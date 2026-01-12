@@ -66,10 +66,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ invoiceN
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Find the invoice
+    // Find the invoice - check multiple ways to link to user
     const invoiceResult = await Invoice.findOne({ 
-      invoiceNumber: invoiceNumber,
-      userId: new Types.ObjectId(userId) 
+      $or: [
+        { invoiceNumber: invoiceNumber, userId: new Types.ObjectId(userId) },
+        { invoiceNumber: invoiceNumber, 'customer.id': userId },
+        { invoiceNumber: invoiceNumber, tracking_number: invoiceNumber.replace(/^INV-/, '') }
+      ]
     }).lean();
 
     if (!invoiceResult) {

@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       Package.find({
         userId: userId,
       })
-      .select('trackingNumber status itemDescription weight senderName currentLocation receiverName updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords itemValue value dimensions length width height dimensionUnit serviceMode customsRequired customsStatus paymentStatus dateReceived daysInStorage warehouseLocation senderEmail senderPhone senderAddress senderCountry shipper')
+      .select('trackingNumber status itemDescription weight senderName currentLocation receiverName receiverEmail receiverPhone receiverAddress receiverCountry updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords itemValue value dimensions length width height dimensionUnit serviceMode customsRequired customsStatus paymentStatus dateReceived daysInStorage warehouseLocation senderEmail senderPhone senderAddress senderCountry shipper')
       .sort({ createdAt: -1 })
       .limit(100)
       .lean(),
@@ -66,8 +66,10 @@ export async function GET(req: NextRequest) {
     // Create a map of invoice numbers to package tracking numbers
     const invoiceMap = new Map();
     invoices.forEach((invoice: any) => {
-      if (invoice.package?.trackingNumber) {
-        invoiceMap.set(invoice.package.trackingNumber, {
+      // Check multiple ways to link invoice to package
+      const trackingNumber = invoice.package?.trackingNumber || invoice.tracking_number;
+      if (trackingNumber && invoice.invoiceNumber) {
+        invoiceMap.set(trackingNumber, {
           hasInvoice: true,
           invoiceNumber: invoice.invoiceNumber
         });
@@ -133,6 +135,11 @@ export async function GET(req: NextRequest) {
         senderPhone: (p as any).senderPhone || '',
         senderAddress: (p as any).senderAddress || '',
         senderCountry: (p as any).senderCountry || '',
+        receiverName: (p as any).receiverName || '',
+        receiverEmail: (p as any).receiverEmail || '',
+        receiverPhone: (p as any).receiverPhone || '',
+        receiverAddress: (p as any).receiverAddress || '',
+        receiverCountry: (p as any).receiverCountry || '',
       };
     });
 

@@ -84,6 +84,41 @@ export async function POST(req: Request) {
 
     console.log('Saved manifest:', manifest); // Debug log
 
+    // Create pre-alerts automatically for each shipment in the manifest
+    try {
+      const { PreAlert } = await import('@/models/PreAlert');
+      const { User } = await import('@/models/User');
+      const { Package } = await import('@/models/Package');
+      
+      for (const shipment of data.shipments) {
+        // Try to find the package to get customer info
+        const pkg = await Package.findOne({ trackingNumber: shipment.tracking_number });
+        if (pkg && pkg.userId) {
+          const user = await User.findById(pkg.userId);
+          if (user) {
+            const existingPreAlert = await PreAlert.findOne({ trackingNumber: shipment.tracking_number });
+            if (!existingPreAlert) {
+              await PreAlert.create({
+                userCode: user.userCode,
+                customer: user._id,
+                trackingNumber: shipment.tracking_number,
+                carrier: pkg.shipper || "Unknown Carrier",
+                origin: data.mode === 'air' ? 'Airport' : data.mode === 'sea' ? 'Port' : 'Warehouse',
+                expectedDate: data.batch_date ? new Date(data.batch_date) : new Date(),
+                status: "approved",
+                notes: `Shipment created in manifest ${manifestId}${shipment.notes ? ` - ${shipment.notes}` : ''}`,
+                decidedAt: new Date(),
+              });
+              console.log(`Pre-alert created for shipment ${shipment.tracking_number} in manifest ${manifestId}`);
+            }
+          }
+        }
+      }
+    } catch (preAlertError) {
+      console.error('Failed to create pre-alerts for manifest shipments:', preAlertError);
+      // Don't fail manifest creation if pre-alert creation fails
+    }
+
     return NextResponse.json({
       ok: true,
       manifest_id: manifest.manifestId,

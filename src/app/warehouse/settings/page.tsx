@@ -211,7 +211,7 @@ export default function WarehouseSettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                  <p className="text-gray-900 font-medium capitalize">{session?.user?.role || 'N/A'}</p>
+                  <p className="text-gray-900 font-medium capitalize">{session?.user?.role === 'warehouse' ? 'Staff' : (session?.user?.role || 'N/A')}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">User Code</label>

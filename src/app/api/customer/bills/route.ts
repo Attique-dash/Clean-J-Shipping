@@ -37,7 +37,12 @@ export async function GET(req: Request) {
     // Fetch admin invoices separately with error handling
     let invoices: any[] = [];
     try {
-      invoices = await Invoice.find({ userId: new Types.ObjectId(userId) })
+      invoices = await Invoice.find({ 
+        $or: [
+          { userId: new Types.ObjectId(userId) },
+          { 'customer.id': userId }
+        ]
+      })
         .populate('package', 'trackingNumber')
         .sort({ createdAt: -1 })
         .limit(500)
@@ -79,13 +84,18 @@ export async function GET(req: Request) {
         trackingNumber?: string;
       };
       updatedAt?: Date | string;
+      paymentHistory?: Array<{ amount?: number }>;
     }) => {
-      const amountPaid = Number(inv.amountPaid) || 0;
-      const total = Number(inv.total) || 0;
-      const balanceDue = Number(inv.balanceDue) || (total - amountPaid);
+      // Calculate amounts consistently with admin invoices page
+      const totalAmount = Number(inv.total) || 0;
+      const paidFromHistory = Array.isArray(inv.paymentHistory)
+        ? inv.paymentHistory.reduce((sum: number, p: any) => sum + (Number(p?.amount) || 0), 0)
+        : 0;
+      const amountPaid = paidFromHistory > 0 ? paidFromHistory : (Number(inv.amountPaid) || 0);
+      const balanceDue = Math.max(0, totalAmount - amountPaid);
       
       let paymentStatus: Bill["payment_status"];
-      if (inv.status === "paid" || amountPaid >= total) {
+      if (inv.status === "paid" || amountPaid >= totalAmount) {
         paymentStatus = "paid";
       } else if (inv.status === "overdue") {
         paymentStatus = "overdue";
@@ -97,16 +107,16 @@ export async function GET(req: Request) {
         paymentStatus = "none";
       }
       
-      // Ensure tracking_number is always a string
-      const trackingNumber = inv.package?.trackingNumber || inv.invoiceNumber || 'UNKNOWN';
+      // Ensure tracking_number is always a string - check multiple sources
+      const trackingNumber = inv.package?.trackingNumber || (inv as any).tracking_number || inv.invoiceNumber || 'UNKNOWN';
             
       return {
         tracking_number: trackingNumber,
         description: inv.items?.[0]?.description || inv.notes || `Invoice ${inv.invoiceNumber}`,
         invoice_number: inv.invoiceNumber,
         invoice_date: inv.issueDate ? new Date(inv.issueDate).toISOString() : (inv.createdAt ? new Date(inv.createdAt).toISOString() : undefined),
-        currency: inv.currency || "JMD",
-        amount_due: Math.max(0, balanceDue),
+        currency: inv.currency || "USD",
+        amount_due: balanceDue, // Use calculated balanceDue to match admin view
         payment_status: paymentStatus,
         last_updated: inv.updatedAt ? new Date(inv.updatedAt).toISOString() : (inv.createdAt ? new Date(inv.createdAt).toISOString() : undefined),
       };
@@ -135,16 +145,18 @@ export async function GET(req: Request) {
       try {
         const linkedInvoices = await Invoice.find({
           $or: [
-            { 'package.trackingNumber': { $in: trackingNumbers } },
+            { tracking_number: { $in: trackingNumbers } },
             { userId: new Types.ObjectId(userId), invoiceType: 'billing' }
           ]
         })
+        .populate('package', 'trackingNumber')
         .sort({ createdAt: -1 })
-        .select('invoiceNumber package.trackingNumber')
+        .select('invoiceNumber package tracking_number')
         .lean();
         
         linkedInvoices.forEach((inv: any) => {
-          const trackingNum = inv.package?.trackingNumber;
+          // Check multiple sources for tracking number
+          const trackingNum = inv.tracking_number || inv.package?.trackingNumber;
           if (trackingNum && inv.invoiceNumber) {
             invoiceNumberMap.set(trackingNum, inv.invoiceNumber);
           }
@@ -194,29 +206,30 @@ export async function GET(req: Request) {
           description = pkg.itemDescription || pkg.description || "Invoice pending generation";
         }
         
-        // Get invoice number from pre-fetched map or generate default
-        let invoiceNumber = `PKG-${pkg.trackingNumber}`;
+        // Get invoice number from pre-fetched map or use package tracking number
+        let invoiceNumber = null;
         if (packageAmount > 0) {
           const linkedInvoiceNumber = invoiceNumberMap.get(pkg.trackingNumber);
           if (linkedInvoiceNumber) {
             invoiceNumber = linkedInvoiceNumber;
           } else {
-            invoiceNumber = `INV-${pkg.trackingNumber}`;
+            // Don't generate fake invoice numbers - only use real ones from Invoice model
+            invoiceNumber = null;
           }
         }
         
-        return [
-          {
-            tracking_number: pkg.trackingNumber,
-            description,
-            invoice_number: invoiceNumber,
-            invoice_date: pkg.createdAt ? new Date(pkg.createdAt).toISOString() : undefined,
-            amount_due: packageAmount,
-            payment_status,
-            currency: "JMD",
-            last_updated: (pkg.updatedAt || pkg.createdAt) ? new Date(pkg.updatedAt || pkg.createdAt).toISOString() : undefined,
-          },
-        ];
+      return [
+        {
+          tracking_number: pkg.trackingNumber,
+          description,
+          invoice_number: invoiceNumber || undefined,
+          invoice_date: pkg.createdAt ? new Date(pkg.createdAt).toISOString() : undefined,
+          amount_due: packageAmount,
+          payment_status,
+          currency: "USD", // Use USD as default, not JMD
+          last_updated: (pkg.updatedAt || pkg.createdAt) ? new Date(pkg.updatedAt || pkg.createdAt).toISOString() : undefined,
+        },
+      ];
       }
       
       // Get the most recent invoice record
@@ -242,14 +255,17 @@ export async function GET(req: Request) {
         amountDue = totalAmount;
       }
       
+      // Get actual invoice number from Invoice model if available
+      const actualInvoiceNumber = invoiceNumberMap.get(pkg.trackingNumber) || latest.invoiceNumber || null;
+      
       return [
         {
           tracking_number: pkg.trackingNumber,
           description: pkg.itemDescription || pkg.description,
-          invoice_number: latest.invoiceNumber || `PKG-${pkg.trackingNumber}`,
+          invoice_number: actualInvoiceNumber || undefined, // Only show real invoice numbers
           invoice_date: latest.invoiceDate ? new Date(latest.invoiceDate).toISOString() : 
                        pkg.createdAt ? new Date(pkg.createdAt).toISOString() : undefined,
-          currency: latest.currency || "JMD",
+          currency: latest.currency || "USD", // Use USD as default
           amount_due: amountDue,
           payment_status: paymentStatus,
           last_updated: (pkg.updatedAt || pkg.createdAt) ? new Date(pkg.updatedAt || pkg.createdAt).toISOString() : undefined,

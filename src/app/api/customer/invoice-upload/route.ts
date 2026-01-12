@@ -178,12 +178,16 @@ export async function POST(req: Request) {
 
         let invoice;
         if (existingInvoice) {
-          // Update existing invoice
+          // Update existing invoice - merge files instead of conflicting operations
+          const existingFiles = existingInvoice.files || [];
+          const mergedFiles = [...existingFiles, ...savedFiles];
           invoice = await Invoice.findByIdAndUpdate(
             existingInvoice._id,
             { 
-              $set: invoiceData,
-              $push: { files: { $each: savedFiles } }
+              $set: {
+                ...invoiceData,
+                files: mergedFiles
+              }
             },
             { new: true }
           );

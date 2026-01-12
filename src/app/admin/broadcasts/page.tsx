@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Send, Calendar, Mail, Globe, Users, CheckCircle, XCircle, Clock, RefreshCw } from "lucide-react";
+import { Send, Calendar, Mail, Globe, Users, CheckCircle, XCircle, Clock, RefreshCw, Trash2 } from "lucide-react";
 import Loading from "@/components/Loading";
 type Broadcast = {
   id: string;
@@ -23,13 +23,14 @@ export default function BroadcastsPage() {
   const [portal, setPortal] = useState(true);
   const [email, setEmail] = useState(false);
   const [schedule, setSchedule] = useState<string>("");
-  const [audience, setAudience] = useState<"all" | "active" | "inactive" | "staff">("all");
+  const [audience, setAudience] = useState<"customer" | "staff" | "both">("customer");
   const [priority, setPriority] = useState<"low" | "normal" | "high">("normal");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [items, setItems] = useState<Broadcast[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -43,6 +44,32 @@ export default function BroadcastsPage() {
       setError(e instanceof Error ? e.message : "Failed");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDelete(broadcastId: string) {
+    if (!confirm('Are you sure you want to delete this broadcast? This action cannot be undone.')) {
+      return;
+    }
+    
+    setDeletingId(broadcastId);
+    try {
+      const res = await fetch(`/api/admin/broadcast-messages?id=${broadcastId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error?.error || 'Failed to delete broadcast');
+      }
+      
+      await load();
+    } catch (error) {
+      console.error('Delete broadcast error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to delete broadcast');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -79,7 +106,7 @@ export default function BroadcastsPage() {
       setPortal(true);
       setEmail(false);
       setSchedule("");
-      setAudience("all");
+      setAudience("customer");
       setPriority("normal");
       await load();
     } catch (e) {
@@ -230,13 +257,12 @@ export default function BroadcastsPage() {
                 </label>
                 <select
                   value={audience}
-                  onChange={(e) => setAudience(e.target.value as "all" | "active" | "inactive" | "staff")}
+                  onChange={(e) => setAudience(e.target.value as "customer" | "staff" | "both")}
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#0f4d8a] focus:border-transparent transition-shadow"
                 >
-                  <option value="all">All Customers</option>
-                  <option value="active">Active Customers</option>
-                  <option value="inactive">Inactive Customers</option>
-                  <option value="staff">Staff (Warehouse)</option>
+                  <option value="customer">Customers</option>
+                  <option value="staff">Staff</option>
+                  <option value="both">Both (Customers & Staff)</option>
                 </select>
               </div>
               
@@ -369,6 +395,20 @@ export default function BroadcastsPage() {
                                 {ch}
                               </span>
                             ))}
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(b.id);
+                              }}
+                              disabled={deletingId === b.id}
+                              className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
+                              title="Delete Broadcast"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                           
                           <div className="flex items-center gap-4 text-sm">

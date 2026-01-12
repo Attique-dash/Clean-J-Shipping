@@ -133,6 +133,28 @@ export default function CustomerDashboardPage() {
         console.warn("Bills API error, but continuing:", billsRes.status);
       }
       
+      // Load unread messages count
+      let unreadMessagesCount = 0;
+      try {
+        const messagesRes = await fetch("/api/customer/messages", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          cache: "no-store",
+        });
+        
+        if (messagesRes.ok) {
+          const messagesData = await messagesRes.json();
+          const messages = messagesData?.messages || [];
+          // Count unread messages (messages that haven't been read or are new)
+          unreadMessagesCount = messages.filter((m: any) => !m.read || !m.viewedAt).length;
+        }
+      } catch (error) {
+        console.error("Error loading messages count:", error);
+      }
+
       setStats({
         totalPackages: packages.length,
         activeShipments: packages.filter((p: PackageData) => 
@@ -141,7 +163,7 @@ export default function CustomerDashboardPage() {
         pendingBills: bills.filter((b: BillData) => 
           b.payment_status === 'submitted' || b.payment_status === 'none'
         ).length,
-        unreadMessages: 0,
+        unreadMessages: unreadMessagesCount,
       });
 
       // Set recent packages (latest 3)

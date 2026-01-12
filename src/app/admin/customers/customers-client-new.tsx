@@ -43,6 +43,7 @@ export default function CustomersPageClient() {
     email: "", 
     password: "", 
     phone: "", 
+    accountStatus: "active", // Default to active for admin-created customers
     address: {
       street: "",
       city: "",
@@ -89,6 +90,7 @@ export default function CustomersPageClient() {
       email: "", 
       password: "", 
       phone: "", 
+      accountStatus: "active", // Admin-created customers are Active by default
       address: {
         street: "",
         city: "",
@@ -107,7 +109,8 @@ export default function CustomersPageClient() {
       lastName: customer.lastName, 
       email: customer.email, 
       password: "", 
-      phone: customer.phone || "", 
+      phone: customer.phone || "",
+      accountStatus: customer.accountStatus || "active",
       address: {
         street: customer.address?.street || "",
         city: customer.address?.city || "",
@@ -122,11 +125,15 @@ export default function CustomersPageClient() {
   async function submitForm(e: React.FormEvent) {
     e.preventDefault();
     const method = editing ? "PUT" : "POST";
-    const body: { firstName: string; lastName: string; email: string; password: string; phone: string; address: typeof form.address; id?: string } = { ...form };
+    const body: { firstName: string; lastName: string; email: string; password: string; phone: string; accountStatus?: string; address: typeof form.address; id?: string } = { ...form };
     if (editing) body.id = editing._id;
     if (!editing && !form.password) {
       alert("Password is required for new customers");
       return;
+    }
+    // Include accountStatus in the body
+    if (form.accountStatus) {
+      body.accountStatus = form.accountStatus;
     }
     
     try {
@@ -574,30 +581,61 @@ export default function CustomersPageClient() {
                 </div>
 
                 {!editing && (
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-700">Password *</label>
-                    <input
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
-                      placeholder="Enter secure password"
-                      type="password"
-                      value={form.password}
-                      onChange={(e) => setForm({ ...form, password: e.target.value })}
-                      required
-                    />
-                  </div>
+                  <>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-gray-700">Password *</label>
+                      <input
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                        placeholder="Enter secure password"
+                        type="password"
+                        value={form.password}
+                        onChange={(e) => setForm({ ...form, password: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-gray-700">Customer Status *</label>
+                      <select
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                        value={form.accountStatus}
+                        onChange={(e) => setForm({ ...form, accountStatus: e.target.value })}
+                        required
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="suspended">Suspended</option>
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">Admin-created customers default to Active. Self-registered customers default to Inactive.</p>
+                    </div>
+                  </>
                 )}
 
                 {editing && (
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-700">New Password (Optional)</label>
-                    <input
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
-                      placeholder="Leave blank to keep current password"
-                      type="password"
-                      value={form.password}
-                      onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    />
-                  </div>
+                  <>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-gray-700">New Password (Optional)</label>
+                      <input
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                        placeholder="Leave blank to keep current password"
+                        type="password"
+                        value={form.password}
+                        onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-gray-700">Customer Status</label>
+                      <select
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                        value={form.accountStatus}
+                        onChange={(e) => setForm({ ...form, accountStatus: e.target.value })}
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="suspended">Suspended</option>
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">Update customer account status</p>
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -842,17 +880,8 @@ export default function CustomersPageClient() {
                 )}
               </div>
 
-              {/* Footer */}
+              {/* Footer - Removed Edit button when viewing customer */}
               <div className="flex justify-end gap-3 border-t border-gray-200 p-6">
-                <button
-                  onClick={() => openEdit(viewCustomer)}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#0f4d8a] bg-white px-4 py-2 text-sm font-medium text-[#0f4d8a] transition-colors hover:bg-[#0f4d8a] hover:text-white"
-                >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  Edit Customer
-                </button>
                 <button
                   onClick={() => setViewCustomer(null)}
                   className="rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-300"

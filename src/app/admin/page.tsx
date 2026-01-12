@@ -26,6 +26,8 @@ import {
   Clock
 } from "lucide-react";
 import Loading from "@/components/Loading";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import EnhancedCurrencySelector from "@/components/EnhancedCurrencySelector";
 
 // Type definitions
 interface Bill {
@@ -208,6 +210,7 @@ interface DashboardStats {
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const { selectedCurrency, setSelectedCurrency, convertAmount, formatCurrency: formatCurrencyAmount } = useCurrency();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -215,6 +218,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'revenue' | 'customers'>('overview');
   const [chartsLoaded, setChartsLoaded] = useState(false);
   const [showAlerts, setShowAlerts] = useState(true);
+  const [displayAmounts, setDisplayAmounts] = useState<Record<string, string>>({});
 
   const fetchStats = useCallback(async () => {
     try {
@@ -457,13 +461,33 @@ export default function AdminDashboard() {
     }
   }, [stats]);
 
+  // Convert and format currency amounts
+  useEffect(() => {
+    if (!stats) return;
+    
+    const convertStats = async () => {
+      const amounts: Record<string, string> = {};
+      
+      try {
+        amounts.totalRevenue = formatCurrencyAmount(await convertAmount(stats.overview.totalRevenue, "USD"));
+        amounts.outstandingPayments = formatCurrencyAmount(await convertAmount(stats.overview.outstandingPayments, "USD"));
+        amounts.averageValue = formatCurrencyAmount(await convertAmount(stats.overview.averageValue, "USD"));
+      } catch (error) {
+        console.error("Currency conversion error:", error);
+        // Fallback to USD formatting
+        amounts.totalRevenue = formatCurrencyAmount(stats.overview.totalRevenue, "USD");
+        amounts.outstandingPayments = formatCurrencyAmount(stats.overview.outstandingPayments, "USD");
+        amounts.averageValue = formatCurrencyAmount(stats.overview.averageValue, "USD");
+      }
+      
+      setDisplayAmounts(amounts);
+    };
+    
+    convertStats();
+  }, [stats, selectedCurrency, convertAmount, formatCurrencyAmount]);
+
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(amount);
+    return formatCurrencyAmount(amount, selectedCurrency);
   };
 
   if (isLoading && !stats) {
@@ -504,6 +528,11 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <EnhancedCurrencySelector
+                  selectedCurrency={selectedCurrency}
+                  onCurrencyChange={setSelectedCurrency}
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                />
                 <button
                   onClick={fetchStats}
                   disabled={isLoading}
@@ -516,7 +545,7 @@ export default function AdminDashboard() {
                 <button 
                   onClick={async () => {
                     try {
-                      const response = await fetch(`/api/admin/reports/packages?format=csv`, {
+                      const response = await fetch(`/api/admin/reports/dashboard?format=csv`, {
                         credentials: 'include',
                       });
                       if (!response.ok) throw new Error('Export failed');
@@ -593,7 +622,7 @@ export default function AdminDashboard() {
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard
                 title="Total Revenue"
-                value={formatCurrency(stats?.overview?.totalRevenue ?? 0)}
+                value={displayAmounts.totalRevenue || formatCurrency(stats?.overview?.totalRevenue ?? 0)}
                 change={stats?.overview?.revenueGrowth ?? 0}
                 icon={<DollarSign className="h-6 w-6" />}
                 gradient="from-emerald-500 to-teal-600"
@@ -625,7 +654,7 @@ export default function AdminDashboard() {
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 mt-6">
               <StatCard
                 title="Outstanding Payments"
-                value={formatCurrency(stats?.overview?.outstandingPayments ?? 0)}
+                value={displayAmounts.outstandingPayments || formatCurrency(stats?.overview?.outstandingPayments ?? 0)}
                 change={0}
                 icon={<CreditCard className="h-6 w-6" />}
                 gradient="from-red-500 to-pink-600"
@@ -639,7 +668,7 @@ export default function AdminDashboard() {
               />
               <StatCard
                 title="Avg. Order Value"
-                value={formatCurrency(stats?.overview?.averageValue ?? 0)}
+                value={displayAmounts.averageValue || formatCurrency(stats?.overview?.averageValue ?? 0)}
                 change={stats?.overview?.valueGrowth ?? 0}
                 icon={<TrendingUp className="h-6 w-6" />}
                 gradient="from-indigo-500 to-purple-600"

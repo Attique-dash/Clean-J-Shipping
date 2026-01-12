@@ -13,14 +13,17 @@ interface CurrencyContextType {
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
-  const [selectedCurrency, setSelectedCurrencyState] = useState("JMD");
+  const [selectedCurrency, setSelectedCurrencyState] = useState("USD");
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Load saved currency from localStorage
+    // Load saved currency from localStorage, default to USD
     const savedCurrency = localStorage.getItem("selectedCurrency");
     if (savedCurrency) {
       setSelectedCurrencyState(savedCurrency);
+    } else {
+      setSelectedCurrencyState("USD");
+      localStorage.setItem("selectedCurrency", "USD");
     }
     setIsLoading(false);
   }, []);

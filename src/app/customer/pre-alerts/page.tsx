@@ -17,8 +17,20 @@ type PreAlert = {
   createdAt?: string;
 };
 
+type Alert = {
+  type: 'package' | 'bill' | 'message';
+  id: string;
+  message: string;
+  createdAt?: string;
+  trackingNumber?: string;
+  invoiceNumber?: string;
+  status?: string;
+  read?: boolean;
+};
+
 export default function PreAlertsPage() {
   const [items, setItems] = useState<PreAlert[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ 
@@ -40,6 +52,18 @@ export default function PreAlertsPage() {
       if (!res.ok) throw new Error(data?.error || "Failed to load");
       const list = Array.isArray(data?.pre_alerts) ? data.pre_alerts : [];
       setItems(list);
+      
+      // Combine alerts from packages, bills, and messages
+      const allAlerts: Alert[] = [
+        ...(data?.alerts?.packages || []),
+        ...(data?.alerts?.bills || []),
+        ...(data?.alerts?.messages || [])
+      ].sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
+      setAlerts(allAlerts);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
     } finally {
@@ -149,14 +173,6 @@ export default function PreAlertsPage() {
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowForm((s) => !s)}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-white/15 backdrop-blur-sm border border-white/20 text-white rounded-lg hover:bg-white/25 transition-all duration-200 font-medium"
-                >
-                  <Plus className="h-5 w-5" />
-                  Create Pre-Alert
-                </button>
               </div>
             </div>
           </header>
@@ -226,8 +242,8 @@ export default function PreAlertsPage() {
             </div>
           </div>
 
-          {/* Create Form Modal */}
-          {showForm && (
+          {/* Create Form Modal - REMOVED per requirements */}
+          {false && showForm && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 sm:p-6" onClick={() => setShowForm(false)}>
               <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4" onClick={(e) => e.stopPropagation()}>
                 <div className="sticky top-0 bg-gradient-to-r from-[#0891b2] to-[#06b6d4] text-white p-4 sm:p-6 flex items-center justify-between">
@@ -386,24 +402,72 @@ export default function PreAlertsPage() {
                   <Loader2 className="h-8 w-8 text-[#0f4d8a] animate-spin" />
                   <span className="ml-3 text-gray-600">Loading pre-alerts...</span>
                 </div>
-              ) : items.length === 0 ? (
+              ) : items.length === 0 && alerts.length === 0 ? (
                 <div className="text-center py-12">
                   <Bell className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">No pre-alerts yet</h3>
                   <p className="text-sm text-gray-500 mb-6">Create your first pre-alert to notify us about incoming shipments</p>
-                  <button
-                    onClick={() => setShowForm(true)}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#E67919] to-[#f59e42] text-white rounded-lg font-semibold hover:shadow-lg transition-all"
-                  >
-                    <Plus className="h-5 w-5" />
-                    Create First Pre-Alert
-                  </button>
+                  <p className="text-sm text-gray-500">Pre-alerts will appear here when packages are added, bills are created, or messages are sent.</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {items.map((item) => {
-                    const statusInfo = getStatusInfo(item.status);
-                    const StatusIcon = statusInfo.icon;
+                <div className="space-y-6">
+                  {/* Alerts Section */}
+                  {alerts.length > 0 && (
+                    <div className="mb-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Bell className="h-5 w-5 text-[#E67919]" />
+                        Recent Activity Alerts
+                      </h3>
+                      <div className="space-y-3">
+                        {alerts.slice(0, 10).map((alert) => (
+                          <div key={alert.id} className="bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-xl p-4 border border-gray-200 transition-all">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start gap-3">
+                                <div className={`p-2 rounded-lg ${
+                                  alert.type === 'package' ? 'bg-blue-100 text-blue-600' :
+                                  alert.type === 'bill' ? 'bg-orange-100 text-orange-600' :
+                                  'bg-green-100 text-green-600'
+                                }`}>
+                                  {alert.type === 'package' ? <Package className="h-4 w-4" /> :
+                                   alert.type === 'bill' ? <FileText className="h-4 w-4" /> :
+                                   <Send className="h-4 w-4" />}
+                                </div>
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium text-gray-900">{alert.message}</p>
+                                  {alert.trackingNumber && (
+                                    <p className="text-xs text-gray-500 mt-1">Tracking: {alert.trackingNumber}</p>
+                                  )}
+                                  {alert.invoiceNumber && (
+                                    <p className="text-xs text-gray-500 mt-1">Invoice: {alert.invoiceNumber}</p>
+                                  )}
+                                  {alert.createdAt && (
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      {new Date(alert.createdAt).toLocaleString()}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              {alert.type === 'message' && !alert.read && (
+                                <span className="flex-shrink-0 w-2 h-2 bg-[#E67919] rounded-full"></span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Pre-Alerts Section */}
+                  {items.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Package className="h-5 w-5 text-[#0f4d8a]" />
+                        Pre-Alerts List
+                      </h3>
+                      <div className="space-y-4">
+                        {items.map((item) => {
+                          const statusInfo = getStatusInfo(item.status);
+                          const StatusIcon = statusInfo.icon;
 
                     return (
                       <div 
@@ -510,10 +574,22 @@ export default function PreAlertsPage() {
                               </div>
                             </div>
                           )}
-                        </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                       </div>
-                    );
-                  })}
+                    </div>
+                  )}
+                  
+                  {items.length === 0 && alerts.length === 0 && (
+                    <div className="text-center py-12">
+                      <Bell className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No alerts yet</h3>
+                      <p className="text-sm text-gray-500 mb-6">Create your first pre-alert to notify us about incoming shipments</p>
+                      <p className="text-sm text-gray-500">Alerts will appear here when packages are added, bills are created, or messages are sent.</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

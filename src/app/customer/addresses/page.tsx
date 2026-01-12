@@ -337,7 +337,7 @@ export default function CustomerAddressesPage() {
                           {getAddressIcon(address.addressType)}
                         </div>
                         <div>
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <p className="font-semibold text-gray-900">{address.contactName}</p>
                             {address.isDefault && (
                               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
@@ -350,6 +350,17 @@ export default function CustomerAddressesPage() {
                               {address.label === "Warehouse" && <Package className="h-3 w-3" />}
                               {address.label}
                             </div>
+                            {address.addressType && (
+                              <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${getAddressTypeColor(address.addressType)}`}>
+                                {getAddressIcon(address.addressType)}
+                                <span>
+                                  {address.addressType === "air" ? "Air" : 
+                                   address.addressType === "sea" ? "Ocean" : 
+                                   address.addressType === "both" ? "Air & Ocean" : 
+                                   "Local"}
+                                </span>
+                              </div>
+                            )}
                           </div>
                           <p className="text-sm text-gray-600">{address.phone}</p>
                           <p className="text-sm text-gray-700 mt-1">

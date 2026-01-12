@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, ChevronDown } from "lucide-react";
 import SharedModal from "@/components/admin/SharedModal";
 import AddButton from "@/components/admin/AddButton";
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
@@ -521,13 +521,26 @@ export default function StaffPageClient() {
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-700">Branch</label>
-                  <input
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
-                    placeholder="e.g., Main Warehouse, Downtown Branch"
-                    value={form.branch}
-                    onChange={(e) => setForm({ ...form, branch: e.target.value })}
-                  />
-                  <p className="mt-1 text-xs text-gray-500">Optional: Assign staff member to a specific branch</p>
+                  <div className="relative">
+                    <select
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20 appearance-none"
+                      value={form.branch}
+                      onChange={(e) => setForm({ ...form, branch: e.target.value })}
+                    >
+                      <option value="">Select a branch...</option>
+                      <option value="Main Warehouse">Main Warehouse</option>
+                      <option value="Downtown Branch">Downtown Branch</option>
+                      <option value="Airport Branch">Airport Branch</option>
+                      <option value="Port Branch">Port Branch</option>
+                      {branches.filter(b => !["Main Warehouse", "Downtown Branch", "Airport Branch", "Port Branch"].includes(b)).map(branch => (
+                        <option key={branch} value={branch}>{branch}</option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">Assign staff member to a specific branch</p>
                 </div>
               </div>
             </form>

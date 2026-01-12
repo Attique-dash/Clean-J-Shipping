@@ -567,6 +567,29 @@ export async function POST(req: Request) {
 
     const created = await Package.create(packageData);
 
+    // Create pre-alert automatically when package is added
+    try {
+      const { PreAlert } = await import('@/models/PreAlert');
+      const existingPreAlert = await PreAlert.findOne({ trackingNumber: asString(trackingNumber) });
+      if (!existingPreAlert) {
+        await PreAlert.create({
+          userCode: user.userCode,
+          customer: user._id,
+          trackingNumber: asString(trackingNumber),
+          carrier: typeof shipper === "string" ? shipper : "Unknown Carrier",
+          origin: typeof branch === "string" ? branch : "Main Warehouse",
+          expectedDate: new Date(),
+          status: "approved", // Auto-approved since admin created it
+          notes: `Package added by admin${session?.user?.name ? ` (${session.user.name})` : ""}`,
+          decidedAt: new Date(),
+        });
+        console.log(`Pre-alert created for admin package ${asString(trackingNumber)}`);
+      }
+    } catch (preAlertError) {
+      console.error('Failed to create pre-alert for admin package:', preAlertError);
+      // Don't fail package creation if pre-alert creation fails
+    }
+
     // FIXED: Create proper billing invoice automatically
     let billingInvoice: { _id: any } | null = null;
     try {

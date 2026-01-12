@@ -4,6 +4,7 @@ import { getAuthFromRequest } from "@/lib/rbac";
 import { User } from "@/models/User";
 import { Package, IPackage } from "@/models/Package";
 import { Message } from "@/models/Message";
+import { Types } from "mongoose";
 
 export async function GET(req: Request) {
   const payload = await getAuthFromRequest(req);
@@ -19,12 +20,30 @@ export async function GET(req: Request) {
   }
   if (!userCode) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Archived packages: delivered or deleted (case-insensitive match)
+  // Get user ID for package query
+  const userId = (payload as any).uid || (payload as any)._id || (payload as any).id;
+  
+  // Archived packages: delivered or archived (case-insensitive match)
+  // Also check by userId if userCode doesn't match
   const pkgs = await Package.find({ 
-    userCode, 
     $or: [
-      { status: { $regex: /^delivered$/i } },
-      { status: { $regex: /^deleted$/i } }
+      { userCode, 
+        $or: [
+          { status: { $regex: /^delivered$/i } },
+          { status: { $regex: /^archived$/i } },
+          { status: { $regex: /delivered/i } },
+          { status: { $regex: /archived/i } }
+        ]
+      },
+      ...(userId ? [{
+        userId: new Types.ObjectId(userId),
+        $or: [
+          { status: { $regex: /^delivered$/i } },
+          { status: { $regex: /^archived$/i } },
+          { status: { $regex: /delivered/i } },
+          { status: { $regex: /archived/i } }
+        ]
+      }] : [])
     ]
   })
     .select("trackingNumber description status updatedAt createdAt invoiceRecords invoiceDocuments")

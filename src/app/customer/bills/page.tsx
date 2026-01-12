@@ -33,7 +33,7 @@ export default function CustomerBillsPage() {
   const [items, setItems] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currency, setCurrency] = useState<string>("JMD");
+  const [currency, setCurrency] = useState<string>("USD");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -159,6 +159,39 @@ export default function CustomerBillsPage() {
     phone: "",
   });
 
+  // Load customer profile to auto-fill payment form
+  useEffect(() => {
+    async function loadCustomerProfile() {
+      try {
+        const res = await fetch("/api/customer/profile", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.full_name) {
+            const nameParts = data.full_name.trim().split(/\s+/);
+            if (nameParts.length > 0) {
+              setPaymentForm(prev => ({
+                ...prev,
+                firstName: nameParts[0] || "",
+                lastName: nameParts.slice(1).join(" ") || "",
+                email: data.email || prev.email,
+                phone: data.phone || prev.phone,
+              }));
+            }
+          } else {
+            setPaymentForm(prev => ({
+              ...prev,
+              email: data.email || prev.email,
+              phone: data.phone || prev.phone,
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Error loading customer profile:", error);
+      }
+    }
+    loadCustomerProfile();
+  }, []);
+
   async function load() {
     setLoading(true);
     setError(null);
@@ -171,8 +204,8 @@ export default function CustomerBillsPage() {
       // Process data in chunks to reduce memory usage
       const processedList = list.slice(0, 100); // Limit initial load
       setItems(processedList);
-      const ccy = processedList.find((b: Bill) => b.currency)?.currency || "USD";
-      setCurrency(ccy);
+      // Default to USD for all bills
+      setCurrency("USD");
 
       // Load remaining data asynchronously if needed
       if (list.length > 100) {
@@ -335,13 +368,14 @@ export default function CustomerBillsPage() {
 
     setProcessing(true);
     try {
-      const res = await fetch("/api/customer/payments", {
+      // Use the payment process endpoint instead
+      const res = await fetch("/api/customer/payments/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           trackingNumber: selectedBill.tracking_number,
           amount: selectedBill.amount_due,
-          currency: selectedBill.currency || "JMD",
+          currency: selectedBill.currency || "USD",
           paymentMethod: "card",
           cardDetails: paymentForm,
           usePayPal: false,
@@ -354,15 +388,27 @@ export default function CustomerBillsPage() {
       setShowPaymentModal(false);
       setSelectedBill(null);
       setUsePayPal(false);
-      setPaymentForm({
-        firstName: "",
-        lastName: "",
-        cardNumber: "",
-        expiry: "",
-        cvv: "",
-        email: "",
-        phone: "",
-      });
+      // Reload customer profile to restore auto-filled values
+      try {
+        const profileRes = await fetch("/api/customer/profile", { cache: "no-store" });
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          if (profileData.full_name) {
+            const nameParts = profileData.full_name.trim().split(/\s+/);
+            setPaymentForm({
+              firstName: nameParts[0] || "",
+              lastName: nameParts.slice(1).join(" ") || "",
+              cardNumber: "",
+              expiry: "",
+              cvv: "",
+              email: profileData.email || "",
+              phone: profileData.phone || "",
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error reloading profile:", error);
+      }
       await load();
       toast.success("Payment processed successfully!");
     } catch (e) {
@@ -381,7 +427,7 @@ export default function CustomerBillsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount: selectedBill.amount_due,
-          currency: selectedBill.currency || "JMD",
+          currency: selectedBill.currency || "USD",
           description: `Payment for invoice ${selectedBill.invoice_number || selectedBill.tracking_number}`,
           trackingNumber: selectedBill.tracking_number,
         }),
@@ -421,7 +467,7 @@ export default function CustomerBillsPage() {
         body: JSON.stringify({
           trackingNumber: selectedBill.tracking_number,
           amount: selectedBill.amount_due,
-          currency: selectedBill.currency || "JMD",
+          currency: selectedBill.currency || "USD",
           paymentMethod: "paypal",
           paypalOrderId: data.orderID,
         }),
@@ -1493,10 +1539,14 @@ export default function CustomerBillsPage() {
                         </div>
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={() => handlePayWithSavedCard(card)}
-                            className="px-3 py-1 text-sm bg-[#E67919] text-white rounded hover:bg-[#d56916] transition-colors"
+                            onClick={() => {
+                              setShowDetailsModal(false);
+                              handlePayWithSavedCard(card);
+                            }}
+                            className="px-3 py-1 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+                            title="Use this card to pay"
                           >
-                            Pay
+                            Use Card
                           </button>
                         </div>
                       </div>

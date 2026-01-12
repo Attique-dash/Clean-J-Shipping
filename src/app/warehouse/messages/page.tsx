@@ -23,6 +23,8 @@ type Conversation = {
   unread: number;
   lastMessage?: string;
   lastAt?: Date;
+  isBroadcast?: boolean;
+  broadcastId?: string;
 };
 
 export default function WarehouseMessagesPage() {
@@ -42,10 +44,11 @@ export default function WarehouseMessagesPage() {
       const res = await fetch("/api/warehouse/messages", { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load messages");
-      setConversations(Array.isArray(data?.conversations) ? data.conversations : []);
+      const conversationsList = Array.isArray(data?.conversations) ? data.conversations : [];
+      setConversations(conversationsList);
       // Auto-select first conversation if none selected
-      if (!activeConversation && data.conversations && data.conversations.length > 0) {
-        setActiveConversation(data.conversations[0]);
+      if (!activeConversation && conversationsList.length > 0) {
+        setActiveConversation(conversationsList[0]);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
@@ -58,17 +61,59 @@ export default function WarehouseMessagesPage() {
     load();
     const id = setInterval(() => {
       load();
-    }, 30000);
+    }, 60000); // Increased from 30 seconds to 60 seconds to reduce frequent loading
     return () => clearInterval(id);
-  }, [load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mark messages as read when conversation is selected
+  useEffect(() => {
+    if (activeConversation && activeConversation.unread > 0) {
+      // Mark all unread messages in this conversation as read
+      const unreadMessages = activeConversation.messages.filter(m => !m.read);
+      if (unreadMessages.length > 0) {
+        Promise.all(
+          unreadMessages.map(m =>
+            fetch("/api/warehouse/messages", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ messageId: m._id, read: true }),
+            }).catch(err => console.error("Error marking message as read:", err))
+          )
+        ).then(() => {
+          // Update local state immediately to reflect read status
+          setConversations(prev => 
+            prev.map(conv => {
+              if (conv.userCode === activeConversation.userCode) {
+                return {
+                  ...conv,
+                  messages: conv.messages.map(m => ({ ...m, read: true })),
+                  unread: 0
+                };
+              }
+              return conv;
+            })
+          );
+          // Also update active conversation
+          setActiveConversation(prev => prev ? {
+            ...prev,
+            messages: prev.messages.map(m => ({ ...m, read: true })),
+            unread: 0
+          } : null);
+        });
+      }
+    }
+  }, [activeConversation?.userCode]); // Only when conversation changes
 
   useEffect(() => {
     // Update active conversation when conversations change
     if (activeConversation && conversations.length > 0) {
       const updated = conversations.find(c => c.userCode === activeConversation.userCode);
-      if (updated) setActiveConversation(updated);
+      if (updated) {
+        setActiveConversation(updated);
+      }
     }
-  }, [conversations, activeConversation]);
+  }, [conversations]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -208,14 +253,22 @@ export default function WarehouseMessagesPage() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center space-x-2 mb-1">
                                 <div className={`p-1.5 rounded-full ${isActive ? 'bg-[#0f4d8a]' : 'bg-gray-200'}`}>
-                                  <User className={`h-3 w-3 ${isActive ? 'text-white' : 'text-gray-600'}`} />
+                                  {conv.isBroadcast ? (
+                                    <MessageSquare className={`h-3 w-3 ${isActive ? 'text-white' : 'text-gray-600'}`} />
+                                  ) : (
+                                    <User className={`h-3 w-3 ${isActive ? 'text-white' : 'text-gray-600'}`} />
+                                  )}
                                 </div>
                                 <div className={`text-sm font-semibold truncate ${isActive ? 'text-[#0f4d8a]' : 'text-gray-900'}`}>
                                   {conv.customerName}
                                 </div>
                               </div>
-                              <p className="text-xs text-gray-500 truncate mt-1">{conv.customerEmail}</p>
-                              <p className="text-xs text-gray-400 mt-1">Code: {conv.userCode}</p>
+                              {!conv.isBroadcast && (
+                                <>
+                                  <p className="text-xs text-gray-500 truncate mt-1">{conv.customerEmail}</p>
+                                  <p className="text-xs text-gray-400 mt-1">Code: {conv.userCode}</p>
+                                </>
+                              )}
                               {conv.lastMessage && (
                                 <p className="text-xs text-gray-500 truncate mt-2">
                                   {conv.lastMessage}
@@ -225,6 +278,11 @@ export default function WarehouseMessagesPage() {
                             {conv.unread > 0 && (
                               <span className="flex-shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-full bg-[#E67919] text-white text-xs font-bold">
                                 {conv.unread}
+                              </span>
+                            )}
+                            {conv.isBroadcast && (
+                              <span className="flex-shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs font-medium">
+                                📢 Broadcast
                               </span>
                             )}
                           </div>
@@ -302,27 +360,35 @@ export default function WarehouseMessagesPage() {
                   </div>
 
                   <form onSubmit={onSubmit} className="border-t border-gray-200 p-4 bg-white">
-                    <div className="flex gap-2">
-                      <textarea
-                        className="flex-1 rounded-lg border-2 border-gray-200 px-4 py-3 text-sm focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all resize-none"
-                        placeholder="Type your message..."
-                        value={form.body}
-                        onChange={(e) => setForm({ body: e.target.value })}
-                        rows={3}
-                        required
-                      />
-                      <button
-                        type="submit"
-                        disabled={saving || !form.body.trim()}
-                        className="px-6 py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                      >
-                        {saving ? (
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : (
-                          <Send className="h-5 w-5" />
-                        )}
-                      </button>
-                    </div>
+                    {activeConversation.isBroadcast ? (
+                      <div className="text-center text-gray-500 text-sm">
+                        <MessageSquare className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                        <p>Broadcast messages are announcements only.</p>
+                        <p className="text-xs mt-1">Customers cannot reply to broadcast messages.</p>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <textarea
+                          className="flex-1 rounded-lg border-2 border-gray-200 px-4 py-3 text-sm focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all resize-none"
+                          placeholder="Type your message..."
+                          value={form.body}
+                          onChange={(e) => setForm({ body: e.target.value })}
+                          rows={3}
+                          required
+                        />
+                        <button
+                          type="submit"
+                          disabled={saving || !form.body.trim()}
+                          className="px-6 py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                        >
+                          {saving ? (
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                          ) : (
+                            <Send className="h-5 w-5" />
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </form>
                 </>
               ) : (

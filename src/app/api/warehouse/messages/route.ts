@@ -14,8 +14,14 @@ export async function GET(req: Request) {
   try {
     await dbConnect();
 
-    // Fetch all customer messages (team conversations - not broadcasts)
-    const messages = await Message.find({
+    // Get current warehouse user's userCode
+    const warehouseUser = await User.findById((payload as any).uid || (payload as any)._id)
+      .select('userCode')
+      .lean();
+    const warehouseUserCode = (warehouseUser as any)?.userCode;
+
+    // Fetch customer messages (team conversations)
+    const customerMessages = await Message.find({
       broadcastId: { $exists: false }, // Exclude broadcasts
       sender: "customer", // Only customer messages
     })
@@ -23,6 +29,18 @@ export async function GET(req: Request) {
       .sort({ createdAt: -1 })
       .limit(200)
       .lean();
+
+    // Fetch broadcast messages for this warehouse user
+    const broadcastMessages = warehouseUserCode ? await Message.find({
+      broadcastId: { $exists: true },
+      userCode: warehouseUserCode,
+    })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean() : [];
+
+    // Combine messages
+    const messages = [...customerMessages, ...broadcastMessages];
 
     // Group messages by userCode (conversation thread)
     const conversations = new Map<string, {
@@ -34,9 +52,45 @@ export async function GET(req: Request) {
       unread: number;
       lastMessage?: string;
       lastAt?: Date;
+      isBroadcast?: boolean;
+      broadcastId?: string;
     }>();
 
     for (const msg of messages) {
+      // Handle broadcast messages separately
+      if (msg.broadcastId) {
+        const broadcastKey = `broadcast_${msg.broadcastId}`;
+        if (!conversations.has(broadcastKey)) {
+          conversations.set(broadcastKey, {
+            userCode: broadcastKey,
+            customerName: "📢 Broadcast",
+            customerEmail: '',
+            customerId: '',
+            messages: [],
+            unread: 0,
+            isBroadcast: true,
+            broadcastId: String(msg.broadcastId),
+          });
+        }
+        const conv = conversations.get(broadcastKey)!;
+        conv.messages.push({
+          _id: msg._id,
+          subject: msg.subject,
+          body: msg.body,
+          sender: msg.sender,
+          read: msg.read,
+          createdAt: msg.createdAt?.toISOString(),
+          updatedAt: msg.updatedAt?.toISOString(),
+        });
+        if (!msg.read) conv.unread++;
+        if (!conv.lastAt || (msg.createdAt && new Date(msg.createdAt) > conv.lastAt)) {
+          conv.lastAt = msg.createdAt;
+          conv.lastMessage = msg.body;
+        }
+        continue;
+      }
+
+      // Handle customer messages
       const customer = msg.customer as any;
       const userCode = customer?.userCode || msg.userCode;
       
@@ -52,6 +106,7 @@ export async function GET(req: Request) {
           customerId: customer?._id?.toString() || '',
           messages: [],
           unread: 0,
+          isBroadcast: false,
         });
       }
 

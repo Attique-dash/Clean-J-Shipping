@@ -95,7 +95,7 @@ export async function POST(req: Request) {
           zipCode,
           country: addressCountry,
         },
-        accountStatus: accountStatus || "active",
+        accountStatus: accountStatus || "active", // Admin-created customers default to active
         role: "customer",
         registrationStep: 3, // Set to completed since admin is creating
         emailVerified: true, // Admin-created customers are considered verified
@@ -145,6 +145,8 @@ export async function POST(req: Request) {
         to: String(email),
         customerName,
         userCode,
+        email: String(email),
+        password: passwordStr,
       });
       
       console.log('📧 Email service result:', emailSent);

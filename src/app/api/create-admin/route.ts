@@ -50,6 +50,7 @@ export async function POST(req: Request) {
         userCode: user.userCode,
         password,
         branch: 'System Administration',
+        email: email,
       });
       
       console.log('📧 Email service result:', emailSent);

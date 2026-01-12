@@ -274,7 +274,7 @@ export default function SettingsPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-200">
-                  Services Setting
+                   Setting
                 </h1>
                 <p className="mt-1 text-sm text-blue-100">
                   Configure available services and shipping charges for invoice generation

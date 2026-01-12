@@ -25,10 +25,12 @@ function LoginPageContent() {
   
   const redirect = searchParams?.get("redirect") || "/";
   const tracking = searchParams?.get("tracking") || "";
+  const emailParam = searchParams?.get("email") || "";
+  const passwordParam = searchParams?.get("password") || "";
 
   const [form, setForm] = useState<FormData>({ 
-    email: "", 
-    password: "", 
+    email: emailParam, 
+    password: passwordParam, 
     rememberMe: false 
   });
 
