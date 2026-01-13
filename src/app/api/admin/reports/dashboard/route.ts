@@ -4,8 +4,8 @@ import { getAuthFromRequest } from "@/lib/rbac";
 import { Package } from "@/models/Package";
 import { Payment } from "@/models/Payment";
 import { User } from "@/models/User";
-import { Invoice } from "@/models/Invoice";
-import { Bill } from "@/models/Bill";
+import { IInvoice } from "@/models/Invoice";
+import Invoice from "@/models/Invoice";
 
 function toCsv(rows: Array<Record<string, unknown>>): string {
   if (!rows.length) return "";
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
 
   try {
     // Get comprehensive dashboard data
-    const [packages, customers, payments, invoices, bills] = await Promise.all([
+    const [packages, customers, payments, invoices] = await Promise.all([
       Package.find({ status: { $ne: "Deleted" } })
         .select("trackingNumber userCode status weight branch createdAt updatedAt itemValue serviceMode")
         .sort({ createdAt: -1 })
@@ -54,18 +54,13 @@ export async function GET(req: Request) {
         .sort({ createdAt: -1 })
         .limit(10000)
         .lean(),
-      Bill.find()
-        .select("billNumber trackingNumber date branch dueAmount paidAmount balance currency status")
-        .sort({ createdAt: -1 })
-        .limit(10000)
-        .lean(),
     ]);
 
     // Combine all data into comprehensive export
     const allRows: Array<Record<string, unknown>> = [];
 
     // Add packages with complete data
-    packages.forEach((pkg) => {
+    packages.forEach((pkg: any) => {
       allRows.push({
         type: "Package",
         id: pkg.trackingNumber,
@@ -89,7 +84,7 @@ export async function GET(req: Request) {
     });
 
     // Add customers with complete data
-    customers.forEach((customer) => {
+    customers.forEach((customer: any) => {
       allRows.push({
         type: "Customer",
         id: customer.userCode,
@@ -105,7 +100,7 @@ export async function GET(req: Request) {
     });
 
     // Add payments/transactions
-    payments.forEach((payment) => {
+    payments.forEach((payment: any) => {
       allRows.push({
         type: "Payment",
         id: String(payment._id),
@@ -121,7 +116,7 @@ export async function GET(req: Request) {
     });
 
     // Add invoices with complete data
-    invoices.forEach((invoice) => {
+    invoices.forEach((invoice: any) => {
       const customerData = invoice.customer && typeof invoice.customer === 'object' ? invoice.customer as any : {};
       allRows.push({
         type: "Invoice",
@@ -142,24 +137,6 @@ export async function GET(req: Request) {
         due_date: invoice.dueDate ? new Date(invoice.dueDate as Date).toISOString() : null,
         package_id: (invoice as any).package ?? null,
         items_count: Array.isArray((invoice as any).items) ? (invoice as any).items.length : 0,
-      });
-    });
-
-    // Add bills with complete data
-    bills.forEach((bill) => {
-      allRows.push({
-        type: "Bill",
-        id: bill.billNumber,
-        tracking_number: bill.trackingNumber ?? null,
-        due_amount: bill.dueAmount ?? 0,
-        paid_amount: bill.paidAmount ?? 0,
-        balance: bill.balance ?? 0,
-        status: bill.status ?? null,
-        currency: bill.currency ?? "USD",
-        branch: bill.branch ?? null,
-        date: bill.date ? new Date(bill.date as Date).toISOString() : null,
-        created_at: (bill as any).createdAt ? new Date((bill as any).createdAt as Date).toISOString() : null,
-        updated_at: (bill as any).updatedAt ? new Date((bill as any).updatedAt as Date).toISOString() : null,
       });
     });
 

@@ -394,8 +394,8 @@ export async function POST(request: NextRequest) {
     return new NextResponse(JSON.stringify({
       ...newPackage.toObject(),
       billingInvoice: billingInvoice ? {
-        invoiceNumber: billingInvoice.invoiceNumber,
-        total: billingInvoice.total
+        invoiceNumber: (billingInvoice as any).invoiceNumber,
+        total: (billingInvoice as any).total
       } : null
     }), { status: 201 });
   } catch (error) {

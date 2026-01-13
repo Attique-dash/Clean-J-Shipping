@@ -532,7 +532,7 @@ export default function StaffPageClient() {
                       <option value="Downtown Branch">Downtown Branch</option>
                       <option value="Airport Branch">Airport Branch</option>
                       <option value="Port Branch">Port Branch</option>
-                      {branches.filter(b => !["Main Warehouse", "Downtown Branch", "Airport Branch", "Port Branch"].includes(b)).map(branch => (
+                      {branches.filter((b) => b && !["Main Warehouse", "Downtown Branch", "Airport Branch", "Port Branch"].includes(b)).map(branch => (
                         <option key={branch} value={branch}>{branch}</option>
                       ))}
                     </select>

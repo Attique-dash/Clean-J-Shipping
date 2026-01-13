@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FileText, Plus, Download, DollarSign, Search, Filter, Trash2, FileDown, TrendingUp, Clock, CheckCircle, Eye, X, Info } from "lucide-react";
+import { FileText, Plus, Download, DollarSign, Search, Filter, Trash2, FileDown, TrendingUp, Clock, CheckCircle, Eye, X, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { ExportService } from "@/lib/export-service";
 import Loading from "@/components/Loading";
@@ -509,7 +509,7 @@ export default function InvoiceClient() {
                   className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors"
                   title="Invoice Type Information"
                 >
-                  <Info className="h-4 w-4 text-blue-600" />
+                  <AlertCircle className="h-4 w-4 text-blue-600" />
                 </button>
               </div>
             </div>
@@ -518,7 +518,7 @@ export default function InvoiceClient() {
             {showInvoiceTypeInfo && (
               <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
                 <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                  <Info className="h-4 w-4" />
+                  <AlertCircle className="h-4 w-4" />
                   Invoice Types Explained
                 </h4>
                 <div className="space-y-2 text-sm text-blue-800">

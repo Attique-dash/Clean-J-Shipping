@@ -79,6 +79,8 @@ type PackageRow = {
   receiverPhone?: string;
   receiverAddress?: string;
   receiverCountry?: string;
+  receiverCountryValue?: string;
+  branch?: string;
   // Additional details
   shipper?: string;
   description?: string;
