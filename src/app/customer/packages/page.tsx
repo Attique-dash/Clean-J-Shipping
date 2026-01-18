@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { Package, Search, MapPin, Filter, X, Calendar, Weight, Download, ExternalLink, RefreshCw, Loader2, Eye, User, Plane, Ship } from "lucide-react";
 import { toast } from "react-toastify";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { ExportService } from "@/lib/export-service";
 
 type UIPackage = {
   id?: string;
@@ -186,27 +187,148 @@ export default function CustomerPackagesPage() {
   }
 
   async function downloadInvoice(pkg: UIPackage, format: 'pdf' | 'excel' = 'pdf') {
-    if (!pkg?.invoiceNumber) {
-      toast.error("No invoice available for this package. Please contact support if you believe an invoice should exist.");
-      return;
-    }
-    
     setUploadingId(pkg.id ?? null);
     setError(null);
     try {
-      const res = await fetch(`/api/customer/invoices/${encodeURIComponent(pkg.invoiceNumber)}/download?format=${format}`, {
-        method: "GET",
-        credentials: "include",
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error || "Download failed");
+      // Try to find invoice by invoice number first, then by tracking number
+      let invoiceNumber = pkg.invoiceNumber;
+      
+      // If no invoice number, try to find invoice by tracking number from bills API
+      if (!invoiceNumber) {
+        try {
+          const billsRes = await fetch(`/api/customer/bills`, {
+            credentials: "include",
+            cache: "no-store",
+          });
+          if (billsRes.ok) {
+            const billsData = await billsRes.json();
+            const matchingBill = billsData.bills?.find((bill: any) => 
+              bill.tracking_number === pkg.tracking_number && bill.invoice_number
+            );
+            if (matchingBill?.invoice_number) {
+              invoiceNumber = matchingBill.invoice_number;
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching invoice number from bills:", err);
+        }
       }
-      toast.success(`Invoice ${pkg.invoiceNumber} download started`);
+      
+      if (!invoiceNumber) {
+        toast.error("No invoice available for this package. The invoice may still be processing. Please try again later or contact support.");
+        return;
+      }
+      
+      // Fetch invoice data from download API
+      const invoiceRes = await fetch(`/api/customer/invoices/${encodeURIComponent(invoiceNumber)}/download?format=${format}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      
+      if (!invoiceRes.ok) {
+        const errorData = await invoiceRes.json();
+        throw new Error(errorData?.error || "Failed to fetch invoice data");
+      }
+      
+      const responseData = await invoiceRes.json();
+      const invoice = responseData.invoice;
+      
+      if (!invoice) {
+        throw new Error("Invoice not found");
+      }
+      
+      // Use ExportService directly like admin page does
+      if (format === 'pdf') {
+        const invoiceForPDF = {
+          invoiceNumber: invoice.invoiceNumber || invoiceNumber,
+          issueDate: invoice.issueDate || new Date(),
+          dueDate: invoice.dueDate || new Date(),
+          status: invoice.status || 'draft',
+          customer: {
+            name: invoice.customer?.name || 'N/A',
+            email: invoice.customer?.email || 'N/A',
+            address: invoice.customer?.address || '',
+            phone: invoice.customer?.phone || ''
+          },
+          items: (invoice.items || []).map((item: any) => ({
+            description: item.description || 'Service',
+            quantity: Number(item.quantity) || 1,
+            unitPrice: Number(item.unitPrice) || 0,
+            taxRate: Number(item.taxRate) || 0,
+            amount: Number(item.amount) || 0,
+            taxAmount: Number(item.taxAmount) || 0,
+            total: Number(item.total) || 0
+          })),
+          subtotal: Number(invoice.subtotal) || 0,
+          taxTotal: Number(invoice.taxTotal) || 0,
+          discountAmount: Number(invoice.discountAmount) || 0,
+          total: Number(invoice.total) || 0,
+          amountPaid: Number(invoice.amountPaid) || 0,
+          balanceDue: Number(invoice.balanceDue) || 0,
+          currency: invoice.currency || 'USD',
+          notes: invoice.notes || '',
+          paymentHistory: (invoice.paymentHistory || []).map((payment: any) => ({
+            amount: Number(payment.amount) || 0,
+            date: payment.date || new Date(),
+            method: payment.method || 'Unknown',
+            reference: payment.reference || ''
+          }))
+        };
+        
+        await ExportService.toInvoicePDF(invoiceForPDF, `invoice_${invoiceNumber}`);
+        toast.success(`Invoice ${invoiceNumber} downloaded as PDF`);
+      } else {
+        // Excel export - use data from API response if available, otherwise generate
+        if (responseData.excelData) {
+          ExportService.toExcelMultiSheet([
+            { name: 'Invoice Summary', data: [responseData.excelData.summary] },
+            { name: 'Invoice Items', data: responseData.excelData.items }
+          ], `invoice_${invoiceNumber}_complete`);
+        } else {
+          // Fallback: generate Excel data from invoice
+          const invoiceSummary = {
+            'Invoice Number': invoice.invoiceNumber || invoiceNumber,
+            'Customer Name': invoice.customer?.name || 'N/A',
+            'Customer Email': invoice.customer?.email || 'N/A',
+            'Customer Phone': invoice.customer?.phone || 'N/A',
+            'Customer Address': invoice.customer?.address || 'N/A',
+            'Issue Date': new Date(invoice.issueDate || new Date()).toLocaleDateString(),
+            'Due Date': new Date(invoice.dueDate || new Date()).toLocaleDateString(),
+            'Status': (invoice.status || 'draft').toUpperCase(),
+            'Currency': invoice.currency || 'USD',
+            'Subtotal': `$${(Number(invoice.subtotal) || 0).toFixed(2)}`,
+            'Tax Total': `$${(Number(invoice.taxTotal) || 0).toFixed(2)}`,
+            'Discount': `$${(Number(invoice.discountAmount) || 0).toFixed(2)}`,
+            'Total Amount': `$${(Number(invoice.total) || 0).toFixed(2)}`,
+            'Amount Paid': `$${(Number(invoice.amountPaid) || 0).toFixed(2)}`,
+            'Balance Due': `$${(Number(invoice.balanceDue) || 0).toFixed(2)}`,
+            'Notes': invoice.notes || 'N/A'
+          };
+          
+          const itemsData = (invoice.items || []).map((item: any, index: number) => ({
+            'Item #': index + 1,
+            'Description': item.description || 'Service',
+            'Quantity': Number(item.quantity) || 1,
+            'Unit Price': `$${Number(item.unitPrice || 0).toFixed(2)}`,
+            'Amount': `$${Number(item.amount || 0).toFixed(2)}`,
+            'Tax Rate': `${Number(item.taxRate || 0)}%`,
+            'Tax Amount': `$${Number(item.taxAmount || 0).toFixed(2)}`,
+            'Line Total': `$${Number(item.total || 0).toFixed(2)}`
+          }));
+          
+          ExportService.toExcelMultiSheet([
+            { name: 'Invoice Summary', data: [invoiceSummary] },
+            { name: 'Invoice Items', data: itemsData }
+          ], `invoice_${invoiceNumber}_complete`);
+        }
+        
+        toast.success(`Invoice ${invoiceNumber} downloaded as Excel`);
+      }
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : "Download failed";
       setError(errorMessage);
       toast.error(errorMessage);
+      console.error("Download invoice error:", e);
     } finally {
       setUploadingId(null);
     }
@@ -539,10 +661,26 @@ export default function CustomerPackagesPage() {
                             </span>
                           </div>
                           <div className="flex items-center gap-1">
-                            {p.invoiceNumber && (
-                              <button onClick={() => downloadInvoice(p, 'pdf')} disabled={uploadingId === p.id} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-all disabled:opacity-50" title="Download Invoice PDF">
-                                {uploadingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                              </button>
+                            {/* Only show download buttons when invoice is available - like admin page */}
+                            {(p.invoiceNumber || p.hasInvoice) && (
+                              <>
+                                <button 
+                                  onClick={() => downloadInvoice(p, 'pdf')} 
+                                  disabled={uploadingId === p.id} 
+                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed" 
+                                  title="Download Invoice PDF"
+                                >
+                                  {uploadingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                                </button>
+                                <button 
+                                  onClick={() => downloadInvoice(p, 'excel')} 
+                                  disabled={uploadingId === p.id} 
+                                  className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed" 
+                                  title="Download Invoice Excel"
+                                >
+                                  {uploadingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                                </button>
+                              </>
                             )}
                             <button onClick={() => handleViewDetails(p)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="View Details">
                               <Eye className="h-3 w-3" />
@@ -639,6 +777,9 @@ export default function CustomerPackagesPage() {
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsStatus || 'N/A'}</span></div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Payment Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.paymentStatus || 'N/A'}</span></div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Days in Storage:</span><span className="text-sm font-medium text-gray-900">{packageToView.daysInStorage || 0}</span></div>
+                      {packageToView.invoiceNumber && (
+                        <div className="flex justify-between"><span className="text-sm text-gray-600">Invoice Number:</span><span className="text-sm font-medium text-gray-900 font-mono">{packageToView.invoiceNumber}</span></div>
+                      )}
                       {packageToView.dimensions && (
                         <div className="flex justify-between col-span-2">
                           <span className="text-sm text-gray-600">Dimensions:</span>
@@ -651,6 +792,41 @@ export default function CustomerPackagesPage() {
                       )}
                     </div>
                   </div>
+
+                  {(packageToView.invoiceNumber || packageToView.hasInvoice) && (
+                    <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-6 border border-orange-200">
+                      <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <Download className="h-5 w-5 text-orange-600" />
+                        Download Invoice
+                      </h4>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => downloadInvoice(packageToView, 'pdf')}
+                          disabled={uploadingId === packageToView.id}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg hover:from-red-700 hover:to-orange-700 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {uploadingId === packageToView.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="h-4 w-4" />
+                          )}
+                          <span>Download PDF</span>
+                        </button>
+                        <button
+                          onClick={() => downloadInvoice(packageToView, 'excel')}
+                          disabled={uploadingId === packageToView.id}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {uploadingId === packageToView.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="h-4 w-4" />
+                          )}
+                          <span>Download Excel</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6">

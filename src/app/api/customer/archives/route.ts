@@ -23,25 +23,25 @@ export async function GET(req: Request) {
   // Get user ID for package query
   const userId = (payload as any).uid || (payload as any)._id || (payload as any).id;
   
-  // Archived packages: delivered or archived (case-insensitive match)
+  // Archived packages: delivered or deleted (case-insensitive match)
   // Also check by userId if userCode doesn't match
   const pkgs = await Package.find({ 
     $or: [
       { userCode, 
         $or: [
           { status: { $regex: /^delivered$/i } },
-          { status: { $regex: /^archived$/i } },
+          { status: { $regex: /^deleted$/i } },
           { status: { $regex: /delivered/i } },
-          { status: { $regex: /archived/i } }
+          { status: { $regex: /deleted/i } }
         ]
       },
       ...(userId ? [{
         userId: new Types.ObjectId(userId),
         $or: [
           { status: { $regex: /^delivered$/i } },
-          { status: { $regex: /^archived$/i } },
+          { status: { $regex: /^deleted$/i } },
           { status: { $regex: /delivered/i } },
-          { status: { $regex: /archived/i } }
+          { status: { $regex: /deleted/i } }
         ]
       }] : [])
     ]

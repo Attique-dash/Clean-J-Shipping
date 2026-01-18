@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import Invoice from "@/models/Invoice";
 import { getAuthFromRequest } from "@/lib/rbac";
-import { ExportService } from "@/lib/export-service";
 import { Types } from "mongoose";
 
 interface InvoiceItem {
@@ -122,7 +121,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ invoiceN
     };
 
     if (format === 'excel') {
-      // Excel export
+      // Excel export - return data for client-side processing
       const invoiceSummary = {
         'Invoice Number': invoiceData.invoiceNumber,
         'Customer Name': invoiceData.customer.name,
@@ -153,16 +152,23 @@ export async function GET(req: Request, { params }: { params: Promise<{ invoiceN
         'Line Total': `$${item.total.toFixed(2)}`
       }));
 
-      ExportService.toExcelMultiSheet([
-        { name: 'Invoice Summary', data: [invoiceSummary] },
-        { name: 'Invoice Items', data: itemsData }
-      ], `invoice_${invoiceData.invoiceNumber}_complete`);
-
-      return NextResponse.json({ success: true, message: 'Excel download started' });
+      // Return data for client-side Excel generation
+      return NextResponse.json({ 
+        success: true, 
+        format: 'excel',
+        invoice: invoiceData,
+        excelData: {
+          summary: invoiceSummary,
+          items: itemsData
+        }
+      });
     } else {
-      // PDF export
-      ExportService.toInvoicePDF(invoiceData, `invoice_${invoiceData.invoiceNumber}`);
-      return NextResponse.json({ success: true, message: 'PDF download started' });
+      // PDF export - return invoice data for client-side PDF generation
+      return NextResponse.json({ 
+        success: true, 
+        format: 'pdf',
+        invoice: invoiceData 
+      });
     }
 
   } catch (error) {

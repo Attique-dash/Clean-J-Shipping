@@ -45,18 +45,21 @@ export async function GET(req: Request) {
   // Fetch recent bills/invoices (as alerts)
   let recentBills: any[] = [];
   try {
-    recentBills = await Invoice.find({
-      $or: [
-        { userId: userId ? new Types.ObjectId(userId) : undefined },
-        { 'customer.id': userId }
-      ]
-    })
-      .select("invoiceNumber status createdAt total balanceDue")
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .lean();
+    if (userId) {
+      recentBills = await Invoice.find({
+        $or: [
+          { userId: new Types.ObjectId(userId) },
+          { 'customer.id': userId }
+        ]
+      })
+        .select("invoiceNumber status createdAt total balanceDue")
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .lean();
+    }
   } catch (err) {
-    console.error("Error fetching invoices for pre-alerts:", err);
+    console.error("Error fetching recent bills:", err);
+    // Continue without bills if there's an error
     recentBills = [];
   }
   

@@ -383,7 +383,15 @@ export default function CustomerBillsPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Payment failed");
+      if (!res.ok) {
+        // Extract error message from response
+        const errorMessage = data?.error 
+          ? (typeof data.error === 'string' ? data.error : JSON.stringify(data.error))
+          : data?.details 
+          ? (typeof data.details === 'string' ? data.details : JSON.stringify(data.details))
+          : "Payment failed. Please try again.";
+        throw new Error(errorMessage);
+      }
 
       setShowPaymentModal(false);
       setSelectedBill(null);
@@ -412,7 +420,13 @@ export default function CustomerBillsPage() {
       await load();
       toast.success("Payment processed successfully!");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Payment failed");
+      const errorMessage = e instanceof Error 
+        ? e.message 
+        : typeof e === 'string' 
+        ? e 
+        : "Payment failed. Please check your card details and try again.";
+      toast.error(errorMessage);
+      console.error("Payment error:", e);
     } finally {
       setProcessing(false);
     }

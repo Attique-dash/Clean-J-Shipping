@@ -124,21 +124,19 @@ export async function POST(req: Request) {
 
   // Deliver via portal by creating messages for each recipient
   let portalDelivered = 0;
-  let docs: Array<{
-    userCode: string;
-    customer: Types.ObjectId;
-    subject: string;
-    body: string;
-    sender: "support";
-    broadcastId: Types.ObjectId;
-    createdAt: Date;
-    updatedAt: Date;
-  }> = [];
-  
   if (channels.includes("portal") && totalRecipients > 0) {
     try {
       const now = new Date();
-      docs = withUserCode.map((u) => ({
+      const docs: Array<{
+        userCode: string;
+        customer: Types.ObjectId;
+        subject: string;
+        body: string;
+        sender: "support";
+        broadcastId: Types.ObjectId;
+        createdAt: Date;
+        updatedAt: Date;
+      }> = withUserCode.map((u) => ({
         userCode: u.userCode,
         customer: u._id,
         subject: title,

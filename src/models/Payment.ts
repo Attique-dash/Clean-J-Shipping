@@ -1,7 +1,7 @@
 import { Schema, model, models, Types } from "mongoose";
 
 export type PaymentStatus = "initiated" | "authorized" | "captured" | "failed" | "refunded";
-export type PaymentMethod = "visa" | "mastercard" | "amex" | "bank" | "wallet" | "paypal";
+export type PaymentMethod = "visa" | "mastercard" | "amex" | "bank" | "wallet" | "paypal" | "card";
 
 export interface IPayment {
   _id?: string;
@@ -12,6 +12,7 @@ export interface IPayment {
   method: PaymentMethod;
   reference?: string; // merchant-side reference
   gatewayId?: string; // gateway transaction id
+  transactionId?: string; // unique transaction identifier
   status: PaymentStatus;
   trackingNumber?: string;
   meta?: Record<string, unknown>;
@@ -25,9 +26,10 @@ const PaymentSchema = new Schema<IPayment>(
     customer: { type: Schema.Types.ObjectId, ref: "User" },
     amount: { type: Number, required: true },
     currency: { type: String, default: "USD" },
-    method: { type: String, enum: ["visa", "mastercard", "amex", "bank", "wallet", "paypal"], required: true },
+    method: { type: String, enum: ["visa", "mastercard", "amex", "bank", "wallet", "paypal", "card"], required: true },
     reference: { type: String },
     gatewayId: { type: String },
+    transactionId: { type: String, unique: true, required: true }, // Add unique transactionId field
     status: { type: String, enum: ["initiated", "authorized", "captured", "failed", "refunded"], default: "initiated", index: true },
     trackingNumber: { type: String },
     meta: { type: Object },

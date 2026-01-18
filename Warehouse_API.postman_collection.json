@@ -1,0 +1,338 @@
+{
+	"info": {
+		"_postman_id": "warehouse-api-collection",
+		"name": "Clean J Shipping - Warehouse API",
+		"description": "API collection for warehouse integration testing",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Pull Customers",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/warehouse/pullcustomer/subdir?id={{apiKey}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"warehouse",
+						"pullcustomer",
+						"subdir"
+					],
+					"query": [
+						{
+							"key": "id",
+							"value": "{{apiKey}}",
+							"description": "API Token (wh_live_...)"
+						}
+					]
+				},
+				"description": "Retrieve list of all customers with UserCode, names, and branch information"
+			},
+			"response": [],
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response is array\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.be.an('array');",
+							"});",
+							"",
+							"pm.test(\"Customer has UserCode\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    if (jsonData.length > 0) {",
+							"        pm.expect(jsonData[0]).to.have.property('UserCode');",
+							"    }",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Add Package",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-warehouse-key",
+						"value": "{{apiKey}}",
+						"type": "text"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "[\n  {\n    \"TrackingNumber\": \"TRACK123456\",\n    \"UserCode\": \"CUST001\",\n    \"Weight\": 2.5,\n    \"Shipper\": \"Amazon\",\n    \"Description\": \"Electronics\",\n    \"ServiceTypeID\": \"standard\",\n    \"EntryDateTime\": \"2024-01-15T10:00:00Z\",\n    \"ControlNumber\": \"CN123\",\n    \"Branch\": \"Kingston\",\n    \"FirstName\": \"John\",\n    \"LastName\": \"Doe\",\n    \"Cubes\": 0.5,\n    \"Length\": 10,\n    \"Width\": 8,\n    \"Height\": 6,\n    \"Pieces\": 1\n  }\n]",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/warehouse/addpackage/subdir",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"warehouse",
+						"addpackage",
+						"subdir"
+					]
+				},
+				"description": "Add one or more packages to the system. Accepts array of package objects."
+			},
+			"response": [],
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Package added successfully\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.ok).to.be.true;",
+							"    if (jsonData.results && jsonData.results.length > 0) {",
+							"        pm.expect(jsonData.results[0].ok).to.be.true;",
+							"    }",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Edit Package",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-warehouse-key",
+						"value": "{{apiKey}}",
+						"type": "text"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "[\n  {\n    \"TrackingNumber\": \"TRACK123456\",\n    \"UserCode\": \"CUST001\",\n    \"Weight\": 3.0,\n    \"Shipper\": \"Amazon\",\n    \"Description\": \"Updated description\",\n    \"PackageStatus\": \"In Processing\",\n    \"ManifestID\": \"MAN001\",\n    \"EntryDateTime\": \"2024-01-15T10:00:00Z\",\n    \"Branch\": \"Kingston\",\n    \"HSCode\": \"8517.12.00\"\n  }\n]",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/warehouse/editpackage/subdir",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"warehouse",
+						"editpackage",
+						"subdir"
+					]
+				},
+				"description": "Update existing packages. Accepts array of package objects. Adds history entry if status changed."
+			},
+			"response": [],
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Package updated successfully\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.ok).to.be.true;",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			]
+		},
+		{
+			"name": "4. Delete Package (Single)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-warehouse-key",
+						"value": "{{apiKey}}",
+						"type": "text"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"TrackingNumber\": \"TRACK123456\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/warehouse/deletepackage/subdir",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"warehouse",
+						"deletepackage",
+						"subdir"
+					]
+				},
+				"description": "Soft delete a package (status → 'Deleted'). Accepts single object or array."
+			},
+			"response": []
+		},
+		{
+			"name": "5. Delete Package (Multiple)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-warehouse-key",
+						"value": "{{apiKey}}",
+						"type": "text"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "[\n  {\n    \"TrackingNumber\": \"TRACK123456\"\n  },\n  {\n    \"TrackingNumber\": \"TRACK789012\"\n  }\n]",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/warehouse/deletepackage/subdir",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"warehouse",
+						"deletepackage",
+						"subdir"
+					]
+				},
+				"description": "Soft delete multiple packages at once."
+			},
+			"response": []
+		},
+		{
+			"name": "6. Update Manifest",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-warehouse-key",
+						"value": "{{apiKey}}",
+						"type": "text"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"Manifest\": {\n    \"ManifestID\": \"MAN001\",\n    \"CourierID\": \"COURIER01\",\n    \"ServiceTypeID\": \"standard\",\n    \"ManifestStatus\": \"Active\",\n    \"ManifestCode\": \"MC001\",\n    \"FlightDate\": \"2024-01-20T10:00:00Z\",\n    \"Weight\": 150.5,\n    \"ItemCount\": 25,\n    \"ManifestNumber\": 1,\n    \"StaffName\": \"John Smith\",\n    \"EntryDate\": \"2024-01-15T10:00:00Z\",\n    \"AWBNumber\": \"AWB123456\"\n  },\n  \"CollectionCodes\": [\"CN123\", \"CN456\"],\n  \"PackageAWBs\": [\"TRACK123456\", \"TRACK789012\"]\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/warehouse/updatemanifest/subdir",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"warehouse",
+						"updatemanifest",
+						"subdir"
+					]
+				},
+				"description": "Link packages to manifest using tracking numbers or control numbers."
+			},
+			"response": [],
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Manifest updated successfully\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.ok).to.be.true;",
+							"    pm.expect(jsonData).to.have.property('manifestId');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "https://your-domain.vercel.app",
+			"type": "string"
+		},
+		{
+			"key": "apiKey",
+			"value": "wh_live_YOUR_API_KEY_HERE",
+			"type": "string"
+		}
+	]
+}

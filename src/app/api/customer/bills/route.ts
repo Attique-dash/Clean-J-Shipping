@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package, IPackage } from "@/models/Package";
 import Invoice from "@/models/Invoice";
+import { Payment } from "@/models/Payment";
 import { getAuthFromRequest } from "@/lib/rbac";
 import { Types } from "mongoose";
 
@@ -63,6 +64,11 @@ export async function GET(req: Request) {
       payment_status: "submitted" | "reviewed" | "rejected" | "none" | "paid" | "overdue" | "partially_paid";
       document_url?: string;
       last_updated?: string;
+      payment_id?: string;
+      payment_method?: string;
+      due_payment?: number;
+      paid_payment?: number;
+      balance?: number;
     };
 
     // Create bills from admin invoices
@@ -320,12 +326,81 @@ export async function GET(req: Request) {
     });
     
     // Convert map back to array, sorted by last updated date (most recent first)
-    const bills = Array.from(billMap.values())
+    let bills = Array.from(billMap.values())
       .sort((a, b) => {
         const dateA = new Date(a.last_updated || a.invoice_date || 0).getTime();
         const dateB = new Date(b.last_updated || b.invoice_date || 0).getTime();
         return dateB - dateA;
       });
+
+    // Fetch payment information for paid bills to populate Bills History
+    const billTrackingNumbers = bills.map(b => b.tracking_number);
+    const invoiceNumbers = bills.filter(b => b.invoice_number).map(b => b.invoice_number!);
+    
+    let payments: any[] = [];
+    if (billTrackingNumbers.length > 0 || invoiceNumbers.length > 0) {
+      try {
+        payments = await Payment.find({
+          $or: [
+            { trackingNumber: { $in: billTrackingNumbers } },
+            { reference: { $in: invoiceNumbers } }
+          ],
+          status: "captured"
+        })
+        .sort({ createdAt: -1 })
+        .lean();
+      } catch (err) {
+        console.error("Error fetching payments:", err);
+      }
+    }
+
+    // Create a map of payments by tracking number and invoice number
+    const paymentMap = new Map<string, any>();
+    payments.forEach((payment: any) => {
+      if (payment.trackingNumber) {
+        const key = payment.trackingNumber;
+        if (!paymentMap.has(key) || new Date(payment.createdAt) > new Date(paymentMap.get(key).createdAt)) {
+          paymentMap.set(key, payment);
+        }
+      }
+      if (payment.reference && payment.reference.startsWith('INV-')) {
+        const key = `invoice-${payment.reference}`;
+        if (!paymentMap.has(key) || new Date(payment.createdAt) > new Date(paymentMap.get(key).createdAt)) {
+          paymentMap.set(key, payment);
+        }
+      }
+    });
+
+    // Enrich bills with payment information
+    bills = bills.map(bill => {
+      const paymentByTracking = paymentMap.get(bill.tracking_number);
+      const paymentByInvoice = bill.invoice_number ? paymentMap.get(`invoice-${bill.invoice_number}`) : null;
+      const payment = paymentByInvoice || paymentByTracking;
+
+      if (payment) {
+        return {
+          ...bill,
+          payment_id: payment._id?.toString() || payment.transactionId || payment.gatewayId,
+          payment_method: payment.method || 'card',
+        };
+      }
+      return bill;
+    });
+
+    // Calculate balance, due_payment, and paid_payment for each bill
+    bills = bills.map(bill => {
+      // For paid bills, amount_due should be 0, but we keep the original total for history
+      const totalAmount = bill.amount_due;
+      const paidAmount = bill.payment_status === 'paid' ? totalAmount : 0;
+      const balance = bill.payment_status === 'paid' ? 0 : bill.amount_due;
+
+      return {
+        ...bill,
+        due_payment: bill.payment_status === 'paid' ? totalAmount : bill.amount_due,
+        paid_payment: paidAmount,
+        balance: balance,
+      };
+    });
     
     return NextResponse.json({ bills });
   } catch (error) {

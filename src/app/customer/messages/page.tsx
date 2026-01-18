@@ -44,7 +44,7 @@ export default function CustomerMessagesPage() {
     load();
     const id = setInterval(() => {
       load();
-    }, 60000); // Increased from 30 seconds to 60 seconds to reduce frequent loading
+    }, 30000);
     return () => clearInterval(id);
   }, []);
 
@@ -70,20 +70,15 @@ export default function CustomerMessagesPage() {
       });
     }
     
-    // Handle regular messages - group all non-broadcast messages under "Support Team"
-    if (regularMessages.length > 0) {
-      const supportMessages = regularMessages;
-      const latestSupportMessage = supportMessages[0]; // Most recent message
-      const unreadCount = supportMessages.filter(m => !m.read).length;
-      
-      map.set("Support Team", {
-        key: "Support Team",
-        title: "Support Team",
-        lastAt: latestSupportMessage.createdAt,
-        unread: unreadCount,
-        lastMessage: latestSupportMessage.body,
-        isBroadcast: false
-      });
+    // Handle regular messages
+    for (const m of regularMessages) {
+      const key = (m.subject || "Support Team").trim() || "Support Team";
+      const cur = map.get(key) || { key, title: key, lastAt: m.createdAt, unread: 0, lastMessage: m.body, isBroadcast: false };
+      if (!cur.lastAt || (m.createdAt && new Date(m.createdAt) > new Date(cur.lastAt))) {
+        cur.lastAt = m.createdAt;
+        cur.lastMessage = m.body;
+      }
+      map.set(key, cur);
     }
     
     // Filter by search query
@@ -112,12 +107,8 @@ export default function CustomerMessagesPage() {
       return items.filter(m => m.broadcastId);
     }
     
-    // Handle Support Team thread - return all non-broadcast messages
-    if (key === "Support Team") {
-      return items.filter(m => !m.broadcastId);
-    }
-    
-    return [];
+    // Handle regular threads
+    return items.filter((m) => !m.broadcastId && (m.subject || "Support Team").trim() === key);
   }, [items, conversations, activeKey]);
 
   function dismissBroadcast(broadcastId: string) {

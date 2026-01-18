@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 
 const EMAIL_USER = process.env.EMAIL_USER;
-const EMAIL_PASS = process.env.EMAIL_PASS;
+const EMAIL_PASS = process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD; // Support both variable names
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Clean J Shipping";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
@@ -9,13 +9,21 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 let transporter: nodemailer.Transporter | null = null;
 
 function getTransporter() {
-  if (!EMAIL_USER || !EMAIL_PASS) return null;
+  if (!EMAIL_USER || !EMAIL_PASS) {
+    console.warn("Email not configured: EMAIL_USER or EMAIL_PASS/EMAIL_PASSWORD missing");
+    return null;
+  }
   if (transporter) return transporter;
-  transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
-  });
-  return transporter;
+  try {
+    transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+    });
+    return transporter;
+  } catch (error) {
+    console.error("Failed to create email transporter:", error);
+    return null;
+  }
 }
 
 export async function sendPaymentReceiptEmail(opts: {
@@ -53,8 +61,15 @@ export async function sendPaymentReceiptEmail(opts: {
     </table>
     <p style="margin-top:16px">If you have any questions, reply to this email.</p>
   </div>`;
-  await t.sendMail({ from: EMAIL_USER, to, subject, html });
-  return { sent: true } as const;
+  try {
+    await t.sendMail({ from: EMAIL_USER, to, subject, html });
+    return { sent: true } as const;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("Email send error:", errorMessage);
+    // Return failure but don't throw - let caller handle it
+    return { sent: false, reason: errorMessage } as const;
+  }
 }
 
 export async function sendPasswordResetEmail(opts: {
