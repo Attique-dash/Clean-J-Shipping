@@ -6,6 +6,7 @@ import User from '@/models/User';
 import Invoice from '@/models/Invoice';
 import { ApiKey, hashApiKey } from '@/models/ApiKey';
 import { rateLimit } from '@/lib/rateLimit';
+import { getAuthFromRequest } from '@/lib/rbac';
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';

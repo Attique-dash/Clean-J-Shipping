@@ -3,6 +3,8 @@ import { dbConnect } from "@/lib/db";
 import { Inventory } from "@/models/Inventory";
 import { ApiKey, hashApiKey } from "@/models/ApiKey";
 import { rateLimit } from "@/lib/rateLimit";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

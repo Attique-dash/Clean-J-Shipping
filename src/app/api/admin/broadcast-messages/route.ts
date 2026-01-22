@@ -125,27 +125,28 @@ export async function POST(req: Request) {
   // Deliver via portal by creating messages for each recipient
   let portalDelivered = 0;
   if (channels.includes("portal") && totalRecipients > 0) {
+    const now = new Date();
+    const docs: Array<{
+      userCode: string;
+      customer: Types.ObjectId;
+      subject: string;
+      body: string;
+      sender: "support";
+      broadcastId: Types.ObjectId;
+      createdAt: Date;
+      updatedAt: Date;
+    }> = withUserCode.map((u) => ({
+      userCode: u.userCode,
+      customer: u._id,
+      subject: title,
+      body,
+      sender: "support",
+      broadcastId: created._id,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    
     try {
-      const now = new Date();
-      const docs: Array<{
-        userCode: string;
-        customer: Types.ObjectId;
-        subject: string;
-        body: string;
-        sender: "support";
-        broadcastId: Types.ObjectId;
-        createdAt: Date;
-        updatedAt: Date;
-      }> = withUserCode.map((u) => ({
-        userCode: u.userCode,
-        customer: u._id,
-        subject: title,
-        body,
-        sender: "support",
-        broadcastId: created._id,
-        createdAt: now,
-        updatedAt: now,
-      }));
       const res = await Message.insertMany(docs, { ordered: false });
       portalDelivered = res.length;
       console.log(`[Broadcast] Created ${portalDelivered} portal messages for ${totalRecipients} recipients`);
