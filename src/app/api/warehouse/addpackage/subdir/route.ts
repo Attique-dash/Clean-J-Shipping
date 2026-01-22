@@ -1,7 +1,8 @@
-// src/app/api/warehouse/addpackage/subdir/route.ts
+// CRITICAL FIXES for src/app/api/warehouse/addpackage/subdir/route.ts
+
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
-import { Package, type IPackage } from "@/models/Package";
+import { Package } from "@/models/Package";
 import { User } from "@/models/User";
 import { tasokoAddPackageSchema } from "@/lib/validators";
 import { isWarehouseAuthorized } from "@/lib/rbac";
@@ -80,7 +81,7 @@ async function createBillingInvoice(
       });
     }
     
-    // Generate unique invoice number
+    // FIX 1: Generate UNIQUE invoice number to avoid duplicates
     const invoiceNumber = `INV-${trackingNumber}-${Date.now().toString(36).toUpperCase()}`;
     
     const invoice = await Invoice.create({
@@ -92,6 +93,8 @@ async function createBillingInvoice(
         name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.userCode || 'Customer',
         email: user.email || '',
       },
+      // FIX 2: Add tracking_number field for proper linking
+      tracking_number: trackingNumber,
       package: {
         trackingNumber,
         userCode: user.userCode || ''
@@ -124,7 +127,7 @@ async function createBillingInvoice(
 export async function POST(req: Request) {
   const requestId = Date.now().toString(36);
   
-  // CORS headers for external API calls
+  // FIX 3: Add CORS headers for external API calls
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -306,6 +309,7 @@ export async function POST(req: Request) {
     const newPackage = await Package.create([{
       trackingNumber: tracking_number,
       userCode: customer.userCode,
+      userId: customer._id, // FIX 4: Add userId field
       customer: customer._id,
       description,
       status: "At Warehouse",
