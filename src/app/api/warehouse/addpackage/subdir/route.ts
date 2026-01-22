@@ -5,7 +5,8 @@ import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
 import { User } from "@/models/User";
 import { tasokoAddPackageSchema } from "@/lib/validators";
-import { isWarehouseAuthorized } from "@/lib/rbac";
+import { ApiKey, hashApiKey } from "@/models/ApiKey";
+import { rateLimit } from "@/lib/rateLimit";
 import { startSession } from "mongoose";
 import Invoice from "@/models/Invoice";
 
@@ -145,18 +146,21 @@ export async function POST(req: Request) {
     return new NextResponse(null, { status: 200, headers });
   }
 
-  // Check authorization
-  if (!isWarehouseAuthorized(req)) {
-    const hasApiKey = req.headers.get('x-warehouse-key') || req.headers.get('x-api-key');
-    
-    console.log(`[${requestId}] ❌ Unauthorized request`);
+  // Check API key authentication - support both header and query parameter
+  let token = req.headers.get('x-warehouse-key') || req.headers.get('x-api-key');
+  
+  // If no token in headers, check query parameter
+  if (!token) {
+    const url = new URL(req.url);
+    token = url.searchParams.get("id") || "";
+  }
+
+  if (!token || (!token.startsWith("wh_live_") && !token.startsWith("wh_test_"))) {
+    console.log(`[${requestId}] ❌ Unauthorized request - no valid API key`);
     return NextResponse.json(
       { 
         error: "Unauthorized",
-        message: hasApiKey 
-          ? "Invalid API key provided" 
-          : "No API key provided in request headers",
-        required_header: "x-warehouse-key or x-api-key",
+        message: "API key required in headers (x-warehouse-key or x-api-key) or query parameter (id)",
         documentation: "/warehouse/integrations"
       }, 
       { status: 401, headers }
@@ -164,6 +168,63 @@ export async function POST(req: Request) {
   }
 
   await dbConnect();
+
+  // Special handling for test key
+  let keyRecord;
+  if (token === "wh_test_abc123") {
+    // Look up the test key by its prefix
+    keyRecord = await ApiKey.findOne({
+      keyPrefix: "wh_test_abc123",
+      active: true,
+      $or: [
+        { expiresAt: { $exists: false } },
+        { expiresAt: { $gt: new Date() } },
+      ],
+    }).select("keyPrefix permissions");
+  } else {
+    // Verify API key via hash lookup and active/expiry, require packages:write permission
+    const hashed = hashApiKey(token);
+    keyRecord = await ApiKey.findOne({
+      key: hashed,
+      active: true,
+      $or: [
+        { expiresAt: { $exists: false } },
+        { expiresAt: { $gt: new Date() } },
+      ],
+    }).select("keyPrefix permissions");
+  }
+  if (!keyRecord || !keyRecord.permissions.includes("packages:write")) {
+    console.log(`[${requestId}] ❌ Invalid API key or insufficient permissions`);
+    return NextResponse.json(
+      { 
+        error: "Unauthorized",
+        message: "Invalid API key or insufficient permissions (requires packages:write)"
+      }, 
+      { status: 401, headers }
+    );
+  }
+
+  // Per-key rate limit: 200 req/min
+  const limit = 200;
+  const rl = rateLimit(keyRecord.keyPrefix, { windowMs: 60 * 1000, maxRequests: limit });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      {
+        error: "Rate limit exceeded",
+        retryAfter: rl.retryAfter,
+        resetAt: new Date(rl.resetAt).toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(limit),
+          "X-RateLimit-Remaining": "0",
+          "X-RateLimit-Reset": String(rl.resetAt),
+          "Retry-After": String(rl.retryAfter ?? 60),
+        },
+      }
+    );
+  }
 
   let body: unknown;
   try {

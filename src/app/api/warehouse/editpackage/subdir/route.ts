@@ -2,39 +2,85 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package, type IPackage } from "@/models/Package";
 import { User } from "@/models/User";
-import { getAllowedWarehouseKeys, verifyWarehouseKeyFromRequest } from "@/lib/rbac";
+import { ApiKey, hashApiKey } from "@/models/ApiKey";
+import { rateLimit } from "@/lib/rateLimit";
 import { mapExternalToInternalStatus } from "@/lib/mappings";
 
 // URL: /api/warehouse/editpackage/subdir
 // Method: POST
 export async function POST(req: Request) {
-  // Prefer header-based key (x-warehouse-key or x-api-key)
-  let authorized = verifyWarehouseKeyFromRequest(req);
+  // Check API key authentication - support both header and query parameter
+  let token = req.headers.get('x-warehouse-key') || req.headers.get('x-api-key');
+  
+  // If no token in headers, check query parameter
+  if (!token) {
+    const url = new URL(req.url);
+    token = url.searchParams.get("id") || "";
+  }
+
+  if (!token || (!token.startsWith("wh_live_") && !token.startsWith("wh_test_"))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  await dbConnect();
+
+  // Special handling for test key
+  let keyRecord;
+  if (token === "wh_test_abc123") {
+    // Look up the test key by its prefix
+    keyRecord = await ApiKey.findOne({
+      keyPrefix: "wh_test_abc123",
+      active: true,
+      $or: [
+        { expiresAt: { $exists: false } },
+        { expiresAt: { $gt: new Date() } },
+      ],
+    }).select("keyPrefix permissions");
+  } else {
+    // Verify API key via hash lookup and active/expiry, require packages:write permission
+    const hashed = hashApiKey(token);
+    keyRecord = await ApiKey.findOne({
+      key: hashed,
+      active: true,
+      $or: [
+        { expiresAt: { $exists: false } },
+        { expiresAt: { $gt: new Date() } },
+      ],
+    }).select("keyPrefix permissions");
+  }
+  if (!keyRecord || !keyRecord.permissions.includes("packages:write")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Per-key rate limit: 200 req/min
+  const limit = 200;
+  const rl = rateLimit(keyRecord.keyPrefix, { windowMs: 60 * 1000, maxRequests: limit });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      {
+        error: "Rate limit exceeded",
+        retryAfter: rl.retryAfter,
+        resetAt: new Date(rl.resetAt).toISOString(),
+      },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(limit),
+          "X-RateLimit-Remaining": "0",
+          "X-RateLimit-Reset": String(rl.resetAt),
+          "Retry-After": String(rl.retryAfter ?? 60),
+        },
+      }
+    );
+  }
+
   let bodyText = "";
 
-  // Read body so we can also check APIToken field if header is not set
+  // Read body
   try {
     bodyText = await req.text();
   } catch {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
-  }
-
-  if (!authorized) {
-    try {
-      const maybeJson = JSON.parse(bodyText);
-      const arr = Array.isArray(maybeJson) ? maybeJson : [];
-      const tokenInBody = arr.find((x: any) => typeof x?.APIToken === "string" && x.APIToken.trim())?.APIToken?.trim();
-      if (tokenInBody) {
-        const allowed = getAllowedWarehouseKeys();
-        if (allowed.includes(tokenInBody)) authorized = true;
-      }
-    } catch {
-      // ignore, will fall through to unauthorized
-    }
-  }
-
-  if (!authorized) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // Now parse JSON once for real

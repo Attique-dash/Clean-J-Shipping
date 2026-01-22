@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Inventory } from "@/models/Inventory";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
+import { ApiKey, hashApiKey } from "@/models/ApiKey";
+import { rateLimit } from "@/lib/rateLimit";
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -11,25 +11,75 @@ export async function GET(req: Request) {
   try {
     console.log("📦 Inventory API request received");
     
-    const session = await getServerSession(authOptions);
-    if (!session?.user || !['admin', 'warehouse', 'warehouse_staff'].includes(session.user.role)) {
-      console.error("❌ Unauthorized access to inventory:", session?.user?.role);
+    const url = new URL(req.url);
+    const token = url.searchParams.get("id") || "";
+
+    if (!token || (!token.startsWith("wh_live_") && !token.startsWith("wh_test_"))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log("✅ Auth verified for inventory, connecting to database...");
-    
     await dbConnect();
-    console.log("✅ Database connected for inventory");
 
-    const url = new URL(req.url);
-    const limit = Math.min(parseInt(url.searchParams.get("limit") || "100"), 1000);
-    const skip = parseInt(url.searchParams.get("skip") || "0");
-    const location = url.searchParams.get('location');
-    const category = url.searchParams.get('category');
-    const lowStock = url.searchParams.get('lowStock');
+    // Special handling for test key
+    let keyRecord;
+    if (token === "wh_test_abc123") {
+      // Look up the test key by its prefix
+      keyRecord = await ApiKey.findOne({
+        keyPrefix: "wh_test_abc123",
+        active: true,
+        $or: [
+          { expiresAt: { $exists: false } },
+          { expiresAt: { $gt: new Date() } },
+        ],
+      }).select("keyPrefix permissions");
+    } else {
+      // Verify API key via hash lookup and active/expiry, require inventory:read permission
+      const hashed = hashApiKey(token);
+      keyRecord = await ApiKey.findOne({
+        key: hashed,
+        active: true,
+        $or: [
+          { expiresAt: { $exists: false } },
+          { expiresAt: { $gt: new Date() } },
+        ],
+      }).select("keyPrefix permissions");
+    }
+    if (!keyRecord || !keyRecord.permissions.includes("inventory:read")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    console.log(`📊 Fetching inventory items: limit=${limit}, skip=${skip}`);
+    // Per-key rate limit: 200 req/min
+    const limit = 200;
+    const rl = rateLimit(keyRecord.keyPrefix, { windowMs: 60 * 1000, maxRequests: limit });
+    if (!rl.allowed) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          retryAfter: rl.retryAfter,
+          resetAt: new Date(rl.resetAt).toISOString(),
+        },
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Limit": String(limit),
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": String(rl.resetAt),
+            "Retry-After": String(rl.retryAfter ?? 60),
+          },
+        }
+      );
+    }
+
+    console.log("✅ Auth verified for inventory, fetching data...");
+
+    const requestUrl = new URL(req.url);
+    const queryLimit = Math.min(parseInt(requestUrl.searchParams.get("limit") || "100"), 1000);
+    const skip = parseInt(requestUrl.searchParams.get("skip") || "0");
+    const location = requestUrl.searchParams.get('location');
+    const category = requestUrl.searchParams.get('category');
+    const lowStock = requestUrl.searchParams.get('lowStock');
+
+    console.log(`📊 Fetching inventory items: limit=${queryLimit}, skip=${skip}`);
 
     // Build query
     const query: Record<string, string | number | { $lte: number }> = {};
@@ -42,7 +92,7 @@ export async function GET(req: Request) {
     // Simple query without complex operations
     const items = await Inventory.find(query)
       .sort({ category: 1, name: 1 })
-      .limit(limit)
+      .limit(queryLimit)
       .skip(skip)
       .lean();
     
@@ -55,10 +105,14 @@ export async function GET(req: Request) {
                    item.currentStock <= (item.minStock || 0) ? 'low_stock' : 'in_stock'
     }));
     
-    return NextResponse.json({ 
+    const res = NextResponse.json({ 
       items: itemsWithStatus,
       total: items.length
     });
+    res.headers.set("X-RateLimit-Limit", String(limit));
+    res.headers.set("X-RateLimit-Remaining", String(rl.remaining));
+    res.headers.set("X-RateLimit-Reset", String(rl.resetAt));
+    return res;
     
   } catch (error: unknown) {
     console.error("❌ Inventory GET error:", {

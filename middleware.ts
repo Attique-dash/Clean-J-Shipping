@@ -17,6 +17,7 @@ const publicRoutes = [
   '/customs-policy',
   '/',
   '/api/auth/',
+  '/api/warehouse/',
   '/_next',
   '/images',
   '/fonts'
