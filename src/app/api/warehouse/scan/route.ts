@@ -43,9 +43,9 @@ export async function GET(req: Request) {
 
     // Format response
     const packageData = {
-      _id: pkg._id?.toString(),
-      trackingNumber: pkg.trackingNumber,
-      status: pkg.status || "Unknown",
+      _id: (pkg as any)._id?.toString(),
+      trackingNumber: (pkg as any).trackingNumber,
+      status: (pkg as any).status || "Unknown",
       description: (pkg as any).description,
       weight: (pkg as any).weight,
       sender: (pkg as any).sender,

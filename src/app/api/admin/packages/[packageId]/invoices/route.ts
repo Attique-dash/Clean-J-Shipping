@@ -11,8 +11,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ packageI
   const pkg = await Package.findById(packageId).select("invoiceNumber trackingNumber").lean();
   if (!pkg) return NextResponse.json({ error: "Package not found" }, { status: 404 });
   return NextResponse.json({
-    tracking_number: pkg.trackingNumber,
-    invoice_number: pkg.invoiceNumber || null,
+    tracking_number: (pkg as any).trackingNumber,
+    invoice_number: (pkg as any).invoiceNumber || null,
   });
 }
 
@@ -32,11 +32,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ packag
   const pkg = await Package.findById(packageId).select("invoiceNumber");
   if (!pkg) return NextResponse.json({ error: "Package not found" }, { status: 404 });
   
-  if (!pkg.invoiceNumber) {
+  if (!(pkg as any).invoiceNumber) {
     return NextResponse.json({ error: "No invoice number found for this package" }, { status: 400 });
   }
   
   // For now, just return success since we're not updating an array of records
   // The invoiceNumber is a single field, not an array of records
-  return NextResponse.json({ ok: true, invoice_number: pkg.invoiceNumber, status: data.status });
+  return NextResponse.json({ ok: true, invoice_number: (pkg as any).invoiceNumber, status: data.status });
 }

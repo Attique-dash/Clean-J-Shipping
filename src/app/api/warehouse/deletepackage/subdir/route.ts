@@ -1,266 +1,200 @@
-// Warehouse Delete Package Endpoint
+// Warehouse Delete Package Endpoint (Alternative)
 // URL: /api/warehouse/deletepackage/subdir
 // Method: POST
-// Accepts array of package objects with complete warehouse data structure
+// Uses API key authentication (x-warehouse-key header or id query parameter)
 
-import { NextResponse } from "next/server";
+import { TasokoAuthenticator } from "@/lib/tasoko-auth";
+import { TasokoRateLimiter } from "@/lib/tasoko-rate-limit";
+import { TasokoResponseFormatter } from "@/lib/tasoko-response";
 import { dbConnect } from "@/lib/db";
-import { Package } from "@/models/Package";
-import { ApiKey, hashApiKey } from "@/models/ApiKey";
-import { rateLimit } from "@/lib/rateLimit";
+import Package from "@/models/Package";
+import User from "@/models/User";
+import { startSession } from "mongoose";
 
-interface WarehousePackage {
-  PackageID: string;
-  CourierID: string;
-  ManifestID: string;
-  CollectionID: string;
-  TrackingNumber: string;
-  ControlNumber: string;
-  FirstName: string;
-  LastName: string;
-  UserCode: string;
-  Weight: number;
-  Shipper: string;
-  EntryStaff: string;
-  EntryDate: string;
-  EntryDateTime: string;
-  Branch: string;
-  Claimed: boolean;
-  APIToken: string;
-  ShowControls: boolean;
-  Description: string;
-  HSCode: string;
-  Unknown: boolean;
-  AIProcessed: boolean;
-  OriginalHouseNumber: string;
-  Cubes: number;
-  Length: number;
-  Width: number;
-  Height: number;
-  Pieces: number;
-  Discrepancy: boolean;
-  DiscrepancyDescription: string;
-  ServiceTypeID: string;
-  HazmatCodeID: string;
-  Coloaded: boolean;
-  ColoadIndicator: string;
-  PackageStatus: number;
-  PackagePayments: string;
+export async function OPTIONS(request: Request) {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, x-warehouse-key, x-api-key',
+    },
+  });
 }
 
-export async function POST(req: Request) {
-  const requestId = Date.now().toString(36);
-  
-  // CORS headers for external API calls
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, x-warehouse-key, x-api-key',
-  };
-
-  console.log(`[${requestId}] 📦 Warehouse Delete Package API Request:`, {
-    method: req.method,
-    url: req.url,
-    timestamp: new Date().toISOString()
-  });
-
-  // Check API key authentication
-  let token = req.headers.get('x-warehouse-key') || req.headers.get('x-api-key');
-  
-  if (!token) {
-    const url = new URL(req.url);
-    token = url.searchParams.get("id") || "";
-  }
-
-  if (!token || (!token.startsWith("wh_live_") && !token.startsWith("wh_test_"))) {
-    console.log(`[${requestId}] ❌ Unauthorized request - no valid API key`);
-    return NextResponse.json(
-      { 
-        error: "Unauthorized",
-        message: "API key required in headers (x-warehouse-key or x-api-key) or query parameter (id)"
-      }, 
-      { status: 401, headers }
-    );
-  }
-
-  await dbConnect();
-
-  // Verify API key
-  let keyRecord;
-  if (token === "wh_test_abc123") {
-    keyRecord = await ApiKey.findOne({
-      keyPrefix: "wh_test_abc123",
-      active: true,
-      $or: [
-        { expiresAt: { $exists: false } },
-        { expiresAt: { $gt: new Date() } },
-      ],
-    }).select("keyPrefix permissions");
-  } else {
-    const hashed = hashApiKey(token);
-    keyRecord = await ApiKey.findOne({
-      key: hashed,
-      active: true,
-      $or: [
-        { expiresAt: { $exists: false } },
-        { expiresAt: { $gt: new Date() } },
-      ],
-    }).select("keyPrefix permissions");
-  }
-  
-  if (!keyRecord || !keyRecord.permissions.includes("packages:write")) {
-    console.log(`[${requestId}] ❌ Invalid API key or insufficient permissions`);
-    return NextResponse.json(
-      { 
-        error: "Unauthorized",
-        message: "Invalid API key or insufficient permissions (requires packages:write)"
-      }, 
-      { status: 401, headers }
-    );
-  }
-
-  // Rate limiting
-  const limit = 200;
-  const rl = rateLimit(keyRecord.keyPrefix, { windowMs: 60 * 1000, maxRequests: limit });
-  if (!rl.allowed) {
-    return NextResponse.json(
-      {
-        error: "Rate limit exceeded",
-        retryAfter: rl.retryAfter,
-        resetAt: new Date(rl.resetAt).toISOString(),
-      },
-      {
-        status: 429,
-        headers: {
-          "X-RateLimit-Limit": String(limit),
-          "X-RateLimit-Remaining": "0",
-          "X-RateLimit-Reset": String(rl.resetAt),
-          "Retry-After": String(rl.retryAfter ?? 60),
-        },
-      }
-    );
-  }
-
-  let bodyText = "";
-
+export async function POST(request: Request) {
   try {
-    bodyText = await req.text();
-  } catch {
-    return NextResponse.json({ error: "Invalid body" }, { status: 400, headers });
-  }
-
-  let payload: any;
-  try {
-    payload = bodyText ? JSON.parse(bodyText) : null;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400, headers });
-  }
-
-  const items: any[] = Array.isArray(payload) ? payload : payload && typeof payload === "object" ? [payload] : [];
-  if (items.length === 0) {
-    return NextResponse.json({ error: "Payload must be an object or array with TrackingNumber" }, { status: 400, headers });
-  }
-
-  // Extract tracking numbers and store complete warehouse data
-  const trackingNumbers = items
-    .map((x) => (typeof x?.TrackingNumber === "string" ? x.TrackingNumber.trim() : ""))
-    .filter((t) => !!t);
-
-  if (trackingNumbers.length === 0) {
-    return NextResponse.json({ error: "No TrackingNumber values found" }, { status: 400, headers });
-  }
-
-  await dbConnect();
-  const now = new Date();
-
-  // Perform soft-delete (status: Deleted) and add a history entry
-  const results: { trackingNumber: string; ok: boolean; error?: string }[] = [];
-
-  for (const item of items) {
-    const trackingNumber = String(item?.TrackingNumber || "").trim();
-    
-    if (!trackingNumber) {
-      results.push({ trackingNumber: '', ok: false, error: "Missing TrackingNumber" });
-      continue;
+    // Extract and validate API token
+    const token = TasokoAuthenticator.extractToken(request);
+    if (!token) {
+      const response = TasokoResponseFormatter.error(
+        'API key required in headers (x-warehouse-key or x-api-key) or query parameter (id)',
+        401
+      );
+      return TasokoResponseFormatter.toJSON(response);
     }
+
+    // Validate token against database
+    const authResult = await TasokoAuthenticator.validateToken(token);
+    if (!authResult.valid) {
+      const response = TasokoResponseFormatter.error(
+        authResult.error || 'Invalid API key',
+        401
+      );
+      return TasokoResponseFormatter.toJSON(response);
+    }
+
+    // Check permissions
+    if (!TasokoAuthenticator.hasPermission(authResult.keyRecord, 'packages:write')) {
+      const response = TasokoResponseFormatter.error(
+        'Insufficient permissions (requires packages:write)',
+        403
+      );
+      return TasokoResponseFormatter.toJSON(response);
+    }
+
+    // Rate limiting
+    const rateLimitResult = TasokoRateLimiter.isAllowed(authResult.keyRecord.keyPrefix);
+    if (!rateLimitResult.allowed) {
+      const response = TasokoResponseFormatter.error(
+        'Rate limit exceeded',
+        429,
+        {
+          retryAfter: Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000),
+          remaining: rateLimitResult.remaining
+        }
+      );
+      return TasokoResponseFormatter.toJSON(response);
+    }
+
+    await dbConnect();
+
+    // Parse request body
+    let packagesData: any[];
+    try {
+      packagesData = await request.json();
+      if (!Array.isArray(packagesData)) {
+        const response = TasokoResponseFormatter.error(
+          'Request body must be an array of packages',
+          400
+        );
+        return TasokoResponseFormatter.toJSON(response);
+      }
+    } catch (error) {
+      const response = TasokoResponseFormatter.error(
+        'Invalid JSON in request body',
+        400
+      );
+      return TasokoResponseFormatter.toJSON(response);
+    }
+
+    const session = await startSession();
+    const results = [];
+    let processed = 0;
+    let successful = 0;
+    let failed = 0;
 
     try {
-      // Store warehouse data before deletion
-      const warehouseData = JSON.stringify({
-        PackageID: item.PackageID,
-        CourierID: item.CourierID,
-        ManifestID: item.ManifestID,
-        CollectionID: item.CollectionID,
-        ControlNumber: item.ControlNumber,
-        FirstName: item.FirstName,
-        LastName: item.LastName,
-        UserCode: item.UserCode,
-        Shipper: item.Shipper,
-        EntryStaff: item.EntryStaff,
-        EntryDate: item.EntryDate,
-        EntryDateTime: item.EntryDateTime,
-        Branch: item.Branch,
-        Claimed: item.Claimed,
-        APIToken: item.APIToken,
-        ShowControls: item.ShowControls,
-        Description: item.Description,
-        HSCode: item.HSCode,
-        Unknown: item.Unknown,
-        AIProcessed: item.AIProcessed,
-        OriginalHouseNumber: item.OriginalHouseNumber,
-        Cubes: item.Cubes,
-        Length: item.Length,
-        Width: item.Width,
-        Height: item.Height,
-        Pieces: item.Pieces,
-        Discrepancy: item.Discrepancy,
-        DiscrepancyDescription: item.DiscrepancyDescription,
-        ServiceTypeID: item.ServiceTypeID,
-        HazmatCodeID: item.HazmatCodeID,
-        Coloaded: item.Coloaded,
-        ColoadIndicator: item.ColoadIndicator,
-        PackageStatus: item.PackageStatus,
-        PackagePayments: item.PackagePayments,
-        deleted_at: now.toISOString()
-      });
+      await session.startTransaction();
 
-      const res = await Package.findOneAndUpdate(
-        { trackingNumber },
-        {
-          $set: { 
-            status: "Deleted", 
-            updatedAt: now,
-            packagePayments: warehouseData // Store complete warehouse data
-          },
-          $push: { 
-            history: { 
-              status: "Deleted", 
-              at: now, 
-              note: `Deleted via external warehouse deletepackage endpoint - PackageID: ${item.PackageID}` 
-            } 
-          },
-        },
-        { new: true }
-      );
-      
-      if (!res) {
-        results.push({ trackingNumber, ok: false, error: "Package not found" });
-      } else {
-        results.push({ trackingNumber, ok: true });
+      for (const pkgData of packagesData) {
+        processed++;
+        
+        try {
+          const {
+            PackageID,
+            TrackingNumber,
+            UserCode
+          } = pkgData;
+
+          // Validate required fields
+          if (!TrackingNumber || !UserCode) {
+            results.push({
+              package_id: PackageID || 'unknown',
+              trackingNumber: TrackingNumber || 'unknown',
+              ok: false,
+              error: 'Missing required fields: TrackingNumber and UserCode'
+            });
+            failed++;
+            continue;
+          }
+
+          // Check if customer exists
+          const customer = await User.findOne({ 
+            userCode: UserCode, 
+            role: "customer" 
+          }).session(session);
+
+          if (!customer) {
+            results.push({
+              package_id: PackageID || 'unknown',
+              trackingNumber: TrackingNumber,
+              ok: false,
+              error: 'Customer not found'
+            });
+            failed++;
+            continue;
+          }
+
+          // Find and delete package
+          const pkg = await Package.findOneAndDelete({
+            trackingNumber: TrackingNumber,
+            userCode: UserCode
+          }).session(session);
+
+          if (!pkg) {
+            results.push({
+              package_id: PackageID || 'unknown',
+              trackingNumber: TrackingNumber,
+              ok: false,
+              error: 'Package not found'
+            });
+            failed++;
+            continue;
+          }
+
+          results.push({
+            package_id: pkg._id,
+            trackingNumber: TrackingNumber,
+            ok: true
+          });
+          successful++;
+
+        } catch (error) {
+          results.push({
+            package_id: pkgData.PackageID || 'unknown',
+            trackingNumber: pkgData.TrackingNumber || 'unknown',
+            ok: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+          failed++;
+        }
       }
-    } catch (err: any) {
-      results.push({ trackingNumber, ok: false, error: err?.message || "Unknown error" });
-    }
-  }
 
-  return NextResponse.json({ 
-    ok: true, 
-    processed: results.length, 
-    results,
-    message: "Warehouse packages deleted successfully",
-    _meta: {
-      request_id: requestId,
-      api_version: "v1"
+      await session.commitTransaction();
+
+      const response = TasokoResponseFormatter.success({
+        processed,
+        successful,
+        failed,
+        results
+      }, `${successful} packages deleted successfully`);
+
+      return TasokoResponseFormatter.toJSON(response);
+
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      await session.endSession();
     }
-  }, { headers });
+
+  } catch (error) {
+    const response = TasokoResponseFormatter.error(
+      'Internal server error',
+      500,
+      error instanceof Error ? error.message : 'Unknown error'
+    );
+    return TasokoResponseFormatter.toJSON(response);
+  }
 }

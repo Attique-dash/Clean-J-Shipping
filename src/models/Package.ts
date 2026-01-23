@@ -1,5 +1,5 @@
 // src/models/Package.ts
-import mongoose, { Document, Schema } from 'mongoose';
+import { Schema, model, models, Document, Types } from "mongoose";
 
 export type PackageStatus =
   | 'pending'
@@ -41,7 +41,7 @@ export interface IPackage extends Document {
   barcode?: string;
   
   // Customer Information
-  userId: mongoose.Types.ObjectId;
+  userId: Types.ObjectId;
   customerNotes?: string;
   
   // Sender Information
@@ -184,7 +184,7 @@ export interface IPackage extends Document {
   
   // Missing fields from errors
   userCode?: string;
-  customer?: mongoose.Types.ObjectId;
+  customer?: Types.ObjectId;
   entryDate?: Date;
   description?: string;
   origin?: {
@@ -216,7 +216,6 @@ export interface IPackage extends Document {
     paymentDate?: Date;
   }>;
   invoiceDocuments?: unknown[];
-  packagePayments?: string;
   history?: Array<{
     status: string;
     at: Date;
@@ -520,8 +519,8 @@ PackageSchema.index({ createdAt: -1 });
 PackageSchema.index({ currentLocation: 1 });
 
 const PackageModel =
-  (mongoose.models.Package as mongoose.Model<IPackage>) ||
-  mongoose.model<IPackage>('Package', PackageSchema);
+  (models && models.Package) ||
+  model<IPackage>('Package', PackageSchema);
 
 export { PackageModel as Package };
 export default PackageModel;

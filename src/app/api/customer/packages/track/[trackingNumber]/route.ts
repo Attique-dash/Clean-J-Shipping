@@ -75,7 +75,7 @@ export async function GET(
       ? pkgHistory
           .filter((h) => h.location || h.note)
           .map((h) => ({
-            status: h.status || pkg.status,
+            status: h.status || (pkg as any).status,
             location: h.location ? {
               latitude: h.location.latitude || h.location.lat,
               longitude: h.location.longitude || h.location.lng,
@@ -87,8 +87,8 @@ export async function GET(
       : [];
 
     return NextResponse.json({
-      trackingNumber: pkg.trackingNumber,
-      status: pkg.status,
+      trackingNumber: (pkg as any).trackingNumber,
+      status: (pkg as any).status,
       currentLocation: currentLocation ? {
         ...currentLocation,
         // Ensure we have valid coordinates or provide a helpful message

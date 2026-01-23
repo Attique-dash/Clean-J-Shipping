@@ -181,7 +181,7 @@ export async function GET(req: Request) {
       const outstandingBalanceJmd = Math.max(0, totalCostJmd - amountPaidJmd);
 
       return {
-        PackageID: packagePaymentsData.PackageID || `pkg-${String(pkg._id || '').replace(/[^a-zA-Z0-9]/g, '').substring(0, 8)}-${Date.now().toString(36)}`,
+        PackageID: (packagePaymentsData as any).PackageID || `pkg-${String((pkg as any)._id || '').replace(/[^a-zA-Z0-9]/g, '').substring(0, 8)}-${Date.now().toString(36)}`,
         CourierID: pkg.courierId || `cour-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`,
         ManifestID: pkg.manifestId || '',
         CollectionID: pkg.collectionId || '',
@@ -197,13 +197,13 @@ export async function GET(req: Request) {
         EntryDateTime: pkg.createdAt ? new Date(pkg.createdAt).toISOString() : '',
         Branch: pkg.branch || '',
         Claimed: pkg.claimed || false,
-        APIToken: packagePaymentsData.APIToken || '<API-TOKEN>',
-        ShowControls: packagePaymentsData.ShowControls || false,
+        APIToken: (packagePaymentsData as any).APIToken || '<API-TOKEN>',
+        ShowControls: (packagePaymentsData as any).ShowControls || false,
         Description: pkg.description || '',
         HSCode: pkg.hsCode || '',
         Unknown: pkg.unknown || false,
         AIProcessed: pkg.aiProcessed || false,
-        OriginalHouseNumber: packagePaymentsData.OriginalHouseNumber || '',
+        OriginalHouseNumber: (packagePaymentsData as any).OriginalHouseNumber || '',
         Cubes: pkg.cubes || 0,
         Length: pkg.length || 0,
         Width: pkg.width || 0,

@@ -1,5 +1,5 @@
 // my-app/src/models/Invoice.ts
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import { Schema, model, models, Document, Model } from 'mongoose';
 
 export interface IInvoiceItem {
   description: string;
@@ -15,7 +15,7 @@ export interface IInvoiceItem {
 }
 
 export interface IInvoice extends Document {
-  userId?: string; // Add userId field for easier querying
+  userId?: any; // Add userId field for easier querying
   invoiceNumber: string;
   invoiceType: 'billing' | 'commercial' | 'system'; // NEW: Invoice type separation
   customer: {
@@ -47,8 +47,8 @@ export interface IInvoice extends Document {
     type: 'percentage' | 'fixed';
     value: number;
   };
-  package?: mongoose.Types.ObjectId;
-  shipment?: mongoose.Types.ObjectId;
+  package?: any;
+  shipment?: any;
   paymentHistory?: Array<{
     amount: number;
     date: Date;
@@ -292,6 +292,6 @@ InvoiceSchema.pre('findOneAndUpdate', function(next) {
   next();
 });
 
-const Invoice = mongoose.models.Invoice || mongoose.model<IInvoice>('Invoice', InvoiceSchema);
+const Invoice = (models && models.Invoice) || model<IInvoice>('Invoice', InvoiceSchema);
 
 export default Invoice;

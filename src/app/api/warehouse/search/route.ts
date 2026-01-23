@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     // Format results
     const results = [
       ...packages.map(pkg => ({
-        _id: pkg._id.toString(),
+        _id: (pkg as any)._id.toString(),
         type: 'package' as const,
         trackingNumber: pkg.trackingNumber,
         status: pkg.status,

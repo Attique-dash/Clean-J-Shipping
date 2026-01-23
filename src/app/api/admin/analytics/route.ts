@@ -354,11 +354,11 @@ export async function GET(req: Request) {
     ]);
 
     const recentActivity = [
-      ...recentPackages.map((p: { trackingNumber: string; createdAt: Date | string }) => ({
+      ...recentPackages.map((p) => ({
         title: 'New package received',
-        desc: `Package ${p.trackingNumber} has been received`,
-        time: formatTimeAgo(p.createdAt instanceof Date ? p.createdAt : new Date(p.createdAt)),
-        timestamp: new Date(p.createdAt).getTime(),
+        desc: `Package ${(p as any).trackingNumber} has been received`,
+        time: formatTimeAgo((p as any).createdAt instanceof Date ? (p as any).createdAt : new Date((p as any).createdAt)),
+        timestamp: new Date((p as any).createdAt).getTime(),
         icon: 'Package',
         color: 'blue'
       })),

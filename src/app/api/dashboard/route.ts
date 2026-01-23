@@ -195,7 +195,7 @@ export async function GET() {
         }))
       },
       activeShipments: activeShipmentsData.map(shipment => ({
-        id: shipment._id.toString(),
+        id: (shipment as any)._id.toString(),
         trackingNumber: shipment.trackingNumber,
         origin: {
           lat: shipment.origin?.coordinates?.coordinates[1] || 0,
