@@ -302,45 +302,105 @@ export async function GET(request: NextRequest) {
       const amountPaidJmd = asNumber(p.amountPaid);
       const outstandingBalanceJmd = Math.max(0, totalCostJmd - amountPaidJmd);
 
+      // Generate UUID-style PackageID if not exists
+      const packageId = asString(p.packageId) || `pkg-${String(p._id || '').replace(/[^a-zA-Z0-9]/g, '').substring(0, 8)}-${Date.now().toString(36)}`;
+      const courierId = asString(p.courierId) || `cour-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
+      
+      // Split customer name into first and last name
+      const nameParts = customerName.split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
+      // Map status to PackageStatus (numeric)
+      const statusMap: Record<string, number> = {
+        'unknown': 0,
+        'pending': 1,
+        'At Warehouse': 2,
+        'in_processing': 3,
+        'ready_to_ship': 4,
+        'shipped': 5,
+        'in_transit': 6,
+        'out_for_delivery': 7,
+        'delivered': 8,
+        'returned': 9,
+        'Deleted': 10
+      };
+      
+      // Get dimensions from dimensions object or individual fields
+      const dims = (p.dimensions as Record<string, unknown>) || {};
+      const length = asNumber(p.length) || asNumber(dims.length) || 0;
+      const width = asNumber(p.width) || asNumber(dims.width) || 0;
+      const height = asNumber(p.height) || asNumber(dims.height) || 0;
+      
       return {
+        PackageID: packageId,
+        CourierID: courierId,
+        ManifestID: asString(p.manifestId) || '',
+        CollectionID: asString(p.collectionId) || '',
+        TrackingNumber: trackingNumber,
+        ControlNumber: asString(p.controlNumber) || '',
+        FirstName: firstName,
+        LastName: lastName,
+        UserCode: mailboxNumber,
+        Weight: weight,
+        Shipper: asString(p.shipper) || '',
+        EntryStaff: asString(p.entryStaff) || '',
+        EntryDate: dateReceived ? new Date(String(dateReceived)).toISOString().split('T')[0] : '',
+        EntryDateTime: createdAt ? new Date(String(createdAt)).toISOString() : '',
+        Branch: asString(p.warehouseLocation) || asString(p.branch) || '',
+        Claimed: Boolean(p.claimed),
+        APIToken: '<API-TOKEN>',
+        ShowControls: false,
+        Description: asString(p.description) || '',
+        HSCode: asString(p.hsCode) || '',
+        Unknown: statusValue.toLowerCase() === 'unknown',
+        AIProcessed: Boolean(p.aiProcessed),
+        OriginalHouseNumber: asString(p.originalHouseNumber) || '',
+        Cubes: asNumber(p.cubes) || 0,
+        Length: length,
+        Width: width,
+        Height: height,
+        Pieces: asNumber(p.pieces) || 1,
+        Discrepancy: Boolean(p.discrepancy),
+        DiscrepancyDescription: asString(p.discrepancyDescription) || '',
+        ServiceTypeID: asString(p.serviceTypeId) || '',
+        HazmatCodeID: asString(p.hazmatCodeId) || '',
+        Coloaded: Boolean(p.coloaded),
+        ColoadIndicator: asString(p.coloadIndicator) || '',
+        PackageStatus: statusMap[statusValue.toLowerCase()] || 0,
+        PackagePayments: {
+          totalAmount: totalCostJmd,
+          shippingCost: shippingCostJmd,
+          storageFee: storageFeeJmd,
+          customsDuty: customsDutyUsd,
+          deliveryFee: deliveryFeeJmd,
+          additionalFees: additionalFeesTotalJmd,
+          amountPaid: amountPaidJmd,
+          outstandingBalance: outstandingBalanceJmd,
+          paymentStatus: asString(p.paymentStatus) || 'pending'
+        },
+        // Keep some original fields for reference
         _id: String(p._id || ''),
-        trackingNumber,
         customerName,
         customerEmail,
         customerPhone,
-        mailboxNumber,
         serviceMode: asString(p.serviceMode) || 'air',
         status: statusValue,
         warehouseLocation: asString(p.warehouseLocation) || asString(p.branch) || '',
         customsRequired: Boolean(p.customsRequired),
         customsStatus: asString(p.customsStatus) || 'not_required',
-        paymentStatus: asString(p.paymentStatus) || 'pending',
-        weight,
         weightUnit,
         weightLbs,
         itemValueUsd,
-        dateReceived: dateReceived ? new Date(String(dateReceived)).toISOString() : null,
         daysInStorage,
-        // Add cost fields like admin API
-        totalAmount: totalCostJmd,
-        shippingCost: shippingCostJmd,
-        // Sender information
         senderName: asString(p.senderName) || asString((p.sender as any)?.name) || '',
         senderEmail: asString(p.senderEmail) || asString((p.sender as any)?.email) || '',
         senderPhone: asString(p.senderPhone) || asString((p.sender as any)?.phone) || '',
         senderAddress: asString(p.senderAddress) || asString((p.sender as any)?.address) || '',
         senderCountry: asString(p.senderCountry) || asString((p.sender as any)?.country) || '',
-        // Additional details
-        shipper: asString(p.shipper) || '',
-        createdAt: createdAt ? new Date(String(createdAt)).toISOString() : null,
         updatedAt: p.updatedAt ? new Date(String(p.updatedAt)).toISOString() : null,
-        // Legacy fields for compatibility
         dimensions: p.dimensions,
-        length: p.length,
-        width: p.width,
-        height: p.height,
         dimensionUnit: p.dimensionUnit,
-        description: p.description,
         itemDescription: p.itemDescription,
         contents: p.contents,
         specialInstructions: p.specialInstructions,
@@ -355,13 +415,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const res = NextResponse.json({
-      packages: packagesWithComputed,
-      total_count,
-      status_counts: statusCountsMap,
-      page,
-      per_page,
-    });
+    const res = NextResponse.json(packagesWithComputed);
     res.headers.set("X-RateLimit-Limit", String(limit));
     res.headers.set("X-RateLimit-Remaining", String(rl.remaining));
     res.headers.set("X-RateLimit-Reset", String(rl.resetAt));

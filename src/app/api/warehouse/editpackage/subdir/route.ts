@@ -1,33 +1,94 @@
+// Warehouse Edit Package Endpoint
+// URL: /api/warehouse/editpackage/subdir
+// Method: POST
+// Accepts array of package objects with complete warehouse data structure
+
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package, type IPackage } from "@/models/Package";
 import { User } from "@/models/User";
 import { ApiKey, hashApiKey } from "@/models/ApiKey";
 import { rateLimit } from "@/lib/rateLimit";
-import { mapExternalToInternalStatus } from "@/lib/mappings";
 
-// URL: /api/warehouse/editpackage/subdir
-// Method: POST
+interface WarehousePackage {
+  PackageID: string;
+  CourierID: string;
+  ManifestID: string;
+  CollectionID: string;
+  TrackingNumber: string;
+  ControlNumber: string;
+  FirstName: string;
+  LastName: string;
+  UserCode: string;
+  Weight: number;
+  Shipper: string;
+  EntryStaff: string;
+  EntryDate: string;
+  EntryDateTime: string;
+  Branch: string;
+  Claimed: boolean;
+  APIToken: string;
+  ShowControls: boolean;
+  Description: string;
+  HSCode: string;
+  Unknown: boolean;
+  AIProcessed: boolean;
+  OriginalHouseNumber: string;
+  Cubes: number;
+  Length: number;
+  Width: number;
+  Height: number;
+  Pieces: number;
+  Discrepancy: boolean;
+  DiscrepancyDescription: string;
+  ServiceTypeID: string;
+  HazmatCodeID: string;
+  Coloaded: boolean;
+  ColoadIndicator: string;
+  PackageStatus: number;
+  PackagePayments: string;
+}
+
 export async function POST(req: Request) {
-  // Check API key authentication - support both header and query parameter
+  const requestId = Date.now().toString(36);
+  
+  // CORS headers for external API calls
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, x-warehouse-key, x-api-key',
+  };
+
+  console.log(`[${requestId}] 📦 Warehouse Edit Package API Request:`, {
+    method: req.method,
+    url: req.url,
+    timestamp: new Date().toISOString()
+  });
+
+  // Check API key authentication
   let token = req.headers.get('x-warehouse-key') || req.headers.get('x-api-key');
   
-  // If no token in headers, check query parameter
   if (!token) {
     const url = new URL(req.url);
     token = url.searchParams.get("id") || "";
   }
 
   if (!token || (!token.startsWith("wh_live_") && !token.startsWith("wh_test_"))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    console.log(`[${requestId}] ❌ Unauthorized request - no valid API key`);
+    return NextResponse.json(
+      { 
+        error: "Unauthorized",
+        message: "API key required in headers (x-warehouse-key or x-api-key) or query parameter (id)"
+      }, 
+      { status: 401, headers }
+    );
   }
 
   await dbConnect();
 
-  // Special handling for test key
+  // Verify API key
   let keyRecord;
   if (token === "wh_test_abc123") {
-    // Look up the test key by its prefix
     keyRecord = await ApiKey.findOne({
       keyPrefix: "wh_test_abc123",
       active: true,
@@ -37,7 +98,6 @@ export async function POST(req: Request) {
       ],
     }).select("keyPrefix permissions");
   } else {
-    // Verify API key via hash lookup and active/expiry, require packages:write permission
     const hashed = hashApiKey(token);
     keyRecord = await ApiKey.findOne({
       key: hashed,
@@ -48,11 +108,19 @@ export async function POST(req: Request) {
       ],
     }).select("keyPrefix permissions");
   }
+  
   if (!keyRecord || !keyRecord.permissions.includes("packages:write")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    console.log(`[${requestId}] ❌ Invalid API key or insufficient permissions`);
+    return NextResponse.json(
+      { 
+        error: "Unauthorized",
+        message: "Invalid API key or insufficient permissions (requires packages:write)"
+      }, 
+      { status: 401, headers }
+    );
   }
 
-  // Per-key rate limit: 200 req/min
+  // Rate limiting
   const limit = 200;
   const rl = rateLimit(keyRecord.keyPrefix, { windowMs: 60 * 1000, maxRequests: limit });
   if (!rl.allowed) {
@@ -74,28 +142,24 @@ export async function POST(req: Request) {
     );
   }
 
+  // Parse request body
   let bodyText = "";
-
-  // Read body
   try {
     bodyText = await req.text();
   } catch {
-    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid body" }, { status: 400, headers });
   }
 
-  // Now parse JSON once for real
   let payload: any;
   try {
     payload = bodyText ? JSON.parse(bodyText) : null;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400, headers });
   }
 
   if (!Array.isArray(payload)) {
-    return NextResponse.json({ error: "Payload must be an array" }, { status: 400 });
+    return NextResponse.json({ error: "Payload must be an array" }, { status: 400, headers });
   }
-
-  await dbConnect();
 
   const results: { trackingNumber?: string; ok: boolean; error?: string }[] = [];
 
@@ -109,37 +173,76 @@ export async function POST(req: Request) {
     }
 
     try {
-      // Ensure customer exists so the package can be tied and visible in portal
+      // Ensure customer exists
       const customer = await User.findOne({ userCode, role: "customer" }).select("_id userCode");
       if (!customer) {
         results.push({ trackingNumber, ok: false, error: "Customer not found" });
         continue;
       }
 
-      // Normalize fields
-      const weight = typeof item?.Weight === "number" ? item.Weight : Number.isFinite(Number(item?.Weight)) ? Number(item.Weight) : undefined;
-      const shipper = typeof item?.Shipper === "string" ? item.Shipper : undefined;
-      const description = typeof item?.Description === "string" ? item.Description : undefined;
+      // Normalize dates
       const entryDateStr = typeof item?.EntryDateTime === "string" && item.EntryDateTime.trim()
         ? item.EntryDateTime
         : typeof item?.EntryDate === "string"
         ? item.EntryDate
         : undefined;
       const entryDate = entryDateStr ? new Date(entryDateStr) : new Date();
-      const status = mapExternalToInternalStatus(item?.PackageStatus);
+
+      // Map warehouse status to internal status
+      const statusMap: { [key: number]: string } = {
+        0: 'At Warehouse',
+        1: 'In Transit', 
+        2: 'At Local Port',
+        3: 'Delivered',
+        4: 'Unknown'
+      };
+      const status = statusMap[item?.PackageStatus] || 'At Warehouse';
 
       const setFields: Partial<IPackage> = {
         userCode: customer.userCode,
         customer: customer._id as any,
-        weight,
-        shipper,
-        description,
+        weight: typeof item?.Weight === "number" ? item.Weight : Number.isFinite(Number(item?.Weight)) ? Number(item.Weight) : undefined,
+        shipper: typeof item?.Shipper === "string" ? item.Shipper : undefined,
+        description: typeof item?.Description === "string" ? item.Description : undefined,
         manifestId: typeof item?.ManifestID === "string" ? item.ManifestID : undefined,
         entryStaff: typeof item?.EntryStaff === "string" ? item.EntryStaff : undefined,
         entryDate: entryDateStr ? new Date(entryDateStr) : undefined,
         branch: typeof item?.Branch === "string" ? item.Branch : undefined,
         hsCode: typeof item?.HSCode === "string" ? item.HSCode : undefined,
+        
+        // Warehouse-specific fields
+        controlNumber: typeof item?.ControlNumber === "string" ? item.ControlNumber : undefined,
+        courierId: typeof item?.CourierID === "string" ? item.CourierID : undefined,
+        collectionId: typeof item?.CollectionID === "string" ? item.CollectionID : undefined,
+        serviceTypeId: typeof item?.ServiceTypeID === "string" ? item.ServiceTypeID : undefined,
+        hazmatCodeId: typeof item?.HazmatCodeID === "string" ? item.HazmatCodeID : undefined,
+        cubes: typeof item?.Cubes === "number" ? item.Cubes : undefined,
+        pieces: typeof item?.Pieces === "number" ? item.Pieces : undefined,
+        claimed: typeof item?.Claimed === "boolean" ? item.Claimed : undefined,
+        unknown: typeof item?.Unknown === "boolean" ? item.Unknown : undefined,
+        aiProcessed: typeof item?.AIProcessed === "boolean" ? item.AIProcessed : undefined,
+        discrepancy: typeof item?.Discrepancy === "boolean" ? item.Discrepancy : undefined,
+        discrepancyDescription: typeof item?.DiscrepancyDescription === "string" ? item.DiscrepancyDescription : undefined,
+        coloaded: typeof item?.Coloaded === "boolean" ? item.Coloaded : undefined,
+        coloadIndicator: typeof item?.ColoadIndicator === "string" ? item.ColoadIndicator : undefined,
+        
+        // Dimensions
+        length: typeof item?.Length === "number" ? item.Length : undefined,
+        width: typeof item?.Width === "number" ? item.Width : undefined,
+        height: typeof item?.Height === "number" ? item.Height : undefined,
       };
+
+      // Store warehouse payment data
+      if (item?.PackagePayments || item?.APIToken || item?.PackageID) {
+        setFields.packagePayments = JSON.stringify({
+          PackageID: item.PackageID,
+          APIToken: item.APIToken,
+          ShowControls: item.ShowControls,
+          OriginalHouseNumber: item.OriginalHouseNumber,
+          PackagePayments: item.PackagePayments,
+          updated_at: new Date().toISOString()
+        });
+      }
 
       // Fetch existing package to compare status and build history
       const existing = await Package.findOne({ trackingNumber }).select("status");
@@ -162,7 +265,7 @@ export async function POST(req: Request) {
           history: {
             status,
             at: entryDate,
-            note: "Updated via external editpackage endpoint",
+            note: "Updated via external warehouse editpackage endpoint",
           },
         };
       }
@@ -175,6 +278,14 @@ export async function POST(req: Request) {
     }
   }
 
-  // Spec says response payload N/A; we'll return a small summary for observability.
-  return NextResponse.json({ ok: true, processed: results.length, results });
+  return NextResponse.json({ 
+    ok: true, 
+    processed: results.length, 
+    results,
+    message: "Warehouse packages updated successfully",
+    _meta: {
+      request_id: requestId,
+      api_version: "v1"
+    }
+  }, { headers });
 }

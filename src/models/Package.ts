@@ -249,6 +249,23 @@ export interface IPackage extends Document {
   branch?: string;
   entryStaff?: string;
   
+  // Warehouse-specific fields
+  controlNumber?: string;
+  courierId?: string;
+  collectionId?: string;
+  serviceTypeId?: string;
+  hazmatCodeId?: string;
+  cubes?: number;
+  pieces?: number;
+  claimed?: boolean;
+  unknown?: boolean;
+  aiProcessed?: boolean;
+  discrepancy?: boolean;
+  discrepancyDescription?: string;
+  coloaded?: boolean;
+  coloadIndicator?: string;
+  packagePayments?: string;
+  
   createdAt: Date;
   updatedAt: Date;
 }
@@ -475,6 +492,23 @@ const PackageSchema = new Schema<IPackage>(
     manifestId: { type: Schema.Types.ObjectId, ref: 'Manifest' },
     branch: { type: String, trim: true },
     entryStaff: { type: String, trim: true },
+    
+    // Warehouse-specific fields
+    controlNumber: { type: String, trim: true },
+    courierId: { type: String, trim: true },
+    collectionId: { type: String, trim: true },
+    serviceTypeId: { type: String, trim: true },
+    hazmatCodeId: { type: String, trim: true },
+    cubes: { type: Number, min: 0 },
+    pieces: { type: Number, min: 0, default: 1 },
+    claimed: { type: Boolean, default: false },
+    unknown: { type: Boolean, default: false },
+    aiProcessed: { type: Boolean, default: false },
+    discrepancy: { type: Boolean, default: false },
+    discrepancyDescription: { type: String, trim: true },
+    coloaded: { type: Boolean, default: false },
+    coloadIndicator: { type: String, trim: true },
+    packagePayments: { type: String, trim: true },
   },
   { timestamps: true }
 );
