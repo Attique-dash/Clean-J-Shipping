@@ -1,25 +1,29 @@
 import { Router } from 'express';
-import packageRoutes from './packages';
-import customerRoutes from './customers';
-import messageRoutes from './messages';
-import manifestRoutes from './manifests';
-import inventoryRoutes from './inventory';
-import analyticsRoutes from './analytics';
-import accountRoutes from './account';
-import settingsRoutes from './settings';
-import reportsRoutes from './reports';
+import packages from './packages';
+import customers from './customers';
+import messages from './messages';
+import manifests from './manifests';
+import inventory from './inventory';
+import analytics from './analytics';
+import account from './account';
+import settings from './settings';
+import reports from './reports';
+import bulkUpload from './bulkUpload';
+import staff from './staff';
 
 const router = Router();
 
-// Mount warehouse route modules
-router.use('/packages', packageRoutes);
-router.use('/customers', customerRoutes);
-router.use('/messages', messageRoutes);
-router.use('/manifests', manifestRoutes);
-router.use('/inventory', inventoryRoutes);
-router.use('/analytics', analyticsRoutes);
-router.use('/account', accountRoutes);
-router.use('/settings', settingsRoutes);
-router.use('/reports', reportsRoutes);
+// Mount all warehouse routes
+router.use('/packages', packages);
+router.use('/customers', customers);
+router.use('/messages', messages);
+router.use('/manifests', manifests);
+router.use('/inventory', inventory);
+router.use('/analytics', analytics);
+router.use('/account', account);
+router.use('/settings', settings);
+router.use('/reports', reports);
+router.use('/bulk-upload', bulkUpload);
+router.use('/staff', staff);
 
 export default router;

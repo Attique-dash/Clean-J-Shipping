@@ -2,35 +2,66 @@ import { Response } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { User } from '../../models/User';
 import { Package } from '../../models/Package';
-import { successResponse, errorResponse, getPaginationData } from '../../utils/helpers';
-import { PAGINATION } from '../../utils/constants';
+import { successResponse, errorResponse } from '../../utils/helpers';
 import { logger } from '../../utils/logger';
 
-export const getCustomers = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const page = parseInt(req.query.page as string) || PAGINATION.DEFAULT_PAGE;
-    const limit = parseInt(req.query.limit as string) || PAGINATION.DEFAULT_LIMIT;
-    const skip = (page - 1) * limit;
+interface CustomerRequest extends AuthRequest {
+  query: {
+    q?: string;
+    userCode?: string;
+  };
+  body: {
+    user_code?: string;
+  };
+}
 
+// Get All Customers (API SPEC)
+export const getCustomers = async (req: CustomerRequest, res: Response): Promise<void> => {
+  try {
     const filter: any = { role: 'customer' };
-    if (req.query.search) {
+
+    // Search by name, email, or userCode
+    if (req.query.q) {
+      const searchRegex = new RegExp(req.query.q, 'i');
       filter.$or = [
-        { name: { $regex: req.query.search, $options: 'i' } },
-        { email: { $regex: req.query.search, $options: 'i' } }
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { email: searchRegex },
+        { userCode: searchRegex }
       ];
     }
 
-    const customers = await User.find(filter)
-      .select('-password')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+    // Filter by exact userCode
+    if (req.query.userCode) {
+      filter.userCode = req.query.userCode.toUpperCase();
+    }
 
-    const total = await User.countDocuments(filter);
+    const customers = await User.find(filter)
+      .select('-passwordHash')
+      .sort({ createdAt: -1 });
+
+    // Transform customers to match API response format
+    const transformedCustomers = await Promise.all(
+      customers.map(async (customer) => {
+        const activePackages = await Package.countDocuments({
+          userId: customer._id,
+          status: { $nin: ['delivered', 'returned'] }
+        });
+
+        return {
+          user_code: customer.userCode,
+          full_name: `${customer.firstName} ${customer.lastName}`,
+          email: customer.email,
+          phone: customer.phone || '',
+          address_line: customer.address ? 
+            `${customer.address.street}, ${customer.address.city}, ${customer.address.state}` : '',
+          active_packages: activePackages
+        };
+      })
+    );
 
     successResponse(res, {
-      customers,
-      pagination: getPaginationData(page, limit, total)
+      customers: transformedCustomers
     });
   } catch (error) {
     logger.error('Error getting customers:', error);
@@ -38,151 +69,62 @@ export const getCustomers = async (req: AuthRequest, res: Response): Promise<voi
   }
 };
 
-export const getCustomerById = async (req: AuthRequest, res: Response): Promise<void> => {
+// Get Customer Details by userCode (API SPEC)
+export const getCustomerByUserCode = async (req: CustomerRequest, res: Response): Promise<void> => {
   try {
-    const customer = await User.findOne({ _id: req.params.id, role: 'customer' })
-      .select('-password');
+    const customer = await User.findOne({ 
+      userCode: req.params.userCode.toUpperCase(), 
+      role: 'customer' 
+    }).select('-passwordHash');
 
     if (!customer) {
       errorResponse(res, 'Customer not found', 404);
       return;
     }
 
-    successResponse(res, customer);
+    successResponse(res, {
+      customer: {
+        userCode: customer.userCode,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        email: customer.email,
+        phone: customer.phone || '',
+        address: customer.address || {},
+        mailboxNumber: customer.mailboxNumber || '',
+        accountStatus: customer.accountStatus,
+        emailVerified: customer.emailVerified,
+        createdAt: customer.createdAt
+      }
+    });
   } catch (error) {
     logger.error('Error getting customer:', error);
     errorResponse(res, 'Failed to get customer');
   }
 };
 
-export const createCustomer = async (req: AuthRequest, res: Response): Promise<void> => {
+// Delete Customer (API SPEC)
+export const deleteCustomer = async (req: CustomerRequest, res: Response): Promise<void> => {
   try {
-    const customerData = {
-      ...req.body,
-      role: 'customer'
-    };
+    const { user_code } = req.body;
 
-    const customer = await User.create(customerData);
-    const customerResponse = customer.getPublicProfile();
-
-    logger.info(`Customer created: ${customer.email}`);
-    successResponse(res, customerResponse, 'Customer created successfully', 201);
-  } catch (error: any) {
-    logger.error('Error creating customer:', error);
-    if (error.code === 11000) {
-      errorResponse(res, 'Email already exists', 409);
-    } else {
-      errorResponse(res, 'Failed to create customer');
+    if (!user_code) {
+      errorResponse(res, 'user_code is required', 400);
+      return;
     }
-  }
-};
 
-export const updateCustomer = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const customer = await User.findOneAndUpdate(
-      { _id: req.params.id, role: 'customer' },
-      req.body,
-      { new: true, runValidators: true }
-    ).select('-password');
+    const deletedCustomer = await User.findOneAndDelete({ 
+      userCode: user_code.toUpperCase(), 
+      role: 'customer' 
+    });
 
-    if (!customer) {
+    if (!deletedCustomer) {
       errorResponse(res, 'Customer not found', 404);
       return;
     }
 
-    logger.info(`Customer updated: ${customer.email}`);
-    successResponse(res, customer, 'Customer updated successfully');
-  } catch (error) {
-    logger.error('Error updating customer:', error);
-    errorResponse(res, 'Failed to update customer');
-  }
-};
-
-export const deleteCustomer = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const customer = await User.findOneAndDelete({ _id: req.params.id, role: 'customer' });
-
-    if (!customer) {
-      errorResponse(res, 'Customer not found', 404);
-      return;
-    }
-
-    logger.info(`Customer deleted: ${customer.email}`);
     successResponse(res, null, 'Customer deleted successfully');
   } catch (error) {
     logger.error('Error deleting customer:', error);
     errorResponse(res, 'Failed to delete customer');
-  }
-};
-
-export const getCustomerByEmail = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const customer = await User.findOne({ 
-      email: req.params.email, 
-      role: 'customer' 
-    }).select('-password');
-
-    if (!customer) {
-      errorResponse(res, 'Customer not found', 404);
-      return;
-    }
-
-    successResponse(res, customer);
-  } catch (error) {
-    logger.error('Error getting customer by email:', error);
-    errorResponse(res, 'Failed to get customer');
-  }
-};
-
-export const getCustomerByPhone = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const customer = await User.findOne({ 
-      phone: req.params.phone, 
-      role: 'customer' 
-    }).select('-password');
-
-    if (!customer) {
-      errorResponse(res, 'Customer not found', 404);
-      return;
-    }
-
-    successResponse(res, customer);
-  } catch (error) {
-    logger.error('Error getting customer by phone:', error);
-    errorResponse(res, 'Failed to get customer');
-  }
-};
-
-export const getCustomerPackages = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const page = parseInt(req.query.page as string) || PAGINATION.DEFAULT_PAGE;
-    const limit = parseInt(req.query.limit as string) || PAGINATION.DEFAULT_LIMIT;
-    const skip = (page - 1) * limit;
-
-    const packages = await Package.find({
-      $or: [
-        { senderId: req.params.id },
-        { recipientId: req.params.id }
-      ]
-    })
-      .populate('senderId recipientId', 'name email')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Package.countDocuments({
-      $or: [
-        { senderId: req.params.id },
-        { recipientId: req.params.id }
-      ]
-    });
-
-    successResponse(res, {
-      packages,
-      pagination: getPaginationData(page, limit, total)
-    });
-  } catch (error) {
-    logger.error('Error getting customer packages:', error);
-    errorResponse(res, 'Failed to get customer packages');
   }
 };

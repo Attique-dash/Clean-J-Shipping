@@ -1,39 +1,42 @@
 import app from './app';
 import { connectDatabase } from './config/database';
-import { logger } from './utils/logger';
-import dotenv from 'dotenv';
+import { config } from './config/env';
+import logger from './utils/logger';
 
-// Load environment variables
-dotenv.config();
+const PORT = config.port || 5000;
 
-const PORT = process.env.PORT || 3001;
+// Handle uncaught exceptions
+process.on('uncaughtException', (error: Error) => {
+  logger.error('UNCAUGHT EXCEPTION! Shutting down...', error);
+  process.exit(1);
+});
 
-async function startServer() {
+// Connect to database and start server
+const startServer = async () => {
   try {
-    // Connect to database
+    // Connect to MongoDB
     await connectDatabase();
-    logger.info('Database connected successfully');
+    logger.info('MongoDB connected successfully');
 
-    // Start server
+    // Start Express server
     const server = app.listen(PORT, () => {
-      logger.info(`Server is running on port ${PORT}`);
-      logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`Server running in ${config.nodeEnv} mode on port ${PORT}`);
+      logger.info(`API Documentation: http://localhost:${PORT}/api-docs`);
+    });
+
+    // Handle unhandled promise rejections
+    process.on('unhandledRejection', (error: Error) => {
+      logger.error('UNHANDLED REJECTION! Shutting down...', error);
+      server.close(() => {
+        process.exit(1);
+      });
     });
 
     // Graceful shutdown
     process.on('SIGTERM', () => {
-      logger.info('SIGTERM received, shutting down gracefully');
+      logger.info('SIGTERM RECEIVED. Shutting down gracefully');
       server.close(() => {
-        logger.info('Process terminated');
-        process.exit(0);
-      });
-    });
-
-    process.on('SIGINT', () => {
-      logger.info('SIGINT received, shutting down gracefully');
-      server.close(() => {
-        logger.info('Process terminated');
-        process.exit(0);
+        logger.info('Process terminated!');
       });
     });
 
@@ -41,6 +44,6 @@ async function startServer() {
     logger.error('Failed to start server:', error);
     process.exit(1);
   }
-}
+};
 
 startServer();

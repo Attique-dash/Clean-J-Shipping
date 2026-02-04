@@ -1,33 +1,49 @@
 import { Router } from 'express';
-import { authenticate, authorize } from '../../middleware/auth';
-import { authenticateWarehouse } from '../../middleware/warehouseAuth';
-import { validateCreatePackage, validateUpdatePackage, validateMongoId, validatePagination } from '../../utils/validators';
-import { asyncHandler } from '../../middleware/errorHandler';
+import { authenticate, authenticateWarehouse } from '../../middleware/auth';
 import * as packageController from '../../controllers/warehouse/packageController';
 
 const router = Router();
 
-// All package routes require authentication
-router.use(authenticate);
+// Get All Packages (Paginated + Filtered) - API SPEC
+router.get('/search', 
+  authenticate || authenticateWarehouse, 
+  packageController.searchPackages
+);
 
-// Package CRUD operations
-router.get('/', validatePagination, asyncHandler(packageController.getPackages));
-router.get('/:id', validateMongoId, asyncHandler(packageController.getPackageById));
-router.post('/', authorize('admin', 'warehouse_staff'), validateCreatePackage, asyncHandler(packageController.createPackage));
-router.put('/:id', authorize('admin', 'warehouse_staff'), validateMongoId, validateUpdatePackage, asyncHandler(packageController.updatePackage));
-router.delete('/:id', authorize('admin'), validateMongoId, asyncHandler(packageController.deletePackage));
+// Get Single Package - API SPEC
+router.get('/:id', 
+  authenticate || authenticateWarehouse, 
+  packageController.getPackageById
+);
 
-// Package status updates
-router.patch('/:id/status', authorize('admin', 'warehouse_staff'), validateMongoId, asyncHandler(packageController.updatePackageStatus));
-router.post('/:id/tracking', authorize('admin', 'warehouse_staff'), validateMongoId, asyncHandler(packageController.addTrackingUpdate));
+// Add New Package - API SPEC
+router.post('/add', 
+  authenticate || authenticateWarehouse, 
+  packageController.addPackage
+);
 
-// Package search and filtering
-router.get('/search/tracking/:trackingNumber', asyncHandler(packageController.getPackageByTrackingNumber));
-router.get('/filter/status/:status', validatePagination, asyncHandler(packageController.getPackagesByStatus));
-router.get('/filter/customer/:customerId', validatePagination, asyncHandler(packageController.getPackagesByCustomer));
+// Update Package - API SPEC
+router.put('/:id', 
+  authenticate || authenticateWarehouse, 
+  packageController.updatePackage
+);
 
-// Package operations
-router.post('/:id/manifest', authorize('admin', 'warehouse_staff'), validateMongoId, asyncHandler(packageController.addToManifest));
-router.delete('/:id/manifest', authorize('admin', 'warehouse_staff'), validateMongoId, asyncHandler(packageController.removeFromManifest));
+// Delete Package - API SPEC
+router.delete('/:id', 
+  authenticate || authenticateWarehouse, 
+  packageController.deletePackage
+);
+
+// Update Package Status - API SPEC
+router.post('/:id/status', 
+  authenticate || authenticateWarehouse, 
+  packageController.updatePackageStatus
+);
+
+// Bulk Upload Packages - API SPEC
+router.post('/bulk-upload', 
+  authenticate || authenticateWarehouse, 
+  packageController.bulkUploadPackages
+);
 
 export default router;

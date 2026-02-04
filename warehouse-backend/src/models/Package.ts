@@ -10,7 +10,6 @@ export interface IDimensions {
 
 export interface IShippingAddress {
   street: string;
-  city: string;
   state: string;
   zipCode: string;
   country: string;
@@ -22,36 +21,59 @@ export interface IShippingAddress {
 
 export interface IPackage extends Document {
   trackingNumber: string;
-  senderId: mongoose.Types.ObjectId;
-  recipientId: mongoose.Types.ObjectId;
-  senderName: string;
-  recipientName: string;
-  senderAddress: IShippingAddress;
-  recipientAddress: IShippingAddress;
+  userCode: string;
+  userId: mongoose.Types.ObjectId;
+  
+  // Package details
   weight: number;
-  dimensions: IDimensions;
-  status: string;
+  dimensions?: { length: number; width: number; height: number; unit: string };
+  shipper?: string;
   description?: string;
-  value?: number;
-  currency?: string;
-  insurance?: boolean;
-  signatureRequired?: boolean;
-  estimatedDelivery?: Date;
-  actualDelivery?: Date;
-  trackingHistory: Array<{
-    timestamp: Date;
-    status: string;
-    location: string;
-    description?: string;
-  }>;
-  cost?: number;
-  shippingMethod?: string;
-  priority?: 'standard' | 'express' | 'overnight';
-  fragile?: boolean;
-  hazardous?: boolean;
+  itemDescription?: string;
+  
+  // Service
+  serviceMode: 'air' | 'ocean' | 'local';
+  status: string;
+  
+  // Sender
+  senderName?: string;
+  senderEmail?: string;
+  senderPhone?: string;
+  senderAddress?: string;
+  senderCountry?: string;
+  
+  // Recipient
+  recipient?: {
+    name: string;
+    email: string;
+    shippingId: string;
+    phone: string;
+    address: string;
+  };
+  
+  // Warehouse
+  warehouseLocation?: string;
+  dateReceived?: Date;
+  manifestId?: mongoose.Types.ObjectId;
+  
+  // Customs
+  customsRequired: boolean;
+  customsStatus: 'not_required' | 'pending' | 'cleared';
+  
+  // Payment
+  shippingCost: number;
+  totalAmount: number;
+  paymentStatus: 'pending' | 'paid' | 'partially_paid';
+  
+  // Flags
+  isFragile: boolean;
+  isHazardous: boolean;
+  requiresSignature: boolean;
+  
+  // Additional
   specialInstructions?: string;
-  notes?: string;
-  createdBy: mongoose.Types.ObjectId;
+  history?: Array<{ status: string; at: Date; note: string }>;
+  
   createdAt: Date;
   updatedAt: Date;
 }
@@ -147,115 +169,184 @@ const packageSchema = new Schema<IPackage>({
     uppercase: true,
     match: [/^[A-Z0-9]{10,20}$/, 'Tracking number must be 10-20 alphanumeric characters']
   },
-  senderId: {
+  userCode: {
+    type: String,
+    required: [true, 'User code is required'],
+    trim: true,
+    uppercase: true,
+    match: [/^[A-Z]{2}-\d{3,4}$/, 'User code must be in format XX-123']
+  },
+  userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Sender ID is required']
+    required: [true, 'User ID is required']
   },
-  recipientId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: [true, 'Recipient ID is required']
-  },
-  senderName: {
-    type: String,
-    required: [true, 'Sender name is required'],
-    trim: true,
-    maxlength: [100, 'Sender name cannot exceed 100 characters']
-  },
-  recipientName: {
-    type: String,
-    required: [true, 'Recipient name is required'],
-    trim: true,
-    maxlength: [100, 'Recipient name cannot exceed 100 characters']
-  },
-  senderAddress: {
-    type: shippingAddressSchema,
-    required: [true, 'Sender address is required']
-  },
-  recipientAddress: {
-    type: shippingAddressSchema,
-    required: [true, 'Recipient address is required']
-  },
+  
+  // Package details
   weight: {
     type: Number,
     required: [true, 'Weight is required'],
     min: [0, 'Weight must be positive']
   },
   dimensions: {
-    type: dimensionsSchema,
-    required: [true, 'Dimensions are required']
+    length: { type: Number, min: 0 },
+    width: { type: Number, min: 0 },
+    height: { type: Number, min: 0 },
+    unit: { type: String, enum: ['cm', 'in'], default: 'cm' }
   },
-  status: {
+  shipper: {
     type: String,
-    enum: Object.values(PACKAGE_STATUSES),
-    default: PACKAGE_STATUSES.PENDING
+    trim: true,
+    maxlength: [100, 'Shipper name cannot exceed 100 characters']
   },
   description: {
     type: String,
     trim: true,
     maxlength: [500, 'Description cannot exceed 500 characters']
   },
-  value: {
+  itemDescription: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Item description cannot exceed 500 characters']
+  },
+  
+  // Service
+  serviceMode: {
+    type: String,
+    enum: ['air', 'ocean', 'local'],
+    default: 'local'
+  },
+  status: {
+    type: String,
+    enum: ['received', 'in_transit', 'out_for_delivery', 'delivered', 'pending', 'customs', 'returned'],
+    default: 'received'
+  },
+  
+  // Sender
+  senderName: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Sender name cannot exceed 100 characters']
+  },
+  senderEmail: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
+  },
+  senderPhone: {
+    type: String,
+    trim: true,
+    match: [/^\+?[\d\s\-\(\)]{10,20}$/, 'Please enter a valid phone number']
+  },
+  senderAddress: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Sender address cannot exceed 500 characters']
+  },
+  senderCountry: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Sender country cannot exceed 100 characters']
+  },
+  
+  // Recipient
+  recipient: {
+    name: {
+      type: String,
+      trim: true,
+      maxlength: [100, 'Recipient name cannot exceed 100 characters']
+    },
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
+    },
+    shippingId: {
+      type: String,
+      trim: true
+    },
+    phone: {
+      type: String,
+      trim: true,
+      match: [/^\+?[\d\s\-\(\)]{10,20}$/, 'Please enter a valid phone number']
+    },
+    address: {
+      type: String,
+      trim: true,
+      maxlength: [500, 'Recipient address cannot exceed 500 characters']
+    }
+  },
+  
+  // Warehouse
+  warehouseLocation: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Warehouse location cannot exceed 100 characters']
+  },
+  dateReceived: {
+    type: Date,
+    default: Date.now
+  },
+  manifestId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Manifest'
+  },
+  
+  // Customs
+  customsRequired: {
+    type: Boolean,
+    default: false
+  },
+  customsStatus: {
+    type: String,
+    enum: ['not_required', 'pending', 'cleared'],
+    default: 'not_required'
+  },
+  
+  // Payment
+  shippingCost: {
     type: Number,
-    min: [0, 'Value must be positive']
+    min: [0, 'Shipping cost must be positive'],
+    default: 0
   },
-  currency: {
-    type: String,
-    default: 'USD',
-    uppercase: true
-  },
-  insurance: {
-    type: Boolean,
-    default: false
-  },
-  signatureRequired: {
-    type: Boolean,
-    default: false
-  },
-  estimatedDelivery: {
-    type: Date
-  },
-  actualDelivery: {
-    type: Date
-  },
-  trackingHistory: [trackingHistorySchema],
-  cost: {
+  totalAmount: {
     type: Number,
-    min: [0, 'Cost must be positive']
+    min: [0, 'Total amount must be positive'],
+    default: 0
   },
-  shippingMethod: {
+  paymentStatus: {
     type: String,
-    trim: true
+    enum: ['pending', 'paid', 'partially_paid'],
+    default: 'pending'
   },
-  priority: {
-    type: String,
-    enum: ['standard', 'express', 'overnight'],
-    default: 'standard'
-  },
-  fragile: {
+  
+  // Flags
+  isFragile: {
     type: Boolean,
     default: false
   },
-  hazardous: {
+  isHazardous: {
     type: Boolean,
     default: false
   },
+  requiresSignature: {
+    type: Boolean,
+    default: false
+  },
+  
+  // Additional
   specialInstructions: {
     type: String,
     trim: true,
     maxlength: [1000, 'Special instructions cannot exceed 1000 characters']
   },
-  notes: {
-    type: String,
-    trim: true,
-    maxlength: [1000, 'Notes cannot exceed 1000 characters']
-  },
-  createdBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: [true, 'Created by is required']
-  }
+  history: [{
+    status: { type: String, required: true },
+    at: { type: Date, default: Date.now },
+    note: { type: String, trim: true }
+  }]
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -264,17 +355,19 @@ const packageSchema = new Schema<IPackage>({
 
 // Indexes
 packageSchema.index({ trackingNumber: 1 });
-packageSchema.index({ senderId: 1 });
-packageSchema.index({ recipientId: 1 });
+packageSchema.index({ userCode: 1 });
+packageSchema.index({ userId: 1 });
 packageSchema.index({ status: 1 });
+packageSchema.index({ serviceMode: 1 });
+packageSchema.index({ customsStatus: 1 });
+packageSchema.index({ paymentStatus: 1 });
+packageSchema.index({ dateReceived: -1 });
+packageSchema.index({ manifestId: 1 });
 packageSchema.index({ createdAt: -1 });
-packageSchema.index({ estimatedDelivery: 1 });
-packageSchema.index({ 'recipientAddress.zipCode': 1 });
-packageSchema.index({ 'senderAddress.zipCode': 1 });
+
+export const Package = mongoose.model<IPackage>('Package', packageSchema);
 
 // Virtual for volume
 packageSchema.virtual('volume').get(function() {
   return this.dimensions.length * this.dimensions.width * this.dimensions.height;
 });
-
-export const Package = mongoose.model<IPackage>('Package', packageSchema);

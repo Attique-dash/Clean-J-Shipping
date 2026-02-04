@@ -2,114 +2,257 @@ import { Response } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { Package } from '../../models/Package';
 import { User } from '../../models/User';
-import { successResponse, errorResponse, getPaginationData, generateTrackingNumber } from '../../utils/helpers';
-import { PAGINATION } from '../../utils/constants';
+import { successResponse, errorResponse, getPaginationData } from '../../utils/helpers';
 import { logger } from '../../utils/logger';
 
-export const getPackages = async (req: AuthRequest, res: Response): Promise<void> => {
+interface PackageRequest extends AuthRequest {
+  query: {
+    userCode?: string;
+    q?: string;
+    statuses?: string;
+    page?: string;
+    limit?: string;
+  };
+  body: any;
+}
+
+// Search Packages (API SPEC)
+export const searchPackages = async (req: PackageRequest, res: Response): Promise<void> => {
   try {
-    const page = parseInt(req.query.page as string) || PAGINATION.DEFAULT_PAGE;
-    const limit = parseInt(req.query.limit as string) || PAGINATION.DEFAULT_LIMIT;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
     const skip = (page - 1) * limit;
 
     const filter: any = {};
-    if (req.query.status) filter.status = req.query.status;
-    if (req.query.senderId) filter.senderId = req.query.senderId;
-    if (req.query.recipientId) filter.recipientId = req.query.recipientId;
+
+    // Filter by userCode
+    if (req.query.userCode) {
+      filter.userCode = req.query.userCode.toUpperCase();
+    }
+
+    // Filter by statuses
+    if (req.query.statuses) {
+      const statuses = req.query.statuses.split(',');
+      filter.status = { $in: statuses };
+    }
+
+    // Search query
+    if (req.query.q) {
+      const searchRegex = new RegExp(req.query.q, 'i');
+      filter.$or = [
+        { trackingNumber: searchRegex },
+        { description: searchRegex },
+        { shipper: searchRegex },
+        { 'recipient.name': searchRegex },
+        { 'recipient.email': searchRegex }
+      ];
+    }
 
     const packages = await Package.find(filter)
-      .populate('senderId', 'name email')
-      .populate('recipientId', 'name email')
-      .populate('createdBy', 'name email')
+      .populate('userId', 'firstName lastName email phone mailboxNumber')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
+    // Transform packages to match API response format
+    const transformedPackages = packages.map(pkg => {
+      const customer = pkg.userId as any;
+      return {
+        _id: pkg._id,
+        trackingNumber: pkg.trackingNumber,
+        customerName: customer ? `${customer.firstName} ${customer.lastName}` : 'Unknown',
+        customerEmail: customer?.email || '',
+        customerPhone: customer?.phone || '',
+        mailboxNumber: customer?.mailboxNumber || '',
+        userCode: pkg.userCode,
+        serviceMode: pkg.serviceMode,
+        status: pkg.status,
+        weight: pkg.weight,
+        weightUnit: 'kg',
+        weightLbs: pkg.weight * 2.20462, // Convert to lbs
+        itemValueUsd: pkg.totalAmount || 0,
+        dateReceived: pkg.dateReceived || pkg.createdAt,
+        daysInStorage: Math.floor((Date.now() - (pkg.dateReceived || pkg.createdAt).getTime()) / (1000 * 60 * 60 * 24)),
+        warehouseLocation: pkg.warehouseLocation || '',
+        customsRequired: pkg.customsRequired,
+        customsStatus: pkg.customsStatus,
+        paymentStatus: pkg.paymentStatus,
+        shipper: pkg.shipper || '',
+        description: pkg.description || '',
+        specialInstructions: pkg.specialInstructions || '',
+        dimensions: pkg.dimensions || { length: 0, width: 0, height: 0, unit: 'cm' },
+        sender: {
+          name: pkg.senderName || '',
+          email: pkg.senderEmail || '',
+          phone: pkg.senderPhone || '',
+          address: pkg.senderAddress || '',
+          country: pkg.senderCountry || ''
+        },
+        recipient: {
+          name: pkg.recipient?.name || '',
+          shippingId: pkg.recipient?.shippingId || '',
+          email: pkg.recipient?.email || '',
+          phone: pkg.recipient?.phone || ''
+        }
+      };
+    });
+
     const total = await Package.countDocuments(filter);
+    const pages = Math.ceil(total / limit);
 
     successResponse(res, {
-      packages,
-      pagination: getPaginationData(page, limit, total)
+      packages: transformedPackages,
+      total,
+      page,
+      pages
     });
   } catch (error) {
-    logger.error('Error getting packages:', error);
-    errorResponse(res, 'Failed to get packages');
+    logger.error('Error searching packages:', error);
+    errorResponse(res, 'Failed to search packages');
   }
 };
 
+// Get Package by ID (API SPEC)
 export const getPackageById = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const packageData = await Package.findById(req.params.id)
-      .populate('senderId', 'name email phone')
-      .populate('recipientId', 'name email phone')
-      .populate('createdBy', 'name email');
+      .populate('userId', 'firstName lastName email phone mailboxNumber');
 
     if (!packageData) {
       errorResponse(res, 'Package not found', 404);
       return;
     }
 
-    successResponse(res, packageData);
+    successResponse(res, {
+      package: packageData
+    });
   } catch (error) {
     logger.error('Error getting package:', error);
     errorResponse(res, 'Failed to get package');
   }
 };
 
-export const createPackage = async (req: AuthRequest, res: Response): Promise<void> => {
+// Add New Package (API SPEC)
+export const addPackage = async (req: PackageRequest, res: Response): Promise<void> => {
   try {
+    const {
+      trackingNumber,
+      userCode,
+      weight,
+      shipper,
+      description,
+      itemDescription,
+      entryDate,
+      status = 'received',
+      serviceMode = 'local',
+      dimensions,
+      senderName,
+      senderEmail,
+      senderPhone,
+      senderAddress,
+      senderCountry,
+      recipient,
+      itemValue,
+      specialInstructions,
+      isFragile,
+      isHazardous,
+      requiresSignature,
+      customsRequired,
+      customsStatus
+    } = req.body;
+
+    // Check if tracking number already exists
+    const existingPackage = await Package.findOne({ trackingNumber });
+    if (existingPackage) {
+      errorResponse(res, 'A package with this tracking number already exists', 409);
+      return;
+    }
+
+    // Find user by userCode
+    const user = await User.findOne({ userCode: userCode.toUpperCase() });
+    if (!user) {
+      errorResponse(res, 'User not found with provided userCode', 400);
+      return;
+    }
+
     const packageData = {
-      ...req.body,
-      trackingNumber: generateTrackingNumber(),
-      createdBy: req.user._id
+      trackingNumber,
+      userCode: userCode.toUpperCase(),
+      userId: user._id,
+      weight: weight || 0,
+      shipper: shipper || '',
+      description: description || '',
+      itemDescription: itemDescription || '',
+      serviceMode,
+      status,
+      dimensions: dimensions || { length: 0, width: 0, height: 0, unit: 'cm' },
+      senderName: senderName || '',
+      senderEmail: senderEmail || '',
+      senderPhone: senderPhone || '',
+      senderAddress: senderAddress || '',
+      senderCountry: senderCountry || '',
+      recipient: recipient || {},
+      totalAmount: itemValue || 0,
+      specialInstructions: specialInstructions || '',
+      isFragile: isFragile || false,
+      isHazardous: isHazardous || false,
+      requiresSignature: requiresSignature || false,
+      customsRequired: customsRequired || false,
+      customsStatus: customsStatus || 'not_required',
+      dateReceived: entryDate ? new Date(entryDate) : new Date()
     };
 
     const newPackage = await Package.create(packageData);
-    await newPackage.populate('senderId recipientId createdBy', 'name email');
+    await newPackage.populate('userId', 'firstName lastName email phone mailboxNumber');
 
-    logger.info(`Package created: ${newPackage.trackingNumber}`);
-    successResponse(res, newPackage, 'Package created successfully', 201);
-  } catch (error: any) {
-    logger.error('Error creating package:', error);
+    successResponse(res, {
+      package: newPackage
+    }, 'Package created successfully', 201);
+  } catch (error) {
+    logger.error('Error adding package:', error);
     if (error.code === 11000) {
       errorResponse(res, 'Tracking number already exists', 409);
     } else {
-      errorResponse(res, 'Failed to create package');
+      errorResponse(res, 'Failed to add package');
     }
   }
 };
 
-export const updatePackage = async (req: AuthRequest, res: Response): Promise<void> => {
+// Update Package (API SPEC)
+export const updatePackage = async (req: PackageRequest, res: Response): Promise<void> => {
   try {
-    const packageData = await Package.findByIdAndUpdate(
+    const updateData = req.body;
+    
+    const updatedPackage = await Package.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updateData,
       { new: true, runValidators: true }
-    ).populate('senderId recipientId createdBy', 'name email');
+    ).populate('userId', 'firstName lastName email phone mailboxNumber');
 
-    if (!packageData) {
+    if (!updatedPackage) {
       errorResponse(res, 'Package not found', 404);
       return;
     }
 
-    logger.info(`Package updated: ${packageData.trackingNumber}`);
-    successResponse(res, packageData, 'Package updated successfully');
+    successResponse(res, {
+      package: updatedPackage
+    });
   } catch (error) {
     logger.error('Error updating package:', error);
     errorResponse(res, 'Failed to update package');
   }
 };
 
+// Delete Package (API SPEC)
 export const deletePackage = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const packageData = await Package.findByIdAndDelete(req.params.id);
+    const deletedPackage = await Package.findByIdAndDelete(req.params.id);
 
-    if (!packageData) {
+    if (!deletedPackage) {
       errorResponse(res, 'Package not found', 404);
       return;
     }
 
-    logger.info(`Package deleted: ${packageData.trackingNumber}`);
     successResponse(res, null, 'Package deleted successfully');
   } catch (error) {
     logger.error('Error deleting package:', error);
@@ -117,175 +260,120 @@ export const deletePackage = async (req: AuthRequest, res: Response): Promise<vo
   }
 };
 
-export const updatePackageStatus = async (req: AuthRequest, res: Response): Promise<void> => {
+// Update Package Status (API SPEC)
+export const updatePackageStatus = async (req: PackageRequest, res: Response): Promise<void> => {
   try {
-    const { status, location, description } = req.body;
+    const { status, notes, location } = req.body;
 
-    const packageData = await Package.findById(req.params.id);
-    if (!packageData) {
+    if (!status) {
+      errorResponse(res, 'Status is required', 400);
+      return;
+    }
+
+    const updateData: any = { status };
+
+    // Add to history
+    const historyEntry = {
+      status,
+      at: new Date(),
+      note: notes || ''
+    };
+
+    const updatedPackage = await Package.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: updateData,
+        $push: { history: historyEntry },
+        ...(location && { $set: { warehouseLocation: location } })
+      },
+      { new: true }
+    ).populate('userId', 'firstName lastName email phone mailboxNumber');
+
+    if (!updatedPackage) {
       errorResponse(res, 'Package not found', 404);
       return;
     }
 
-    packageData.status = status;
-    packageData.trackingHistory.push({
-      timestamp: new Date(),
-      status,
-      location: location || 'Unknown',
-      description
+    successResponse(res, {
+      package: updatedPackage
     });
-
-    if (status === 'delivered') {
-      packageData.actualDelivery = new Date();
-    }
-
-    await packageData.save();
-    await packageData.populate('senderId recipientId', 'name email');
-
-    logger.info(`Package status updated: ${packageData.trackingNumber} -> ${status}`);
-    successResponse(res, packageData, 'Package status updated successfully');
   } catch (error) {
     logger.error('Error updating package status:', error);
     errorResponse(res, 'Failed to update package status');
   }
 };
 
-export const addTrackingUpdate = async (req: AuthRequest, res: Response): Promise<void> => {
+// Bulk Upload Packages (API SPEC)
+export const bulkUploadPackages = async (req: PackageRequest, res: Response): Promise<void> => {
   try {
-    const { status, location, description } = req.body;
+    const { packages } = req.body;
 
-    const packageData = await Package.findById(req.params.id);
-    if (!packageData) {
-      errorResponse(res, 'Package not found', 404);
+    if (!packages || !Array.isArray(packages)) {
+      errorResponse(res, 'Packages array is required', 400);
       return;
     }
 
-    packageData.trackingHistory.push({
-      timestamp: new Date(),
-      status,
-      location,
-      description
-    });
+    const results = [];
+    let success = 0;
+    let failed = 0;
 
-    await packageData.save();
+    for (const pkgData of packages) {
+      try {
+        // Check if tracking number already exists
+        const existingPackage = await Package.findOne({ trackingNumber: pkgData.trackingNumber });
+        if (existingPackage) {
+          results.push({
+            trackingNumber: pkgData.trackingNumber,
+            ok: false,
+            error: 'Tracking number already exists'
+          });
+          failed++;
+          continue;
+        }
 
-    logger.info(`Tracking update added: ${packageData.trackingNumber}`);
-    successResponse(res, packageData, 'Tracking update added successfully');
-  } catch (error) {
-    logger.error('Error adding tracking update:', error);
-    errorResponse(res, 'Failed to add tracking update');
-  }
-};
+        // Find user by userCode
+        const user = await User.findOne({ userCode: pkgData.userCode.toUpperCase() });
+        if (!user) {
+          results.push({
+            trackingNumber: pkgData.trackingNumber,
+            ok: false,
+            error: 'User not found'
+          });
+          failed++;
+          continue;
+        }
 
-export const getPackageByTrackingNumber = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const packageData = await Package.findOne({ trackingNumber: req.params.trackingNumber.toUpperCase() })
-      .populate('senderId recipientId', 'name email');
+        const newPackage = new Package({
+          ...pkgData,
+          userCode: pkgData.userCode.toUpperCase(),
+          userId: user._id,
+          dateReceived: new Date()
+        });
 
-    if (!packageData) {
-      errorResponse(res, 'Package not found', 404);
-      return;
+        await newPackage.save();
+        results.push({
+          trackingNumber: pkgData.trackingNumber,
+          ok: true
+        });
+        success++;
+      } catch (error) {
+        results.push({
+          trackingNumber: pkgData.trackingNumber,
+          ok: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        failed++;
+      }
     }
-
-    successResponse(res, packageData);
-  } catch (error) {
-    logger.error('Error getting package by tracking number:', error);
-    errorResponse(res, 'Failed to get package');
-  }
-};
-
-export const getPackagesByStatus = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const page = parseInt(req.query.page as string) || PAGINATION.DEFAULT_PAGE;
-    const limit = parseInt(req.query.limit as string) || PAGINATION.DEFAULT_LIMIT;
-    const skip = (page - 1) * limit;
-
-    const packages = await Package.find({ status: req.params.status })
-      .populate('senderId recipientId', 'name email')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Package.countDocuments({ status: req.params.status });
 
     successResponse(res, {
-      packages,
-      pagination: getPaginationData(page, limit, total)
+      total: packages.length,
+      success,
+      failed,
+      results
     });
   } catch (error) {
-    logger.error('Error getting packages by status:', error);
-    errorResponse(res, 'Failed to get packages');
-  }
-};
-
-export const getPackagesByCustomer = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const page = parseInt(req.query.page as string) || PAGINATION.DEFAULT_PAGE;
-    const limit = parseInt(req.query.limit as string) || PAGINATION.DEFAULT_LIMIT;
-    const skip = (page - 1) * limit;
-
-    const packages = await Package.find({
-      $or: [
-        { senderId: req.params.customerId },
-        { recipientId: req.params.customerId }
-      ]
-    })
-      .populate('senderId recipientId', 'name email')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Package.countDocuments({
-      $or: [
-        { senderId: req.params.customerId },
-        { recipientId: req.params.customerId }
-      ]
-    });
-
-    successResponse(res, {
-      packages,
-      pagination: getPaginationData(page, limit, total)
-    });
-  } catch (error) {
-    logger.error('Error getting packages by customer:', error);
-    errorResponse(res, 'Failed to get packages');
-  }
-};
-
-export const addToManifest = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { manifestId } = req.body;
-
-    const packageData = await Package.findById(req.params.id);
-    if (!packageData) {
-      errorResponse(res, 'Package not found', 404);
-      return;
-    }
-
-    // This would typically involve updating the manifest
-    // For now, we'll just return success
-    logger.info(`Package added to manifest: ${packageData.trackingNumber}`);
-    successResponse(res, null, 'Package added to manifest successfully');
-  } catch (error) {
-    logger.error('Error adding package to manifest:', error);
-    errorResponse(res, 'Failed to add package to manifest');
-  }
-};
-
-export const removeFromManifest = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const packageData = await Package.findById(req.params.id);
-    if (!packageData) {
-      errorResponse(res, 'Package not found', 404);
-      return;
-    }
-
-    // This would typically involve updating the manifest
-    // For now, we'll just return success
-    logger.info(`Package removed from manifest: ${packageData.trackingNumber}`);
-    successResponse(res, null, 'Package removed from manifest successfully');
-  } catch (error) {
-    logger.error('Error removing package from manifest:', error);
-    errorResponse(res, 'Failed to remove package from manifest');
+    logger.error('Error in bulk upload:', error);
+    errorResponse(res, 'Failed to process bulk upload');
   }
 };
