@@ -784,6 +784,12 @@ model Warehouse {
   capacity    Json?    // Storage capacity information
   operatingHours Json? // Operating hours
   notes       String?  @db.String(1000)
+  
+  // Shipping method specific addresses
+  airAddress  String?  // Address for air shipments
+  seaAddress  String?  // Address for sea shipments  
+  chinaAddress String? // Address for China shipments
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

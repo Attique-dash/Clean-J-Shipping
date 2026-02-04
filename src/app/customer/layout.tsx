@@ -77,10 +77,10 @@ export default function CustomerLayout({
       color: "from-yellow-500 to-yellow-600",
     },
     {
-      href: "/customer/addresses",
-      label: "Addresses",
+      href: "/customer/shipping-addresses",
+      label: "Shipping Addresses",
       icon: MapPin,
-      description: "Manage your shipping addresses for air and sea delivery",
+      description: "View shipping addresses for air, sea, and China deliveries",
       color: "from-orange-500 to-orange-600",
     },
      {

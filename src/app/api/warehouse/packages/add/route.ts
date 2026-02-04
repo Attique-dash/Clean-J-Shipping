@@ -3,6 +3,7 @@ import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
 import { User } from "@/models/User";
 import { PreAlert } from "@/models/PreAlert";
+import { Warehouse } from "@/models/Warehouse";
 import Invoice from "@/models/Invoice";
 import { getAuthFromRequest } from "@/lib/rbac";
 import { addPackageSchema } from "@/lib/validators";
@@ -39,6 +40,32 @@ function calculateTotalAmount(itemValue: number, weight: number): number {
   
   // Total: shipping + customs (item value is for customs only, not charged to customer)
   return shippingCostJmd + customsDutyJmd;
+}
+
+function detectShippingMethod(shipper?: string, origin?: string, description?: string): 'air' | 'sea' | 'china' | 'local' {
+  const shipperLower = (shipper || '').toLowerCase();
+  const originLower = (origin || '').toLowerCase();
+  const descLower = (description || '').toLowerCase();
+  
+  // Check for China indicators
+  if (shipperLower.includes('china') || originLower.includes('china') || descLower.includes('china') ||
+      shipperLower.includes('beijing') || shipperLower.includes('shanghai') || shipperLower.includes('guangzhou')) {
+    return 'china';
+  }
+  
+  // Check for air indicators
+  if (shipperLower.includes('air') || shipperLower.includes('fedex') || shipperLower.includes('dhl') || 
+      shipperLower.includes('ups') || shipperLower.includes('express') || descLower.includes('air')) {
+    return 'air';
+  }
+  
+  // Check for sea indicators
+  if (shipperLower.includes('sea') || shipperLower.includes('ocean') || shipperLower.includes('cargo') ||
+      shipperLower.includes('freight') || shipperLower.includes('vessel') || descLower.includes('sea')) {
+    return 'sea';
+  }
+  
+  return 'local';
 }
 
 async function createBillingInvoice(packageData: { value?: number; weight?: number; dimensions?: { length?: string; width?: string; height?: string } }, user: { _id: string; firstName: string; lastName: string; email: string; userCode?: string; address?: { street?: string }; phone?: string }, trackingNumber: string) {
@@ -147,6 +174,27 @@ export async function POST(req: Request) {
   const weightNum = asNumber(weight);
   const shippingCost = calculateTotalAmount(itemValueNum, weightNum);
 
+  // Detect shipping method
+  const shippingMethod = detectShippingMethod(shipper, warehouse, description);
+  console.log(`Detected shipping method for ${trackingNumber}: ${shippingMethod}`);
+
+  // Get warehouse addresses based on shipping method
+  let warehouseAddresses = { airAddress: '', seaAddress: '', chinaAddress: '' };
+  try {
+    const defaultWarehouse = await Warehouse.findOne({ isActive: true, isDefault: true })
+      .select('airAddress seaAddress chinaAddress address')
+      .lean();
+    if (defaultWarehouse) {
+      warehouseAddresses = {
+        airAddress: defaultWarehouse.airAddress || defaultWarehouse.address,
+        seaAddress: defaultWarehouse.seaAddress || defaultWarehouse.address,
+        chinaAddress: defaultWarehouse.chinaAddress || defaultWarehouse.address
+      };
+    }
+  } catch (error) {
+    console.error('Error fetching warehouse addresses:', error);
+  }
+
   // Normalize received date to start of day UTC if a date-only string is supplied
   let now = new Date(entryDate ?? Date.now());
   if (entryDate && /^\d{4}-\d{2}-\d{2}$/.test(entryDate)) {
@@ -214,6 +262,9 @@ export async function POST(req: Request) {
           packageType: "parcel",
           serviceType: "standard",
           deliveryType: "door_to_door",
+          // Add shipping method and warehouse addresses
+          serviceMode: shippingMethod,
+          warehouseAddresses: warehouseAddresses,
           // Special instructions
           specialInstructions: typeof specialInstructions === "string" ? specialInstructions : undefined,
           contents: typeof contents === "string" ? contents : undefined,

@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       Package.find({
         userId: userId,
       })
-      .select('trackingNumber status itemDescription weight senderName currentLocation receiverName receiverEmail receiverPhone receiverAddress receiverCountry updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords itemValue value dimensions length width height dimensionUnit serviceMode customsRequired customsStatus paymentStatus dateReceived daysInStorage warehouseLocation senderEmail senderPhone senderAddress senderCountry shipper')
+      .select('trackingNumber status itemDescription weight senderName currentLocation receiverName receiverEmail receiverPhone receiverAddress receiverCountry updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords itemValue value dimensions length width height dimensionUnit serviceMode customsRequired customsStatus paymentStatus dateReceived daysInStorage warehouseLocation senderEmail senderPhone senderAddress senderCountry shipper warehouseAddresses')
       .sort({ createdAt: -1 })
       .limit(100)
       .lean(),

@@ -3,3 +3,4 @@ import './ApiKey';
 import './User';  
 import './Package';
 import './Invoice';
+import './Warehouse';
