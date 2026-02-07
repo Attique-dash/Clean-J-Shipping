@@ -210,7 +210,7 @@ export const addPackage = async (req: PackageRequest, res: Response): Promise<vo
     }, 'Package created successfully', 201);
   } catch (error) {
     logger.error('Error adding package:', error);
-    if (error.code === 11000) {
+    if (error instanceof Error && 'code' in error && error.code === 11000) {
       errorResponse(res, 'Tracking number already exists', 409);
     } else {
       errorResponse(res, 'Failed to add package');
@@ -270,23 +270,24 @@ export const updatePackageStatus = async (req: PackageRequest, res: Response): P
       return;
     }
 
-    const updateData: any = { status };
-
-    // Add to history
     const historyEntry = {
       status,
       at: new Date(),
       note: notes || ''
     };
 
+    const updateData: any = { 
+      status,
+      ...(location && { warehouseLocation: location })
+    };
+
     const updatedPackage = await Package.findByIdAndUpdate(
       req.params.id,
       {
-        $set: updateData,
-        $push: { history: historyEntry },
-        ...(location && { $set: { warehouseLocation: location } })
+        ...updateData,
+        $push: { history: historyEntry }
       },
-      { new: true }
+      { new: true, runValidators: true }
     ).populate('userId', 'firstName lastName email phone mailboxNumber');
 
     if (!updatedPackage) {

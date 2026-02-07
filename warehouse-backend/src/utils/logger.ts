@@ -1,4 +1,4 @@
-import winston from 'winston';
+import * as winston from 'winston';
 import { config } from '../config/env';
 
 const logFormat = winston.format.combine(
@@ -9,7 +9,7 @@ const logFormat = winston.format.combine(
 );
 
 const logger = winston.createLogger({
-  level: config.NODE_ENV === 'production' ? 'info' : 'debug',
+  level: config.nodeEnv === 'production' ? 'info' : 'debug',
   format: logFormat,
   defaultMeta: { service: 'warehouse-backend' },
   transports: [
@@ -28,12 +28,13 @@ const logger = winston.createLogger({
 });
 
 // If we're not in production, log to the console with simple format
-if (config.NODE_ENV !== 'production') {
+if (config.nodeEnv !== 'production') {
   logger.add(new winston.transports.Console({
     format: winston.format.combine(
       winston.format.colorize(),
       winston.format.simple(),
-      winston.format.printf(({ timestamp, level, message, ...meta }) => {
+      winston.format.printf((info: any) => {
+        const { timestamp, level, message, ...meta } = info;
         let msg = `${timestamp} [${level}]: ${message}`;
         if (Object.keys(meta).length > 0) {
           msg += ` ${JSON.stringify(meta)}`;

@@ -201,6 +201,24 @@ export const generateInventoryReport = async (req: AuthRequest, res: Response): 
             maxStock: { $max: '$quantity' }
           }
         }
+      ]),
+      Inventory.aggregate([
+        { $match: matchQuery },
+        {
+          $group: {
+            _id: '$sku',
+            totalSold: { $sum: 0 }, // Would need sales data for accurate turnover
+            currentStock: { $last: '$quantity' },
+            avgStock: { $avg: '$quantity' }
+          }
+        },
+        {
+          $addFields: {
+            turnoverRate: { $divide: ['$totalSold', '$avgStock'] }
+          }
+        },
+        { $sort: { turnoverRate: -1 } },
+        { $limit: 10 }
       ])
     ]);
 

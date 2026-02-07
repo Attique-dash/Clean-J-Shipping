@@ -1,14 +1,14 @@
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 
 dotenv.config();
 
 interface EnvConfig {
-  PORT: number;
-  NODE_ENV: string;
+  port: number;
+  nodeEnv: string;
   MONGODB_URI: string;
   MONGODB_TEST_URI: string;
-  JWT_SECRET: string;
-  JWT_EXPIRES_IN: string;
+  jwtSecret: string;
+  jwtExpiresIn: string;
   SMTP_HOST: string;
   SMTP_PORT: number;
   SMTP_USER: string;
@@ -22,12 +22,12 @@ interface EnvConfig {
 }
 
 export const config: EnvConfig = {
-  PORT: parseInt(process.env.PORT || '3001', 10),
-  NODE_ENV: process.env.NODE_ENV || 'development',
+  port: parseInt(process.env.PORT || '3001', 10),
+  nodeEnv: process.env.NODE_ENV || 'development',
   MONGODB_URI: process.env.MONGODB_URI || 'mongodb://localhost:27017/warehouse-backend',
   MONGODB_TEST_URI: process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/warehouse-backend-test',
-  JWT_SECRET: process.env.JWT_SECRET || 'your-super-secret-jwt-key',
-  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
+  jwtSecret: process.env.JWT_SECRET || 'your-super-secret-jwt-key',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   SMTP_HOST: process.env.SMTP_HOST || 'smtp.gmail.com',
   SMTP_PORT: parseInt(process.env.SMTP_PORT || '587', 10),
   SMTP_USER: process.env.SMTP_USER || '',
@@ -45,6 +45,9 @@ const requiredEnvVars = ['MONGODB_URI', 'JWT_SECRET'];
 
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
-    throw new Error(`Missing required environment variable: ${envVar}`);
+    const warningMessage = envVar === 'JWT_SECRET' 
+      ? `Warning: ${envVar} is using default value - CHANGE THIS IN PRODUCTION!`
+      : `Warning: ${envVar} is using default value`;
+    console.warn(warningMessage);
   }
 }

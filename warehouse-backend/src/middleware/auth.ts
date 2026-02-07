@@ -1,12 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { User } from '../models/User';
+import { User, IUser } from '../models/User';
 import { config } from '../config/env';
 import { errorResponse } from '../utils/helpers';
 import { ERROR_MESSAGES } from '../utils/constants';
 
 export interface AuthRequest extends Request {
-  user?: any;
+  user?: IUser;
 }
 
 export { Response };
@@ -20,11 +20,16 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       return;
     }
 
-    const decoded = jwt.verify(token, config.JWT_SECRET) as any;
-    const user = await User.findById(decoded.id).select('-password');
+    const decoded = jwt.verify(token, config.jwtSecret) as any;
+    const user = await User.findById(decoded.userId).select('-passwordHash');
 
     if (!user) {
       errorResponse(res, ERROR_MESSAGES.UNAUTHORIZED, 401);
+      return;
+    }
+
+    if (user.accountStatus !== 'active') {
+      errorResponse(res, 'Account is not active', 403);
       return;
     }
 
@@ -56,9 +61,9 @@ export const optionalAuth = async (req: AuthRequest, res: Response, next: NextFu
     const token = req.header('Authorization')?.replace('Bearer ', '');
 
     if (token) {
-      const decoded = jwt.verify(token, config.JWT_SECRET) as any;
-      const user = await User.findById(decoded.id).select('-password');
-      req.user = user;
+      const decoded = jwt.verify(token, config.jwtSecret) as any;
+      const user = await User.findById(decoded.userId).select('-passwordHash');
+      req.user = user || undefined;
     }
 
     next();

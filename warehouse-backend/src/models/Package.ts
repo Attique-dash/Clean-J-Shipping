@@ -10,6 +10,7 @@ export interface IDimensions {
 
 export interface IShippingAddress {
   street: string;
+  city: string;
   state: string;
   zipCode: string;
   country: string;
@@ -365,9 +366,15 @@ packageSchema.index({ dateReceived: -1 });
 packageSchema.index({ manifestId: 1 });
 packageSchema.index({ createdAt: -1 });
 
+// Compound indexes for common queries
+packageSchema.index({ status: 1, createdAt: -1 });
+packageSchema.index({ userId: 1, status: 1 });
+packageSchema.index({ userCode: 1, status: 1 });
+
 export const Package = mongoose.model<IPackage>('Package', packageSchema);
 
 // Virtual for volume
 packageSchema.virtual('volume').get(function() {
+  if (!this.dimensions) return 0;
   return this.dimensions.length * this.dimensions.width * this.dimensions.height;
 });

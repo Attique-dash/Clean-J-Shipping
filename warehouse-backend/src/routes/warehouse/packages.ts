@@ -1,48 +1,50 @@
 import { Router } from 'express';
-import { authenticate, authenticateWarehouse } from '../../middleware/auth';
+import { combinedAuth } from '../../middleware/combinedAuth';
 import * as packageController from '../../controllers/warehouse/packageController';
 
 const router = Router();
 
-// Get All Packages (Paginated + Filtered) - API SPEC
+// All routes use combined authentication (JWT or API Key)
+
+// Search/List Packages (Paginated + Filtered) - API SPEC
 router.get('/search', 
-  authenticate || authenticateWarehouse, 
+  combinedAuth, 
   packageController.searchPackages
 );
 
 // Get Single Package - API SPEC
 router.get('/:id', 
-  authenticate || authenticateWarehouse, 
+  combinedAuth, 
   packageController.getPackageById
 );
 
 // Add New Package - API SPEC
 router.post('/add', 
-  authenticate || authenticateWarehouse, 
+  combinedAuth, 
   packageController.addPackage
 );
 
 // Update Package - API SPEC
 router.put('/:id', 
-  authenticate || authenticateWarehouse, 
+  combinedAuth, 
   packageController.updatePackage
 );
 
 // Delete Package - API SPEC
 router.delete('/:id', 
-  authenticate || authenticateWarehouse, 
+  combinedAuth, 
   packageController.deletePackage
 );
 
 // Update Package Status - API SPEC
 router.post('/:id/status', 
-  authenticate || authenticateWarehouse, 
+  combinedAuth, 
   packageController.updatePackageStatus
 );
 
 // Bulk Upload Packages - API SPEC
 router.post('/bulk-upload', 
-  authenticate || authenticateWarehouse, 
+  combinedAuth, 
   packageController.bulkUploadPackages
 );
 

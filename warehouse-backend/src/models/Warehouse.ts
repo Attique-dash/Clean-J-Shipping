@@ -11,14 +11,104 @@ export interface IWarehouse extends Document {
   isActive: boolean;
   isDefault: boolean;
   
-  // Shipping method addresses
-  airAddress?: string;
-  seaAddress?: string;
-  chinaAddress?: string;
+  // Shipping method addresses - NEW FEATURE for Clean J Shipping
+  airAddress?: {
+    name: string;
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+    phone?: string;
+    email?: string;
+    instructions?: string;
+  };
+  
+  seaAddress?: {
+    name: string;
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+    phone?: string;
+    email?: string;
+    instructions?: string;
+  };
+  
+  chinaAddress?: {
+    name: string;
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+    phone?: string;
+    email?: string;
+    instructions?: string;
+  };
+  
+  // Company settings
+  companyAbbreviation?: string; // e.g., "CJS" for Clean J Shipping
   
   createdAt: Date;
   updatedAt: Date;
 }
+
+const shippingAddressSchema = new Schema({
+  name: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: [200, 'Name cannot exceed 200 characters']
+  },
+  street: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: [500, 'Street cannot exceed 500 characters']
+  },
+  city: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: [100, 'City cannot exceed 100 characters']
+  },
+  state: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: [100, 'State cannot exceed 100 characters']
+  },
+  zipCode: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: [20, 'Zip code cannot exceed 20 characters']
+  },
+  country: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: [100, 'Country cannot exceed 100 characters']
+  },
+  phone: {
+    type: String,
+    trim: true,
+    maxlength: [20, 'Phone cannot exceed 20 characters']
+  },
+  email: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
+  },
+  instructions: {
+    type: String,
+    trim: true,
+    maxlength: [1000, 'Instructions cannot exceed 1000 characters']
+  }
+}, { _id: false });
 
 const warehouseSchema = new Schema<IWarehouse>({
   code: {
@@ -76,20 +166,17 @@ const warehouseSchema = new Schema<IWarehouse>({
   },
   
   // Shipping method addresses
-  airAddress: {
+  airAddress: shippingAddressSchema,
+  seaAddress: shippingAddressSchema,
+  chinaAddress: shippingAddressSchema,
+  
+  // Company settings
+  companyAbbreviation: {
     type: String,
     trim: true,
-    maxlength: [500, 'Air address cannot exceed 500 characters']
-  },
-  seaAddress: {
-    type: String,
-    trim: true,
-    maxlength: [500, 'Sea address cannot exceed 500 characters']
-  },
-  chinaAddress: {
-    type: String,
-    trim: true,
-    maxlength: [500, 'China address cannot exceed 500 characters']
+    uppercase: true,
+    match: [/^[A-Z]{2,5}$/, 'Company abbreviation must be 2-5 uppercase letters'],
+    default: 'CJS' // Clean J Shipping
   }
 }, {
   timestamps: true,
@@ -97,12 +184,35 @@ const warehouseSchema = new Schema<IWarehouse>({
   toObject: { virtuals: true }
 });
 
+// Virtual to get formatted addresses
+warehouseSchema.virtual('formattedAirAddress').get(function() {
+  if (!this.airAddress) return null;
+  return {
+    fullAddress: `${this.airAddress.name}\n${this.airAddress.street}\n${this.airAddress.city}, ${this.airAddress.state} ${this.airAddress.zipCode}\n${this.airAddress.country}`,
+    ...this.airAddress
+  };
+});
+
+warehouseSchema.virtual('formattedSeaAddress').get(function() {
+  if (!this.seaAddress) return null;
+  return {
+    fullAddress: `${this.seaAddress.name}\n${this.seaAddress.street}\n${this.seaAddress.city}, ${this.seaAddress.state} ${this.seaAddress.zipCode}\n${this.seaAddress.country}`,
+    ...this.seaAddress
+  };
+});
+
+warehouseSchema.virtual('formattedChinaAddress').get(function() {
+  if (!this.chinaAddress) return null;
+  return {
+    fullAddress: `${this.chinaAddress.name}\n${this.chinaAddress.street}\n${this.chinaAddress.city}, ${this.chinaAddress.state} ${this.chinaAddress.zipCode}\n${this.chinaAddress.country}`,
+    ...this.chinaAddress
+  };
+});
+
 // Indexes
 warehouseSchema.index({ code: 1 });
 warehouseSchema.index({ name: 1 });
 warehouseSchema.index({ isActive: 1 });
-warehouseSchema.index({ city: 1 });
-warehouseSchema.index({ state: 1 });
 warehouseSchema.index({ isDefault: 1 });
 warehouseSchema.index({ createdAt: -1 });
 
