@@ -35,6 +35,9 @@ export class PackageService {
       }
 
       packageData.status = status;
+      if (!packageData.trackingHistory) {
+        packageData.trackingHistory = [];
+      }
       packageData.trackingHistory.push({
         timestamp: new Date(),
         status,

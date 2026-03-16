@@ -4,7 +4,7 @@ import { logger } from './logger';
 
 /**
  * Generate unique mailbox code for Clean J Shipping customers
- * Format: CJS-0001, CJS-0002, etc.
+ * Format: CLEAN-0001, CLEAN-0002, etc.
  * 
  * @param warehouseId - Optional warehouse ID to get company abbreviation
  * @returns Promise<string> - Unique mailbox code
@@ -12,33 +12,47 @@ import { logger } from './logger';
 export const generateMailboxCode = async (warehouseId?: string): Promise<string> => {
   try {
     // Get company abbreviation from warehouse or use default
-    let abbreviation = 'CJS'; // Default for Clean J Shipping
+    let abbreviation = 'CLEAN'; // Default for Clean J Shipping
     
-    if (warehouseId) {
-      const warehouse = await Warehouse.findById(warehouseId);
-      if (warehouse && warehouse.companyAbbreviation) {
-        abbreviation = warehouse.companyAbbreviation;
+    try {
+      if (warehouseId) {
+        const warehouse = await Warehouse.findById(warehouseId);
+        if (warehouse && warehouse.companyAbbreviation) {
+          abbreviation = warehouse.companyAbbreviation;
+        }
+      } else {
+        // Get default warehouse
+        const defaultWarehouse = await Warehouse.findOne({ isDefault: true });
+        if (defaultWarehouse && defaultWarehouse.companyAbbreviation) {
+          abbreviation = defaultWarehouse.companyAbbreviation;
+        }
       }
-    } else {
-      // Get default warehouse
-      const defaultWarehouse = await Warehouse.findOne({ isDefault: true });
-      if (defaultWarehouse && defaultWarehouse.companyAbbreviation) {
-        abbreviation = defaultWarehouse.companyAbbreviation;
-      }
+    } catch (warehouseError) {
+      logger.warn('Error fetching warehouse, using default abbreviation:', warehouseError);
+      // Continue with default abbreviation
     }
 
-    // Find the last mailbox code with this abbreviation
-    const lastUser = await User.findOne({
+    // Find all users with this abbreviation and get the highest number
+    const users = await User.find({
       mailboxNumber: new RegExp(`^${abbreviation}-`, 'i')
-    }).sort({ mailboxNumber: -1 });
+    }).select('mailboxNumber');
 
     let nextNumber = 1;
     
-    if (lastUser && lastUser.mailboxNumber) {
-      // Extract number from format like "CJS-0001"
-      const match = lastUser.mailboxNumber.match(/-(\d+)$/);
-      if (match) {
-        nextNumber = parseInt(match[1], 10) + 1;
+    if (users && users.length > 0) {
+      // Extract numbers from all mailbox codes and find the highest
+      const numbers = users
+        .map(user => {
+          if (user.mailboxNumber) {
+            const match = user.mailboxNumber.match(/-(\d+)$/);
+            return match ? parseInt(match[1], 10) : 0;
+          }
+          return 0;
+        })
+        .filter(num => num > 0);
+      
+      if (numbers.length > 0) {
+        nextNumber = Math.max(...numbers) + 1;
       }
     }
 
@@ -60,7 +74,7 @@ export const generateMailboxCode = async (warehouseId?: string): Promise<string>
     logger.error('Error generating mailbox code:', error);
     // Fallback to random code
     const random = Math.random().toString(36).substr(2, 4).toUpperCase();
-    return `CJS-${random}`;
+    return `CLEAN-${random}`;
   }
 };
 

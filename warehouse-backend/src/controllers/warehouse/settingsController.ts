@@ -6,7 +6,12 @@ import { logger } from '../../utils/logger';
 
 export const getProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const user = await User.findById(req.user._id).select('-password');
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
+    const user = await User.findById(req.user._id).select('-passwordHash');
     successResponse(res, user);
   } catch (error) {
     logger.error('Error getting profile:', error);
@@ -16,7 +21,12 @@ export const getProfile = async (req: AuthRequest, res: Response): Promise<void>
 
 export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const allowedFields = ['name', 'phone', 'avatar'];
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
+    const allowedFields = ['firstName', 'lastName', 'phone'];
     const updates: any = {};
     
     allowedFields.forEach(field => {
@@ -29,7 +39,7 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       req.user._id,
       updates,
       { new: true, runValidators: true }
-    ).select('-password');
+    ).select('-passwordHash');
 
     successResponse(res, user, 'Profile updated successfully');
   } catch (error) {
@@ -40,9 +50,14 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
 
 export const updatePassword = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const { currentPassword, newPassword } = req.body;
 
-    const user = await User.findById(req.user._id).select('+password');
+    const user = await User.findById(req.user._id).select('+passwordHash');
     if (!user) {
       errorResponse(res, 'User not found', 404);
       return;

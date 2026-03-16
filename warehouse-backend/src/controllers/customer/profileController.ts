@@ -3,11 +3,54 @@ import { AuthRequest } from '../../middleware/auth';
 import { User } from '../../models/User';
 import { successResponse, errorResponse } from '../../utils/helpers';
 import { logger } from '../../utils/logger';
+import { ShippingAddressService } from '../../services/shippingAddressService';
 
 export const getProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const user = await User.findById(req.user._id).select('-password');
-    successResponse(res, user);
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
+    const user = await User.findById(req.user._id)
+      .select('-passwordHash')
+      .populate('shippingAddresses');
+    
+    if (!user) {
+      errorResponse(res, 'User not found', 404);
+      return;
+    }
+    
+    // Get formatted shipping addresses with mailbox information
+    const shippingAddresses = await ShippingAddressService.getShippingAddresses(req.user._id);
+    
+    // Create clean profile data without MongoDB internals
+    const profileData = {
+      _id: user._id,
+      userCode: user.userCode,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      mailboxNumber: user.mailboxNumber,
+      accountStatus: user.accountStatus,
+      emailVerified: user.emailVerified,
+      isActive: user.isActive,
+      lastLogin: user.lastLogin,
+      assignedWarehouse: user.assignedWarehouse,
+      permissions: user.permissions,
+      createdBy: user.createdBy,
+      passwordResetAt: user.passwordResetAt,
+      branch: user.branch,
+      address: user.address,
+      preferences: user.preferences,
+      shippingAddresses: shippingAddresses,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
+    
+    successResponse(res, profileData);
   } catch (error) {
     logger.error('Error getting profile:', error);
     errorResponse(res, 'Failed to get profile');
@@ -16,7 +59,12 @@ export const getProfile = async (req: AuthRequest, res: Response): Promise<void>
 
 export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const allowedFields = ['name', 'phone', 'avatar'];
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
+    const allowedFields = ['firstName', 'lastName', 'phone'];
     const updates: any = {};
     
     allowedFields.forEach(field => {
@@ -40,9 +88,14 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
 
 export const updatePassword = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const { currentPassword, newPassword } = req.body;
 
-    const user = await User.findById(req.user._id).select('+password');
+    const user = await User.findById(req.user._id).select('+passwordHash');
     if (!user) {
       errorResponse(res, 'User not found', 404);
       return;
@@ -54,7 +107,7 @@ export const updatePassword = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    user.password = newPassword;
+    user.passwordHash = newPassword;
     await user.save();
 
     successResponse(res, null, 'Password updated successfully');
@@ -66,13 +119,18 @@ export const updatePassword = async (req: AuthRequest, res: Response): Promise<v
 
 export const updatePreferences = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const { preferences } = req.body;
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { preferences },
       { new: true, runValidators: true }
-    ).select('-password');
+    ).select('-passwordHash');
 
     successResponse(res, user, 'Preferences updated successfully');
   } catch (error) {
@@ -83,6 +141,11 @@ export const updatePreferences = async (req: AuthRequest, res: Response): Promis
 
 export const deleteAccount = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const { password, confirmation } = req.body;
 
     if (!confirmation || confirmation !== 'DELETE') {
@@ -90,7 +153,7 @@ export const deleteAccount = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const user = await User.findById(req.user._id).select('+password');
+    const user = await User.findById(req.user._id).select('+passwordHash');
     if (!user) {
       errorResponse(res, 'User not found', 404);
       return;
@@ -114,6 +177,11 @@ export const deleteAccount = async (req: AuthRequest, res: Response): Promise<vo
 
 export const verifyEmail = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const { token } = req.body;
 
     // This would typically verify a token sent to the user's email
@@ -122,7 +190,7 @@ export const verifyEmail = async (req: AuthRequest, res: Response): Promise<void
       req.user._id,
       { emailVerified: true },
       { new: true }
-    ).select('-password');
+    ).select('-passwordHash');
 
     logger.info(`Email verified: ${user?.email}`);
     successResponse(res, user, 'Email verified successfully');
@@ -134,6 +202,11 @@ export const verifyEmail = async (req: AuthRequest, res: Response): Promise<void
 
 export const verifyPhone = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const { code } = req.body;
 
     // This would typically verify a code sent to the user's phone

@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 30
+    },
+    "api/docs.js": {
+      "maxDuration": 30
+    },
+    "api/api-docs.js": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/docs", "destination": "/api/docs" },
+    { "source": "/docs/(.*)", "destination": "/api/docs" },
+    { "source": "/api-docs", "destination": "/api/api-docs" },
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/(.*)", "destination": "/api/index" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:"
+        }
+      ]
+    }
+  ]
+}

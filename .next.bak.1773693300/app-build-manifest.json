@@ -1,0 +1,60 @@
+{
+  "pages": {
+    "/api/auth/[...nextauth]/route": [
+      "static/chunks/webpack.js",
+      "static/css/vendors.css",
+      "static/chunks/vendors.js",
+      "static/chunks/main-app.js",
+      "static/chunks/common.js",
+      "static/chunks/app/api/auth/[...nextauth]/route.js"
+    ],
+    "/layout": [
+      "static/chunks/webpack.js",
+      "static/css/vendors.css",
+      "static/chunks/vendors.js",
+      "static/chunks/main-app.js",
+      "static/chunks/common.js",
+      "static/css/app/layout.css",
+      "static/chunks/app/layout.js"
+    ],
+    "/not-found": [
+      "static/chunks/webpack.js",
+      "static/css/vendors.css",
+      "static/chunks/vendors.js",
+      "static/chunks/main-app.js",
+      "static/chunks/common.js",
+      "static/chunks/app/not-found.js"
+    ],
+    "/login/page": [
+      "static/chunks/webpack.js",
+      "static/css/vendors.css",
+      "static/chunks/vendors.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/login/page.js"
+    ],
+    "/customer/layout": [
+      "static/chunks/webpack.js",
+      "static/css/vendors.css",
+      "static/chunks/vendors.js",
+      "static/chunks/main-app.js",
+      "static/chunks/common.js",
+      "static/chunks/app/customer/layout.js"
+    ],
+    "/customer/dashboard/page": [
+      "static/chunks/webpack.js",
+      "static/css/vendors.css",
+      "static/chunks/vendors.js",
+      "static/chunks/main-app.js",
+      "static/chunks/common.js",
+      "static/chunks/app/customer/dashboard/page.js"
+    ],
+    "/api/customer/packages/route": [
+      "static/chunks/webpack.js",
+      "static/css/vendors.css",
+      "static/chunks/vendors.js",
+      "static/chunks/main-app.js",
+      "static/chunks/common.js",
+      "static/chunks/app/api/customer/packages/route.js"
+    ]
+  }
+}

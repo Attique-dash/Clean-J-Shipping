@@ -395,10 +395,12 @@ export async function POST(req: Request) {
 
     // Fire-and-forget email after commit with invoice PDF attachment
     // We need customer context outside; reusing local var within this block
-    const customerForEmail = await User.findOne({ userCode, role: "customer" }).select("email firstName");
+    const customerForEmail = await User.findOne({ userCode, role: "customer" }).select("email firstName lastName");
     const toEmail = customerForEmail?.email;
     if (toEmail) {
       const invoiceId = billingInvoice?._id?.toString();
+      
+      // Send email to customer with package contents and warehouse addresses
       sendNewPackageEmail({
         to: toEmail,
         firstName: customerForEmail?.firstName || "",
@@ -410,9 +412,36 @@ export async function POST(req: Request) {
         receivedBy: receivedBy || "Warehouse Staff",
         receivedDate: now,
         invoiceId: invoiceId, // Attach invoice PDF if available
+        description: typeof description === "string" ? description : undefined,
+        itemDescription: typeof itemDescription === "string" ? itemDescription : undefined,
+        warehouseAddresses: warehouseAddresses,
+      }).then((result) => {
+        console.log(`[Warehouse Package Add] Customer email result for ${trackingNumber}:`, result);
       }).catch((err) => {
-        console.error('[Package Add] Email failed:', err);
+        console.error('[Warehouse Package Add] Email failed:', err);
       });
+      
+      // Send email to recipient if different from customer
+      const recipientEmail = recipient?.email;
+      if (recipientEmail && recipientEmail !== toEmail) {
+        const { sendPackageNotificationToRecipient } = await import('@/lib/email');
+        sendPackageNotificationToRecipient({
+          to: recipientEmail,
+          recipientName: recipient?.name || 'Recipient',
+          trackingNumber,
+          shipper,
+          weight,
+          warehouse: warehouse || 'Main Warehouse',
+          receivedDate: now,
+          customerName: `${customerForEmail?.firstName || ''} ${customerForEmail?.lastName || ''}`.trim() || toEmail,
+        }).then((result) => {
+          console.log(`[Warehouse Package Add] Recipient email result for ${trackingNumber}:`, result);
+        }).catch((err) => {
+          console.error('[Warehouse Package Add] Recipient email failed:', err);
+        });
+      }
+    } else {
+      console.warn(`[Warehouse Package Add] No customer email found for userCode: ${userCode}`);
     }
 
     return NextResponse.json({

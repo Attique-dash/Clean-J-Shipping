@@ -185,9 +185,9 @@ const faqData = [
 
 async function seedFAQs() {
   try {
-    const mongoUri = process.env.MONGODB_URI || process.env.DATABASE_URL;
+    const mongoUri = process.env.MONGODB_URI || process.env.MONGODB_URI;
     if (!mongoUri) {
-      console.error('❌ MONGODB_URI or DATABASE_URL not found in environment variables');
+      console.error('❌ MONGODB_URI or MONGODB_URI not found in environment variables');
       process.exit(1);
     }
 

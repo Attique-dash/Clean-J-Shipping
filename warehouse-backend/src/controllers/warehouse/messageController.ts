@@ -1,14 +1,14 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { Message } from '../../models/Message';
-import { successResponse, errorResponse, getPaginationData } from '../../utils/helpers';
+import { successResponse, errorResponse, getPaginationData, parseQueryParam } from '../../utils/helpers';
 import { PAGINATION } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 
 export const getMessages = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const page = parseInt(req.query.page as string) || PAGINATION.DEFAULT_PAGE;
-    const limit = parseInt(req.query.limit as string) || PAGINATION.DEFAULT_LIMIT;
+    const page = parseQueryParam(req.query, 'page', PAGINATION.DEFAULT_PAGE);
+    const limit = parseQueryParam(req.query, 'limit', PAGINATION.DEFAULT_LIMIT);
     const skip = (page - 1) * limit;
 
     const filter: any = {};
@@ -56,6 +56,11 @@ export const getMessageById = async (req: AuthRequest, res: Response): Promise<v
 
 export const createMessage = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const messageData = {
       ...req.body,
       senderId: req.user._id
@@ -132,6 +137,11 @@ export const markAsRead = async (req: AuthRequest, res: Response): Promise<void>
 
 export const replyToMessage = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const { content } = req.body;
 
     const originalMessage = await Message.findById(req.params.id);

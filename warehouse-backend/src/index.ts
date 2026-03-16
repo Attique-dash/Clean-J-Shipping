@@ -14,7 +14,7 @@ process.on('uncaughtException', (error: Error) => {
 // Connect to database and start server
 const startServer = async () => {
   try {
-    // Connect to MongoDB
+    // ✅ Always attempt connection, even in Vercel (let middleware handle retries)
     await connectDatabase();
     logger.info('MongoDB connected successfully');
 
@@ -42,8 +42,17 @@ const startServer = async () => {
 
   } catch (error) {
     logger.error('Failed to start server:', error);
-    process.exit(1);
+    // Don't exit in Vercel - let serverless handle it
+    if (process.env.VERCEL !== '1') {
+      process.exit(1);
+    }
   }
 };
 
-startServer();
+// Export app for Vercel serverless deployment
+export default app;
+
+// Start server only when not in Vercel environment
+if (process.env.VERCEL !== '1') {
+  startServer();
+}

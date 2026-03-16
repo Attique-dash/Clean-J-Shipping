@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swagger Auth Manager</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .auth-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e1e5e9;
+            border-radius: 6px;
+            background: #fafbfc;
+        }
+        .auth-section h3 {
+            margin: 0 0 15px 0;
+            color: #24292e;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #586069;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5da;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 80px;
+            resize: vertical;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+        button {
+            background: #0366d6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0256cc;
+        }
+        button.danger {
+            background: #d73a49;
+        }
+        button.danger:hover {
+            background: #cb2431;
+        }
+        .success {
+            color: #28a745;
+            font-weight: 500;
+        }
+        .error {
+            color: #d73a49;
+            font-weight: 500;
+        }
+        .token-display {
+            background: #f6f8fa;
+            border: 1px solid #e1e5e9;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            word-break: break-all;
+            margin: 10px 0;
+        }
+        .info-box {
+            background: #e1f5fe;
+            border: 1px solid #01579b;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .role-badge {
+            background: #0366d6;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Swagger Authentication Manager</h1>
+        
+        <div class="info-box">
+            <strong>ℹ️ Information:</strong> This tool helps you manage authentication tokens for Swagger UI.
+            Tokens are stored in your browser's localStorage and automatically restored when you open Swagger in new tabs.
+        </div>
+
+        <!-- JWT Token Section -->
+        <div class="auth-section">
+            <h3>🔑 JWT Token Authentication</h3>
+            <p style="margin: 0 0 15px 0; color: #586069;">
+                For Customer, Warehouse, and Admin endpoints
+            </p>
+            
+            <div class="form-group">
+                <label for="authRole">Select Role:</label>
+                <select id="authRole">
+                    <option value="">Choose a role...</option>
+                    <option value="customer">👤 Customer</option>
+                    <option value="warehouse">🏭 Warehouse Staff</option>
+                    <option value="admin">👑 Admin</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="jwtToken">JWT Token:</label>
+                <textarea id="jwtToken" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></textarea>
+            </div>
+            
+            <button onclick="saveJWTToken()">💾 Save JWT Token</button>
+            <button onclick="testJWTToken()" class="danger">🧪 Test Token</button>
+            
+            <div id="jwtStatus"></div>
+        </div>
+
+        <!-- KCD API Key Section -->
+        <div class="auth-section">
+            <h3>🚚 KCD API Key Authentication</h3>
+            <p style="margin: 0 0 15px 0; color: #586069;">
+                For KCD Logistics endpoints only
+            </p>
+            
+            <div class="form-group">
+                <label for="kcdToken">KCD API Key:</label>
+                <textarea id="kcdToken" placeholder="kcd_live_1a2b3c4d5e6f7g8h9i0j..."></textarea>
+            </div>
+            
+            <button onclick="saveKCDToken()">💾 Save KCD Token</button>
+            <button onclick="testKCDToken()" class="danger">🧪 Test Token</button>
+            
+            <div id="kcdStatus"></div>
+        </div>
+
+        <!-- Stored Tokens Display -->
+        <div class="auth-section">
+            <h3>📋 Currently Stored Tokens</h3>
+            <div id="storedTokens"></div>
+            <button onclick="clearAllTokens()" class="danger">🗑️ Clear All Tokens</button>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="auth-section">
+            <h3>⚡ Quick Actions</h3>
+            <button onclick="openSwagger()">📖 Open Swagger UI</button>
+            <button onclick="exportTokens()">📤 Export Tokens</button>
+            <button onclick="importTokens()">📥 Import Tokens</button>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = window.location.origin;
+        const STORAGE_KEYS = {
+            JWT_TOKEN: 'swagger_jwt_token',
+            KCD_TOKEN: 'swagger_kcd_token',
+            AUTH_ROLE: 'swagger_auth_role',
+            AUTH_TYPE: 'swagger_auth_type'
+        };
+
+        // Initialize the page
+        function init() {
+            displayStoredTokens();
+        }
+
+        // Save JWT token
+        function saveJWTToken() {
+            const role = document.getElementById('authRole').value;
+            const token = document.getElementById('jwtToken').value.trim();
+            
+            if (!role || !token) {
+                showStatus('jwtStatus', 'Please select a role and enter a token', 'error');
+                return;
+            }
+
+            localStorage.setItem(STORAGE_KEYS.AUTH_TYPE, 'jwt');
+            localStorage.setItem(STORAGE_KEYS.AUTH_ROLE, role);
+            localStorage.setItem(STORAGE_KEYS.JWT_TOKEN, token);
+            
+            showStatus('jwtStatus', `✅ JWT token saved for ${role} role`, 'success');
+            displayStoredTokens();
+            
+            // Clear form
+            document.getElementById('jwtToken').value = '';
+        }
+
+        // Save KCD token
+        function saveKCDToken() {
+            const token = document.getElementById('kcdToken').value.trim();
+            
+            if (!token) {
+                showStatus('kcdStatus', 'Please enter a KCD API key', 'error');
+                return;
+            }
+
+            localStorage.setItem(STORAGE_KEYS.AUTH_TYPE, 'kcd');
+            localStorage.setItem(STORAGE_KEYS.KCD_TOKEN, token);
+            
+            showStatus('kcdStatus', '✅ KCD API key saved', 'success');
+            displayStoredTokens();
+            
+            // Clear form
+            document.getElementById('kcdToken').value = '';
+        }
+
+        // Test JWT token
+        async function testJWTToken() {
+            const token = document.getElementById('jwtToken').value.trim();
+            if (!token) {
+                showStatus('jwtStatus', 'Please enter a JWT token to test', 'error');
+                return;
+            }
+
+            showStatus('jwtStatus', '🧪 Testing token...', '');
+            
+            try {
+                const response = await fetch(`${BASE_URL}/api/health`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    showStatus('jwtStatus', '✅ Token is valid', 'success');
+                } else {
+                    showStatus('jwtStatus', `❌ Token test failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                showStatus('jwtStatus', `❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        // Test KCD token
+        async function testKCDToken() {
+            const token = document.getElementById('kcdToken').value.trim();
+            if (!token) {
+                showStatus('kcdStatus', 'Please enter a KCD API key to test', 'error');
+                return;
+            }
+
+            showStatus('kcdStatus', '🧪 Testing KCD API key...', '');
+            
+            try {
+                const response = await fetch(`${BASE_URL}/api/kcd/customers`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok || response.status === 401) {
+                    showStatus('kcdStatus', '✅ KCD API key format is valid', 'success');
+                } else {
+                    showStatus('kcdStatus', `❌ KCD API key test failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                showStatus('kcdStatus', `❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        // Display stored tokens
+        function displayStoredTokens() {
+            const container = document.getElementById('storedTokens');
+            const authType = localStorage.getItem(STORAGE_KEYS.AUTH_TYPE);
+            const jwtToken = localStorage.getItem(STORAGE_KEYS.JWT_TOKEN);
+            const kcdToken = localStorage.getItem(STORAGE_KEYS.KCD_TOKEN);
+            const authRole = localStorage.getItem(STORAGE_KEYS.AUTH_ROLE);
+
+            let html = '';
+
+            if (jwtToken) {
+                html += `
+                    <div style="margin-bottom: 15px;">
+                        <strong>JWT Token (${authRole || 'Unknown Role'}):</strong>
+                        <span class="role-badge">${authRole || 'Unknown'}</span>
+                        <div class="token-display">${jwtToken.substring(0, 50)}...</div>
+                        <small>Expires: Session-based</small>
+                    </div>
+                `;
+            }
+
+            if (kcdToken) {
+                html += `
+                    <div style="margin-bottom: 15px;">
+                        <strong>KCD API Key:</strong>
+                        <span class="role-badge">KCD</span>
+                        <div class="token-display">${kcdToken.substring(0, 50)}...</div>
+                        <small>Expires: Check key settings</small>
+                    </div>
+                `;
+            }
+
+            if (!html) {
+                html = '<p style="color: #586069;">No tokens stored</p>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        // Clear all tokens
+        function clearAllTokens() {
+            if (confirm('Are you sure you want to clear all stored authentication tokens?')) {
+                localStorage.removeItem(STORAGE_KEYS.JWT_TOKEN);
+                localStorage.removeItem(STORAGE_KEYS.KCD_TOKEN);
+                localStorage.removeItem(STORAGE_KEYS.AUTH_ROLE);
+                localStorage.removeItem(STORAGE_KEYS.AUTH_TYPE);
+                displayStoredTokens();
+                alert('All tokens cleared');
+            }
+        }
+
+        // Open Swagger UI
+        function openSwagger() {
+            window.open(`${BASE_URL}/docs`, '_blank');
+        }
+
+        // Export tokens
+        function exportTokens() {
+            const data = {
+                jwtToken: localStorage.getItem(STORAGE_KEYS.JWT_TOKEN),
+                kcdToken: localStorage.getItem(STORAGE_KEYS.KCD_TOKEN),
+                authRole: localStorage.getItem(STORAGE_KEYS.AUTH_ROLE),
+                authType: localStorage.getItem(STORAGE_KEYS.AUTH_TYPE),
+                exportDate: new Date().toISOString()
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'swagger-auth-tokens.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Import tokens
+        function importTokens() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        try {
+                            const data = JSON.parse(event.target.result);
+                            if (data.jwtToken) {
+                                localStorage.setItem(STORAGE_KEYS.JWT_TOKEN, data.jwtToken);
+                            }
+                            if (data.kcdToken) {
+                                localStorage.setItem(STORAGE_KEYS.KCD_TOKEN, data.kcdToken);
+                            }
+                            if (data.authRole) {
+                                localStorage.setItem(STORAGE_KEYS.AUTH_ROLE, data.authRole);
+                            }
+                            if (data.authType) {
+                                localStorage.setItem(STORAGE_KEYS.AUTH_TYPE, data.authType);
+                            }
+                            displayStoredTokens();
+                            alert('Tokens imported successfully');
+                        } catch (error) {
+                            alert('Failed to import tokens: ' + error.message);
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            input.click();
+        }
+
+        // Show status message
+        function showStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<span class="${type}">${message}</span>`;
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

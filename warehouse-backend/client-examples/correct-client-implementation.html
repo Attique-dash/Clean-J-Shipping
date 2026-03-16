@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KCD API Client - Correct Implementation</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .error { color: red; }
+        .success { color: green; }
+        input, button { padding: 8px; margin: 5px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>KCD API Client - Correct Implementation</h1>
+    
+    <div class="section">
+        <h2>Configuration</h2>
+        <label>API Base URL:</label>
+        <input type="text" id="baseUrl" value="https://cleanjshipping.vercel.app" style="width: 300px;">
+        <br>
+        <label>API Token:</label>
+        <input type="text" id="apiToken" value="kcd_live_3qp8PVIvknzm46PSFtQBMpWkfEGYJSzq" style="width: 300px;">
+    </div>
+
+    <div class="section">
+        <h2>Test Endpoints</h2>
+        <button onclick="testGetCustomers()">Get Customers</button>
+        <button onclick="testAddPackage()">Add Package</button>
+        <button onclick="testUpdatePackage()">Update Package</button>
+    </div>
+
+    <div class="section">
+        <h2>Response</h2>
+        <pre id="response">Click a button to test an endpoint...</pre>
+    </div>
+
+    <script>
+        // ✅ CORRECT: Proper API client implementation
+        class KCDApiClient {
+            constructor(baseUrl, apiToken) {
+                this.baseUrl = baseUrl;
+                this.apiToken = apiToken;
+            }
+
+            // ✅ CORRECT: Create proper request configuration object
+            makeRequestConfig(method = 'GET', data = null) {
+                const config = {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.apiToken}`  // ✅ CORRECT: Use Bearer token format
+                    }
+                };
+
+                if (data && (method === 'POST' || method === 'PUT')) {
+                    config.body = JSON.stringify(data);
+                }
+
+                return config;
+            }
+
+            // ✅ CORRECT: Get customers endpoint
+            async getCustomers(page = 1, limit = 20) {
+                try {
+                    const url = `${this.baseUrl}/api/kcd/customers?page=${page}&limit=${limit}`;
+                    const config = this.makeRequestConfig('GET');
+                    
+                    const response = await fetch(url, config);
+                    const result = await response.json();
+                    
+                    return result;
+                } catch (error) {
+                    console.error('Get customers error:', error);
+                    throw error;
+                }
+            }
+
+            // ✅ CORRECT: Add package endpoint
+            async addPackage(packageData) {
+                try {
+                    const url = `${this.baseUrl}/api/kcd/packages/add`;
+                    const config = this.makeRequestConfig('POST', packageData);
+                    
+                    const response = await fetch(url, config);
+                    const result = await response.json();
+                    
+                    return result;
+                } catch (error) {
+                    console.error('Add package error:', error);
+                    throw error;
+                }
+            }
+
+            // ✅ CORRECT: Update package endpoint
+            async updatePackage(packageData) {
+                try {
+                    const url = `${this.baseUrl}/api/kcd/packages/update`;
+                    const config = this.makeRequestConfig('PUT', packageData);
+                    
+                    const response = await fetch(url, config);
+                    const result = await response.json();
+                    
+                    return result;
+                } catch (error) {
+                    console.error('Update package error:', error);
+                    throw error;
+                }
+            }
+        }
+
+        // ❌ WRONG EXAMPLES - These cause the error you're seeing
+        function showWrongExamples() {
+            console.log('=== WRONG EXAMPLES THAT CAUSE THE ERROR ===');
+            
+            // ❌ ERROR 1: Cannot create property 'apiToken' on string
+            const endpoint = 'https://cleanjshipping.vercel.app/api/admin/customers?page=1&limit=20';
+            try {
+                endpoint.apiToken = 'kcd_live_3qp8PVIvknzm46PSFtQBMpWkfEGYJSzq';  // THIS CAUSES THE ERROR
+            } catch (error) {
+                console.error('❌ ERROR 1:', error.message);
+            }
+
+            // ❌ ERROR 2: Wrong endpoint URL
+            const wrongUrl = 'https://cleanjshipping.vercel.app/api/admin/customers';  // Should be /api/kcd/customers
+            
+            // ❌ ERROR 3: Trying to modify string instead of using headers
+            const config = 'api/admin/customers';
+            try {
+                config.apiToken = 'some-key';  // THIS ALSO CAUSES THE ERROR
+            } catch (error) {
+                console.error('❌ ERROR 3:', error.message);
+            }
+        }
+
+        // ✅ CORRECT: Test functions
+        async function testGetCustomers() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            const apiToken = document.getElementById('apiToken').value;
+            
+            const client = new KCDApiClient(baseUrl, apiToken);
+            
+            try {
+                document.getElementById('response').textContent = 'Loading...';
+                const result = await client.getCustomers(1, 20);
+                document.getElementById('response').textContent = JSON.stringify(result, null, 2);
+                document.getElementById('response').className = 'success';
+            } catch (error) {
+                document.getElementById('response').textContent = `ERROR: ${error.message}`;
+                document.getElementById('response').className = 'error';
+            }
+        }
+
+        async function testAddPackage() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            const apiToken = document.getElementById('apiToken').value;
+            
+            const client = new KCDApiClient(baseUrl, apiToken);
+            
+            const packageData = {
+                trackingNumber: 'TEST' + Date.now(),
+                courierCode: 'CLEAN',
+                customerCode: 'CUST001',
+                weight: 1.5,
+                status: 'received',
+                warehouseAddress: 'Main Warehouse',
+                processedAt: new Date().toISOString(),
+                dimensions: { length: 10, width: 5, height: 3 },
+                description: 'Test package',
+                shipper: 'Test Shipper',
+                senderName: 'Test Sender',
+                senderEmail: 'sender@test.com',
+                senderPhone: '+1234567890',
+                senderAddress: '123 Test St',
+                recipient: {
+                    name: 'Test Recipient',
+                    email: 'recipient@test.com',
+                    phone: '+0987654321',
+                    address: '456 Recipient Ave'
+                }
+            };
+            
+            try {
+                document.getElementById('response').textContent = 'Loading...';
+                const result = await client.addPackage(packageData);
+                document.getElementById('response').textContent = JSON.stringify(result, null, 2);
+                document.getElementById('response').className = 'success';
+            } catch (error) {
+                document.getElementById('response').textContent = `ERROR: ${error.message}`;
+                document.getElementById('response').className = 'error';
+            }
+        }
+
+        async function testUpdatePackage() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            const apiToken = document.getElementById('apiToken').value;
+            
+            const client = new KCDApiClient(baseUrl, apiToken);
+            
+            const updateData = {
+                trackingNumber: 'TEST123456789',  // Replace with actual tracking number
+                status: 'in_transit',
+                location: 'Distribution Center',
+                lastUpdated: new Date().toISOString(),
+                weight: 2.0,
+                warehouseAddress: 'Distribution Center',
+                notes: 'Package updated for testing'
+            };
+            
+            try {
+                document.getElementById('response').textContent = 'Loading...';
+                const result = await client.updatePackage(updateData);
+                document.getElementById('response').textContent = JSON.stringify(result, null, 2);
+                document.getElementById('response').className = 'success';
+            } catch (error) {
+                document.getElementById('response').textContent = `ERROR: ${error.message}`;
+                document.getElementById('response').className = 'error';
+            }
+        }
+
+        // Show wrong examples on load (for educational purposes)
+        console.log('=== EDUCATIONAL: WRONG EXAMPLES THAT CAUSE YOUR ERROR ===');
+        showWrongExamples();
+        console.log('=== Use the buttons above to see the CORRECT implementation ===');
+    </script>
+</body>
+</html>

@@ -232,24 +232,10 @@ export default function CustomerAddressesPage() {
                     <h1 className="text-2xl font-bold leading-tight md:text-3xl">Shipping Addresses</h1>
                     <p className="text-blue-100 mt-1 flex items-center gap-2">
                       <MapPin className="h-4 w-4" />
-                      Manage your shipping addresses for air and sea deliveries
-                      <span className="ml-2 rounded-full bg-green-100/20 backdrop-blur-sm px-2 py-0.5 text-xs font-medium text-green-100">
-                        {addresses.length} Addresses
-                      </span>
+                      Your warehouse shipping addresses for air and sea deliveries
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    resetForm();
-                    setEditingAddress(null);
-                    setShowAddModal(true);
-                  }}
-                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#E67919] to-[#f58a2e] px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <Plus className="h-5 w-5" />
-                  Add Address
-                </button>
               </div>
             </div>
           </header>
@@ -263,12 +249,12 @@ export default function CustomerAddressesPage() {
             </div>
           )}
 
-          {/* Address Types Overview */}
+          {/* Address Types Overview - Read Only */}
           <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
             <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
               <h2 className="text-xl font-semibold text-white flex items-center gap-2">
                 <Package className="w-5 h-5" />
-                Address Overview
+                Warehouse Address Overview
               </h2>
             </div>
             <div className="p-6">
@@ -316,12 +302,12 @@ export default function CustomerAddressesPage() {
             </div>
           </div>
 
-          {/* Addresses List */}
+          {/* Addresses List - Read Only */}
           <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
             <div className="bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] px-6 py-4">
               <h2 className="text-xl font-semibold text-white flex items-center gap-2">
                 <MapPin className="w-5 h-5" />
-                Your Addresses
+                Your Saved Addresses
               </h2>
             </div>
             <div className="p-6">
@@ -330,7 +316,7 @@ export default function CustomerAddressesPage() {
                   {addresses.map((address) => (
                     <div
                       key={address.id}
-                      className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-slate-50 to-blue-50 hover:from-slate-100 hover:to-blue-100 transition-all duration-200 border border-gray-200"
+                      className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-slate-50 to-blue-50 border border-gray-200"
                     >
                       <div className="flex items-center space-x-4">
                         <div className={`p-3 rounded-lg ${getAddressTypeColor(address.addressType).split(' ')[0]} ${getAddressTypeColor(address.addressType).split(' ')[1]}`}>
@@ -372,33 +358,6 @@ export default function CustomerAddressesPage() {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {!address.isDefault && (
-                          <button
-                            onClick={() => onSetDefault(address.id)}
-                            className="p-2 text-gray-400 hover:text-amber-600 transition-colors"
-                            title="Set as default"
-                          >
-                            <span className="h-4 w-4">★</span>
-                          </button>
-                        )}
-                        
-                        <button
-                          onClick={() => openEditModal(address)}
-                          className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
-                          title="Edit address"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        
-                        <button
-                          onClick={() => onDeleteAddress(address.id)}
-                          className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                          title="Delete address"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
                     </div>
                   ))}
                 </div>
@@ -408,18 +367,7 @@ export default function CustomerAddressesPage() {
                     <MapPin className="h-8 w-8 text-gray-400" />
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No shipping addresses</h3>
-                  <p className="text-gray-500 mb-6">Add your first shipping address to get started with air and sea shipping</p>
-                  <button
-                    onClick={() => {
-                      resetForm();
-                      setEditingAddress(null);
-                      setShowAddModal(true);
-                    }}
-                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#E67919] to-[#f58a2e] px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    <Plus className="h-5 w-5" />
-                    Add Your First Address
-                  </button>
+                  <p className="text-gray-500">Contact support to add shipping addresses to your account</p>
                 </div>
               )}
             </div>

@@ -52,10 +52,13 @@ export async function middleware(request: NextRequest) {
 
   // For ALL protected routes (both pages and API), check authentication
   try {
+    const isSecure = process.env.NODE_ENV === 'production';
+    
     const token = await getToken({
       req: request,
       secret: process.env.NEXTAUTH_SECRET,
-      secureCookie: process.env.NODE_ENV === 'production' && process.env.VERCEL_ENV !== 'development'
+      secureCookie: isSecure,
+      cookieName: isSecure ? '__Secure-next-auth.session-token' : 'next-auth.session-token'
     });
 
     // If no token, redirect to login

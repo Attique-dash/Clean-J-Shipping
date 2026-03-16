@@ -6,6 +6,7 @@ export interface CustomError extends Error {
   statusCode?: number;
   status?: string;
   isOperational?: boolean;
+  errors?: any;
 }
 
 export const errorHandler = (

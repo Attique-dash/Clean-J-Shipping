@@ -17,6 +17,71 @@ type Profile = {
   createdAt?: string;
 };
 
+function mapApiResponseToProfile(data: unknown): Profile | null {
+  // Handle nested data format: { success: true, data: { ... } }
+  const response = data as { 
+    success?: boolean; 
+    data?: {
+      userCode?: string;
+      user_code?: string;
+      firstName?: string;
+      lastName?: string;
+      full_name?: string;
+      name?: string;
+      email?: string;
+      phone?: string;
+      accountStatus?: "active" | "inactive" | "pending";
+      lastLogin?: string;
+      createdAt?: string;
+      address?: {
+        street?: string;
+        city?: string;
+        state?: string;
+        zipCode?: string;
+        zip_code?: string;
+        country?: string;
+      };
+    }
+  };
+  
+  // Try to get user data from nested 'data' property or directly from response
+  let userData = response.data;
+  
+  // If no nested data, check if the response itself has the expected fields (old format)
+  if (!userData) {
+    const flatData = data as typeof response.data;
+    if (flatData && (flatData.user_code || flatData.userCode || flatData.email)) {
+      userData = flatData;
+    }
+  }
+  
+  if (!userData) return null;
+  
+  // Handle both old format (user_code, full_name) and new format (userCode, firstName, lastName)
+  const userCode = userData.userCode || userData.user_code || "";
+  const fullName = userData.full_name || 
+                   [userData.firstName, userData.lastName].filter(Boolean).join(" ") || 
+                   userData.name || 
+                   "";
+  
+  return {
+    user_code: userCode,
+    full_name: fullName,
+    email: userData.email || "",
+    phone: userData.phone,
+    accountStatus: userData.accountStatus === "pending" ? "inactive" : userData.accountStatus || "active",
+    lastLogin: userData.lastLogin,
+    createdAt: userData.createdAt,
+    address: userData.address ? {
+      street: userData.address.street,
+      city: userData.address.city,
+      state: userData.address.state,
+      zip_code: userData.address.zipCode || userData.address.zip_code,
+      country: userData.address.country,
+    } : undefined,
+  };
+}
+
 export default function CustomerProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,39 +101,16 @@ export default function CustomerProfilePage() {
     setError(null);
     try {
       const res = await fetch("/api/customer/profile", { cache: "no-store" });
-      if (res.status === 404) {
-        const meRes = await fetch("/api/auth/me", { cache: "no-store" });
-        const meData = await meRes.json();
-        if (!meRes.ok || !meData?.user) throw new Error(meData?.error || "Failed to load profile");
-        type MeUser = {
-          userCode?: string;
-          user_code?: string;
-          firstName?: string;
-          lastName?: string;
-          name?: string;
-          email?: string;
-          phone?: string;
-          address?: { street?: string; city?: string; state?: string; zipCode?: string; country?: string };
-          lastLogin?: string;
-          createdAt?: string;
-        };
-        const u: MeUser = meData.user as MeUser;
-        const mapped: Profile = {
-          user_code: u.userCode || u.user_code || "",
-          full_name: [u.firstName, u.lastName].filter(Boolean).join(" ") || u.name || "",
-          email: u.email || "",
-          phone: u.phone,
-          address: u.address
-            ? { street: u.address.street, city: u.address.city, state: u.address.state, zip_code: u.address.zipCode, country: u.address.country }
-            : undefined,
-          lastLogin: u.lastLogin,
-          createdAt: u.createdAt,
-        };
-        setProfile(mapped);
+      const data = await res.json();
+      
+      if (!res.ok) throw new Error(data?.error || "Failed to load profile");
+      
+      // Use the mapper to handle both old and new API formats
+      const mappedProfile = mapApiResponseToProfile(data);
+      if (mappedProfile) {
+        setProfile(mappedProfile);
       } else {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || "Failed to load profile");
-        setProfile(data as Profile);
+        throw new Error("Invalid profile data received");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
@@ -87,14 +129,34 @@ export default function CustomerProfilePage() {
     setSaving(true);
     setError(null);
     try {
+      // Convert profile to new API format for saving
+      const payload = {
+        firstName: profile.full_name.split(' ')[0] || "",
+        lastName: profile.full_name.split(' ').slice(1).join(' ') || "",
+        email: profile.email,
+        phone: profile.phone,
+        address: profile.address ? {
+          street: profile.address.street,
+          city: profile.address.city,
+          state: profile.address.state,
+          zipCode: profile.address.zip_code,
+          country: profile.address.country,
+        } : undefined,
+      };
+      
       const res = await fetch("/api/customer/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to save");
-      setProfile(data as Profile);
+      
+      // Map response back to profile format
+      const updatedProfile = mapApiResponseToProfile(data);
+      if (updatedProfile) {
+        setProfile(updatedProfile);
+      }
       setEditing(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
@@ -242,7 +304,7 @@ export default function CustomerProfilePage() {
                     <div className="border-t border-gray-200 pt-4">
                       <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-gray-900">
                         <MapPin className="h-5 w-5 text-[#E67919]" />
-                        Shipping Address
+                         Address
                       </h3>
                       <div className="space-y-4">
                         <div>
@@ -371,7 +433,7 @@ export default function CustomerProfilePage() {
                     <div className="rounded-lg border border-gray-200 bg-gradient-to-r from-orange-50 to-amber-50 p-6">
                       <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-gray-900">
                         <MapPin className="h-5 w-5 text-[#E67919]" />
-                        Shipping Address
+                         Address
                       </h3>
                       <div className="space-y-2 text-sm text-gray-700">
                         <p className="flex items-center gap-2">

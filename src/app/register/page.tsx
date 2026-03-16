@@ -12,7 +12,7 @@ interface FormData {
   email: string;
   phone: string;
   password: string;
-  confirmPassword: string;
+  branch: string;
   dateOfBirth: string;
   address: {
     street: string;
@@ -30,13 +30,13 @@ interface FormErrors {
   email?: string;
   phone?: string;
   password?: string;
-  confirmPassword?: string;
   street?: string;
   city?: string;
   state?: string;
   zipCode?: string;
   country?: string;
   agreeTerms?: string;
+  branch?: string;
 }
 
 
@@ -50,14 +50,14 @@ export default function RegisterPage() {
     email: "", 
     phone: "", 
     password: "", 
-    confirmPassword: "", 
+    branch: "",
     dateOfBirth: "",
     address: {
       street: "",
       city: "",
       state: "",
       zipCode: "",
-      country: "Jamaica"
+      country: ""
     },
     agreeTerms: false 
   });
@@ -67,9 +67,7 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Auto-dismiss error messages after 5 seconds
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => {
@@ -88,16 +86,10 @@ export default function RegisterPage() {
     setLoading(true);
     setError(null);
     
-    // Form validation
     const next: FormErrors = {};
     
-    if (!form.firstName.trim()) {
-      next.firstName = "First name is required";
-    }
-    
-    if (!form.lastName.trim()) {
-      next.lastName = "Last name is required";
-    }
+    if (!form.firstName.trim()) next.firstName = "First name is required";
+    if (!form.lastName.trim()) next.lastName = "Last name is required";
     
     if (!form.email.trim()) {
       next.email = "Email is required";
@@ -117,23 +109,10 @@ export default function RegisterPage() {
       next.password = "Password must be at least 8 characters";
     }
     
-    if (!form.confirmPassword) {
-      next.confirmPassword = "Please confirm your password";
-    } else if (form.password !== form.confirmPassword) {
-      next.confirmPassword = "Passwords do not match";
-    }
-    
-    if (!form.address.street.trim()) {
-      next.street = "Street address is required";
-    }
-    
-    if (!form.address.city.trim()) {
-      next.city = "City is required";
-    }
-    
-    if (!form.agreeTerms) {
-      next.agreeTerms = "You must accept the terms and conditions";
-    }
+    if (!form.address.street.trim()) next.street = "Street address is required";
+    if (!form.address.city.trim()) next.city = "City is required";
+    if (!form.branch.trim()) next.branch = "Branch is required";
+    if (!form.agreeTerms) next.agreeTerms = "You must accept the terms and conditions";
     
     if (Object.keys(next).length > 0) {
       setErrors(next);
@@ -144,22 +123,22 @@ export default function RegisterPage() {
     try {
       const response = await fetch("/api/auth/register", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fullName: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
           email: form.email.trim(),
           phone: form.phone.trim(),
           password: form.password,
-          dateOfBirth: form.dateOfBirth || undefined,
+          role: "customer",
+          branch: form.branch.trim(),
           address: {
             street: form.address.street,
             city: form.address.city,
-            parish: form.address.state, // Map state to parish for backend
-            zipCode: form.address.zipCode || '00000', // Include zipCode with fallback
-            country: form.address.country // Include country field
-          }
+            state: form.address.state,
+            zipCode: form.address.zipCode || "00000",
+            country: form.address.country,
+          },
         }),
       });
 
@@ -209,6 +188,7 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0E7893] via-[#1a9bb8] to-[#E67919] flex items-center justify-center relative overflow-hidden">
+      
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-72 h-72 bg-white/5 rounded-full blur-3xl animate-pulse"></div>
@@ -239,8 +219,10 @@ export default function RegisterPage() {
       <div className={`relative mx-auto max-w-6xl px-4 sm:px-6 py-10 w-full transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <div className="mx-auto grid w-full grid-cols-1 items-stretch gap-0 overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 backdrop-blur-sm sm:max-w-3xl md:max-w-6xl md:grid-cols-2 transform hover:shadow-3xl transition-shadow duration-300">
           
-          {/* Left: illustrative section */}
+          {/* ── Left: illustrative panel ── */}
           <div className="hidden md:flex relative bg-gradient-to-br from-[#0E7893] to-[#E67919] h-full flex-col justify-between p-10">
+            
+            {/* Logo / brand */}
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg transform hover:rotate-12 transition-transform duration-300">
                 <FaPlane className="text-[#E67919] text-2xl" />
@@ -251,25 +233,29 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            {/* Centre illustration + copy */}
             <div className="space-y-6">
-              <div className="relative h-64 w-full flex items-center justify-center">
+              {/* Logo image */}
+              <div className="relative h-48 w-full flex items-center justify-center">
                 <div className="relative w-48 h-48">
-                  <Image 
-                    src="/images/Logo.png" 
-                    alt="Clean J Shipping Logo" 
+                  <Image
+                    src="/images/Logo.png"
+                    alt="Clean J Shipping Logo"
                     fill
-                    priority 
+                    priority
                     sizes="(max-width: 768px) 100vw, 50vw"
                     className="object-contain drop-shadow-2xl"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.onerror = null;
-                      target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzBBNzY5MyIgZD0iTTEyLDIwQTgsOCAwIDAsMSA0LDEyQTgsOCAwIDAsMSAxMiw0QTgsOCAwIDAsMSAyMCwxMkE4LDggMCAwLDEgMTIsMjBNMTIsMkExMCwxMCAwIDAsMCAyLDEyQTEwLDEwIDAgMCwwIDEyLDIyQTEwLDEwIDAgMCwwIDIyLDEyQTEwLDEwIDAgMCwwIDEyLDJNMTIsMTBBMiwyIDAgMCwxIDE0LDEyQTIsMiAwIDAsMSAxMiwxNEEyLDIgMCAwLDEgMTAsMTJBMiwyIDAgMCwxIDEyLDExTDEyLDEzQTEgMSAwIDAsMCAxMywxMkExLDEgMCAwLDAgMTIsMTFBMSwxIDAgMCwwIDExLDEyQTEsMSAwIDAsMCAxMiwxM1oiIC8+PC9zdmc+';
+                      target.src =
+                        'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzBBNzY5MyIgZD0iTTEyLDIwQTgsOCAwIDAsMSA0LDEyQTgsOCAwIDAsMSAxMiw0QTgsOCAwIDAsMSAyMCwxMkE4LDggMCAwLDEgMTIsMjBNMTIsMkExMCwxMCAwIDAsMCAyLDEyQTEwLDEwIDAgMCwwIDEyLDIyQTEwLDEwIDAgMCwwIDIyLDEyQTEwLDEwIDAgMCwwIDEyLDJNMTIsMTBBMiwyIDAgMCwxIDE0LDEyQTIsMiAwIDAsMSAxMiwxNEEyLDIgMCAwLDEgMTAsMTJBMiwyIDAgMCwxIDEyLDExTDEyLDEzQTEgMSAwIDAsMCAxMywxMkExLDEgMCAwLDAgMTIsMTFBMSwxIDAgMCwwIDExLDEyQTEsMSAwIDAsMCAxMiwxM1oiIC8+PC9zdmc+';
                     }}
                   />
                 </div>
               </div>
 
+              {/* Tagline + bullet points */}
               <div className="space-y-4">
                 <h3 className="text-white font-bold text-xl">Create Your Account</h3>
                 <p className="text-cyan-100 text-sm leading-relaxed">
@@ -291,10 +277,16 @@ export default function RegisterPage() {
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Right: form */}
+            {/* Bottom spacer so justify-between works */}
+            <div />
+          </div>
+          {/* ── End left panel ── */}
+
+          {/* ── Right: form panel ── */}
           <div className="bg-white px-8 py-8 md:px-10 md:py-10 overflow-y-auto max-h-screen">
+            
+            {/* Mobile brand header */}
             <div className="flex md:hidden items-center gap-3 justify-center mb-6">
               <div className="w-10 h-10 bg-gradient-to-br from-[#0E7893] to-[#1a9bb8] rounded-xl flex items-center justify-center shadow-lg">
                 <FaPlane className="text-white text-xl" />
@@ -311,10 +303,9 @@ export default function RegisterPage() {
               <p className="mt-2 text-sm text-gray-600">Join us to manage your shipping needs efficiently.</p>
               
               <form onSubmit={onSubmit} className="mt-6 space-y-4">
+
                 {/* Personal Information */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Personal Information</h3>
-                  
+                <div className="space-y-4">                  
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
@@ -331,9 +322,7 @@ export default function RegisterPage() {
                           required
                         />
                       </div>
-                      {errors.firstName && (
-                        <div className="text-xs text-red-600 mt-1">{errors.firstName}</div>
-                      )}
+                      {errors.firstName && <div className="text-xs text-red-600 mt-1">{errors.firstName}</div>}
                     </div>
                     
                     <div>
@@ -346,9 +335,7 @@ export default function RegisterPage() {
                         onChange={(e) => setForm({ ...form, lastName: e.target.value })}
                         required
                       />
-                      {errors.lastName && (
-                        <div className="text-xs text-red-600 mt-1">{errors.lastName}</div>
-                      )}
+                      {errors.lastName && <div className="text-xs text-red-600 mt-1">{errors.lastName}</div>}
                     </div>
                   </div>
 
@@ -367,9 +354,7 @@ export default function RegisterPage() {
                         required
                       />
                     </div>
-                    {errors.email && (
-                      <div className="text-xs text-red-600 mt-1">{errors.email}</div>
-                    )}
+                    {errors.email && <div className="text-xs text-red-600 mt-1">{errors.email}</div>}
                   </div>
 
                   <div>
@@ -387,16 +372,12 @@ export default function RegisterPage() {
                         required
                       />
                     </div>
-                    {errors.phone && (
-                      <div className="text-xs text-red-600 mt-1">{errors.phone}</div>
-                    )}
+                    {errors.phone && <div className="text-xs text-red-600 mt-1">{errors.phone}</div>}
                   </div>
                 </div>
 
-                {/* Password Section */}
+                {/* Security */}
                 <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">Security</h3>
-                  
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
                     <div className="relative">
@@ -419,46 +400,29 @@ export default function RegisterPage() {
                         {showPassword ? <FaEyeSlash className="w-4 h-4" /> : <FaEye className="w-4 h-4" />}
                       </button>
                     </div>
-                    {errors.password && (
-                      <div className="text-xs text-red-600 mt-1">{errors.password}</div>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <FaLock className="text-gray-400 text-sm" />
-                      </div>
-                      <input
-                        className="w-full rounded-lg border border-gray-300 bg-gray-50 pl-9 pr-10 py-2.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E67919] focus:border-transparent focus:bg-white transition-all"
-                        type={showConfirmPassword ? "text" : "password"}
-                        placeholder="Confirm password"
-                        value={form.confirmPassword}
-                        onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-[#E67919] transition-colors"
-                      >
-                        {showConfirmPassword ? <FaEyeSlash className="w-4 h-4" /> : <FaEye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    {errors.confirmPassword && (
-                      <div className="text-xs text-red-600 mt-1">{errors.confirmPassword}</div>
-                    )}
+                    {errors.password && <div className="text-xs text-red-600 mt-1">{errors.password}</div>}
                   </div>
                 </div>
 
-                {/* Address Section */}
+                {/* Branch */}
                 <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2 flex items-center gap-2">
-                    <FaMapMarkerAlt className="text-[#E67919]" />
-                    Shipping Address
-                  </h3>
-                  
+                  <h3 className="text-sm mb-1 font-semibold text-gray-700">Branch</h3>
+                  <div>
+                    <input
+                      className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E67919] focus:border-transparent focus:bg-white transition-all"
+                      type="text"
+                      placeholder="Down Town"
+                      value={form.branch}
+                      onChange={(e) => setForm({ ...form, branch: e.target.value })}
+                      required
+                    />
+                    {errors.branch && <div className="text-xs text-red-600 mt-1">{errors.branch}</div>}
+                  </div>
+                </div>
+
+                {/* Shipping Address */}
+                <div className="space-y-4">
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
                     <div className="relative">
@@ -474,9 +438,7 @@ export default function RegisterPage() {
                         required
                       />
                     </div>
-                    {errors.street && (
-                      <div className="text-xs text-red-600 mt-1">{errors.street}</div>
-                    )}
+                    {errors.street && <div className="text-xs text-red-600 mt-1">{errors.street}</div>}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -490,11 +452,8 @@ export default function RegisterPage() {
                         onChange={(e) => setForm({ ...form, address: { ...form.address, city: e.target.value } })}
                         required
                       />
-                      {errors.city && (
-                        <div className="text-xs text-red-600 mt-1">{errors.city}</div>
-                      )}
+                      {errors.city && <div className="text-xs text-red-600 mt-1">{errors.city}</div>}
                     </div>
-                    
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">State/Parish</label>
                       <input
@@ -505,9 +464,7 @@ export default function RegisterPage() {
                         onChange={(e) => setForm({ ...form, address: { ...form.address, state: e.target.value } })}
                         required
                       />
-                      {errors.state && (
-                        <div className="text-xs text-red-600 mt-1">{errors.state}</div>
-                      )}
+                      {errors.state && <div className="text-xs text-red-600 mt-1">{errors.state}</div>}
                     </div>
                   </div>
 
@@ -522,11 +479,8 @@ export default function RegisterPage() {
                         onChange={(e) => setForm({ ...form, address: { ...form.address, zipCode: e.target.value } })}
                         required
                       />
-                      {errors.zipCode && (
-                        <div className="text-xs text-red-600 mt-1">{errors.zipCode}</div>
-                      )}
+                      {errors.zipCode && <div className="text-xs text-red-600 mt-1">{errors.zipCode}</div>}
                     </div>
-                    
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
                       <input
@@ -537,14 +491,12 @@ export default function RegisterPage() {
                         onChange={(e) => setForm({ ...form, address: { ...form.address, country: e.target.value } })}
                         required
                       />
-                      {errors.country && (
-                        <div className="text-xs text-red-600 mt-1">{errors.country}</div>
-                      )}
+                      {errors.country && <div className="text-xs text-red-600 mt-1">{errors.country}</div>}
                     </div>
                   </div>
                 </div>
 
-                {/* Terms and Conditions */}
+                {/* Terms */}
                 <div className="space-y-3">
                   <label className="flex items-start gap-3 text-sm text-gray-700 cursor-pointer">
                     <input
@@ -565,9 +517,7 @@ export default function RegisterPage() {
                       </Link>
                     </span>
                   </label>
-                  {errors.agreeTerms && (
-                    <div className="text-xs text-red-600">{errors.agreeTerms}</div>
-                  )}
+                  {errors.agreeTerms && <div className="text-xs text-red-600">{errors.agreeTerms}</div>}
                 </div>
 
                 <button
@@ -603,23 +553,17 @@ export default function RegisterPage() {
               </div>
             </div>
           </div>
+          {/* ── End right panel ── */}
+
         </div>
       </div>
 
       <style jsx global>{`
         @keyframes slideDown {
-          from {
-            opacity: 0;
-            transform: translate(-50%, -100%);
-          }
-          to {
-            opacity: 1;
-            transform: translate(-50%, 0);
-          }
+          from { opacity: 0; transform: translate(-50%, -100%); }
+          to   { opacity: 1; transform: translate(-50%, 0); }
         }
-        .animate-slideDown {
-          animation: slideDown 0.3s ease-out;
-        }
+        .animate-slideDown { animation: slideDown 0.3s ease-out; }
       `}</style>
     </div>
   );

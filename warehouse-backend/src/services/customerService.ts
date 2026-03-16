@@ -1,17 +1,22 @@
 import { User, IUser } from '../models/User';
 import { Package } from '../models/Package';
 import { logger } from '../utils/logger';
+import { generateMailboxCode } from '../utils/mailboxCodeGenerator';
 
 export class CustomerService {
   static async createCustomer(customerData: Partial<IUser>): Promise<IUser> {
     try {
+      // Generate mailbox code for new customers
+      const mailboxNumber = await generateMailboxCode();
+      
       const user = new User({
         ...customerData,
-        role: 'customer'
+        role: 'customer',
+        mailboxNumber
       });
 
       await user.save();
-      logger.info(`Customer created: ${user.email}`);
+      logger.info(`Customer created: ${user.email} with mailbox number: ${mailboxNumber}`);
       return user.getPublicProfile();
     } catch (error) {
       logger.error('Error creating customer:', error);
@@ -61,9 +66,10 @@ export class CustomerService {
 
   static async deleteCustomer(customerId: string): Promise<boolean> {
     try {
-      const customer = await User.findOneAndDelete({ _id: customerId, role: 'customer' });
+      const customer = await User.findOne({ _id: customerId, role: 'customer' });
       
       if (customer) {
+        await User.deleteOne({ _id: customerId });
         logger.info(`Customer deleted: ${customer.email}`);
         return true;
       }

@@ -26,7 +26,7 @@ export const getShippingAddressesConfig = async (req: AuthRequest, res: Response
     const config = {
       warehouseId: warehouse._id,
       warehouseName: warehouse.name,
-      companyAbbreviation: warehouse.companyAbbreviation || 'CJS',
+      companyAbbreviation: warehouse.companyAbbreviation || 'CLEAN',
       airAddress: warehouse.airAddress || null,
       seaAddress: warehouse.seaAddress || null,
       chinaAddress: warehouse.chinaAddress || null

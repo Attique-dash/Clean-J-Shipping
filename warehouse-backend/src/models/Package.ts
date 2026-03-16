@@ -25,6 +25,22 @@ export interface IPackage extends Document {
   userCode: string;
   userId: mongoose.Types.ObjectId;
   
+  // KCD Integration fields
+  courierCode?: string;
+  customerId?: mongoose.Types.ObjectId;
+  customerCode?: string;
+  source?: 'web' | 'kcd-packing-system' | 'api';
+  warehouseAddress?: string;
+  location?: string;
+  estimatedDelivery?: Date;
+  processedAt?: Date;
+  timeline?: Array<{
+    status: string;
+    timestamp: Date;
+    location: string;
+    description: string;
+  }>;
+  
   // Package details
   weight: number;
   dimensions?: { length: number; width: number; height: number; unit: string };
@@ -73,7 +89,73 @@ export interface IPackage extends Document {
   
   // Additional
   specialInstructions?: string;
+  notes?: string;
+  trackingHistory?: Array<{
+    timestamp: Date;
+    status: string;
+    location: string;
+    description?: string;
+  }>;
+  actualDelivery?: Date;
   history?: Array<{ status: string; at: Date; note: string }>;
+  
+  // Tasoko API fields
+  PackageID?: string;           // UUID from Tasoko
+  CourierID?: string;          // UUID from Tasoko
+  TrackingNumber?: string;     // Alternative tracking number field
+  ControlNumber?: string;       // EP0096513 format
+  entryStaff?: string;         // Staff who entered package
+  entryDate?: Date;            // Entry date (date only)
+  entryDateTime?: Date;        // Full timestamp
+  branch?: string;             // "Down Town" etc.
+  claimed?: boolean;           // Package claimed status
+  apiToken?: string;           // API token reference
+  showControls?: boolean;      // UI control flag
+  hsCode?: string;            // HS tariff code
+  unknown?: boolean;          // Unknown package flag
+  aiProcessed?: boolean;      // AI processing status
+  originalHouseNumber?: string; // Original tracking
+  cubes?: number;             // Volume in cubic units
+  pieces?: number;            // Number of pieces
+  discrepancy?: boolean;      // Discrepancy flag
+  discrepancyDescription?: string;
+  serviceTypeId?: string;     // From Tasoko spec page 7
+  hazmatCodeId?: string;      // From Tasoko spec page 8
+  coloaded?: boolean;         // Co-loading flag
+  coloadIndicator?: string;   // Co-load indicator
+  packageStatus?: number;     // 0-4 status code
+  packagePayments?: string;   // Payment reference
+  
+  // Additional Tasoko fields from JSON example
+  FirstName?: string;         // First name from Tasoko
+  LastName?: string;          // Last name from Tasoko
+  UserCode?: string;         // User code from Tasoko (alternative field)
+  Weight?: number;           // Weight from Tasoko (alternative field)
+  Shipper?: string;          // Shipper from Tasoko (alternative field)
+  EntryStaff?: string;        // Entry staff from Tasoko
+  EntryDate?: Date;          // Entry date from Tasoko
+  EntryDateTime?: Date;       // Entry datetime from Tasoko
+  Branch?: string;            // Branch from Tasoko
+  APIToken?: string;         // API token from Tasoko
+  ShowControls?: boolean;    // Show controls from Tasoko
+  ManifestCode?: string;     // Manifest code from Tasoko
+  CollectionCode?: string;   // Collection code from Tasoko
+  Description?: string;      // Description from Tasoko
+  HSCode?: string;          // HS code from Tasoko
+  Unknown?: boolean;         // Unknown flag from Tasoko
+  AIProcessed?: boolean;     // AI processed from Tasoko
+  OriginalHouseNumber?: string; // Original house number from Tasoko
+  Cubes?: number;           // Cubes from Tasoko
+  Length?: number;          // Length from Tasoko
+  Width?: number;           // Width from Tasoko
+  Height?: number;          // Height from Tasoko
+  Pieces?: number;          // Pieces from Tasoko
+  Discrepancy?: boolean;    // Discrepancy from Tasoko
+  DiscrepancyDescription?: string; // Discrepancy description from Tasoko
+  ServiceTypeID?: string;   // Service type ID from Tasoko
+  HazmatCodeID?: string;    // Hazmat code ID from Tasoko
+  Coloaded?: boolean;       // Coloaded from Tasoko
+  ColoadIndicator?: string; // Coload indicator from Tasoko
   
   createdAt: Date;
   updatedAt: Date;
@@ -175,13 +257,74 @@ const packageSchema = new Schema<IPackage>({
     required: [true, 'User code is required'],
     trim: true,
     uppercase: true,
-    match: [/^[A-Z]{2}-\d{3,4}$/, 'User code must be in format XX-123']
+    match: [/^[A-Z]{2,6}-\d{3,5}$/, 'User code must be in format CLEAN-XXXX (3-5 digits)']
   },
   userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'User ID is required']
   },
+  
+  // KCD Integration fields
+  courierCode: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    index: true
+  },
+  customerId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Customer',
+    index: true
+  },
+  customerCode: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    index: true
+  },
+  source: {
+    type: String,
+    enum: ['web', 'kcd-packing-system', 'api'],
+    default: 'web',
+    index: true
+  },
+  warehouseAddress: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Warehouse address cannot exceed 500 characters']
+  },
+  location: {
+    type: String,
+    trim: true,
+    maxlength: [200, 'Location cannot exceed 200 characters']
+  },
+  estimatedDelivery: {
+    type: Date
+  },
+  processedAt: {
+    type: Date,
+    index: true
+  },
+  timeline: [{
+    status: {
+      type: String,
+      required: true
+    },
+    timestamp: {
+      type: Date,
+      required: true,
+      default: Date.now
+    },
+    location: {
+      type: String,
+      required: true
+    },
+    description: {
+      type: String,
+      trim: true
+    }
+  }],
   
   // Package details
   weight: {
@@ -219,7 +362,7 @@ const packageSchema = new Schema<IPackage>({
   },
   status: {
     type: String,
-    enum: ['received', 'in_transit', 'out_for_delivery', 'delivered', 'pending', 'customs', 'returned'],
+    enum: ['received', 'in_transit', 'out_for_delivery', 'delivered', 'pending', 'customs', 'returned', 'at_warehouse', 'processing', 'ready_for_pickup'],
     default: 'received'
   },
   
@@ -343,11 +486,214 @@ const packageSchema = new Schema<IPackage>({
     trim: true,
     maxlength: [1000, 'Special instructions cannot exceed 1000 characters']
   },
+  notes: {
+    type: String,
+    trim: true,
+    maxlength: [2000, 'Notes cannot exceed 2000 characters']
+  },
+  trackingHistory: [trackingHistorySchema],
+  actualDelivery: {
+    type: Date
+  },
   history: [{
     status: { type: String, required: true },
     at: { type: Date, default: Date.now },
     note: { type: String, trim: true }
-  }]
+  }],
+  
+  // Tasoko API fields
+  PackageID: {
+    type: String,
+    trim: true
+  },
+  CourierID: {
+    type: String,
+    trim: true
+  },
+  TrackingNumber: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    maxlength: [50, 'Tracking number cannot exceed 50 characters']
+  },
+  ControlNumber: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    maxlength: [50, 'Control number cannot exceed 50 characters']
+  },
+  FirstName: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'First name cannot exceed 100 characters']
+  },
+  LastName: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Last name cannot exceed 100 characters']
+  },
+  UserCode: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    maxlength: [50, 'User code cannot exceed 50 characters']
+  },
+  Weight: {
+    type: Number,
+    min: [0, 'Weight must be positive']
+  },
+  Shipper: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Shipper cannot exceed 100 characters']
+  },
+  EntryStaff: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Entry staff name cannot exceed 100 characters']
+  },
+  EntryDate: {
+    type: Date
+  },
+  EntryDateTime: {
+    type: Date
+  },
+  Branch: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Branch name cannot exceed 100 characters']
+  },
+  APIToken: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'API token cannot exceed 500 characters']
+  },
+  ShowControls: {
+    type: Boolean,
+    default: false
+  },
+  ManifestCode: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Manifest code cannot exceed 100 characters']
+  },
+  CollectionCode: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Collection code cannot exceed 100 characters']
+  },
+  Description: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Description cannot exceed 500 characters']
+  },
+  HSCode: {
+    type: String,
+    trim: true,
+    maxlength: [20, 'HS Code cannot exceed 20 characters']
+  },
+  Unknown: {
+    type: Boolean,
+    default: false
+  },
+  AIProcessed: {
+    type: Boolean,
+    default: false
+  },
+  OriginalHouseNumber: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Original house number cannot exceed 100 characters']
+  },
+  Cubes: {
+    type: Number,
+    min: [0, 'Cubes must be positive'],
+    default: 0
+  },
+  Length: {
+    type: Number,
+    min: [0, 'Length must be positive'],
+    default: 0
+  },
+  Width: {
+    type: Number,
+    min: [0, 'Width must be positive'],
+    default: 0
+  },
+  Height: {
+    type: Number,
+    min: [0, 'Height must be positive'],
+    default: 0
+  },
+  Pieces: {
+    type: Number,
+    min: [1, 'Pieces must be at least 1'],
+    default: 1
+  },
+  Discrepancy: {
+    type: Boolean,
+    default: false
+  },
+  DiscrepancyDescription: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Discrepancy description cannot exceed 500 characters']
+  },
+  ServiceTypeID: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Service type ID cannot exceed 100 characters']
+  },
+  HazmatCodeID: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Hazmat code ID cannot exceed 100 characters']
+  },
+  Coloaded: {
+    type: Boolean,
+    default: false
+  },
+  ColoadIndicator: {
+    type: String,
+    trim: true,
+    maxlength: [50, 'Coload indicator cannot exceed 50 characters']
+  },
+  
+  // Legacy Tasoko fields (for backward compatibility)
+  // Note: Most legacy fields are now handled by the main Tasoko API fields above
+  serviceTypeId: {
+    type: String,
+    trim: true,
+    enum: [
+      '59cadcd4-7508-450b-85aa-9ec908d168fe', // AIR STANDARD
+      '25a1d8e5-a478-4cc3-b1fd-a37d0d787302', // AIR EXPRESS
+      '8df142ca-0573-4ce9-b11d-7a3e5f8ba196', // AIR PREMIUM
+      '7c9638e8-4bb3-499e-8af9-d09f757a099e', // SEA STANDARD
+      ''                                        // UNSPECIFIED
+    ]
+  },
+  hazmatCodeId: {
+    type: String,
+    trim: true
+  },
+  coloaded: {
+    type: Boolean,
+    default: false
+  },
+  coloadIndicator: {
+    type: String,
+    trim: true
+  },
+  packageStatus: {
+    type: Number,
+    min: 0,
+    max: 4,
+    default: 0
+  },
+  packagePayments: {
+    type: String,
+    trim: true
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -366,15 +712,24 @@ packageSchema.index({ dateReceived: -1 });
 packageSchema.index({ manifestId: 1 });
 packageSchema.index({ createdAt: -1 });
 
+// KCD-specific indexes
+packageSchema.index({ courierCode: 1 });
+packageSchema.index({ customerId: 1 });
+packageSchema.index({ customerCode: 1 });
+packageSchema.index({ source: 1 });
+packageSchema.index({ processedAt: -1 });
+
 // Compound indexes for common queries
 packageSchema.index({ status: 1, createdAt: -1 });
 packageSchema.index({ userId: 1, status: 1 });
 packageSchema.index({ userCode: 1, status: 1 });
+packageSchema.index({ courierCode: 1, status: 1 });
+packageSchema.index({ source: 1, createdAt: -1 });
 
 export const Package = mongoose.model<IPackage>('Package', packageSchema);
 
 // Virtual for volume
-packageSchema.virtual('volume').get(function() {
+packageSchema.virtual('volume').get(function(this: IPackage) {
   if (!this.dimensions) return 0;
   return this.dimensions.length * this.dimensions.width * this.dimensions.height;
 });

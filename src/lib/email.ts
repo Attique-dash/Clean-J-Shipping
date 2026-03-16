@@ -1,24 +1,31 @@
 import nodemailer from "nodemailer";
 
-const EMAIL_USER = process.env.EMAIL_USER;
-const EMAIL_PASS = process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD; // Support both variable names
+const EMAIL_USER = process.env.EMAIL_USER || process.env.SMTP_USER;
+const EMAIL_PASS = process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD || process.env.SMTP_PASS;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Clean J Shipping";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+
+// SMTP configuration (matching warehouse-backend)
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
 
 let transporter: nodemailer.Transporter | null = null;
 
 function getTransporter() {
   if (!EMAIL_USER || !EMAIL_PASS) {
-    console.warn("Email not configured: EMAIL_USER or EMAIL_PASS/EMAIL_PASSWORD missing");
+    console.warn("Email not configured: EMAIL_USER/SMTP_USER or EMAIL_PASS/SMTP_PASS missing");
     return null;
   }
   if (transporter) return transporter;
   try {
     transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_PORT === 465, // true for 465, false for other ports
       auth: { user: EMAIL_USER, pass: EMAIL_PASS },
     });
+    console.log(`[Email] Transporter created with ${SMTP_HOST}:${SMTP_PORT}`);
     return transporter;
   } catch (error) {
     console.error("Failed to create email transporter:", error);
@@ -123,14 +130,24 @@ export async function sendNewPackageEmail(opts: {
   receivedBy?: string;
   receivedDate?: Date;
   invoiceId?: string; // NEW: Optional invoice ID to attach PDF
+  description?: string; // Package description/contents
+  itemDescription?: string; // Item description
+  warehouseAddresses?: {
+    airAddress?: string;
+    seaAddress?: string;
+    chinaAddress?: string;
+  };
 }) {
   const t = getTransporter();
   if (!t) return { sent: false, reason: "Email not configured" };
 
-  const { to, firstName, trackingNumber, status, weight, shipper, warehouse, receivedBy, receivedDate, invoiceId } = opts;
+  const { to, firstName, trackingNumber, status, weight, shipper, warehouse, receivedBy, receivedDate, invoiceId, description, itemDescription, warehouseAddresses } = opts;
 
   const subject = `Package Received at Warehouse — ${trackingNumber}`;
   const receivedDateStr = receivedDate ? new Date(receivedDate).toLocaleString() : new Date().toLocaleString();
+  
+  // Package contents/description
+  const packageContents = itemDescription || description || "Package received at warehouse";
   
   // Try to generate and attach invoice PDF if invoiceId is provided
   const attachments: Array<{ filename: string; path: string; contentType: string }> = [];
@@ -188,6 +205,10 @@ export async function sendNewPackageEmail(opts: {
             <td style="padding:8px;border-bottom:1px solid #e2e8f0;"><strong>${trackingNumber}</strong></td>
           </tr>
           <tr>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;">Package Contents:</td>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${packageContents}</td>
+          </tr>
+          <tr>
             <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;">Shipper:</td>
             <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${shipper || "UNKNOWN"}</td>
           </tr>
@@ -218,6 +239,32 @@ export async function sendNewPackageEmail(opts: {
         </tbody>
       </table>
     </div>
+    
+    ${warehouseAddresses ? `
+    <div style="background:#eff6ff;border:1px solid #3b82f6;border-radius:8px;padding:16px;margin:16px 0;">
+      <h3 style="margin:0 0 12px 0;color:#1e40af;">📍 Our Warehouse Addresses</h3>
+      <p style="margin:0 0 12px 0;color:#374151;font-size:14px;">Use these addresses when shipping packages to us:</p>
+      ${warehouseAddresses.airAddress ? `
+      <div style="background:white;border:1px solid #bfdbfe;border-radius:6px;padding:12px;margin-bottom:8px;">
+        <p style="margin:0 0 4px 0;color:#1e40af;font-weight:600;font-size:13px;">✈️ Air Shipments</p>
+        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${warehouseAddresses.airAddress}</p>
+      </div>
+      ` : ''}
+      ${warehouseAddresses.seaAddress ? `
+      <div style="background:white;border:1px solid #bfdbfe;border-radius:6px;padding:12px;margin-bottom:8px;">
+        <p style="margin:0 0 4px 0;color:#0369a1;font-weight:600;font-size:13px;">🚢 Sea Shipments</p>
+        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${warehouseAddresses.seaAddress}</p>
+      </div>
+      ` : ''}
+      ${warehouseAddresses.chinaAddress ? `
+      <div style="background:white;border:1px solid #bfdbfe;border-radius:6px;padding:12px;">
+        <p style="margin:0 0 4px 0;color:#dc2626;font-weight:600;font-size:13px;">🇨🇳 China Warehouse</p>
+        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${warehouseAddresses.chinaAddress}</p>
+      </div>
+      ` : ''}
+    </div>
+    ` : ''}
+    
     ${attachments.length > 0 ? `
     <div style="background:#dbeafe;border:1px solid #3b82f6;border-radius:8px;padding:16px;margin:16px 0;">
       <h4 style="margin:0 0 8px 0;color:#1e40af;">📄 Invoice Attached</h4>
@@ -238,14 +285,20 @@ export async function sendNewPackageEmail(opts: {
     <p style="margin-top:8px;">If you have any questions, please don't hesitate to contact us.</p>
   </div>`;
 
-  await t.sendMail({
-    from: EMAIL_USER,
-    to,
-    subject,
-    html,
-    attachments: attachments.length > 0 ? attachments : undefined,
-  });
-  return { sent: true };
+  try {
+    await t.sendMail({
+      from: EMAIL_USER,
+      to,
+      subject,
+      html,
+      attachments: attachments.length > 0 ? attachments : undefined,
+    });
+    console.log(`[Email] Package notification sent to ${to} for tracking ${trackingNumber}`);
+    return { sent: true };
+  } catch (error: any) {
+    console.error(`[Email] Failed to send package notification to ${to}:`, error.message);
+    return { sent: false, reason: error.message };
+  }
 }
 
 export async function sendVerificationEmail(opts: {
@@ -321,6 +374,70 @@ export async function sendStatusUpdateEmail(opts: {
     <p>Your package has a new status: <strong>${status}</strong>.</p>
     ${note ? `<p style="margin:8px 0 0 0;color:#374151">Note: ${note}</p>` : ""}
     <p style="margin-top:16px;">You can view live tracking updates in your customer portal.</p>
+  </div>`;
+
+  await t.sendMail({
+    from: EMAIL_USER,
+    to,
+    subject,
+    html,
+  });
+  return { sent: true };
+}
+
+export async function sendPackageNotificationToRecipient(opts: {
+  to: string;
+  recipientName: string;
+  trackingNumber: string;
+  shipper?: string;
+  weight?: number;
+  warehouse?: string;
+  receivedDate?: Date;
+  customerName?: string;
+}) {
+  const t = getTransporter();
+  if (!t) return { sent: false, reason: "Email not configured" };
+
+  const { to, recipientName, trackingNumber, shipper, weight, warehouse, receivedDate, customerName } = opts;
+  const subject = `Package Notification — ${trackingNumber}`;
+  const receivedDateStr = receivedDate ? new Date(receivedDate).toLocaleString() : new Date().toLocaleString();
+  
+  const html = `
+  <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111">
+    <h2 style="margin:0 0 12px 0;">Package Notification</h2>
+    <p>Hi ${recipientName || "Recipient"},</p>
+    <p>A package has been received at our warehouse${customerName ? ` for ${customerName}` : ""}.</p>
+    
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:16px 0;">
+      <h3 style="margin:0 0 12px 0;color:#1e40af;">Package Information</h3>
+      <table style="border-collapse:collapse;width:100%;">
+        <tbody>
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;width:140px;">Tracking Number:</td>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;"><strong>${trackingNumber}</strong></td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;">Shipper:</td>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${shipper || "UNKNOWN"}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;">Weight:</td>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${weight ? `${weight} kg` : "-"}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;">Warehouse:</td>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${warehouse || "Main Warehouse"}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;color:#374151;font-weight:600;">Received Date:</td>
+            <td style="padding:8px;">${receivedDateStr}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <p style="margin-top:16px;">You can track this package using the tracking number above.</p>
+    <p style="margin-top:8px;">If you have any questions, please don't hesitate to contact us.</p>
   </div>`;
 
   await t.sendMail({

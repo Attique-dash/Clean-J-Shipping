@@ -1,12 +1,13 @@
 import { Router } from 'express';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, authorize } from '../../middleware/auth';
 import { asyncHandler } from '../../middleware/errorHandler';
 import * as profileController from '../../controllers/customer/profileController';
 
 const router = Router();
 
-// All profile routes require authentication
+// All profile routes require authentication AND customer role
 router.use(authenticate);
+router.use(authorize('customer'));
 
 // Profile management
 router.get('/', asyncHandler(profileController.getProfile));

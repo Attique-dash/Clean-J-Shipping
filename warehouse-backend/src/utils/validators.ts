@@ -96,12 +96,31 @@ export const validateCreateInventory = [
     .isString()
     .isLength({ min: 2, max: 100 })
     .withMessage('Item name must be between 2 and 100 characters'),
+  body('sku')
+    .isString()
+    .isLength({ min: 5, max: 20 })
+    .matches(/^[A-Z0-9-]{5,20}$/)
+    .withMessage('SKU must be 5-20 alphanumeric characters and hyphens'),
+  body('category')
+    .isString()
+    .isLength({ min: 2, max: 50 })
+    .withMessage('Category must be between 2 and 50 characters'),
   body('quantity')
     .isInt({ min: 0 })
     .withMessage('Quantity must be a non-negative integer'),
-  body('price')
+  body('minStockLevel')
+    .isInt({ min: 0 })
+    .withMessage('Minimum stock level must be a non-negative integer'),
+  body('maxStockLevel')
+    .isInt({ min: 0 })
+    .withMessage('Maximum stock level must be a non-negative integer'),
+  body('unitPrice')
     .isFloat({ min: 0 })
-    .withMessage('Price must be a positive number'),
+    .withMessage('Unit price must be a positive number'),
+  body('location.warehouse')
+    .optional()
+    .isMongoId()
+    .withMessage('Invalid warehouse ID'),
   handleValidationErrors
 ];
 

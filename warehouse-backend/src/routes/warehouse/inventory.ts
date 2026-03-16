@@ -6,6 +6,36 @@ import * as inventoryController from '../../controllers/warehouse/inventoryContr
 
 const router = Router();
 
+/**
+ * @swagger
+ * /api/warehouse/inventory:
+ *   get:
+ *     summary: Get warehouse inventory
+ *     tags: [Warehouse]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Inventory list
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       product:
+ *                         type: string
+ *                       quantity:
+ *                         type: number
+ *                       price:
+ *                         type: number
+ */
 // All inventory routes require authentication
 router.use(authenticate);
 

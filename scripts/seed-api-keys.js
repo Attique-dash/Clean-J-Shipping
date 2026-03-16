@@ -28,7 +28,7 @@ require('dotenv').config({ path: '.env.local' });
 
 async function seedApiKeys() {
   try {
-    await mongoose.connect(process.env.DATABASE_URL);
+    await mongoose.connect(process.env.MONGODB_URI);
     console.log('Connected to MongoDB');
 
     // Clear existing test API keys

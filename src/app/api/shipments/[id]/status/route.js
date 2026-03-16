@@ -18,7 +18,7 @@ export async function PUT(request, { params }) {
     
     await dbConnect();
     
-    const { id } = params;
+    const { id } = await params;
     const { status, notes, location, signature, photo, recipientName } = await request.json();
     
     const shipment = await Shipment.findById(id);

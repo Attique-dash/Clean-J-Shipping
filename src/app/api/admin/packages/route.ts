@@ -609,10 +609,30 @@ export async function POST(req: Request) {
     }
 
     // Send email notification to customer with invoice PDF attachment
+    let customerEmailResult: { sent: boolean; reason?: string } | undefined;
     try {
       const { sendNewPackageEmail } = await import('@/lib/email');
       const invoiceId = billingInvoice?._id?.toString() || '';
-      await sendNewPackageEmail({
+      
+      // Get warehouse addresses from default warehouse
+      let warehouseAddresses = { airAddress: '', seaAddress: '', chinaAddress: '' };
+      try {
+        const { Warehouse } = await import('@/models/Warehouse');
+        const defaultWarehouse = await Warehouse.findOne({ isActive: true, isDefault: true })
+          .select('airAddress seaAddress chinaAddress address name')
+          .lean();
+        if (defaultWarehouse) {
+          warehouseAddresses = {
+            airAddress: defaultWarehouse.airAddress || defaultWarehouse.address,
+            seaAddress: defaultWarehouse.seaAddress || defaultWarehouse.address,
+            chinaAddress: defaultWarehouse.chinaAddress || defaultWarehouse.address
+          };
+        }
+      } catch (whError) {
+        console.error('[Admin Package Create] Failed to fetch warehouse addresses:', whError);
+      }
+      
+      customerEmailResult = await sendNewPackageEmail({
         to: user.email,
         firstName: user.firstName || 'Customer',
         trackingNumber: asString(trackingNumber),
@@ -623,10 +643,37 @@ export async function POST(req: Request) {
         receivedBy: session.user.name || 'Admin',
         receivedDate: new Date(),
         invoiceId: invoiceId, // Attach invoice PDF if available
+        description: asString(description),
+        itemDescription: asString(itemDescription),
+        warehouseAddresses: warehouseAddresses,
       });
+      console.log(`[Admin Package Create] Customer email result for ${trackingNumber}:`, customerEmailResult);
     } catch (emailError) {
-      console.error('Failed to send package notification email:', emailError);
+      console.error('[Admin Package Create] Failed to send package notification email to customer:', emailError);
       // Don't fail package creation if email fails
+    }
+
+    // Send email notification to recipient if different from customer
+    const recipientEmail = (recipient as RecipientInfo)?.email;
+    if (recipientEmail && recipientEmail !== user.email) {
+      try {
+        const { sendPackageNotificationToRecipient } = await import('@/lib/email');
+        const recipientName = (recipient as RecipientInfo)?.name || 'Recipient';
+        const recipientResult = await sendPackageNotificationToRecipient({
+          to: recipientEmail,
+          recipientName,
+          trackingNumber: asString(trackingNumber),
+          shipper: asString(shipper),
+          weight: asNumber(weight),
+          warehouse: asString(branch) || 'Main Warehouse',
+          receivedDate: new Date(),
+          customerName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+        });
+        console.log(`[Admin Package Create] Recipient email result for ${trackingNumber}:`, recipientResult);
+      } catch (emailError) {
+        console.error('[Admin Package Create] Failed to send package notification email to recipient:', emailError);
+        // Don't fail package creation if email fails
+      }
     }
 
     // NEW: Automatically deduct inventory materials

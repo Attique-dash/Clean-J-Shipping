@@ -49,7 +49,7 @@ export interface IWarehouse extends Document {
   };
   
   // Company settings
-  companyAbbreviation?: string; // e.g., "CJS" for Clean J Shipping
+  companyAbbreviation?: string; // e.g., "CLEAN" for Clean J Shipping
   
   createdAt: Date;
   updatedAt: Date;
@@ -176,7 +176,7 @@ const warehouseSchema = new Schema<IWarehouse>({
     trim: true,
     uppercase: true,
     match: [/^[A-Z]{2,5}$/, 'Company abbreviation must be 2-5 uppercase letters'],
-    default: 'CJS' // Clean J Shipping
+    default: 'CLEAN' // Clean J Shipping
   }
 }, {
   timestamps: true,

@@ -46,9 +46,10 @@ export const getPaginationData = (page: number, limit: number, total: number) =>
 // Generate tracking number
 export const generateTrackingNumber = (): string => {
   const prefix = 'TRK';
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substr(2, 5).toUpperCase();
-  return `${prefix}${timestamp}${random}`.toUpperCase();
+  const timestamp = Date.now().toString(36).substring(0, 8); // Ensure 8 chars
+  const random = Math.random().toString(36).substr(2, 9).toUpperCase(); // 9 chars
+  // Result: TRK + 8 + 9 = 20 chars ✅
+  return `${prefix}${timestamp}${random}`.slice(0, 20).toUpperCase();
 };
 
 // Calculate package volume
@@ -88,7 +89,11 @@ export const isValidEmail = (email: string): boolean => {
 // Generate random API key
 export const generateApiKey = (): string => {
   const prefix = 'wh_';
-  const random = Math.random().toString(36).substr(2, 32);
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let random = '';
+  for (let i = 0; i < 32; i++) {
+    random += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
   return prefix + random;
 };
 
@@ -121,4 +126,18 @@ export const calculateAge = (birthdate: Date): number => {
   }
   
   return age;
+};
+
+// Safe query parameter parser
+export const parseQueryParam = (query: any, key: string, defaultValue?: number): number => {
+  const value = query[key];
+  if (value === undefined || value === null) {
+    return defaultValue || 0;
+  }
+  
+  // Handle string or string array
+  const stringValue = Array.isArray(value) ? value[0] : String(value);
+  const parsedValue = parseInt(stringValue, 10);
+  
+  return isNaN(parsedValue) ? (defaultValue || 0) : parsedValue;
 };

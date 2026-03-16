@@ -11,8 +11,8 @@ export async function logAudit(params: {
   req?: Request;
 }) {
   try {
-    const ipAddress = params.req?.headers.get('x-forwarded-for') || params.req?.headers.get('x-real-ip');
-    const userAgent = params.req?.headers.get('user-agent');
+    const ipAddress = await params.req?.headers.get('x-forwarded-for') || await params.req?.headers.get('x-real-ip');
+    const userAgent = await params.req?.headers.get('user-agent');
 
     const userId = Types.ObjectId.isValid(params.userId) ? new Types.ObjectId(params.userId) : undefined;
     if (!userId) {

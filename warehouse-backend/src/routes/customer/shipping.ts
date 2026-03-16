@@ -1,13 +1,14 @@
 import { Router } from 'express';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, authorize } from '../../middleware/auth';
 import { validateMongoId, validatePagination } from '../../utils/validators';
 import { asyncHandler } from '../../middleware/errorHandler';
 import * as shippingController from '../../controllers/customer/shippingController';
 
 const router = Router();
 
-// All shipping routes require authentication
+// All shipping routes require authentication AND customer role
 router.use(authenticate);
+router.use(authorize('customer'));
 
 // Shipping address CRUD
 router.get('/addresses', validatePagination, asyncHandler(shippingController.getShippingAddresses));

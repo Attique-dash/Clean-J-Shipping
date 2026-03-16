@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { User } from '../../models/User';
-import { successResponse, errorResponse, getPaginationData } from '../../utils/helpers';
+import { successResponse, errorResponse, getPaginationData, parseQueryParam } from '../../utils/helpers';
 import { PAGINATION } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 
@@ -9,6 +9,11 @@ import { logger } from '../../utils/logger';
 
 export const getShippingAddresses = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const user = await User.findById(req.user._id).select('shippingAddresses');
     
     if (!user) {
@@ -17,8 +22,8 @@ export const getShippingAddresses = async (req: AuthRequest, res: Response): Pro
     }
 
     const addresses = (user as any).shippingAddresses || [];
-    const page = parseInt(req.query.page as string) || PAGINATION.DEFAULT_PAGE;
-    const limit = parseInt(req.query.limit as string) || PAGINATION.DEFAULT_LIMIT;
+    const page = parseQueryParam(req.query, 'page', PAGINATION.DEFAULT_PAGE);
+    const limit = parseQueryParam(req.query, 'limit', PAGINATION.DEFAULT_LIMIT);
     const skip = (page - 1) * limit;
 
     const paginatedAddresses = addresses.slice(skip, skip + limit);
@@ -35,6 +40,11 @@ export const getShippingAddresses = async (req: AuthRequest, res: Response): Pro
 
 export const getShippingAddressById = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const user = await User.findById(req.user._id).select('shippingAddresses');
     
     if (!user) {
@@ -59,6 +69,11 @@ export const getShippingAddressById = async (req: AuthRequest, res: Response): P
 
 export const createShippingAddress = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const { street, city, state, zipCode, country, isDefault } = req.body;
 
     const user = await User.findById(req.user._id);
@@ -102,6 +117,11 @@ export const createShippingAddress = async (req: AuthRequest, res: Response): Pr
 
 export const updateShippingAddress = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const user = await User.findById(req.user._id);
     
     if (!user) {
@@ -141,6 +161,11 @@ export const updateShippingAddress = async (req: AuthRequest, res: Response): Pr
 
 export const deleteShippingAddress = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const user = await User.findById(req.user._id);
     
     if (!user) {
@@ -170,6 +195,11 @@ export const deleteShippingAddress = async (req: AuthRequest, res: Response): Pr
 
 export const setDefaultAddress = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const user = await User.findById(req.user._id);
     
     if (!user) {

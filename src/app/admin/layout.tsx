@@ -21,7 +21,8 @@ import {
   Calculator,
   UserCircle,
   Receipt,
-  Settings
+  Settings,
+  Key
 } from "lucide-react";
 
 export default function AdminLayout({
@@ -123,6 +124,13 @@ export default function AdminLayout({
       icon: Settings,
       description: "System-wide configuration",
       color: "from-slate-500 to-slate-600",
+    },
+    {
+      href: "/admin/api-keys",
+      label: "API Keys",
+      icon: Key,
+      description: "Manage API keys for integrations",
+      color: "from-amber-500 to-amber-600",
     },
     {
       href: "/admin/profile",

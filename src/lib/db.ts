@@ -1,9 +1,9 @@
 import mongoose from 'mongoose';
 
-const DATABASE_URL = process.env.DATABASE_URL;
+const MONGODB_URI = process.env.MONGODB_URI;
 
-if (!DATABASE_URL) {
-  throw new Error('Please define the DATABASE_URL environment variable in .env.local');
+if (!MONGODB_URI) {
+  throw new Error('Please define the MONGODB_URI environment variable in .env.local');
 }
 
 interface CachedMongoose {
@@ -38,7 +38,7 @@ export async function dbConnect(): Promise<typeof mongoose> {
     };
 
     console.log('🔌 Attempting to connect to MongoDB...');
-    cached.promise = mongoose.connect(DATABASE_URL as string, opts).then((mongoose) => {
+    cached.promise = mongoose.connect(MONGODB_URI as string, opts).then((mongoose) => {
       console.log('✅ MongoDB connected successfully');
       return mongoose;
     }).catch((error) => {

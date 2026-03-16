@@ -17,6 +17,8 @@ import {
   FaFileUpload,
   FaComments,
   FaWarehouse,
+  FaUserTie,
+  FaMapMarkerAlt,
 } from 'react-icons/fa';
 import type { IconType } from 'react-icons';
 import { ChevronRight, Menu, X } from 'lucide-react';
@@ -99,6 +101,20 @@ export default function WarehouseLayout({
       icon: FaUsers,
       description: "Customer management",
       color: "from-pink-500 to-pink-600",
+    },
+    {
+      href: "/warehouse/staff",
+      label: "Staff",
+      icon: FaUserTie,
+      description: "Manage warehouse staff",
+      color: "from-amber-500 to-amber-600",
+    },
+    {
+      href: "/warehouse/addresses",
+      label: "Addresses",
+      icon: FaMapMarkerAlt,
+      description: "Manage shipping addresses",
+      color: "from-teal-500 to-teal-600",
     },
     {
       href: "/warehouse/messages",

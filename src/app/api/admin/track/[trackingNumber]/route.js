@@ -6,7 +6,7 @@ export async function GET(request, { params }) {
   try {
     await dbConnect();
     
-    const { trackingNumber } = params;
+    const { trackingNumber } = await params;
     
     const shipment = await Shipment.findOne({ trackingNumber })
       .select('-__v -paymentIntentId -customerPortalAccess -paymentStatus')

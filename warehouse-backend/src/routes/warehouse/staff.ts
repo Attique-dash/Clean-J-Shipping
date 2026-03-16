@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, authorize } from '../../middleware/auth';
 import { 
   getStaff, 
   getStaffById, 
@@ -14,8 +14,9 @@ import {
 
 const router = Router();
 
-// Apply authentication to all routes
+// Apply authentication and role authorization to all routes
 router.use(authenticate);
+router.use(authorize('warehouse', 'admin'));
 
 // Staff management routes
 router.get('/', getStaff);

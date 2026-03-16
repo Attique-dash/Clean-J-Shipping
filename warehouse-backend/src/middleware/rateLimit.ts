@@ -68,7 +68,7 @@ export const apiKeyLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 1000, // 1000 requests per minute for API keys
   keyGenerator: (req) => {
-    return req.header('X-API-Key') || req.ip;
+    return req.header('X-API-Key') || req.ip || 'unknown';
   },
   message: {
     success: false,

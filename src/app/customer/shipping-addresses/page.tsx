@@ -3,58 +3,105 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { MapPin, Plane, Ship, Package } from "lucide-react";
+import { MapPin, Plane, Ship, Package, Copy, Check } from "lucide-react";
 import { toast } from "react-toastify";
 
 interface ShippingAddress {
-  air: string;
-  sea: string;
-  china: string;
+  _id: string;
+  street: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+  type: "air" | "sea" | "china";
+  isDefault: boolean;
+  fullName: string;
+  mailboxCode: string;
+  addressLine2?: string;
+  displayName?: string;
 }
 
-interface Warehouse {
-  name: string;
-  code: string;
-  address: string;
-  city: string;
-  country: string;
-  airAddress?: string;
-  seaAddress?: string;
-  chinaAddress?: string;
+interface UserProfile {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  userCode: string;
+  mailboxNumber: string;
+  shippingAddresses: ShippingAddress[];
 }
 
 export default function ShippingAddressesPage() {
   const { data: session } = useSession();
-  const [addresses, setAddresses] = useState<ShippingAddress | null>(null);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (session?.user) {
-      fetchShippingAddresses();
+      fetchUserProfile();
     }
   }, [session]);
 
-  const fetchShippingAddresses = async () => {
+  const fetchUserProfile = async () => {
     try {
-      const res = await fetch("/api/customer/shipping-addresses", {
+      const res = await fetch("/api/customer/profile", {
         credentials: "include",
         cache: "no-store",
       });
 
       if (res.ok) {
         const data = await res.json();
-        setAddresses(data.addresses);
-        setWarehouses(data.warehouses);
+        if (data.success && data.data) {
+          setProfile(data.data);
+        }
       } else {
-        toast.error("Failed to load shipping addresses");
+        toast.error("Failed to load profile data");
       }
     } catch (error) {
-      toast.error("Error loading shipping addresses");
+      toast.error("Error loading profile data");
     } finally {
       setLoading(false);
     }
   };
+
+  const copyToClipboard = async (text: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      toast.success("Address copied to clipboard!");
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      toast.error("Failed to copy address");
+    }
+  };
+
+  const getFormattedAddress = (address: ShippingAddress, profile: UserProfile): string => {
+    const fullName = `${profile.firstName} ${profile.lastName}`;
+    const mailboxCode = profile.mailboxNumber || address.mailboxCode || profile.userCode;
+
+    if (address.type === "air") {
+      return `✈️ Standard Air Address:\n${fullName}\n${address.street}\n${address.addressLine2 || `KCDE-${mailboxCode}`}\n${address.city},\n${address.state}\n${address.zipCode}`;
+    }
+
+    if (address.type === "sea") {
+      return `🚢 Standard Sea Address:\n${fullName}\n${address.street}\n${address.addressLine2 || `KCDX-${mailboxCode}`}\n${address.city},\n${address.state}\n${address.zipCode}`;
+    }
+
+    if (address.type === "china") {
+      return `🇨🇳 China Warehouse Address:\n${fullName} / ${mailboxCode}\n${address.country}\n${address.state}\n${address.city}\n${address.street}`;
+    }
+
+    return "";
+  };
+
+  const getAddressByType = (type: "air" | "sea" | "china"): ShippingAddress | undefined => {
+    return profile?.shippingAddresses?.find(addr => addr.type === type);
+  };
+
+  const airAddress = getAddressByType("air");
+  const seaAddress = getAddressByType("sea");
+  const chinaAddress = getAddressByType("china");
 
   if (!session) {
     return (
@@ -90,7 +137,7 @@ export default function ShippingAddressesPage() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold leading-tight md:text-3xl">Shipping Addresses</h1>
-                <p className="text-blue-100 mt-1">View addresses for different shipping methods</p>
+                <p className="text-blue-100 mt-1">Use these addresses when ordering online</p>
               </div>
             </div>
           </div>
@@ -107,15 +154,33 @@ export default function ShippingAddressesPage() {
               </div>
             </div>
             <div className="p-6">
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <MapPin className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Delivery Address</p>
-                    <p className="text-sm text-gray-600 mt-1">{addresses?.air || 'Address not set'}</p>
+              {airAddress && profile ? (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                    <p className="text-sm text-gray-800 whitespace-pre-line leading-relaxed">
+                      {getFormattedAddress(airAddress, profile)}
+                    </p>
                   </div>
+                  <button
+                    onClick={() => copyToClipboard(getFormattedAddress(airAddress, profile), "air")}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors font-medium"
+                  >
+                    {copiedId === "air" ? (
+                      <>
+                        <Check className="h-4 w-4" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4" />
+                        <span>Copy Address</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-              </div>
+              ) : (
+                <p className="text-sm text-gray-500 text-center py-4">Air address not configured</p>
+              )}
             </div>
           </div>
 
@@ -128,15 +193,33 @@ export default function ShippingAddressesPage() {
               </div>
             </div>
             <div className="p-6">
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <MapPin className="h-5 w-5 text-cyan-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Delivery Address</p>
-                    <p className="text-sm text-gray-600 mt-1">{addresses?.sea || 'Address not set'}</p>
+              {seaAddress && profile ? (
+                <div className="space-y-4">
+                  <div className="bg-cyan-50 rounded-xl p-4 border border-cyan-100">
+                    <p className="text-sm text-gray-800 whitespace-pre-line leading-relaxed">
+                      {getFormattedAddress(seaAddress, profile)}
+                    </p>
                   </div>
+                  <button
+                    onClick={() => copyToClipboard(getFormattedAddress(seaAddress, profile), "sea")}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-cyan-100 hover:bg-cyan-200 text-cyan-700 rounded-lg transition-colors font-medium"
+                  >
+                    {copiedId === "sea" ? (
+                      <>
+                        <Check className="h-4 w-4" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4" />
+                        <span>Copy Address</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-              </div>
+              ) : (
+                <p className="text-sm text-gray-500 text-center py-4">Sea address not configured</p>
+              )}
             </div>
           </div>
 
@@ -149,38 +232,37 @@ export default function ShippingAddressesPage() {
               </div>
             </div>
             <div className="p-6">
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <MapPin className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Delivery Address</p>
-                    <p className="text-sm text-gray-600 mt-1">{addresses?.china || 'Address not set'}</p>
+              {chinaAddress && profile ? (
+                <div className="space-y-4">
+                  <div className="bg-red-50 rounded-xl p-4 border border-red-100">
+                    <p className="text-sm text-gray-800 whitespace-pre-line leading-relaxed">
+                      {getFormattedAddress(chinaAddress, profile)}
+                    </p>
                   </div>
+                  <button
+                    onClick={() => copyToClipboard(getFormattedAddress(chinaAddress, profile), "china")}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-colors font-medium"
+                  >
+                    {copiedId === "china" ? (
+                      <>
+                        <Check className="h-4 w-4" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4" />
+                        <span>Copy Address</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-              </div>
+              ) : (
+                <p className="text-sm text-gray-500 text-center py-4">China address not configured</p>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Warehouse Information */}
-        {warehouses.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] p-4">
-              <h2 className="text-xl font-semibold text-white">Warehouse Locations</h2>
-            </div>
-            <div className="p-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                {warehouses.map((warehouse, index) => (
-                  <div key={index} className="border border-gray-200 rounded-lg p-4">
-                    <h3 className="font-semibold text-gray-900 mb-2">{warehouse.name}</h3>
-                    <p className="text-sm text-gray-600">{warehouse.address}</p>
-                    <p className="text-sm text-gray-500">{warehouse.city}, {warehouse.country}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -133,7 +133,12 @@ export default function AdminPackagesPage() {
         if (selectedStatuses.length > 0) params.set('statuses', selectedStatuses.join(','));
         
         const res = await fetch(`/api/admin/packages?${params.toString()}`, {
-          credentials: 'include'
+          credentials: 'include',
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
         });
         const data = await res.json();
         if (res.ok) {

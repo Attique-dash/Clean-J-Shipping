@@ -1,16 +1,16 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../middleware/auth';
-import { User } from '../../models/User';
+import { User, IUser } from '../../models/User';
 import { Warehouse } from '../../models/Warehouse';
-import { successResponse, errorResponse, getPaginationData } from '../../utils/helpers';
+import { successResponse, errorResponse, getPaginationData, parseQueryParam } from '../../utils/helpers';
 import { PAGINATION, USER_ROLES } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import bcrypt from 'bcryptjs';
 
 export const getStaff = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const page = parseInt(req.query.page as string) || PAGINATION.DEFAULT_PAGE;
-    const limit = parseInt(req.query.limit as string) || PAGINATION.DEFAULT_LIMIT;
+    const page = parseQueryParam(req.query, 'page', PAGINATION.DEFAULT_PAGE);
+    const limit = parseQueryParam(req.query, 'limit', PAGINATION.DEFAULT_LIMIT);
     const skip = (page - 1) * limit;
 
     const filter: any = {
@@ -57,7 +57,7 @@ export const getStaff = async (req: AuthRequest, res: Response): Promise<void> =
 
 export const getStaffById = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const staff = await User.findOne({
+    const staff: IUser | null = await User.findOne({
       _id: req.params.id,
       role: { $in: [USER_ROLES.ADMIN, USER_ROLES.WAREHOUSE_STAFF] }
     })
@@ -78,6 +78,11 @@ export const getStaffById = async (req: AuthRequest, res: Response): Promise<voi
 
 export const createStaff = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const { name, email, password, role, phone, assignedWarehouse, permissions } = req.body;
 
     // Check if user already exists
@@ -106,9 +111,9 @@ export const createStaff = async (req: AuthRequest, res: Response): Promise<void
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const staffData = {
-      name,
+      firstName: name,
       email,
-      password: hashedPassword,
+      passwordHash: hashedPassword,
       role,
       phone,
       assignedWarehouse,
@@ -121,8 +126,8 @@ export const createStaff = async (req: AuthRequest, res: Response): Promise<void
     const staff = await User.create(staffData);
     
     // Remove password from response
-    const staffResponse = staff.toObject();
-    delete staffResponse.password;
+    const staffResponse: any = staff.toObject();
+    delete staffResponse.passwordHash;
 
     await staff.populate('assignedWarehouse', 'name code');
 
@@ -136,9 +141,14 @@ export const createStaff = async (req: AuthRequest, res: Response): Promise<void
 
 export const updateStaff = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     const { name, phone, role, assignedWarehouse, permissions, isActive } = req.body;
 
-    const staff = await User.findOne({
+    const staff: IUser | null = await User.findOne({
       _id: req.params.id,
       role: { $in: [USER_ROLES.ADMIN, USER_ROLES.WAREHOUSE_STAFF] }
     });
@@ -195,7 +205,12 @@ export const updateStaff = async (req: AuthRequest, res: Response): Promise<void
 
 export const deleteStaff = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const staff = await User.findOne({
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
+    const staff: IUser | null = await User.findOne({
       _id: req.params.id,
       role: { $in: [USER_ROLES.ADMIN, USER_ROLES.WAREHOUSE_STAFF] }
     });
@@ -234,7 +249,7 @@ export const resetStaffPassword = async (req: AuthRequest, res: Response): Promi
   try {
     const { newPassword } = req.body;
 
-    const staff = await User.findOne({
+    const staff: IUser | null = await User.findOne({
       _id: req.params.id,
       role: { $in: [USER_ROLES.ADMIN, USER_ROLES.WAREHOUSE_STAFF] }
     });
@@ -262,7 +277,12 @@ export const resetStaffPassword = async (req: AuthRequest, res: Response): Promi
 
 export const toggleStaffStatus = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const staff = await User.findOne({
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
+    const staff: IUser | null = await User.findOne({
       _id: req.params.id,
       role: { $in: [USER_ROLES.ADMIN, USER_ROLES.WAREHOUSE_STAFF] }
     });

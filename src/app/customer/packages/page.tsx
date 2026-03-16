@@ -9,14 +9,45 @@ import { toast } from "react-toastify";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { ExportService } from "@/lib/export-service";
 
+interface CustomerProfile {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  userCode: string;
+  mailboxNumber: string;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    country?: string;
+  };
+  shippingAddresses?: Array<{
+    type: 'air' | 'sea' | 'ocean' | 'china';
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+    addressLine2?: string;
+  }>;
+}
+
 type UIPackage = {
   id?: string;
+  _id?: string;
   tracking_number: string;
+  trackingNumber?: string;
   description?: string;
-  status: "pending" | "received" | "in_processing" | "ready_to_ship" | "shipped" | "in_transit" | "ready_for_pickup" | "delivered" | "archived" | "unknown";
+  itemDescription?: string;
+  status: "pending" | "received" | "in_processing" | "ready_to_ship" | "shipped" | "in_transit" | "ready_for_pickup" | "delivered" | "archived" | "unknown" | "processing";
   current_location?: string;
+  warehouseLocation?: string;
   estimated_delivery?: string;
-  weight?: string;
+  estimatedDelivery?: string;
+  weight?: string | number;
+  weight_kg?: number;
   invoice_status?: string;
   actions_available?: string[];
   ready_since?: string;
@@ -24,32 +55,59 @@ type UIPackage = {
   createdAt?: string;
   updated_at?: string;
   updatedAt?: string;
-  weight_kg?: number;
-  hasInvoice?: boolean;
-  invoiceNumber?: string;
-  warehouse_location?: string;
-  received_by?: string;
-  received_date?: string;
   shipper?: string;
   dimensions?: { length?: number; width?: number; height?: number; unit?: string };
-  itemValueUsd?: number;
   serviceMode?: 'air' | 'ocean' | 'local';
   customsRequired?: boolean;
   customsStatus?: string;
-  paymentStatus?: string;
+  paymentStatus?: 'pending' | 'paid' | 'partially_paid';
   dateReceived?: string;
   daysInStorage?: number;
+  totalAmount?: number;
+  total_amount?: number;
+  shippingCost?: number;
+  shipping_cost?: number;
+  // Sender fields
+  senderName?: string;
   senderEmail?: string;
   senderPhone?: string;
   senderAddress?: string;
   senderCountry?: string;
+  // Recipient fields (nested object from API)
+  recipient?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    shippingId?: string;
+  };
+  // Legacy recipient fields for backward compatibility
   receiverName?: string;
   receiverEmail?: string;
   receiverPhone?: string;
   receiverAddress?: string;
   receiverCountry?: string;
-  total_amount?: number;
-  shipping_cost?: number;
+  // Invoice fields
+  hasInvoice?: boolean;
+  invoiceNumber?: string;
+  // Flags
+  isFragile?: boolean;
+  isHazardous?: boolean;
+  requiresSignature?: boolean;
+  specialInstructions?: string;
+  // Tracking
+  trackingHistory?: Array<{
+    timestamp?: string;
+    status?: string;
+    location?: string;
+    description?: string;
+  }>;
+  // Additional fields
+  courierCode?: string;
+  userCode?: string;
+  processedAt?: string;
+  source?: string;
+  volume?: number;
 };
 
 export default function CustomerPackagesPage() {
@@ -73,7 +131,30 @@ export default function CustomerPackagesPage() {
   const [weightMin, setWeightMin] = useState<string>("");
   const [weightMax, setWeightMax] = useState<string>("");
   const [page, setPage] = useState(1);
+  const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
   const pageSize = 20;
+
+  // Fetch customer profile
+  const fetchCustomerProfile = useCallback(async () => {
+    try {
+      const res = await fetch("/api/customer/profile", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.data) {
+          setCustomerProfile(data.data);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load customer profile:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCustomerProfile();
+  }, [fetchCustomerProfile]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query), 300);
@@ -93,7 +174,40 @@ export default function CustomerPackagesPage() {
       
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load packages");
-      const list: UIPackage[] = Array.isArray(data?.packages) ? data.packages : [];
+      const list: UIPackage[] = Array.isArray(data?.data?.packages) 
+        ? data.data.packages.map((pkg: any) => ({
+            ...pkg,
+            // Map tracking number
+            tracking_number: pkg.trackingNumber || pkg.tracking_number || pkg._id,
+            // Map nested recipient fields to flat structure for UI compatibility
+            receiverName: pkg.recipient?.name || pkg.receiverName,
+            receiverEmail: pkg.recipient?.email || pkg.receiverEmail,
+            receiverPhone: pkg.recipient?.phone || pkg.receiverPhone,
+            receiverAddress: pkg.recipient?.address || pkg.receiverAddress,
+            // Ensure other fields are mapped
+            weight: pkg.weight || pkg.weight_kg,
+            total_amount: pkg.totalAmount || pkg.total_amount,
+            shipping_cost: pkg.shippingCost || pkg.shipping_cost,
+            warehouse_location: pkg.warehouseLocation || pkg.warehouse_location,
+            dateReceived: pkg.dateReceived || pkg.createdAt,
+            daysInStorage: pkg.daysInStorage || Math.floor((Date.now() - new Date(pkg.dateReceived || pkg.createdAt).getTime()) / (1000 * 60 * 60 * 24)),
+          }))
+        : Array.isArray(data?.packages) 
+          ? data.packages.map((pkg: any) => ({
+              ...pkg,
+              tracking_number: pkg.trackingNumber || pkg.tracking_number || pkg._id,
+              receiverName: pkg.recipient?.name || pkg.receiverName,
+              receiverEmail: pkg.recipient?.email || pkg.receiverEmail,
+              receiverPhone: pkg.recipient?.phone || pkg.receiverPhone,
+              receiverAddress: pkg.recipient?.address || pkg.receiverAddress,
+              weight: pkg.weight || pkg.weight_kg,
+              total_amount: pkg.totalAmount || pkg.total_amount,
+              shipping_cost: pkg.shippingCost || pkg.shipping_cost,
+              warehouse_location: pkg.warehouseLocation || pkg.warehouse_location,
+              dateReceived: pkg.dateReceived || pkg.createdAt,
+              daysInStorage: pkg.daysInStorage || Math.floor((Date.now() - new Date(pkg.dateReceived || pkg.createdAt).getTime()) / (1000 * 60 * 60 * 24)),
+            }))
+          : [];
       
       const receivedPackages = list.filter(pkg => pkg.status === "received");
       const previousReceived = previousItemsRef.current.filter(pkg => pkg.status === "received");
@@ -157,14 +271,22 @@ export default function CustomerPackagesPage() {
   const pageClamped = Math.min(Math.max(1, page), totalPages);
   const paged = filtered.slice((pageClamped - 1) * pageSize, pageClamped * pageSize);
 
+  function getWeightDisplay(weight: string | number | undefined): string {
+    if (weight === undefined || weight === null) return 'N/A';
+    const num = typeof weight === 'string' ? parseFloat(weight) : weight;
+    if (isNaN(num)) return 'N/A';
+    return `${num.toFixed(2)} kg`;
+  }
+
   function statusLabel(s: UIPackage["status"] | string): string {
     switch (s) {
       case "received": return "Received";
-      case "pending":
+      case "processing": return "Processing";
+      case "pending": return "Pending";
       case "in_processing": return "Processing";
-      case "in_transit":
+      case "in_transit": return "In Transit";
       case "shipped": return "Shipped";
-      case "ready_for_pickup":
+      case "ready_for_pickup": return "Ready for Pickup";
       case "ready_to_ship": return "Ready for Pickup";
       case "delivered": return "Delivered";
       case "archived": return "Archived";
@@ -175,14 +297,65 @@ export default function CustomerPackagesPage() {
   function getStatusColor(s: UIPackage["status"] | string) {
     switch (s) {
       case "received": return "bg-purple-100 text-purple-800 border-purple-200";
-      case "pending":
+      case "processing": return "bg-orange-100 text-orange-800 border-orange-200";
+      case "pending": return "bg-yellow-100 text-yellow-800 border-yellow-200";
       case "in_processing": return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      case "in_transit":
+      case "in_transit": return "bg-blue-100 text-blue-800 border-blue-200";
       case "shipped": return "bg-blue-100 text-blue-800 border-blue-200";
-      case "ready_for_pickup":
+      case "ready_for_pickup": return "bg-orange-100 text-orange-800 border-orange-200";
       case "ready_to_ship": return "bg-orange-100 text-orange-800 border-orange-200";
       case "delivered": return "bg-green-100 text-green-800 border-green-200";
       default: return "bg-gray-100 text-gray-800 border-gray-200";
+    }
+  }
+
+  function getVolumeDisplay(volume: number | undefined, dimensions?: { length?: number; width?: number; height?: number; unit?: string }): string {
+    if (volume && volume > 0) {
+      return `${volume.toLocaleString()} cm³`;
+    }
+    if (dimensions?.length && dimensions?.width && dimensions?.height) {
+      const vol = dimensions.length * dimensions.width * dimensions.height;
+      return `${vol.toLocaleString()} ${dimensions.unit || 'cm'}³`;
+    }
+    return 'N/A';
+  }
+
+  function getShippingAddressByMode(mode?: string): string {
+    if (!customerProfile?.shippingAddresses) return 'Address not configured';
+    
+    const modeLower = mode?.toLowerCase() || '';
+    let address;
+    
+    if (modeLower === 'air') {
+      address = customerProfile.shippingAddresses.find(a => a.type === 'air');
+    } else if (modeLower === 'ocean' || modeLower === 'sea') {
+      address = customerProfile.shippingAddresses.find(a => a.type === 'sea' || a.type === 'ocean');
+    }
+    
+    if (!address) return 'Address not configured';
+    
+    const fullName = `${customerProfile.firstName} ${customerProfile.lastName}`;
+    const mailboxCode = customerProfile.mailboxNumber || customerProfile.userCode;
+    
+    if (modeLower === 'air') {
+      return `${fullName}\n${address.street}\n${address.addressLine2 || `KCDE-${mailboxCode}`}\n${address.city}, ${address.state}\n${address.zipCode}`;
+    } else if (modeLower === 'ocean' || modeLower === 'sea') {
+      return `${fullName}\n${address.street}\n${address.addressLine2 || `KCDX-${mailboxCode}`}\n${address.city}, ${address.state}\n${address.zipCode}`;
+    }
+    
+    return 'Address not configured';
+  }
+
+  function formatDate(dateString?: string): string {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return 'N/A';
     }
   }
 
@@ -482,8 +655,9 @@ export default function CustomerPackagesPage() {
                   >
                     <option value="">All statuses</option>
                     <option value="received">Received</option>
-                    <option value="pending">Processing</option>
-                    <option value="in_transit">Shipped</option>
+                    <option value="processing">Processing</option>
+                    <option value="pending">Pending</option>
+                    <option value="in_transit">In Transit</option>
                     <option value="ready_for_pickup">Ready for Pickup</option>
                     <option value="delivered">Delivered</option>
                     <option value="archived">Archived</option>
@@ -601,7 +775,7 @@ export default function CustomerPackagesPage() {
                                 <><Package className="h-3 w-3" /> {p.serviceMode?.toUpperCase() || 'LOCAL'}</>
                               )}
                               <span className="text-blue-200">•</span>
-                              <span>{p.weight || 'N/A'}</span>
+                              <span>{getWeightDisplay(p.weight)}</span>
                             </p>
                           </div>
                         </div>
@@ -609,7 +783,7 @@ export default function CustomerPackagesPage() {
 
                       <div className="p-4 space-y-4">
                         <div>
-                          <p className="text-sm text-gray-900 font-medium mb-1 line-clamp-2">{p.description || <span className="text-gray-400">No description</span>}</p>
+                          <p className="text-sm text-gray-900 font-medium mb-1 line-clamp-2">{p.itemDescription || p.description || <span className="text-gray-400">No description</span>}</p>
                           <div className="flex flex-col gap-1">
                             {p.itemValueUsd && (
                               <p className="text-xs text-gray-500">Item Value: {formatCurrency(p.itemValueUsd, "USD")}</p>
@@ -630,14 +804,10 @@ export default function CustomerPackagesPage() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="space-y-2 text-xs">
                           <div className="bg-gray-50 rounded-lg p-2">
-                            <p className="text-gray-500 mb-1">Days</p>
-                            <p className="font-semibold text-gray-900">{p.daysInStorage || 0}</p>
-                          </div>
-                          <div className="bg-gray-50 rounded-lg p-2">
-                            <p className="text-gray-500 mb-1">Shipper</p>
-                            <p className="font-semibold text-gray-900 truncate">{p.shipper || 'N/A'}</p>
+                            <p className="text-gray-500 mb-1">Date Received</p>
+                            <p className="font-semibold text-gray-900">{formatDate(p.dateReceived)}</p>
                           </div>
                         </div>
 
@@ -731,8 +901,8 @@ export default function CustomerPackagesPage() {
                           )}
                         </span>
                       </div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Weight:</span><span className="text-sm font-medium text-gray-900">{packageToView.weight || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Item Value:</span><span className="text-sm font-medium text-gray-900">{packageToView.itemValueUsd ? formatCurrency(packageToView.itemValueUsd, "USD") : 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Weight:</span><span className="text-sm font-medium text-gray-900">{getWeightDisplay(packageToView.weight)}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Description:</span><span className="text-sm font-medium text-gray-900">{packageToView.itemDescription || packageToView.description || 'N/A'}</span></div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Shipping Cost:</span><span className="text-sm font-medium text-gray-900">{packageToView.total_amount ? formatCurrency(packageToView.total_amount, "USD") : packageToView.shipping_cost ? formatCurrency(packageToView.shipping_cost, "USD") : 'Pending'}</span></div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Date Received:</span><span className="text-sm font-medium text-gray-900">{packageToView.dateReceived ? new Date(packageToView.dateReceived).toLocaleDateString() : 'N/A'}</span></div>
                     </div>
@@ -744,7 +914,7 @@ export default function CustomerPackagesPage() {
                       Sender Information
                     </h4>
                     <div className="grid gap-2 md:grid-cols-2">
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Shipper:</span><span className="text-sm font-semibold text-gray-900 bg-gray-100 px-2 py-1 rounded">{packageToView.shipper || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Sender Name:</span><span className="text-sm font-semibold text-gray-900 bg-gray-100 px-2 py-1 rounded">{packageToView.senderName || packageToView.shipper || 'N/A'}</span></div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderEmail || 'N/A'}</span></div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderPhone || 'N/A'}</span></div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderCountry || 'N/A'}</span></div>
@@ -755,41 +925,14 @@ export default function CustomerPackagesPage() {
                   <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6">
                     <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                       <User className="h-5 w-5 text-blue-600" />
-                      Recipient Information
+                      Recipient Information (Your Profile)
                     </h4>
                     <div className="grid gap-2 md:grid-cols-2">
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Name:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverName || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverEmail || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverPhone || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverCountry || 'N/A'}</span></div>
-                      <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverAddress || 'N/A'}</span></div>
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-6">
-                    <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                      <Package className="h-5 w-5 text-purple-600" />
-                      Additional Details
-                    </h4>
-                    <div className="grid gap-2 md:grid-cols-2">
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Warehouse:</span><span className="text-sm font-medium text-gray-900">{packageToView.warehouse_location || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Required:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsRequired ? 'Yes' : 'No'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsStatus || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Payment Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.paymentStatus || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Days in Storage:</span><span className="text-sm font-medium text-gray-900">{packageToView.daysInStorage || 0}</span></div>
-                      {packageToView.invoiceNumber && (
-                        <div className="flex justify-between"><span className="text-sm text-gray-600">Invoice Number:</span><span className="text-sm font-medium text-gray-900 font-mono">{packageToView.invoiceNumber}</span></div>
-                      )}
-                      {packageToView.dimensions && (
-                        <div className="flex justify-between col-span-2">
-                          <span className="text-sm text-gray-600">Dimensions:</span>
-                          <span className="text-sm font-medium text-gray-900">
-                            {packageToView.dimensions.length && <span>L: {packageToView.dimensions.length}{packageToView.dimensions.unit || 'cm'}</span>}
-                            {packageToView.dimensions.width && <span> × W: {packageToView.dimensions.width}{packageToView.dimensions.unit || 'cm'}</span>}
-                            {packageToView.dimensions.height && <span> × H: {packageToView.dimensions.height}{packageToView.dimensions.unit || 'cm'}</span>}
-                          </span>
-                        </div>
-                      )}
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Name:</span><span className="text-sm font-medium text-gray-900">{customerProfile?.firstName} {customerProfile?.lastName}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{customerProfile?.email || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{customerProfile?.phone || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Mailbox:</span><span className="text-sm font-medium text-gray-900 font-mono bg-gray-100 px-2 py-1 rounded">{customerProfile?.mailboxNumber || customerProfile?.userCode || 'N/A'}</span></div>
+                      <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{customerProfile?.address ? `${customerProfile.address.street}, ${customerProfile.address.city}, ${customerProfile.address.state} ${customerProfile.address.zipCode}, ${customerProfile.address.country}` : 'N/A'}</span></div>
                     </div>
                   </div>
 

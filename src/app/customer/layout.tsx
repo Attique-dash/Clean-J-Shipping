@@ -21,6 +21,7 @@ import {
   Headphones,
   ShoppingCart,
   MapPin,
+  Calculator,
 } from "lucide-react";
 
 export default function CustomerLayout({

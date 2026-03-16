@@ -4,6 +4,23 @@ import { getToken } from "next-auth/jwt";
 import { NextRequest } from "next/server";
 import jwt from 'jsonwebtoken';
 
+// Helper to parse cookies from request headers (for Edge runtime compatibility)
+function parseCookiesFromHeader(req: Request | NextRequest): Map<string, string> {
+  const cookieMap = new Map<string, string>();
+  const cookieHeader = req.headers.get('cookie');
+  
+  if (cookieHeader) {
+    cookieHeader.split(';').forEach(cookie => {
+      const [name, ...rest] = cookie.trim().split('=');
+      if (name && rest.length > 0) {
+        cookieMap.set(name, rest.join('='));
+      }
+    });
+  }
+  
+  return cookieMap;
+}
+
 export interface AuthPayload {
   id?: string;
   _id?: string;
@@ -18,11 +35,14 @@ export async function getAuthFromRequest(req: Request | NextRequest): Promise<Au
     console.log('RBAC: Checking auth, NEXTAUTH_SECRET exists:', !!process.env.NEXTAUTH_SECRET);
     console.log('RBAC: Environment NODE_ENV:', process.env.NODE_ENV);
     
+    const isSecure = process.env.NODE_ENV === 'production';
+    
     // Method 1: Try NextAuth JWT token first
     const token = await getToken({
       req: req as NextRequest,
       secret: process.env.NEXTAUTH_SECRET,
-      secureCookie: process.env.NODE_ENV === 'production' && process.env.VERCEL_ENV !== 'development'
+      secureCookie: isSecure,
+      cookieName: isSecure ? '__Secure-next-auth.session-token' : 'next-auth.session-token'
     });
     console.log('RBAC: NextAuth token:', token);
 
@@ -72,8 +92,19 @@ export async function getAuthFromRequest(req: Request | NextRequest): Promise<Au
     }
 
     // Method 4: Try NextAuth session cookie directly (fallback for production)
-    const sessionToken = cookieStore.get("next-auth.session-token")?.value || 
-                       cookieStore.get("__Secure-next-auth.session-token")?.value;
+    // Try cookies() first, then fallback to header parsing
+    let sessionToken: string | undefined;
+    try {
+      const cookieStore = await cookies();
+      sessionToken = cookieStore.get("next-auth.session-token")?.value || 
+                     cookieStore.get("__Secure-next-auth.session-token")?.value;
+    } catch (e) {
+      // cookies() not available (Edge runtime), use header parsing
+      const parsedCookies = parseCookiesFromHeader(req);
+      sessionToken = parsedCookies.get('next-auth.session-token') || 
+                     parsedCookies.get('__Secure-next-auth.session-token');
+    }
+    
     if (sessionToken && process.env.NEXTAUTH_SECRET) {
       try {
         // Direct JWT verification as fallback
@@ -97,6 +128,27 @@ export async function getAuthFromRequest(req: Request | NextRequest): Promise<Au
       } catch (jwtError) {
         console.log('RBAC: JWT fallback failed:', jwtError);
       }
+    }
+
+    // Method 5: Try header-parsed cookies as final fallback for auth_token
+    try {
+      const parsedCookies = parseCookiesFromHeader(req);
+      const authTokenFromHeader = parsedCookies.get('auth_token');
+      if (authTokenFromHeader) {
+        const payload = verifyToken(authTokenFromHeader);
+        if (payload && payload.email && payload.role) {
+          return {
+            id: payload.id,
+            _id: payload.id,
+            uid: payload.id,
+            email: payload.email,
+            role: payload.role,
+            userCode: payload.userCode,
+          } as AuthPayload;
+        }
+      }
+    } catch (e) {
+      // Ignore errors from header parsing
     }
 
     console.log('RBAC: No valid authentication found');

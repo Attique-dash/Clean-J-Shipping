@@ -37,6 +37,11 @@ export const uploadFile = upload.single('file');
 
 export const bulkUploadPackages = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      errorResponse(res, 'User not authenticated', 401);
+      return;
+    }
+
     if (!req.file) {
       errorResponse(res, 'No file uploaded', 400);
       return;
@@ -54,7 +59,11 @@ export const bulkUploadPackages = async (req: AuthRequest, res: Response): Promi
     }
 
     // Validate and process packages
-    const results = {
+    const results: {
+      successful: Array<{ row: number; trackingNumber: string; data: any }>;
+      failed: Array<{ row: number; data: any; error: string }>;
+      total: number;
+    } = {
       successful: [],
       failed: [],
       total: packagesData.length

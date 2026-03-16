@@ -2,6 +2,15 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
+// Validate required environment variables
+if (!process.env.MONGODB_URI) {
+  throw new Error('MONGODB_URI is required');
+}
+
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET is required');
+}
+
 interface EnvConfig {
   port: number;
   nodeEnv: string;
@@ -22,11 +31,11 @@ interface EnvConfig {
 }
 
 export const config: EnvConfig = {
-  port: parseInt(process.env.PORT || '3001', 10),
+  port: parseInt(process.env.PORT || '5000', 10), // FIXED: Changed from 3001 to 5000
   nodeEnv: process.env.NODE_ENV || 'development',
-  MONGODB_URI: process.env.MONGODB_URI || 'mongodb://localhost:27017/warehouse-backend',
+  MONGODB_URI: process.env.MONGODB_URI!,
   MONGODB_TEST_URI: process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/warehouse-backend-test',
-  jwtSecret: process.env.JWT_SECRET || 'your-super-secret-jwt-key',
+  jwtSecret: process.env.JWT_SECRET!,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   SMTP_HOST: process.env.SMTP_HOST || 'smtp.gmail.com',
   SMTP_PORT: parseInt(process.env.SMTP_PORT || '587', 10),
@@ -39,15 +48,3 @@ export const config: EnvConfig = {
   RATE_LIMIT_MAX_REQUESTS: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:3000',
 };
-
-// Validate required environment variables
-const requiredEnvVars = ['MONGODB_URI', 'JWT_SECRET'];
-
-for (const envVar of requiredEnvVars) {
-  if (!process.env[envVar]) {
-    const warningMessage = envVar === 'JWT_SECRET' 
-      ? `Warning: ${envVar} is using default value - CHANGE THIS IN PRODUCTION!`
-      : `Warning: ${envVar} is using default value`;
-    console.warn(warningMessage);
-  }
-}

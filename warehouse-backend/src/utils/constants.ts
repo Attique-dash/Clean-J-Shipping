@@ -1,10 +1,16 @@
 // Package statuses
 export const PACKAGE_STATUSES = {
   PENDING: 'pending',
-  IN_TRANSIT: 'in-transit',
+  IN_TRANSIT: 'in_transit',
   DELIVERED: 'delivered',
   RETURNED: 'returned',
-  LOST: 'lost'
+  LOST: 'lost',
+  RECEIVED: 'received',
+  OUT_FOR_DELIVERY: 'out_for_delivery',
+  CUSTOMS: 'customs',
+  AT_WAREHOUSE: 'at_warehouse',
+  PROCESSING: 'processing',
+  READY_FOR_PICKUP: 'ready_for_pickup'
 } as const;
 
 // User roles

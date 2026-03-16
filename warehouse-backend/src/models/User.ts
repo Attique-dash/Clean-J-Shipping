@@ -8,6 +8,7 @@ export interface IUser extends Document {
   lastName: string;
   email: string;
   passwordHash: string;
+  password?: string; // For password assignment
   phone?: string;
   role: 'admin' | 'customer' | 'warehouse';
   address?: {
@@ -20,9 +21,18 @@ export interface IUser extends Document {
   mailboxNumber?: string;
   accountStatus: 'pending' | 'active' | 'inactive';
   emailVerified: boolean;
+  isActive?: boolean;
   lastLogin?: Date;
   createdAt: Date;
   updatedAt: Date;
+  
+  // KCD Integration fields
+  courierCode?: string;
+  mailboxCode?: string;
+  customerAddress?: string;
+  customerCity?: string;
+  customerCountry?: string;
+  
   // Staff management fields
   assignedWarehouse?: mongoose.Types.ObjectId;
   permissions?: string[];
@@ -46,6 +56,10 @@ export interface IUser extends Document {
     language: string;
     timezone: string;
   };
+  // Tasoko API fields
+  branch?: string;
+  serviceTypeId?: string;
+  instructions?: string;
   comparePassword(candidatePassword: string): Promise<boolean>;
   getPublicProfile(): any;
 }
@@ -57,7 +71,7 @@ const userSchema = new Schema<IUser>({
     unique: true,
     uppercase: true,
     trim: true,
-    match: [/^[A-Z]{2}-\d{3,4}$/, 'User code must be in format XX-123']
+    match: [/^[A-Z]{2,6}-\d{3,5}$/, 'User code must be in format CLEAN-XXXX (3-5 digits)']
   },
   firstName: {
     type: String,
@@ -100,7 +114,7 @@ const userSchema = new Schema<IUser>({
     city: { type: String, required: false },
     state: { type: String, required: false },
     zipCode: { type: String, required: false },
-    country: { type: String, required: false, default: 'USA' }
+    country: { type: String, required: false }
   },
   mailboxNumber: {
     type: String,
@@ -115,10 +129,46 @@ const userSchema = new Schema<IUser>({
     type: Boolean,
     default: false
   },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
   lastLogin: {
     type: Date,
     default: null
   },
+  
+  // KCD Integration fields
+  courierCode: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    index: true
+  },
+  mailboxCode: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    unique: true,
+    sparse: true,
+    index: true
+  },
+  customerAddress: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Customer address cannot exceed 500 characters']
+  },
+  customerCity: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Customer city cannot exceed 100 characters']
+  },
+  customerCountry: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Customer country cannot exceed 100 characters']
+  },
+  
   // Staff management fields
   assignedWarehouse: {
     type: Schema.Types.ObjectId,
@@ -201,6 +251,21 @@ const userSchema = new Schema<IUser>({
       type: String,
       default: 'UTC'
     }
+  },
+  // Tasoko API fields
+  branch: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Branch name cannot exceed 100 characters']
+  },
+  serviceTypeId: {
+    type: String,
+    trim: true
+  },
+  instructions: {
+    type: String,
+    trim: true,
+    maxlength: [1000, 'Instructions cannot exceed 1000 characters']
   }
 }, {
   timestamps: true,
@@ -210,7 +275,13 @@ const userSchema = new Schema<IUser>({
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {
+  // Only hash if passwordHash is modified and not already hashed
   if (!this.isModified('passwordHash')) return next();
+  
+  // Check if password is already hashed (bcrypt hashes are typically 60 chars long)
+  if (this.passwordHash && this.passwordHash.length === 60 && this.passwordHash.startsWith('$2')) {
+    return next();
+  }
   
   try {
     const salt = await bcrypt.genSalt(12);
@@ -236,6 +307,7 @@ userSchema.methods.getPublicProfile = function() {
     email: this.email,
     phone: this.phone,
     role: this.role,
+    branch: this.branch,
     address: this.address,
     mailboxNumber: this.mailboxNumber,
     accountStatus: this.accountStatus,
@@ -254,5 +326,11 @@ userSchema.index({ createdAt: -1 });
 userSchema.index({ assignedWarehouse: 1 });
 userSchema.index({ 'shippingAddresses.isDefault': 1 });
 userSchema.index({ createdBy: 1 });
+
+// KCD-specific indexes
+userSchema.index({ courierCode: 1 });
+userSchema.index({ mailboxCode: 1 });
+userSchema.index({ customerCity: 1 });
+userSchema.index({ customerCountry: 1 });
 
 export const User = mongoose.model<IUser>('User', userSchema);
