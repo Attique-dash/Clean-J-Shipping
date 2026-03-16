@@ -617,7 +617,7 @@ export async function POST(req: Request) {
       // Get warehouse addresses from default warehouse
       let warehouseAddresses = { airAddress: '', seaAddress: '', chinaAddress: '' };
       try {
-        const { Warehouse, IWarehouse } = await import('@/models/Warehouse');
+        const { Warehouse } = await import('@/models/Warehouse');
         const defaultWarehouse = await Warehouse.findOne({ isActive: true, isDefault: true })
           .select('airAddress seaAddress chinaAddress address name')
           .lean() as { airAddress?: string; seaAddress?: string; chinaAddress?: string; address?: string; name?: string } | null;
