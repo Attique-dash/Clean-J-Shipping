@@ -440,6 +440,23 @@ export class EmailService {
         <li>Access your complete shipping history</li>
       </ul>
       
+      <div class="info-box">
+        <h3>📍 Our Warehouse Addresses</h3>
+        <p style="margin:0 0 12px 0;color:#374151;font-size:14px;">Use these addresses when shipping packages to us:</p>
+        <div style="background:white;border:1px solid #bfdbfe;border-radius:6px;padding:12px;margin-bottom:8px;">
+          <p style="margin:0 0 4px 0;color:#1e40af;font-weight:600;font-size:13px;">✈️ Air Shipments</p>
+          <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">3200 NW 112th Ave<br>Doral, Florida 33172<br>USA<br>KCDE-${data.userCode}</p>
+        </div>
+        <div style="background:white;border:1px solid #bfdbfe;border-radius:6px;padding:12px;margin-bottom:8px;">
+          <p style="margin:0 0 4px 0;color:#0369a1;font-weight:600;font-size:13px;">🚢 Sea Shipments</p>
+          <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">3200 NW 112th Ave<br>Doral, Florida 33172<br>USA<br>KCDX-${data.userCode}</p>
+        </div>
+        <div style="background:white;border:1px solid #bfdbfe;border-radius:6px;padding:12px;">
+          <p style="margin:0 0 4px 0;color:#dc2626;font-weight:600;font-size:13px;">🇨🇳 China Warehouse</p>
+          <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${data.userCode}<br>Baoshan No.2 Industrial Zone<br>Shenzhen, Guangdong Province 518000<br>China</p>
+        </div>
+      </div>
+      
       <a href="${loginUrl}" class="button">Access Your Account</a>
       
       <p>If you have any questions, our support team is here to help!</p>
