@@ -67,6 +67,7 @@ type UIPackage = {
   total_amount?: number;
   shippingCost?: number;
   shipping_cost?: number;
+  itemValueUsd?: number;
   // Sender fields
   senderName?: string;
   senderEmail?: string;
@@ -815,7 +816,7 @@ export default function CustomerPackagesPage() {
                           <div className="bg-green-50 border border-green-200 rounded-lg p-2">
                             <div className="flex items-center gap-2 text-green-700">
                               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                              <span className="text-xs font-medium">Received at {p.warehouse_location || 'warehouse'}</span>
+                              <span className="text-xs font-medium">Received at {p.warehouseLocation || p.current_location || 'warehouse'}</span>
                             </div>
                           </div>
                         )}

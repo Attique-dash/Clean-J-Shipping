@@ -183,12 +183,12 @@ export async function POST(req: Request) {
   try {
     const defaultWarehouse = await Warehouse.findOne({ isActive: true, isDefault: true })
       .select('airAddress seaAddress chinaAddress address')
-      .lean();
+      .lean() as { airAddress?: string; seaAddress?: string; chinaAddress?: string; address?: string } | null;
     if (defaultWarehouse) {
       warehouseAddresses = {
-        airAddress: defaultWarehouse.airAddress || defaultWarehouse.address,
-        seaAddress: defaultWarehouse.seaAddress || defaultWarehouse.address,
-        chinaAddress: defaultWarehouse.chinaAddress || defaultWarehouse.address
+        airAddress: defaultWarehouse.airAddress || defaultWarehouse.address || '',
+        seaAddress: defaultWarehouse.seaAddress || defaultWarehouse.address || '',
+        chinaAddress: defaultWarehouse.chinaAddress || defaultWarehouse.address || ''
       };
     }
   } catch (error) {

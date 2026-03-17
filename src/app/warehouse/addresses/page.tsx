@@ -10,7 +10,7 @@ import {
   X, 
   Check,
   Globe,
-  Building2,
+  Building,
   Phone,
   AlertTriangle,
   Search
@@ -230,7 +230,7 @@ export default function WarehouseAddressesPage() {
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                    <Building2 className="h-5 w-5 text-blue-600" />
+                    <Building className="h-5 w-5 text-blue-600" />
                   </div>
                   <div>
                     <h3 className="font-medium text-gray-900">{address.name}</h3>
@@ -256,7 +256,7 @@ export default function WarehouseAddressesPage() {
                 </p>
                 {address.contactPerson && (
                   <p className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-gray-400" />
+                    <Building className="h-4 w-4 text-gray-400" />
                     {address.contactPerson}
                   </p>
                 )}

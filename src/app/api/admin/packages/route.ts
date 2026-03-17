@@ -623,9 +623,9 @@ export async function POST(req: Request) {
           .lean() as { airAddress?: string; seaAddress?: string; chinaAddress?: string; address?: string; name?: string } | null;
         if (defaultWarehouse) {
           warehouseAddresses = {
-            airAddress: defaultWarehouse.airAddress || defaultWarehouse.address,
-            seaAddress: defaultWarehouse.seaAddress || defaultWarehouse.address,
-            chinaAddress: defaultWarehouse.chinaAddress || defaultWarehouse.address
+            airAddress: defaultWarehouse.airAddress || defaultWarehouse.address || '',
+            seaAddress: defaultWarehouse.seaAddress || defaultWarehouse.address || '',
+            chinaAddress: defaultWarehouse.chinaAddress || defaultWarehouse.address || ''
           };
         }
       } catch (whError) {
@@ -644,7 +644,7 @@ export async function POST(req: Request) {
         receivedDate: new Date(),
         invoiceId: invoiceId, // Attach invoice PDF if available
         description: asString(description),
-        itemDescription: asString(itemDescription),
+        itemDescription: asString(description),
         warehouseAddresses: warehouseAddresses,
       });
       console.log(`[Admin Package Create] Customer email result for ${trackingNumber}:`, customerEmailResult);

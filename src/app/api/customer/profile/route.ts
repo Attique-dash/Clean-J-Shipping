@@ -57,6 +57,7 @@ export async function GET(req: Request) {
           email: string;
           phone?: string;
           userCode: string;
+          role?: string;
           accountStatus?: "active" | "inactive" | "pending";
           emailVerified?: boolean;
           isActive?: boolean;
@@ -187,7 +188,25 @@ export async function PUT(req: Request) {
   const pl2 = payload as { uid?: string; _id?: string };
   const updated = await User.findByIdAndUpdate(pl2.uid || pl2._id, { $set: update }, { new: true })
     .select("firstName lastName email phone address userCode role accountStatus emailVerified isActive lastLogin assignedWarehouse permissions branch preferences createdAt updatedAt")
-    .lean();
+    .lean() as { 
+      firstName?: string; 
+      lastName?: string; 
+      email: string; 
+      phone?: string; 
+      address?: { street?: string; city?: string; state?: string; zipCode?: string; country?: string }; 
+      userCode: string; 
+      role?: string; 
+      accountStatus?: "active" | "inactive" | "pending"; 
+      emailVerified?: boolean; 
+      isActive?: boolean; 
+      lastLogin?: Date; 
+      assignedWarehouse?: string | null; 
+      permissions?: string[]; 
+      branch?: string; 
+      preferences?: any; 
+      createdAt?: Date; 
+      updatedAt?: Date; 
+    } | null;
     
   if (!updated) {
     return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
