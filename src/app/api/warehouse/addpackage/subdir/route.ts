@@ -10,6 +10,8 @@ import { dbConnect } from "@/lib/db";
 import Package from "@/models/Package";
 import User from "@/models/User";
 import { startSession } from "mongoose";
+import { generateInvoiceForPackage } from "./invoice-generator";
+import { emailService } from "@/lib/email-service";
 
 export async function OPTIONS(request: Request) {
   return new Response(null, {
@@ -135,7 +137,9 @@ export async function POST(request: Request) {
             Width,
             Height,
             Pieces,
-            PackageStatus
+            PackageStatus,
+            GoodsCost, // NEW: Cost of goods from Amazon/eBay
+            GoodsDescription // NEW: Description of goods
           } = pkgData;
 
           // Validate required fields
@@ -213,6 +217,28 @@ export async function POST(request: Request) {
             { upsert: true, new: true, session }
           );
 
+          // Generate invoice automatically
+          const invoiceResult = await generateInvoiceForPackage(
+            {
+              trackingNumber: TrackingNumber,
+              userId: customer._id.toString(),
+              customer,
+              weight: weightNum,
+              shipper: Shipper || '',
+              description: Description || '',
+              shippingCost: shippingCostJmd,
+              totalAmount: shippingCostJmd + (asNumber(GoodsCost) || 0),
+              entryDate: EntryDate ? new Date(EntryDate) : new Date()
+            },
+            {
+              goodsCost: asNumber(GoodsCost) || 0,
+              goodsDescription: GoodsDescription || `Goods from ${Shipper || 'supplier'}`,
+              includeShipping: true
+            }
+          );
+
+          console.log('Invoice generation result:', invoiceResult);
+
           // Populate customer information for response
           const populatedPkg = await Package.findById(pkg._id)
             .populate('customer', 'userCode firstName lastName email')
@@ -231,6 +257,10 @@ export async function POST(request: Request) {
             EntryDateTime: populatedPkg.entryDateTime,
             Branch: populatedPkg.branch,
             PackageStatus: populatedPkg.status,
+            InvoiceGenerated: invoiceResult.success,
+            InvoiceNumber: invoiceResult.success ? invoiceResult.invoiceNumber : null,
+            PaymentLink: invoiceResult.success ? invoiceResult.paymentLink : null,
+            InvoiceError: invoiceResult.success ? null : invoiceResult.error,
             PackagePayments: {
               totalAmount: populatedPkg.totalAmount,
               shippingCost: populatedPkg.shippingCost,

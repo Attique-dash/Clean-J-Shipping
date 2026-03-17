@@ -513,9 +513,104 @@ export class EmailService {
     `);
   }
 
+  /**
+   * Send invoice notification with payment link
+   */
+  async sendInvoiceEmail(data: {
+    to: string;
+    customerName: string;
+    invoiceNumber: string;
+    trackingNumber: string;
+    totalAmount: number;
+    paymentLink: string;
+    items: Array<{
+      description: string;
+      quantity: number;
+      total: number;
+    }>;
+  }): Promise<boolean> {
+    const html = this.getInvoiceTemplate(data);
+    
+    return this.sendEmail({
+      to: data.to,
+      subject: `📄 Invoice ${data.invoiceNumber} - Package ${data.trackingNumber} - Payment Required`,
+      html,
+    });
+  }
+
   private getBroadcastTemplate(data: { body: string }): string {
     return this.getEmailWrapper(`
       <div style="white-space: pre-wrap;">${data.body}</div>
+    `);
+  }
+
+  private getInvoiceTemplate(data: {
+    customerName: string;
+    invoiceNumber: string;
+    trackingNumber: string;
+    totalAmount: number;
+    paymentLink: string;
+    items: Array<{
+      description: string;
+      quantity: number;
+      total: number;
+    }>;
+  }): string {
+    // Format items for email
+    const itemsList = data.items.map(item => 
+      `<tr>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.description}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">JMD ${item.total.toFixed(2)}</td>
+      </tr>`
+    ).join('');
+
+    return this.getEmailWrapper(`
+      <h2>💳 Invoice Generated - Payment Required</h2>
+      <p>Dear ${data.customerName},</p>
+      
+      <p>Your package has been processed and an invoice has been generated. Please review the details below and make your payment to proceed with delivery.</p>
+      
+      <div class="info-box">
+        <p><strong>Invoice Number:</strong> <span class="highlight">${data.invoiceNumber}</span></p>
+        <p><strong>Tracking Number:</strong> <span class="highlight">${data.trackingNumber}</span></p>
+        <p><strong>Total Amount Due:</strong> <span style="color: #dc2626; font-weight: bold; font-size: 18px;">JMD ${data.totalAmount.toFixed(2)}</span></p>
+      </div>
+
+      <h3>📋 Invoice Details:</h3>
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background: white;">
+        <thead>
+          <tr>
+            <th style="background: #f3f4f6; padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Description</th>
+            <th style="background: #f3f4f6; padding: 12px; text-align: center; border-bottom: 2px solid #ddd;">Quantity</th>
+            <th style="background: #f3f4f6; padding: 12px; text-align: right; border-bottom: 2px solid #ddd;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsList}
+        </tbody>
+      </table>
+
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${data.paymentLink}" class="button" style="background: #10b981;">
+          💳 Pay Online For Your Package
+        </a>
+        <p style="margin-top: 10px; font-size: 14px; color: #666;">
+          Click the button above to view and pay your invoice securely online.<br>
+          This link will expire in 7 days.
+        </p>
+      </div>
+      
+      <div class="info-box">
+        <h4>⚠️ Important Information:</h4>
+        <ul>
+          <li>Please ensure payment is made promptly to avoid delivery delays</li>
+          <li>Your package will be processed for delivery within 24 hours after payment confirmation</li>
+          <li>If you have already paid for these goods, please contact our support team</li>
+        </ul>
+      </div>
+      
+      <p>Thank you for choosing Clean J Shipping!</p>
     `);
   }
 }
