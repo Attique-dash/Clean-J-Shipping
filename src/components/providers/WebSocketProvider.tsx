@@ -36,7 +36,8 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
     const socketInstance = io(process.env.NEXT_PUBLIC_WS_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000', {
       path: '/api/socket',
       transports: ['websocket', 'polling'],
-      autoConnect: true,
+      autoConnect: false, // Don't auto-connect - connect manually when needed
+      reconnection: false, // Disable auto-reconnection to prevent console spam
       auth: {
         token: token,
       },
