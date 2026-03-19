@@ -641,7 +641,7 @@ export default function CustomerInvoiceUploadPage() {
               <div className="flex justify-end">
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting || selectedPackages.size === 0}
+                  disabled={submitting}
                   className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-xl hover:shadow-lg transition-all font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? (
