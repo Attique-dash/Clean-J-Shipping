@@ -18,9 +18,7 @@ export async function GET() {
     },
     envCheck: {
       SMTP_USER: process.env.SMTP_USER ? 'Set' : 'Not set',
-      SMTP_USER: process.env.SMTP_USER ? 'Set' : 'Not set',
       EMAIL_PASS: process.env.EMAIL_PASS ? 'Set' : 'Not set',
-      SMTP_PASS: process.env.SMTP_PASS ? 'Set' : 'Not set',
       SMTP_PASS: process.env.SMTP_PASS ? 'Set' : 'Not set',
       SMTP_HOST: process.env.SMTP_HOST || 'Using default (smtp.gmail.com)',
       SMTP_PORT: process.env.SMTP_PORT || 'Using default (587)',
