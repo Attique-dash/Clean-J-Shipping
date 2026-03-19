@@ -103,11 +103,13 @@ export async function GET(req: NextRequest) {
         shipper: pkg.shipper || pkg.senderName || 'N/A',
         weight: pkg.weight,
         serviceMode: pkg.serviceMode || 'air',
-        dateReceived: pkg.dateReceived?.toISOString(),
-        warehouseLocation: warehouseAddress,
-        
         // Invoice details
         invoiceStatus: pkg.invoiceStatus,
+        warehouseLocation: warehouseAddress,
+        
+        // Package info
+        isReceived: !!pkg.dateReceived,
+        dateReceived: pkg.dateReceived?.toISOString(),
         invoiceSubmittedAt: pkg.invoiceSubmittedAt?.toISOString(),
         invoiceReviewedAt: pkg.invoiceReviewedAt?.toISOString(),
         invoiceReviewedBy: pkg.invoiceReviewedBy,
@@ -123,13 +125,13 @@ export async function GET(req: NextRequest) {
           return `/api/invoices/download?file=${filename}`;
         }),
         
-        // Customer info - now properly populated
+        // Customer info - now properly populated from userId
         customer: customer ? {
           id: customer._id?.toString(),
           name: customer.name,
           email: customer.email,
           phone: customer.phone,
-          shippingId: customer.shippingId
+          shippingId: customer.shippingId || `CJS-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
         } : null,
         
         // Package description

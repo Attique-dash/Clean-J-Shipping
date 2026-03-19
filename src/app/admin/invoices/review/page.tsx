@@ -32,6 +32,7 @@ interface InvoicePackage {
   weight: number;
   serviceMode: 'air' | 'ocean' | 'local';
   dateReceived: string;
+  isReceived: boolean;
   warehouseLocation?: string;
   invoiceStatus: 'pending' | 'submitted' | 'approved' | 'rejected' | 'billed';
   invoiceSubmittedAt: string;
@@ -455,7 +456,8 @@ export default function AdminInvoiceReviewPage() {
                               <div className="space-y-2 text-sm">
                                 <p><span className="text-gray-500">Weight:</span> {pkg.weight} kg</p>
                                 <p><span className="text-gray-500">Service:</span> {pkg.serviceMode}</p>
-                                <p><span className="text-gray-500">Received:</span> {formatDate(pkg.dateReceived)}</p>
+                                <p><span className="text-gray-500">Received:</span> {pkg.isReceived ? 'Yes' : 'No'}</p>
+                                <p><span className="text-gray-500">Date Received:</span> {formatDate(pkg.dateReceived)}</p>
                                 <p><span className="text-gray-500">Location:</span> {pkg.warehouseLocation || 'N/A'}</p>
                                 {pkg.itemDescription && (
                                   <p><span className="text-gray-500">Description:</span> {pkg.itemDescription}</p>
