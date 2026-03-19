@@ -16,6 +16,49 @@ interface UserDoc {
   shippingId?: string;
 }
 
+// Helper function to format address as string
+function formatAddressAsString(address: unknown): string {
+  if (!address) return 'N/A';
+  
+  // If it's already a string, return it
+  if (typeof address === 'string') {
+    // Check if it looks like a JSON object string
+    if (address.trim().startsWith('{') && address.trim().endsWith('}')) {
+      try {
+        const parsed = JSON.parse(address);
+        return formatAddressObject(parsed);
+      } catch {
+        return address;
+      }
+    }
+    return address;
+  }
+  
+  // If it's an object, format it
+  if (typeof address === 'object' && address !== null) {
+    return formatAddressObject(address as Record<string, string>);
+  }
+  
+  return String(address);
+}
+
+function formatAddressObject(obj: Record<string, string>): string {
+  const parts: string[] = [];
+  
+  if (obj.name) parts.push(obj.name);
+  if (obj.street || obj.address) parts.push(obj.street || obj.address || '');
+  if (obj.city || obj.state || obj.zipCode || obj.zip) {
+    const cityParts = [obj.city, obj.state, obj.zipCode || obj.zip].filter(Boolean);
+    if (cityParts.length) parts.push(cityParts.join(', '));
+  }
+  if (obj.country) parts.push(obj.country);
+  if (obj.phone) parts.push(`Phone: ${obj.phone}`);
+  if (obj.email) parts.push(`Email: ${obj.email}`);
+  if (obj.instructions) parts.push(`Note: ${obj.instructions}`);
+  
+  return parts.join('\n') || 'N/A';
+}
+
 // GET - Fetch all submitted invoices for admin review
 export async function GET(req: NextRequest) {
   try {
@@ -53,16 +96,18 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch packages with submitted invoices AND populate customer data properly
+    // Note: Using regular find without .lean() to get proper population
     const packages = await Package.find(query)
       .populate('userId', '_id name email phone shippingId')
       .sort({ invoiceSubmittedAt: -1 })
       .skip(skip)
-      .limit(limit)
-      .lean();
+      .limit(limit);
 
     console.log('Raw packages fetched:', packages.length);
     if (packages.length > 0) {
-      console.log('First package userId:', packages[0].userId);
+      const firstPkg = packages[0];
+      console.log('First package userId type:', typeof firstPkg.userId);
+      console.log('First package userId:', firstPkg.userId);
     }
 
     // Get total count
@@ -76,38 +121,53 @@ export async function GET(req: NextRequest) {
     } | null;
 
     // Format response
-    const formattedPackages = await Promise.all(packages.map(async (pkg) => {
-      // Get populated customer data
-      const customerData = pkg.userId as unknown as UserDoc | null;
+    const formattedPackages = packages.map((pkg) => {
+      // Get populated customer data - without .lean(), userId should be populated
+      const userData = pkg.userId as unknown as UserDoc | null;
       
-      console.log('Processing package:', pkg.trackingNumber, 'Customer:', customerData);
+      console.log('Processing package:', pkg.trackingNumber);
+      console.log('User data:', userData);
       
       // Get warehouse address based on service mode
-      let warehouseAddress = pkg.warehouseLocation || 'N/A';
+      let warehouseAddress: string;
       
-      if (defaultWarehouse) {
+      // First check if package has warehouseLocation stored
+      if (pkg.warehouseLocation) {
+        warehouseAddress = formatAddressAsString(pkg.warehouseLocation);
+      } else if (defaultWarehouse) {
         const serviceMode = pkg.serviceMode || 'air';
+        let rawAddress: string | undefined;
+        
         switch (serviceMode) {
           case 'air':
-            warehouseAddress = defaultWarehouse.airAddress || defaultWarehouse.address || 'N/A';
+            rawAddress = defaultWarehouse.airAddress;
             break;
           case 'ocean':
           case 'sea':
-            warehouseAddress = defaultWarehouse.seaAddress || defaultWarehouse.address || 'N/A';
+            rawAddress = defaultWarehouse.seaAddress;
             break;
           default:
-            warehouseAddress = defaultWarehouse.address || 'N/A';
+            rawAddress = defaultWarehouse.address;
         }
+        
+        warehouseAddress = formatAddressAsString(rawAddress);
+      } else {
+        warehouseAddress = 'N/A';
       }
       
-      // Build customer object with proper name
-      const customer = customerData ? {
-        id: customerData._id?.toString(),
-        name: customerData.name || 'Unknown Customer',
-        email: customerData.email || '',
-        phone: customerData.phone || 'N/A',
-        shippingId: customerData.shippingId || `CJS-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-      } : null;
+      // Build customer object with proper name from populated user data
+      let customer = null;
+      if (userData && userData._id) {
+        customer = {
+          id: userData._id.toString(),
+          name: userData.name || 'Unknown Customer',
+          email: userData.email || '',
+          phone: userData.phone || 'N/A',
+          shippingId: userData.shippingId || `CJS-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+        };
+      }
+      
+      console.log('Built customer object:', customer);
       
       return {
         packageId: (pkg._id as Types.ObjectId)?.toString(),
@@ -144,7 +204,7 @@ export async function GET(req: NextRequest) {
         itemDescription: pkg.itemDescription,
         itemCategory: pkg.itemCategory
       };
-    }));
+    });
 
     return NextResponse.json({
       success: true,
