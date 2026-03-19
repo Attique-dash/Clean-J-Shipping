@@ -681,17 +681,43 @@ function AdminAddPackagePageContent() {
                     value={form.status}
                     onChange={(e) => setForm({ ...form, status: e.target.value })}
                   >
-                    <option value="received">Received</option>
-                    <option value="in_processing">In Processing</option>
-                    <option value="ready_to_ship">Ready to Ship</option>
-                    <option value="shipped">Shipped</option>
-                    <option value="in_transit">In Transit</option>
-                    <option value="delivered">Delivered</option>
+                    <optgroup label="Warehouse (Initial)">
+                      <option value="pending">Pending</option>
+                      <option value="pre_alerted">Pre-Alerted</option>
+                      <option value="received">Received</option>
+                      <option value="At Warehouse">At Warehouse</option>
+                      <option value="in_storage">In Storage</option>
+                    </optgroup>
+                    <optgroup label="Processing">
+                      <option value="in_processing">In Processing</option>
+                      <option value="customs_pending">Customs Pending</option>
+                      <option value="customs_cleared">Customs Cleared</option>
+                      <option value="ready_for_delivery">Ready for Delivery</option>
+                    </optgroup>
+                    <optgroup label="Shipping">
+                      <option value="ready_to_ship">Ready to Ship</option>
+                      <option value="shipped">Shipped</option>
+                      <option value="in_transit">In Transit</option>
+                      <option value="out_for_delivery">Out for Delivery</option>
+                    </optgroup>
+                    <optgroup label="Final">
+                      <option value="delivered">Delivered</option>
+                    </optgroup>
+                    <optgroup label="Exception">
+                      <option value="exception">Exception</option>
+                      <option value="returned">Returned</option>
+                      <option value="lost">Lost</option>
+                      <option value="damaged">Damaged</option>
+                      <option value="unknown">Unknown</option>
+                    </optgroup>
                   </select>
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                     <ChevronDown className="h-5 w-5 text-gray-400" />
                   </div>
                 </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Current: <span className="font-semibold text-blue-600">{form.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                </p>
               </div>
               
               <div>
