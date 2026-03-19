@@ -248,6 +248,18 @@ export interface IPackage extends Document {
   branch?: string;
   entryStaff?: string;
   
+  // Invoice Upload Fields
+  invoiceUploaded?: boolean;
+  invoiceFiles?: string[]; // URLs to uploaded files
+  pricePaid?: number;
+  pricePaidCurrency?: string;
+  invoiceSubmittedAt?: Date;
+  invoiceStatus?: 'pending' | 'submitted' | 'approved' | 'rejected' | 'billed';
+  invoiceReviewedAt?: Date;
+  invoiceReviewedBy?: string;
+  invoiceRejectionReason?: string;
+  billId?: string; // Reference to generated bill
+  
   // Warehouse-specific fields
   controlNumber?: string;
   courierId?: string;
@@ -491,6 +503,22 @@ const PackageSchema = new Schema<IPackage>(
     manifestId: { type: Schema.Types.ObjectId, ref: 'Manifest' },
     branch: { type: String, trim: true },
     entryStaff: { type: String, trim: true },
+    
+    // Invoice Upload Fields
+    invoiceUploaded: { type: Boolean, default: false },
+    invoiceFiles: [{ type: String, trim: true }], // URLs to uploaded files
+    pricePaid: { type: Number, min: 0, default: 0 },
+    pricePaidCurrency: { type: String, trim: true, default: 'USD' },
+    invoiceSubmittedAt: { type: Date },
+    invoiceStatus: { 
+      type: String, 
+      enum: ['pending', 'submitted', 'approved', 'rejected', 'billed'], 
+      default: 'pending' 
+    },
+    invoiceReviewedAt: { type: Date },
+    invoiceReviewedBy: { type: String, trim: true },
+    invoiceRejectionReason: { type: String, trim: true },
+    billId: { type: String, trim: true },
     
     // Warehouse-specific fields
     controlNumber: { type: String, trim: true },

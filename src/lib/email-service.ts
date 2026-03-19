@@ -538,6 +538,168 @@ export class EmailService {
     });
   }
 
+  /**
+   * Send billing email with payment link
+   */
+  async sendBillingEmail(data: {
+    to: string;
+    customerName: string;
+    billNumber: string;
+    packages: Array<{
+      trackingNumber: string;
+      shipper: string;
+      weight: number;
+      itemValue: number;
+      shippingFee: number;
+      customsFee: number;
+      total: number;
+    }>;
+    itemTotal: number;
+    shippingFee: number;
+    customsFee: number;
+    additionalFees: Array<{label: string, amount: number}>;
+    totalAmount: number;
+    paymentLink: string;
+  }): Promise<boolean> {
+    const html = this.getBillingTemplate(data);
+    
+    return this.sendEmail({
+      to: data.to,
+      subject: `Bill #: ${data.billNumber} for Packages - Payment Required`,
+      html,
+    });
+  }
+
+  private getBillingTemplate(data: {
+    customerName: string;
+    billNumber: string;
+    packages: Array<{
+      trackingNumber: string;
+      shipper: string;
+      weight: number;
+      itemValue: number;
+      shippingFee: number;
+      customsFee: number;
+      total: number;
+    }>;
+    itemTotal: number;
+    shippingFee: number;
+    customsFee: number;
+    additionalFees: Array<{label: string, amount: number}>;
+    totalAmount: number;
+    paymentLink: string;
+  }): string {
+    // Format packages table rows
+    const packagesRows = (data.packages as Array<{
+      trackingNumber: string;
+      shipper?: string;
+      weight?: number;
+      itemValue: number;
+      shippingFee: number;
+      customsFee: number;
+      total: number;
+    }>).map((pkg: {
+      trackingNumber: string;
+      shipper?: string;
+      weight?: number;
+      itemValue: number;
+      shippingFee: number;
+      customsFee: number;
+      total: number;
+    }) => 
+      `<tr>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: left;">${pkg.trackingNumber}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: left;">${pkg.shipper}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: center;">${pkg.weight} kg</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">$${pkg.itemValue.toFixed(2)}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">$${pkg.shippingFee.toFixed(2)}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">$${pkg.total.toFixed(2)}</td>
+      </tr>`
+    ).join('');
+
+    // Format additional fees
+    const additionalFeesRows = data.additionalFees?.length > 0 
+      ? data.additionalFees.map(fee => 
+          `<div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #e5e7eb;">
+            <span style="color: #6b7280;">${fee.label}</span>
+            <span style="font-weight: 500;">$${fee.amount.toFixed(2)}</span>
+          </div>`
+        ).join('')
+      : '';
+
+    return this.getEmailWrapper(`
+      <h2 style="color: #0f4d8a; margin-top: 0;">📄 Your Bill is Ready for Payment</h2>
+      <p>Dear ${data.customerName},</p>
+      
+      <p>Your package invoice(s) have been reviewed and a bill has been generated. Please review the details below and make your payment to proceed with delivery.</p>
+      
+      <div class="info-box" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left-color: #0f4d8a;">
+        <p style="margin: 0 0 8px 0;"><strong style="color: #0f4d8a;">Bill Number:</strong> <span style="font-size: 18px; font-weight: bold; color: #0f4d8a;">${data.billNumber}</span></p>
+        <p style="margin: 0 0 8px 0;"><strong>Total Packages:</strong> ${data.packages.length}</p>
+        <p style="margin: 0;"><strong>Total Amount Due:</strong> <span style="color: #dc2626; font-weight: bold; font-size: 20px;">$${data.totalAmount.toFixed(2)}</span></p>
+      </div>
+
+      <h3 style="color: #374151; margin-top: 24px;">📦 Package Details:</h3>
+      <table style="width: 100%; border-collapse: collapse; margin: 16px 0; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <thead>
+          <tr style="background: linear-gradient(135deg, #0f4d8a 0%, #1e6bb8 100%); color: white;">
+            <th style="padding: 12px; text-align: left; font-weight: 600;">Tracking #</th>
+            <th style="padding: 12px; text-align: left; font-weight: 600;">Merchant</th>
+            <th style="padding: 12px; text-align: center; font-weight: 600;">Weight</th>
+            <th style="padding: 12px; text-align: right; font-weight: 600;">Item Value</th>
+            <th style="padding: 12px; text-align: right; font-weight: 600;">Shipping Fee</th>
+            <th style="padding: 12px; text-align: right; font-weight: 600;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${packagesRows}
+        </tbody>
+      </table>
+
+      <h3 style="color: #374151; margin-top: 24px;">💰 Bill Summary:</h3>
+      <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #e5e7eb;">
+          <span style="color: #6b7280;">Item Total</span>
+          <span style="font-weight: 500;">$${data.itemTotal.toFixed(2)}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #e5e7eb;">
+          <span style="color: #6b7280;">Shipping Fee</span>
+          <span style="font-weight: 500;">$${data.shippingFee.toFixed(2)}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #e5e7eb;">
+          <span style="color: #6b7280;">Customs/Duty Fee</span>
+          <span style="font-weight: 500;">$${data.customsFee.toFixed(2)}</span>
+        </div>
+        ${additionalFeesRows}
+        <div style="display: flex; justify-content: space-between; padding: 12px 0 0 0; margin-top: 8px; border-top: 2px solid #0f4d8a;">
+          <span style="font-weight: bold; color: #0f4d8a; font-size: 16px;">Total Due</span>
+          <span style="font-weight: bold; color: #dc2626; font-size: 18px;">$${data.totalAmount.toFixed(2)}</span>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${data.paymentLink}" class="button" style="background: #dc2626; padding: 16px 40px; font-size: 16px; display: inline-block; text-decoration: none; color: white; border-radius: 8px; font-weight: bold; box-shadow: 0 4px 6px rgba(220, 38, 38, 0.3);">
+          💳 Pay Online For Your Package
+        </a>
+        <p style="margin-top: 12px; font-size: 14px; color: #6b7280;">
+          Click the button above to view and pay your bill securely online.
+        </p>
+      </div>
+      
+      <div class="info-box" style="background: #fffbeb; border-left-color: #f59e0b;">
+        <h4 style="color: #92400e; margin-top: 0;">⚠️ Important Information:</h4>
+        <ul style="color: #92400e; margin-bottom: 0;">
+          <li>Please ensure payment is made promptly to avoid delivery delays</li>
+          <li>Your package will be processed for delivery within 24 hours after payment confirmation</li>
+          <li>If you have any questions about your bill, please contact our support team</li>
+          <li>Keep your bill number (${data.billNumber}) for reference</li>
+        </ul>
+      </div>
+      
+      <p style="margin-top: 24px;">Thank you for choosing Clean J Shipping!</p>
+    `);
+  }
+
   private getBroadcastTemplate(data: { body: string }): string {
     return this.getEmailWrapper(`
       <div style="white-space: pre-wrap;">${data.body}</div>
