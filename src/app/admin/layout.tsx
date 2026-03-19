@@ -42,10 +42,10 @@ export default function AdminLayout({
       color: "from-blue-500 to-blue-600",
     },
     {
-      href: "/admin/invoices",
+      href: "/admin/invoices/review",
       label: "Invoices",
       icon: FileText,
-      description: "View and manage all invoices",
+      description: "Review and approve customer invoices",
       color: "from-purple-500 to-purple-600",
     },
     {

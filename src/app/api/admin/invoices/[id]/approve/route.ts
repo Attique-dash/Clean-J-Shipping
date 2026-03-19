@@ -78,97 +78,126 @@ export async function POST(
 
       // Generate bill if requested
       if (data.generateBill) {
-        // Calculate fees
-        const itemValue = pkg.pricePaid || 0;
-        const shippingFeeValue = shippingFee || 0;
-        const customsFeeValue = customsFee || 0;
-        
-        // Calculate additional fees total
-        const additionalFeesTotal = (additionalFees || []).reduce(
-          (sum: number, fee: { amount: number }) => sum + (fee.amount || 0), 
-          0
-        );
-        
-        const totalAmount = itemValue + shippingFeeValue + customsFeeValue + additionalFeesTotal;
-
-        // Create the bill
-        const bill = new Bill({
-          customerId: pkg.userId,
-          packages: [{
-            packageId: pkg._id,
-            trackingNumber: pkg.trackingNumber,
-            shipper: pkg.shipper || pkg.senderName,
-            weight: pkg.weight,
-            itemValue: itemValue,
-            shippingFee: shippingFeeValue,
-            customsFee: customsFeeValue,
-            total: itemValue + shippingFeeValue + customsFeeValue
-          }],
-          itemTotal: itemValue,
-          shippingFee: shippingFeeValue,
-          customsFee: customsFeeValue,
-          additionalFees: additionalFees || [],
-          totalAmount: totalAmount,
-          status: 'pending',
-          adminNotes: adminNotes
-        });
-
-        await bill.save();
-
-        // Update package with bill reference
-        pkg.invoiceStatus = 'billed';
-        pkg.billId = bill.billNumber;
-        await pkg.save();
-
-        // Send billing email to customer
         try {
-          const customer = await User.findById(pkg.userId);
-          if (customer && customer.email) {
-            const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://cleanjshipping.com';
-            const paymentLink = `${baseUrl}/customer/pay/${bill.billNumber}`;
+          // Calculate fees
+          const itemValue = pkg.pricePaid || 0;
+          const shippingFeeValue = shippingFee || 0;
+          const customsFeeValue = customsFee || 0;
+          
+          // Calculate additional fees total
+          const additionalFeesTotal = (additionalFees || []).reduce(
+            (sum: number, fee: { amount: number }) => sum + (fee.amount || 0), 
+            0
+          );
+          
+          const totalAmount = itemValue + shippingFeeValue + customsFeeValue + additionalFeesTotal;
 
-            const emailSent = await emailService.sendBillingEmail({
-              to: customer.email,
-              customerName: customer.name || 'Valued Customer',
-              billNumber: bill.billNumber,
-              packages: [{
-                trackingNumber: pkg.trackingNumber,
-                shipper: pkg.shipper || pkg.senderName || 'Unknown',
-                weight: pkg.weight || 0,
-                itemValue: itemValue,
-                shippingFee: shippingFeeValue,
-                customsFee: customsFeeValue,
-                total: itemValue + shippingFeeValue + customsFeeValue
-              }],
-              itemTotal: itemValue,
+          console.log('Creating bill with data:', {
+            customerId: pkg.userId,
+            packages: [{
+              packageId: pkg._id,
+              trackingNumber: pkg.trackingNumber,
+              shipper: pkg.shipper || pkg.senderName,
+              weight: pkg.weight,
+              itemValue: itemValue,
               shippingFee: shippingFeeValue,
               customsFee: customsFeeValue,
-              additionalFees: additionalFees || [],
-              totalAmount: totalAmount,
-              paymentLink
-            });
+              total: itemValue + shippingFeeValue + customsFeeValue
+            }],
+            itemTotal: itemValue,
+            shippingFee: shippingFeeValue,
+            customsFee: customsFeeValue,
+            additionalFees: additionalFees || [],
+            totalAmount: totalAmount,
+            status: 'pending',
+            adminNotes: adminNotes
+          });
 
-            if (emailSent) {
-              // Update bill status to sent
-              bill.status = 'sent';
-              bill.sentAt = new Date();
-              await bill.save();
+          // Create the bill
+          const bill = new Bill({
+            customerId: pkg.userId,
+            packages: [{
+              packageId: pkg._id,
+              trackingNumber: pkg.trackingNumber,
+              shipper: pkg.shipper || pkg.senderName,
+              weight: pkg.weight,
+              itemValue: itemValue,
+              shippingFee: shippingFeeValue,
+              customsFee: customsFeeValue,
+              total: itemValue + shippingFeeValue + customsFeeValue
+            }],
+            itemTotal: itemValue,
+            shippingFee: shippingFeeValue,
+            customsFee: customsFeeValue,
+            additionalFees: additionalFees || [],
+            totalAmount: totalAmount,
+            status: 'pending',
+            adminNotes: adminNotes
+          });
+
+          await bill.save();
+          console.log('Bill saved successfully:', bill.billNumber);
+
+          // Update package with bill reference
+          pkg.invoiceStatus = 'billed';
+          pkg.billId = bill.billNumber;
+          await pkg.save();
+
+          // Send billing email to customer
+          try {
+            const customer = await User.findById(pkg.userId);
+            if (customer && customer.email) {
+              const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://cleanjshipping.com';
+              const paymentLink = `${baseUrl}/customer/pay/${bill.billNumber}`;
+
+              const emailSent = await emailService.sendBillingEmail({
+                to: customer.email,
+                customerName: customer.name || 'Valued Customer',
+                billNumber: bill.billNumber,
+                packages: [{
+                  trackingNumber: pkg.trackingNumber,
+                  shipper: pkg.shipper || pkg.senderName || 'Unknown',
+                  weight: pkg.weight || 0,
+                  itemValue: itemValue,
+                  shippingFee: shippingFeeValue,
+                  customsFee: customsFeeValue,
+                  total: itemValue + shippingFeeValue + customsFeeValue
+                }],
+                itemTotal: itemValue,
+                shippingFee: shippingFeeValue,
+                customsFee: customsFeeValue,
+                additionalFees: additionalFees || [],
+                totalAmount: totalAmount,
+                paymentLink
+              });
+
+              if (emailSent) {
+                // Update bill status to sent
+                bill.status = 'sent';
+                bill.sentAt = new Date();
+                await bill.save();
+              }
             }
+          } catch (emailError) {
+            console.error('Error sending billing email:', emailError);
+            // Don't fail the request if email fails, just log it
           }
-        } catch (emailError) {
-          console.error('Error sending billing email:', emailError);
-          // Don't fail the request if email fails, just log it
-        }
 
-        return NextResponse.json({
-          success: true,
-          message: 'Invoice approved and bill generated successfully',
-          packageId: id,
-          billId: bill._id,
-          billNumber: bill.billNumber,
-          status: 'billed',
-          totalAmount: totalAmount
-        });
+          return NextResponse.json({
+            success: true,
+            message: 'Invoice approved and bill generated successfully',
+            packageId: id,
+            billId: bill._id,
+            billNumber: bill.billNumber,
+            status: 'billed',
+            totalAmount: totalAmount
+          });
+        } catch (billError) {
+          console.error('Error creating bill:', billError);
+          return NextResponse.json({
+            error: 'Failed to create bill: ' + (billError instanceof Error ? billError.message : 'Unknown error')
+          }, { status: 500 });
+        }
       }
 
       return NextResponse.json({

@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth-config';
 import { dbConnect } from '@/lib/db';
 import Package from '@/models/Package';
 import User from '@/models/User';
+import { Warehouse } from '@/models/Warehouse';
 import { Types } from 'mongoose';
 
 interface UserDoc {
@@ -51,8 +52,13 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    // Fetch packages with submitted invoices
+    // Fetch packages with submitted invoices AND populate customer data
     const packages = await Package.find(query)
+      .populate({
+        path: 'userId',
+        model: 'User',
+        select: '_id name email phone shippingId'
+      })
       .sort({ invoiceSubmittedAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -61,17 +67,36 @@ export async function GET(req: NextRequest) {
     // Get total count
     const total = await Package.countDocuments(query);
 
-    // Fetch customer details for each package
-    const customerIds = packages.map(p => p.userId?.toString()).filter(Boolean) as string[];
-    const customers = await User.find({
-      _id: { $in: customerIds }
-    }).select('_id name email phone shippingId').lean() as unknown as UserDoc[];
-
-    const customerMap = new Map<string, UserDoc>(customers.map(c => [c._id.toString(), c]));
+    // Fetch default warehouse for address lookup
+    const defaultWarehouse = await Warehouse.findOne({ isDefault: true, isActive: true }).lean() as {
+      airAddress?: string;
+      seaAddress?: string;
+      address?: string;
+    } | null;
 
     // Format response
-    const formattedPackages = packages.map(pkg => {
-      const customer = customerMap.get(pkg.userId?.toString() || '');
+    const formattedPackages = await Promise.all(packages.map(async (pkg) => {
+      // userId is now populated with customer data
+      const customer = pkg.userId as unknown as UserDoc | null;
+      
+      // Get warehouse address based on service mode
+      let warehouseAddress = pkg.warehouseLocation || 'N/A';
+      
+      if (defaultWarehouse) {
+        const serviceMode = pkg.serviceMode || 'air';
+        switch (serviceMode) {
+          case 'air':
+            warehouseAddress = defaultWarehouse.airAddress || defaultWarehouse.address || 'N/A';
+            break;
+          case 'ocean':
+          case 'sea':
+            warehouseAddress = defaultWarehouse.seaAddress || defaultWarehouse.address || 'N/A';
+            break;
+          default:
+            warehouseAddress = defaultWarehouse.address || 'N/A';
+        }
+      }
+      
       return {
         packageId: (pkg._id as Types.ObjectId)?.toString(),
         trackingNumber: pkg.trackingNumber,
@@ -79,7 +104,7 @@ export async function GET(req: NextRequest) {
         weight: pkg.weight,
         serviceMode: pkg.serviceMode || 'air',
         dateReceived: pkg.dateReceived?.toISOString(),
-        warehouseLocation: pkg.warehouseLocation,
+        warehouseLocation: warehouseAddress,
         
         // Invoice details
         invoiceStatus: pkg.invoiceStatus,
@@ -92,10 +117,13 @@ export async function GET(req: NextRequest) {
         pricePaid: pkg.pricePaid,
         pricePaidCurrency: pkg.pricePaidCurrency || 'USD',
         
-        // Invoice files
-        invoiceFiles: pkg.invoiceFiles || [],
+        // Invoice files - convert to download URLs
+        invoiceFiles: (pkg.invoiceFiles || []).map((file: string) => {
+          const filename = file.split('/').pop();
+          return `/api/invoices/download?file=${filename}`;
+        }),
         
-        // Customer info
+        // Customer info - now properly populated
         customer: customer ? {
           id: customer._id?.toString(),
           name: customer.name,
@@ -108,7 +136,7 @@ export async function GET(req: NextRequest) {
         itemDescription: pkg.itemDescription,
         itemCategory: pkg.itemCategory
       };
-    });
+    }));
 
     return NextResponse.json({
       success: true,
