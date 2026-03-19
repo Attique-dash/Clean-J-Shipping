@@ -119,6 +119,49 @@ export async function sendPasswordResetEmail(opts: {
   return { sent: true } as const;
 }
 
+// Helper function to format warehouse address for email
+function formatWarehouseAddress(address: unknown): string {
+  if (!address) return '';
+  
+  // If it's already a formatted string with newlines, return as-is
+  if (typeof address === 'string') {
+    // Check if it looks like a JSON string
+    if (address.trim().startsWith('{') && address.trim().endsWith('}')) {
+      try {
+        const parsed = JSON.parse(address);
+        return formatAddressObject(parsed);
+      } catch {
+        return address;
+      }
+    }
+    return address;
+  }
+  
+  // If it's an object, format it nicely
+  if (typeof address === 'object' && address !== null) {
+    return formatAddressObject(address as Record<string, string>);
+  }
+  
+  return String(address);
+}
+
+function formatAddressObject(obj: Record<string, string>): string {
+  const parts: string[] = [];
+  
+  if (obj.name) parts.push(obj.name);
+  if (obj.street || obj.address) parts.push(obj.street || obj.address || '');
+  if (obj.city || obj.state || obj.zipCode || obj.zip) {
+    const cityParts = [obj.city, obj.state, obj.zipCode || obj.zip].filter(Boolean);
+    if (cityParts.length) parts.push(cityParts.join(', '));
+  }
+  if (obj.country) parts.push(obj.country);
+  if (obj.phone) parts.push(`Phone: ${obj.phone}`);
+  if (obj.email) parts.push(`Email: ${obj.email}`);
+  if (obj.instructions) parts.push(`Note: ${obj.instructions}`);
+  
+  return parts.join('\n');
+}
+
 export async function sendNewPackageEmail(opts: {
   to: string;
   firstName: string;
@@ -243,19 +286,19 @@ export async function sendNewPackageEmail(opts: {
       ${warehouseAddresses.airAddress ? `
       <div style="background:white;border:1px solid #bfdbfe;border-radius:6px;padding:12px;margin-bottom:8px;">
         <p style="margin:0 0 4px 0;color:#1e40af;font-weight:600;font-size:13px;">✈️ Air Shipments</p>
-        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${typeof warehouseAddresses.airAddress === 'string' ? warehouseAddresses.airAddress : JSON.stringify(warehouseAddresses.airAddress)}</p>
+        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${formatWarehouseAddress(warehouseAddresses.airAddress)}</p>
       </div>
       ` : ''}
       ${warehouseAddresses.seaAddress ? `
       <div style="background:white;border:1px solid #bfdbfe;border-radius:6px;padding:12px;margin-bottom:8px;">
         <p style="margin:0 0 4px 0;color:#0369a1;font-weight:600;font-size:13px;">🚢 Sea Shipments</p>
-        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${typeof warehouseAddresses.seaAddress === 'string' ? warehouseAddresses.seaAddress : JSON.stringify(warehouseAddresses.seaAddress)}</p>
+        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${formatWarehouseAddress(warehouseAddresses.seaAddress)}</p>
       </div>
       ` : ''}
       ${warehouseAddresses.chinaAddress ? `
       <div style="background:white;border:1px solid #bfdbfe;border-radius:6px;padding:12px;">
         <p style="margin:0 0 4px 0;color:#dc2626;font-weight:600;font-size:13px;">🇨🇳 China Warehouse</p>
-        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${typeof warehouseAddresses.chinaAddress === 'string' ? warehouseAddresses.chinaAddress : JSON.stringify(warehouseAddresses.chinaAddress)}</p>
+        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${formatWarehouseAddress(warehouseAddresses.chinaAddress)}</p>
       </div>
       ` : ''}
     </div>

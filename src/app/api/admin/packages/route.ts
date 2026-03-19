@@ -595,11 +595,12 @@ export async function POST(req: Request) {
     try {
       billingInvoice = await createBillingInvoice(packageData, user, asString(trackingNumber));
       if (billingInvoice) {
-        // Link invoice to package
+        // Link invoice to package - keep invoiceStatus as pending so customer can upload their purchase invoice
         await Package.findByIdAndUpdate(created._id, {
           $set: { 
             billingInvoiceId: billingInvoice._id,
-            invoiceStatus: 'billed'
+            invoiceStatus: 'pending', // Customer needs to upload their purchase invoice first
+            invoiceUploaded: false
           }
         });
       }
