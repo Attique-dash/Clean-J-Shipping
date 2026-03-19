@@ -52,17 +52,18 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    // Fetch packages with submitted invoices AND populate customer data
+    // Fetch packages with submitted invoices AND populate customer data properly
     const packages = await Package.find(query)
-      .populate({
-        path: 'userId',
-        model: 'User',
-        select: '_id name email phone shippingId'
-      })
+      .populate('userId', '_id name email phone shippingId')
       .sort({ invoiceSubmittedAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean();
+
+    console.log('Raw packages fetched:', packages.length);
+    if (packages.length > 0) {
+      console.log('First package userId:', packages[0].userId);
+    }
 
     // Get total count
     const total = await Package.countDocuments(query);
@@ -76,8 +77,10 @@ export async function GET(req: NextRequest) {
 
     // Format response
     const formattedPackages = await Promise.all(packages.map(async (pkg) => {
-      // userId is now populated with customer data
-      const customer = pkg.userId as unknown as UserDoc | null;
+      // Get populated customer data
+      const customerData = pkg.userId as unknown as UserDoc | null;
+      
+      console.log('Processing package:', pkg.trackingNumber, 'Customer:', customerData);
       
       // Get warehouse address based on service mode
       let warehouseAddress = pkg.warehouseLocation || 'N/A';
@@ -96,6 +99,15 @@ export async function GET(req: NextRequest) {
             warehouseAddress = defaultWarehouse.address || 'N/A';
         }
       }
+      
+      // Build customer object with proper name
+      const customer = customerData ? {
+        id: customerData._id?.toString(),
+        name: customerData.name || 'Unknown Customer',
+        email: customerData.email || '',
+        phone: customerData.phone || 'N/A',
+        shippingId: customerData.shippingId || `CJS-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+      } : null;
       
       return {
         packageId: (pkg._id as Types.ObjectId)?.toString(),
@@ -125,14 +137,8 @@ export async function GET(req: NextRequest) {
           return `/api/invoices/download?file=${filename}`;
         }),
         
-        // Customer info - now properly populated from userId
-        customer: customer ? {
-          id: customer._id?.toString(),
-          name: customer.name,
-          email: customer.email,
-          phone: customer.phone,
-          shippingId: customer.shippingId || `CJS-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-        } : null,
+        // Customer info - properly populated from userId
+        customer,
         
         // Package description
         itemDescription: pkg.itemDescription,

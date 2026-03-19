@@ -44,42 +44,49 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // File is stored in /tmp/uploads/invoices
-    const filePath = join('/tmp', 'uploads', 'invoices', filename);
+    // Try to find file in /tmp
+    const tmpFilePath = join('/tmp', 'uploads', 'invoices', filename);
     
-    // Check if file exists
-    if (!existsSync(filePath)) {
-      return NextResponse.json({ error: 'File not found on disk' }, { status: 404 });
-    }
-
-    // Read file
-    const fileBuffer = readFileSync(filePath);
-    
-    // Determine content type
-    const ext = filename.split('.').pop()?.toLowerCase();
-    let contentType = 'application/octet-stream';
-    
-    switch (ext) {
-      case 'pdf':
-        contentType = 'application/pdf';
-        break;
-      case 'jpg':
-      case 'jpeg':
-        contentType = 'image/jpeg';
-        break;
-      case 'png':
-        contentType = 'image/png';
-        break;
-    }
-
-    // Return file with proper headers
-    return new NextResponse(fileBuffer, {
-      headers: {
-        'Content-Type': contentType,
-        'Content-Disposition': `inline; filename="${filename}"`,
-        'Cache-Control': 'public, max-age=3600'
+    // Check if file exists in /tmp
+    if (existsSync(tmpFilePath)) {
+      const fileBuffer = readFileSync(tmpFilePath);
+      
+      // Determine content type
+      const ext = filename.split('.').pop()?.toLowerCase();
+      let contentType = 'application/octet-stream';
+      
+      switch (ext) {
+        case 'pdf':
+          contentType = 'application/pdf';
+          break;
+        case 'jpg':
+        case 'jpeg':
+          contentType = 'image/jpeg';
+          break;
+        case 'png':
+          contentType = 'image/png';
+          break;
       }
-    });
+
+      return new NextResponse(fileBuffer, {
+        headers: {
+          'Content-Type': contentType,
+          'Content-Disposition': `inline; filename="${filename}"`,
+          'Cache-Control': 'public, max-age=3600'
+        }
+      });
+    }
+    
+    // File not found on disk - might be deleted due to serverless /tmp cleanup
+    // Return a helpful message with alternative
+    return NextResponse.json({ 
+      error: 'File not found on disk',
+      message: 'The file may have been deleted due to server cleanup. Please ask the customer to re-upload the invoice.',
+      filename: filename,
+      packageId: pkg._id,
+      trackingNumber: pkg.trackingNumber,
+      uploadedAt: pkg.invoiceSubmittedAt
+    }, { status: 404 });
 
   } catch (error) {
     console.error('Error serving invoice file:', error);

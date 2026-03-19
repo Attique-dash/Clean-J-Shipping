@@ -172,13 +172,17 @@ export default function AdminInvoiceReviewPage() {
   };
 
   const toggleRowExpand = (packageId: string) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(packageId)) {
-      newExpanded.delete(packageId);
-    } else {
-      newExpanded.add(packageId);
+    try {
+      const newExpanded = new Set(expandedRows);
+      if (newExpanded.has(packageId)) {
+        newExpanded.delete(packageId);
+      } else {
+        newExpanded.add(packageId);
+      }
+      setExpandedRows(newExpanded);
+    } catch (error) {
+      console.error('Error toggling row:', error);
     }
-    setExpandedRows(newExpanded);
   };
 
   const addAdditionalFee = () => {
@@ -193,6 +197,26 @@ export default function AdminInvoiceReviewPage() {
 
   const removeAdditionalFee = (index: number) => {
     setAdditionalFees(additionalFees.filter((_, i) => i !== index));
+  };
+
+  const handleFileClick = async (e: React.MouseEvent, fileUrl: string) => {
+    e.preventDefault();
+    try {
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        const data = await response.json();
+        if (data.error === 'File not found on disk') {
+          toast.error('File not available: ' + (data.message || 'Please ask customer to re-upload'));
+          return;
+        }
+        throw new Error(data.error || 'Failed to download file');
+      }
+      // If successful, open in new tab
+      window.open(fileUrl, '_blank');
+    } catch (error) {
+      console.error('File download error:', error);
+      toast.error('Unable to download file. It may have been deleted.');
+    }
   };
 
   const calculateTotal = () => {
@@ -473,19 +497,17 @@ export default function AdminInvoiceReviewPage() {
                               </h4>
                               <div className="space-y-2">
                                 {pkg.invoiceFiles.map((file, index) => (
-                                  <a
+                                  <button
                                     key={index}
-                                    href={file}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-2 p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors"
+                                    onClick={(e) => handleFileClick(e as any, file)}
+                                    className="flex items-center gap-2 p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors w-full text-left"
                                   >
                                     {getFileIcon(file)}
                                     <span className="text-sm text-gray-700 truncate flex-1">
                                       {file.split('/').pop()}
                                     </span>
                                     <Download className="h-4 w-4 text-gray-400" />
-                                  </a>
+                                  </button>
                                 ))}
                               </div>
                             </div>
@@ -576,19 +598,17 @@ export default function AdminInvoiceReviewPage() {
                     <h3 className="font-semibold text-gray-900 mb-3">Invoice Files</h3>
                     <div className="space-y-2">
                       {selectedPackage.invoiceFiles.map((file, index) => (
-                        <a
+                        <button
                           key={index}
-                          href={file}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 p-2 bg-white rounded border hover:border-[#0f4d8a] transition-colors"
+                          onClick={(e) => handleFileClick(e as any, file)}
+                          className="flex items-center gap-2 p-2 bg-white rounded border hover:border-[#0f4d8a] transition-colors w-full text-left"
                         >
                           {getFileIcon(file)}
                           <span className="text-sm text-gray-700 truncate flex-1">
                             {file.split('/').pop()}
                           </span>
                           <Download className="h-4 w-4 text-gray-400" />
-                        </a>
+                        </button>
                       ))}
                     </div>
                   </div>

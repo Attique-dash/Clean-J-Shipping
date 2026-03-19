@@ -144,13 +144,19 @@ export async function POST(
           await pkg.save();
 
           // Send billing email to customer
+          let emailSent = false;
           try {
             const customer = await User.findById(pkg.userId);
+            console.log('Found customer for email:', customer ? { name: customer.name, email: customer.email } : 'null');
+            
             if (customer && customer.email) {
               const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://cleanjshipping.com';
               const paymentLink = `${baseUrl}/customer/pay/${bill.billNumber}`;
 
-              const emailSent = await emailService.sendBillingEmail({
+              console.log('Sending billing email to:', customer.email);
+              console.log('Payment link:', paymentLink);
+
+              emailSent = await emailService.sendBillingEmail({
                 to: customer.email,
                 customerName: customer.name || 'Valued Customer',
                 billNumber: bill.billNumber,
@@ -171,26 +177,43 @@ export async function POST(
                 paymentLink
               });
 
+              console.log('Email send result:', emailSent);
+
               if (emailSent) {
                 // Update bill status to sent
                 bill.status = 'sent';
                 bill.sentAt = new Date();
                 await bill.save();
+                console.log('Bill status updated to sent');
+              } else {
+                console.error('Email service returned false - email not sent');
               }
+            } else {
+              console.error('Customer not found or no email address');
             }
           } catch (emailError) {
             console.error('Error sending billing email:', emailError);
+            // Log full error details
+            if (emailError instanceof Error) {
+              console.error('Email error details:', {
+                message: emailError.message,
+                stack: emailError.stack
+              });
+            }
             // Don't fail the request if email fails, just log it
           }
 
           return NextResponse.json({
             success: true,
-            message: 'Invoice approved and bill generated successfully',
+            message: emailSent 
+              ? 'Invoice approved and bill generated successfully. Email sent to customer.' 
+              : 'Invoice approved and bill generated successfully. Email could not be sent.',
             packageId: id,
             billId: bill._id,
             billNumber: bill.billNumber,
             status: 'billed',
-            totalAmount: totalAmount
+            totalAmount: totalAmount,
+            emailSent: emailSent
           });
         } catch (billError) {
           console.error('Error creating bill:', billError);
