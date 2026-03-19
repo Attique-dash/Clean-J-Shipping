@@ -120,12 +120,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No uploads provided" }, { status: 400 });
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), "public", "uploads", "invoices");
+    // Create uploads directory in /tmp for serverless environments
+    const uploadsDir = join("/tmp", "uploads", "invoices");
     try {
       mkdirSync(uploadsDir, { recursive: true });
     } catch (_error) {
-      // Directory might already exist
+      console.error("Failed to create uploads directory:", _error);
     }
 
     const results = [];
@@ -224,10 +224,21 @@ export async function POST(req: Request) {
           const filename = `${upload.tracking_number}_${timestamp}_${random}_${originalName}`;
           const filepath = join(uploadsDir, filename);
           
-          // Write file to disk
-          writeFileSync(filepath, buffer);
+          // Write file to /tmp
+          try {
+            writeFileSync(filepath, buffer);
+            console.log(`File saved: ${filepath}`);
+          } catch (writeError) {
+            console.error(`Failed to write file ${filename}:`, writeError);
+            results.push({
+              tracking_number: upload.tracking_number,
+              success: false,
+              error: `Failed to save file: ${writeError instanceof Error ? writeError.message : 'Unknown error'}`
+            });
+            continue;
+          }
           
-          // Store the public URL
+          // Store the file path (tmp files will be cleaned up, but we have the data)
           const fileUrl = `/uploads/invoices/${filename}`;
           savedFiles.push(fileUrl);
           uploadedFileUrls.push(fileUrl);

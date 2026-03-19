@@ -249,7 +249,16 @@ export default function CustomerInvoiceUploadPage() {
       const result = await res.json();
       
       if (!res.ok) {
-        throw new Error(result?.error || result?.message || "Failed to submit invoices");
+        // Show detailed errors from results array
+        if (result.results && result.results.length > 0) {
+          const failedResults = result.results.filter((r: any) => !r.success);
+          failedResults.forEach((r: any) => {
+            toast.error(`${r.tracking_number}: ${r.error || 'Unknown error'}`);
+          });
+        } else {
+          toast.error(result?.error || result?.message || "Failed to submit invoices");
+        }
+        return;
       }
 
       if (result.success) {
