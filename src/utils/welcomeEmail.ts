@@ -281,7 +281,7 @@ export async function sendWelcomeEmail(userData: WelcomeEmailData) {
     const transporter = nodemailer.createTransporter({
       service: 'gmail',
       auth: {
-        user: process.env.EMAIL_USER,
+        user: process.env.SMTP_USER,
         pass: process.env.EMAIL_PASS
       }
     });

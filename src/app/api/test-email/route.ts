@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 
 export async function GET() {
-  const EMAIL_USER = process.env.EMAIL_USER || process.env.SMTP_USER;
-  const EMAIL_PASS = process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD || process.env.SMTP_PASS;
+  const SMTP_USER = process.env.SMTP_USER || process.env.SMTP_USER;
+  const EMAIL_PASS = process.env.EMAIL_PASS || process.env.SMTP_PASS || process.env.SMTP_PASS;
   const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
   const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
 
@@ -13,14 +13,14 @@ export async function GET() {
       host: SMTP_HOST,
       port: SMTP_PORT,
       secure: SMTP_PORT === 465,
-      user: EMAIL_USER ? EMAIL_USER.substring(0, 5) + '***@' + EMAIL_USER.split('@')[1] : 'Not set',
+      user: SMTP_USER ? SMTP_USER.substring(0, 5) + '***@' + SMTP_USER.split('@')[1] : 'Not set',
       passSet: EMAIL_PASS ? '✓ Set (length: ' + EMAIL_PASS.length + ')' : '✗ Missing',
     },
     envCheck: {
-      EMAIL_USER: process.env.EMAIL_USER ? 'Set' : 'Not set',
+      SMTP_USER: process.env.SMTP_USER ? 'Set' : 'Not set',
       SMTP_USER: process.env.SMTP_USER ? 'Set' : 'Not set',
       EMAIL_PASS: process.env.EMAIL_PASS ? 'Set' : 'Not set',
-      EMAIL_PASSWORD: process.env.EMAIL_PASSWORD ? 'Set' : 'Not set',
+      SMTP_PASS: process.env.SMTP_PASS ? 'Set' : 'Not set',
       SMTP_PASS: process.env.SMTP_PASS ? 'Set' : 'Not set',
       SMTP_HOST: process.env.SMTP_HOST || 'Using default (smtp.gmail.com)',
       SMTP_PORT: process.env.SMTP_PORT || 'Using default (587)',
@@ -28,7 +28,7 @@ export async function GET() {
     tests: {}
   };
 
-  if (!EMAIL_USER || !EMAIL_PASS) {
+  if (!SMTP_USER || !EMAIL_PASS) {
     results.tests.config = 'FAILED - Missing email credentials';
     results.message = 'Please set SMTP_USER and SMTP_PASS in your .env.local file';
     return NextResponse.json(results, { status: 400 });
@@ -41,7 +41,7 @@ export async function GET() {
       host: SMTP_HOST,
       port: SMTP_PORT,
       secure: SMTP_PORT === 465,
-      auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+      auth: { user: SMTP_USER, pass: EMAIL_PASS },
     });
     results.tests.transporter = 'OK - Created successfully';
   } catch (error: any) {
@@ -69,8 +69,8 @@ export async function GET() {
   // Try to send a test email
   try {
     const info = await transporter.sendMail({
-      from: EMAIL_USER,
-      to: EMAIL_USER, // Send to self
+      from: SMTP_USER,
+      to: SMTP_USER, // Send to self
       subject: '✅ Test Email from Clean J Shipping - ' + new Date().toLocaleTimeString(),
       text: 'This is a test email to verify the email configuration is working correctly.\n\nIf you received this, the email system is properly configured!',
       html: `

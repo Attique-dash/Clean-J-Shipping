@@ -145,9 +145,14 @@ export async function POST(
 
           // Send billing email to customer
           let emailSent = false;
+          let emailErrorMsg = '';
           try {
-            const customer = await User.findById(pkg.userId);
-            console.log('Found customer for email:', customer ? { name: customer.name, email: customer.email } : 'null');
+            // Handle userId that might be string or ObjectId
+            const userIdString = typeof pkg.userId === 'string' ? pkg.userId : pkg.userId?.toString();
+            console.log('Looking up customer with userId:', userIdString);
+            
+            const customer = await User.findById(userIdString);
+            console.log('Found customer for email:', customer ? { name: customer.name, email: customer.email, _id: customer._id } : 'null');
             
             if (customer && customer.email) {
               const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://cleanjshipping.com';
@@ -155,6 +160,11 @@ export async function POST(
 
               console.log('Sending billing email to:', customer.email);
               console.log('Payment link:', paymentLink);
+              console.log('Email config check:', {
+                hasHost: !!process.env.SMTP_HOST,
+                hasUser: !!process.env.SMTP_USER,
+                hasPass: !!process.env.SMTP_PASS
+              });
 
               emailSent = await emailService.sendBillingEmail({
                 to: customer.email,
@@ -186,12 +196,15 @@ export async function POST(
                 await bill.save();
                 console.log('Bill status updated to sent');
               } else {
+                emailErrorMsg = 'Email service returned false';
                 console.error('Email service returned false - email not sent');
               }
             } else {
-              console.error('Customer not found or no email address');
+              emailErrorMsg = customer ? 'Customer has no email' : 'Customer not found';
+              console.error('Customer not found or no email address. userId:', userIdString);
             }
           } catch (emailError) {
+            emailErrorMsg = emailError instanceof Error ? emailError.message : 'Unknown error';
             console.error('Error sending billing email:', emailError);
             // Log full error details
             if (emailError instanceof Error) {
@@ -200,20 +213,20 @@ export async function POST(
                 stack: emailError.stack
               });
             }
-            // Don't fail the request if email fails, just log it
           }
 
           return NextResponse.json({
             success: true,
             message: emailSent 
               ? 'Invoice approved and bill generated successfully. Email sent to customer.' 
-              : 'Invoice approved and bill generated successfully. Email could not be sent.',
+              : `Invoice approved and bill generated successfully. Email could not be sent: ${emailErrorMsg}`,
             packageId: id,
             billId: bill._id,
             billNumber: bill.billNumber,
             status: 'billed',
             totalAmount: totalAmount,
-            emailSent: emailSent
+            emailSent: emailSent,
+            emailError: emailErrorMsg || undefined
           });
         } catch (billError) {
           console.error('Error creating bill:', billError);

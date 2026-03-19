@@ -27,12 +27,12 @@ export class EmailService {
     this.defaultFrom = process.env.EMAIL_FROM || 'Clean J Shipping <noreply@cleanjshipping.com>';
 
     this.transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.EMAIL_PORT || '587'),
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
       secure: process.env.EMAIL_SECURE === 'true',
       auth: {
-        user: process.env.EMAIL_USER || '',
-        pass: process.env.EMAIL_PASSWORD || '',
+        user: process.env.SMTP_USER || '',
+        pass: process.env.SMTP_PASS || '',
       },
     });
   }
@@ -52,10 +52,10 @@ export class EmailService {
 
       // Check email configuration
       console.log('🔧 Email configuration:', {
-        host: process.env.EMAIL_HOST,
-        port: process.env.EMAIL_PORT,
-        hasUser: !!process.env.EMAIL_USER,
-        hasPassword: !!process.env.EMAIL_PASSWORD,
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT,
+        hasUser: !!process.env.SMTP_USER,
+        hasPassword: !!process.env.SMTP_PASS,
         from: this.defaultFrom
       });
 

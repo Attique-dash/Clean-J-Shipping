@@ -104,10 +104,30 @@ export async function GET(req: NextRequest) {
       .limit(limit);
 
     console.log('Raw packages fetched:', packages.length);
-    if (packages.length > 0) {
-      const firstPkg = packages[0];
-      console.log('First package userId type:', typeof firstPkg.userId);
-      console.log('First package userId:', firstPkg.userId);
+    
+    // Collect userIds that need manual fetching (if population failed)
+    const userIdsToFetch: string[] = [];
+    packages.forEach(pkg => {
+      const userData = pkg.userId as unknown as UserDoc | null;
+      // If userId exists but is not populated (no _id), we need to fetch it manually
+      if (pkg.userId && (!userData || !userData._id)) {
+        const userIdString = typeof pkg.userId === 'string' ? pkg.userId : (pkg.userId as any).toString();
+        if (!userIdsToFetch.includes(userIdString)) {
+          userIdsToFetch.push(userIdString);
+        }
+      }
+    });
+    
+    console.log('UserIds that need manual fetch:', userIdsToFetch);
+    
+    // Fetch users manually if needed
+    const userMap = new Map<string, UserDoc>();
+    if (userIdsToFetch.length > 0) {
+      const users = await User.find({ _id: { $in: userIdsToFetch } }).select('_id name email phone shippingId');
+      users.forEach(user => {
+        userMap.set(user._id.toString(), user as unknown as UserDoc);
+      });
+      console.log('Manually fetched users:', users.length);
     }
 
     // Get total count
@@ -123,10 +143,16 @@ export async function GET(req: NextRequest) {
     // Format response
     const formattedPackages = packages.map((pkg) => {
       // Get populated customer data - without .lean(), userId should be populated
-      const userData = pkg.userId as unknown as UserDoc | null;
+      let userData = pkg.userId as unknown as UserDoc | null;
       
-      console.log('Processing package:', pkg.trackingNumber);
-      console.log('User data:', userData);
+      // If population didn't work, try to get from manual fetch map
+      if ((!userData || !userData._id) && pkg.userId) {
+        const userIdString = typeof pkg.userId === 'string' ? pkg.userId : (pkg.userId as any).toString();
+        userData = userMap.get(userIdString) || null;
+        console.log('Using manually fetched user for package:', pkg.trackingNumber, 'User:', userData?.name);
+      }
+      
+      console.log('Processing package:', pkg.trackingNumber, 'Customer name:', userData?.name);
       
       // Get warehouse address based on service mode
       let warehouseAddress: string;
@@ -165,9 +191,10 @@ export async function GET(req: NextRequest) {
           phone: userData.phone || 'N/A',
           shippingId: userData.shippingId || `CJS-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
         };
+        console.log('Built customer:', customer.name, 'for package:', pkg.trackingNumber);
+      } else {
+        console.log('No user data found for package:', pkg.trackingNumber, 'userId:', pkg.userId);
       }
-      
-      console.log('Built customer object:', customer);
       
       return {
         packageId: (pkg._id as Types.ObjectId)?.toString(),

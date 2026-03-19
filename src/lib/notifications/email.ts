@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 import { NotificationType, EmailOptions } from './types';
 
-const EMAIL_USER = process.env.EMAIL_USER;
+const SMTP_USER = process.env.SMTP_USER;
 const EMAIL_PASS = process.env.EMAIL_PASS;
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Shipping App';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || '';
@@ -9,12 +9,12 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || '';
 let transporter: nodemailer.Transporter | null = null;
 
 function getTransporter() {
-  if (!EMAIL_USER || !EMAIL_PASS) return null;
+  if (!SMTP_USER || !EMAIL_PASS) return null;
   if (transporter) return transporter;
   
   transporter = nodemailer.createTransport({
     service: 'gmail',
-    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+    auth: { user: SMTP_USER, pass: EMAIL_PASS },
   });
   return transporter;
 }
@@ -199,7 +199,7 @@ export async function sendEmail(
 
     const { subject, html } = template(options.data);
     const mailOptions = {
-      from: `"${APP_NAME}" <${EMAIL_USER}>`,
+      from: `"${APP_NAME}" <${SMTP_USER}>`,
       to: options.to,
       subject,
       html,

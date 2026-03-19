@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 
-const EMAIL_USER = process.env.EMAIL_USER || process.env.SMTP_USER;
-const EMAIL_PASS = process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD || process.env.SMTP_PASS;
+const SMTP_USER = process.env.SMTP_USER || process.env.SMTP_USER;
+const EMAIL_PASS = process.env.EMAIL_PASS || process.env.SMTP_PASS || process.env.SMTP_PASS;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Clean J Shipping";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
@@ -13,8 +13,8 @@ const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
 let transporter: nodemailer.Transporter | null = null;
 
 function getTransporter() {
-  if (!EMAIL_USER || !EMAIL_PASS) {
-    console.warn("Email not configured: EMAIL_USER/SMTP_USER or EMAIL_PASS/SMTP_PASS missing");
+  if (!SMTP_USER || !EMAIL_PASS) {
+    console.warn("Email not configured: SMTP_USER/SMTP_USER or EMAIL_PASS/SMTP_PASS missing");
     return null;
   }
   if (transporter) return transporter;
@@ -23,7 +23,7 @@ function getTransporter() {
       host: SMTP_HOST,
       port: SMTP_PORT,
       secure: SMTP_PORT === 465, // true for 465, false for other ports
-      auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+      auth: { user: SMTP_USER, pass: EMAIL_PASS },
     });
     console.log(`[Email] Transporter created with ${SMTP_HOST}:${SMTP_PORT}`);
     return transporter;
@@ -69,7 +69,7 @@ export async function sendPaymentReceiptEmail(opts: {
     <p style="margin-top:16px">If you have any questions, reply to this email.</p>
   </div>`;
   try {
-    await t.sendMail({ from: EMAIL_USER, to, subject, html });
+    await t.sendMail({ from: SMTP_USER, to, subject, html });
     return { sent: true } as const;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -115,7 +115,7 @@ export async function sendPasswordResetEmail(opts: {
     <p style="word-break:break-all;color:#374151">${resetUrl}</p>
   </div>`;
   
-  await t.sendMail({ from: EMAIL_USER, to, subject, html });
+  await t.sendMail({ from: SMTP_USER, to, subject, html });
   return { sent: true } as const;
 }
 
@@ -326,7 +326,7 @@ export async function sendNewPackageEmail(opts: {
 
   try {
     await t.sendMail({
-      from: EMAIL_USER,
+      from: SMTP_USER,
       to,
       subject,
       html,
@@ -361,7 +361,7 @@ export async function sendVerificationEmail(opts: {
     <p>If the button doesn't work, copy and paste this link into your browser:</p>
     <p style="word-break:break-all;color:#374151">${safeUrl}</p>
   </div>`;
-  await t.sendMail({ from: EMAIL_USER, to, subject, html });
+  await t.sendMail({ from: SMTP_USER, to, subject, html });
   return { sent: true } as const;
 }
 
@@ -373,7 +373,7 @@ export async function sendSupportContactEmail(opts: {
 }) {
   const t = getTransporter();
   if (!t) return { sent: false, reason: "Email not configured" };
-  const to = ADMIN_EMAIL || EMAIL_USER;
+  const to = ADMIN_EMAIL || SMTP_USER;
   if (!to) return { sent: false, reason: "No admin email configured" };
 
   const subject = `[Support] ${opts.subject}`;
@@ -385,7 +385,7 @@ export async function sendSupportContactEmail(opts: {
   </div>`;
 
   await t.sendMail({
-    from: EMAIL_USER,
+    from: SMTP_USER,
     to,
     subject,
     html,
@@ -416,7 +416,7 @@ export async function sendStatusUpdateEmail(opts: {
   </div>`;
 
   await t.sendMail({
-    from: EMAIL_USER,
+    from: SMTP_USER,
     to,
     subject,
     html,
@@ -480,7 +480,7 @@ export async function sendPackageNotificationToRecipient(opts: {
   </div>`;
 
   await t.sendMail({
-    from: EMAIL_USER,
+    from: SMTP_USER,
     to,
     subject,
     html,

@@ -5,7 +5,7 @@ const createTransporter = () => {
   return nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: process.env.EMAIL_USER, // cleanjshipping@gmail.com
+      user: process.env.SMTP_USER, // cleanjshipping@gmail.com
       pass: process.env.EMAIL_PASS  // App password
     }
   });
@@ -17,7 +17,7 @@ async function sendEmail({ to, subject, html, attachments = [] }) {
     const transporter = createTransporter();
     
     const info = await transporter.sendMail({
-      from: `"Clean J Shipping" <${process.env.EMAIL_USER}>`,
+      from: `"Clean J Shipping" <${process.env.SMTP_USER}>`,
       to: Array.isArray(to) ? to : [to],
       subject: subject || 'Notification from Clean J Shipping',
       html: html || '',
