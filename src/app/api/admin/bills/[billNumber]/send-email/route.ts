@@ -36,11 +36,11 @@ export async function POST(
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
-    // Generate payment link
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://cleanjshipping.com';
+    // Generate payment link with correct domain
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://clean-j-shipping.vercel.app';
     const paymentLink = `${baseUrl}/customer/pay/${billNumber}`;
 
-    // Send billing email
+    // Send billing email with package content/description
     const emailSent = await emailService.sendBillingEmail({
       to: customer.email,
       customerName: customer.name || 'Valued Customer',
@@ -52,7 +52,8 @@ export async function POST(
         itemValue: pkg.itemValue,
         shippingFee: pkg.shippingFee,
         customsFee: pkg.customsFee,
-        total: pkg.total
+        total: pkg.total,
+        content: (pkg as any).content || (pkg as any).description || (pkg as any).itemDescription || 'N/A'
       })),
       itemTotal: bill.itemTotal,
       shippingFee: bill.shippingFee,

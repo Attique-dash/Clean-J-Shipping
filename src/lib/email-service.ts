@@ -553,6 +553,9 @@ export class EmailService {
       shippingFee: number;
       customsFee: number;
       total: number;
+      content?: string;
+      description?: string;
+      itemDescription?: string;
     }>;
     itemTotal: number;
     shippingFee: number;
@@ -575,12 +578,15 @@ export class EmailService {
     billNumber: string;
     packages: Array<{
       trackingNumber: string;
-      shipper: string;
-      weight: number;
+      shipper?: string;
+      weight?: number;
       itemValue: number;
       shippingFee: number;
       customsFee: number;
       total: number;
+      content?: string;
+      description?: string;
+      itemDescription?: string;
     }>;
     itemTotal: number;
     shippingFee: number;
@@ -589,7 +595,7 @@ export class EmailService {
     totalAmount: number;
     paymentLink: string;
   }): string {
-    // Format packages table rows
+    // Format packages table rows with content/description
     const packagesRows = (data.packages as Array<{
       trackingNumber: string;
       shipper?: string;
@@ -598,6 +604,9 @@ export class EmailService {
       shippingFee: number;
       customsFee: number;
       total: number;
+      content?: string;
+      description?: string;
+      itemDescription?: string;
     }>).map((pkg: {
       trackingNumber: string;
       shipper?: string;
@@ -606,16 +615,22 @@ export class EmailService {
       shippingFee: number;
       customsFee: number;
       total: number;
-    }) => 
-      `<tr>
+      content?: string;
+      description?: string;
+      itemDescription?: string;
+    }) => {
+      // Get package content from any available field
+      const packageContent = pkg.content || pkg.description || pkg.itemDescription || 'N/A';
+      return `<tr>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: left;">${pkg.trackingNumber}</td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: left;">${pkg.shipper}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: left; max-width: 200px; word-wrap: break-word;">${packageContent}</td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: center;">${pkg.weight} kg</td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">$${pkg.itemValue.toFixed(2)}</td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">$${pkg.shippingFee.toFixed(2)}</td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">$${pkg.total.toFixed(2)}</td>
       </tr>`
-    ).join('');
+    }).join('');
 
     // Format additional fees
     const additionalFeesRows = data.additionalFees?.length > 0 
@@ -645,6 +660,7 @@ export class EmailService {
           <tr style="background: linear-gradient(135deg, #0f4d8a 0%, #1e6bb8 100%); color: white;">
             <th style="padding: 12px; text-align: left; font-weight: 600;">Tracking #</th>
             <th style="padding: 12px; text-align: left; font-weight: 600;">Merchant</th>
+            <th style="padding: 12px; text-align: left; font-weight: 600;">Package Content</th>
             <th style="padding: 12px; text-align: center; font-weight: 600;">Weight</th>
             <th style="padding: 12px; text-align: right; font-weight: 600;">Item Value</th>
             <th style="padding: 12px; text-align: right; font-weight: 600;">Shipping Fee</th>
