@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currencyService } from "@/lib/currency-service";
+import { CurrencyService } from "@/lib/currency-service";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const convertedAmount = await currencyService.convertAmount(
+    const convertedAmount = CurrencyService.convert(
       amount,
       fromCurrency,
       toCurrency

@@ -4,6 +4,7 @@ import { Package } from "@/models/Package";
 import { User } from "@/models/User";
 import Invoice from "@/models/Invoice";
 import { InventoryService } from "@/lib/inventory-service";
+import { CurrencyService } from "@/lib/currency-service";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 
@@ -72,57 +73,77 @@ function calcCustomsDutyUsd(valueUsd: number): number {
   return valueUsd > 100 ? 0 : 0;
 }
 
-function calculateTotalAmount(itemValue: number, weight: number): number {
-  // Convert item value from USD to JMD (assuming 1 USD = 155 JMD)
-  const itemValueJmd = itemValue * 155;
+function calculateTotalAmount(itemValueUSD: number, weightKg: number, targetCurrency: string = 'JMD'): {
+  itemValueJMD: number;
+  shippingCostJMD: number;
+  customsDutyJMD: number;
+  totalJMD: number;
+  totalUSD: number;
+  totalInTargetCurrency: number;
+  formattedTotal: string;
+} {
+  // Use standardized currency service for calculations
+  const breakdown = CurrencyService.calculateTotalPackageCost(itemValueUSD, weightKg, targetCurrency);
   
-  // Calculate shipping cost based on weight (convert to lbs first)
-  const weightLbs = weight * 2.20462;
-  const shippingCostJmd = calcShippingCostJmd(weightLbs);
-  
-  // Calculate customs duty (15% of item value if > $100 USD)
-  const customsDutyJmd = itemValue > 100 ? itemValueJmd * 0.15 : 0;
-  
-  // Total: item value + shipping + customs
-  return itemValueJmd + shippingCostJmd + customsDutyJmd;
+  return {
+    itemValueJMD: breakdown.itemValueJMD,
+    shippingCostJMD: breakdown.shippingCostJMD,
+    customsDutyJMD: breakdown.customsDutyJMD,
+    totalJMD: breakdown.totalJMD,
+    totalUSD: breakdown.totalUSD,
+    totalInTargetCurrency: breakdown.totalInTargetCurrency,
+    formattedTotal: breakdown.formattedTotal,
+  };
 }
 
 async function createBillingInvoice(packageData: any, user: any, trackingNumber: string) {
   try {
-    const itemValue = asNumber(packageData.value) || 0;
-    const weight = asNumber(packageData.weight) || 0;
-    const weightLbs = weight * 2.20462;
+    const itemValueUSD = asNumber(packageData.value) || 0;
+    const weightKg = asNumber(packageData.weight) || 0;
     
-    // Calculate costs
-    const shippingCostJmd = calcShippingCostJmd(weightLbs);
-    const itemValueJmd = itemValue * 155;
-    const customsDutyJmd = itemValue > 100 ? itemValueJmd * 0.15 : 0;
+    // Use standardized currency service for calculations
+    const costBreakdown = CurrencyService.calculateTotalPackageCost(itemValueUSD, weightKg, 'JMD');
+    
     // Create invoice items
     const invoiceItems = [];
     
+    // Item value
+    if (costBreakdown.itemValueJMD > 0) {
+      invoiceItems.push({
+        description: `Item value (${packageData.itemDescription || 'Package contents'})`,
+        quantity: 1,
+        unitPrice: costBreakdown.itemValueJMD,
+        taxRate: 0,
+        amount: costBreakdown.itemValueJMD,
+        taxAmount: 0,
+        total: costBreakdown.itemValueJMD
+      });
+    }
+    
     // Shipping charges
-    if (shippingCostJmd > 0) {
+    if (costBreakdown.shippingCostJMD > 0) {
+      const weightLbs = weightKg * 2.20462;
       invoiceItems.push({
         description: `Shipping charges (${weightLbs.toFixed(1)} lbs)`,
         quantity: 1,
-        unitPrice: shippingCostJmd,
+        unitPrice: costBreakdown.shippingCostJMD,
         taxRate: 0,
-        amount: shippingCostJmd,
+        amount: costBreakdown.shippingCostJMD,
         taxAmount: 0,
-        total: shippingCostJmd
+        total: costBreakdown.shippingCostJMD
       });
     }
     
     // Customs duty
-    if (customsDutyJmd > 0) {
+    if (costBreakdown.customsDutyJMD > 0) {
       invoiceItems.push({
-        description: `Customs duty (${itemValue > 100 ? '15%' : '0%'} of item value)`,
+        description: `Customs duty (${itemValueUSD > 100 ? '15%' : '0%'} of item value)`,
         quantity: 1,
-        unitPrice: customsDutyJmd,
+        unitPrice: costBreakdown.customsDutyJMD,
         taxRate: 0,
-        amount: customsDutyJmd,
+        amount: costBreakdown.customsDutyJMD,
         taxAmount: 0,
-        total: customsDutyJmd
+        total: costBreakdown.customsDutyJMD
       });
     }
     
@@ -133,27 +154,27 @@ async function createBillingInvoice(packageData: any, user: any, trackingNumber:
         id: user._id.toString(),
         name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
         email: user.email,
-        address: user.address?.street || '',
-        phone: user.phone || '',
-        city: user.address?.city || '',
-        country: user.address?.country || ''
+        phone: user.phone,
+        address: user.address,
+        city: user.city,
+        country: user.country,
       },
-      tracking_number: trackingNumber,
-      invoiceNumber: `INV-${Date.now()}`,
-      status: 'unpaid',
-      issueDate: new Date(),
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-      currency: 'JMD',
-      subtotal: shippingCostJmd + customsDutyJmd,
-      taxTotal: 0,
+      package: {
+        trackingNumber: trackingNumber,
+        userCode: user.userCode,
+      },
+      invoiceType: "billing",
+      currency: "JMD", // Always store in JMD as base currency
+      subtotal: costBreakdown.itemValueJMD,
+      taxTotal: 0, // No tax for now
       discountAmount: 0,
-      total: shippingCostJmd + customsDutyJmd,
+      total: costBreakdown.totalJMD,
       amountPaid: 0,
-      balanceDue: shippingCostJmd + customsDutyJmd,
+      balanceDue: costBreakdown.totalJMD,
       items: invoiceItems,
-      invoiceType: 'billing', // NEW: Distinguish from commercial invoices
-      notes: `Billing invoice for package ${trackingNumber}`,
-      paymentTerms: 30
+      notes: `Auto-generated invoice for package ${trackingNumber}`,
+      issueDate: new Date().toISOString(),
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
     };
     
     const invoice = new Invoice(invoiceData);

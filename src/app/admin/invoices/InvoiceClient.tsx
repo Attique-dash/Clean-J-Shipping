@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ExportService } from "@/lib/export-service";
 import Loading from "@/components/Loading";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { CurrencyService } from "@/lib/currency-service";
 import EnhancedCurrencySelector from "@/components/EnhancedCurrencySelector";
 
 type Invoice = {
@@ -107,18 +108,18 @@ export default function InvoiceClient() {
       const amounts: Record<string, string> = {};
       
       try {
-        // Convert total stats
-        amounts.totalAmount = formatCurrency(await convertAmount(totalStats.totalAmount, "USD"), selectedCurrency);
-        amounts.paidAmount = formatCurrency(await convertAmount(totalStats.paidAmount, "USD"), selectedCurrency);
-        amounts.unpaidAmount = formatCurrency(await convertAmount(totalStats.unpaidAmount, "USD"), selectedCurrency);
-        amounts.overdueAmount = formatCurrency(await convertAmount(totalStats.overdueAmount, "USD"), selectedCurrency);
+        // Convert total stats (all stored in JMD)
+        amounts.totalAmount = CurrencyService.format(await CurrencyService.fromUSD(totalStats.totalAmount, selectedCurrency), selectedCurrency);
+        amounts.paidAmount = CurrencyService.format(await CurrencyService.fromUSD(totalStats.paidAmount, selectedCurrency), selectedCurrency);
+        amounts.unpaidAmount = CurrencyService.format(await CurrencyService.fromUSD(totalStats.unpaidAmount, selectedCurrency), selectedCurrency);
+        amounts.overdueAmount = CurrencyService.format(await CurrencyService.fromUSD(totalStats.overdueAmount, selectedCurrency), selectedCurrency);
         
-        // Convert invoice amounts (all stored in USD)
+        // Convert invoice amounts (all stored in JMD)
         for (const invoice of invoices) {
           const key = `invoice_${invoice._id}`;
-          amounts[`${key}_total`] = formatCurrency(await convertAmount(invoice.total || 0, "USD"), selectedCurrency);
-          amounts[`${key}_paid`] = formatCurrency(await convertAmount(invoice.amountPaid || 0, "USD"), selectedCurrency);
-          amounts[`${key}_balance`] = formatCurrency(await convertAmount(invoice.balanceDue || 0, "USD"), selectedCurrency);
+          amounts[`${key}_total`] = CurrencyService.format(await CurrencyService.fromUSD(CurrencyService.toUSD(invoice.total || 0, 'JMD'), selectedCurrency), selectedCurrency);
+          amounts[`${key}_paid`] = CurrencyService.format(await CurrencyService.fromUSD(CurrencyService.toUSD(invoice.amountPaid || 0, 'JMD'), selectedCurrency), selectedCurrency);
+          amounts[`${key}_balance`] = CurrencyService.format(await CurrencyService.fromUSD(CurrencyService.toUSD(invoice.balanceDue || 0, 'JMD'), selectedCurrency), selectedCurrency);
         }
       } catch (error) {
         console.error("Currency conversion error:", error);
@@ -130,7 +131,7 @@ export default function InvoiceClient() {
     if (invoices.length > 0) {
       convertAmounts();
     }
-  }, [invoices, selectedCurrency, convertAmount, formatCurrency]);
+  }, [invoices, selectedCurrency]);
 
   const formatAmount = (amount: number, currency: string = "USD") => {
     return formatCurrency(amount, selectedCurrency);

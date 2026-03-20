@@ -1,213 +1,285 @@
-import { Currency } from "@/models/Currency";
+// src/lib/currency-service.ts
+// Standardized currency service for consistent calculations across the entire application
 
-export interface CurrencyInfo {
+export interface CurrencyRate {
   code: string;
   name: string;
   symbol: string;
-  exchangeRate: number;
+  rate: number; // Rate relative to USD (base currency)
   decimalPlaces: number;
-  format: string;
 }
 
+export interface ConversionResult {
+  amount: number;
+  fromCurrency: string;
+  toCurrency: string;
+  rate: number;
+  formatted: string;
+}
+
+// Standardized exchange rates (USD as base currency)
+// These should be updated periodically from a reliable API
+export const CURRENCY_RATES: Record<string, CurrencyRate> = {
+  // Base currency
+  USD: {
+    code: 'USD',
+    name: 'US Dollar',
+    symbol: '$',
+    rate: 1.0,
+    decimalPlaces: 2,
+  },
+  
+  // Caribbean currencies
+  JMD: {
+    code: 'JMD',
+    name: 'Jamaican Dollar',
+    symbol: 'J$',
+    rate: 155.0, // 1 USD = 155 JMD
+    decimalPlaces: 2,
+  },
+  BBD: {
+    code: 'BBD',
+    name: 'Barbadian Dollar',
+    symbol: 'Bds$',
+    rate: 2.0,
+    decimalPlaces: 2,
+  },
+  TTD: {
+    code: 'TTD',
+    name: 'Trinidad & Tobago Dollar',
+    symbol: 'TT$',
+    rate: 6.75,
+    decimalPlaces: 2,
+  },
+  XCD: {
+    code: 'XCD',
+    name: 'East Caribbean Dollar',
+    symbol: 'EC$',
+    rate: 2.70,
+    decimalPlaces: 2,
+  },
+  
+  // Major currencies
+  EUR: {
+    code: 'EUR',
+    name: 'Euro',
+    symbol: '€',
+    rate: 0.92,
+    decimalPlaces: 2,
+  },
+  GBP: {
+    code: 'GBP',
+    name: 'British Pound',
+    symbol: '£',
+    rate: 0.79,
+    decimalPlaces: 2,
+  },
+  CAD: {
+    code: 'CAD',
+    name: 'Canadian Dollar',
+    symbol: 'C$',
+    rate: 1.36,
+    decimalPlaces: 2,
+  },
+  AUD: {
+    code: 'AUD',
+    name: 'Australian Dollar',
+    symbol: 'A$',
+    rate: 1.53,
+    decimalPlaces: 2,
+  },
+};
+
 export class CurrencyService {
-  private static instance: CurrencyService;
-  private cache: Map<string, CurrencyInfo> = new Map();
-  private lastCacheUpdate: Date | null = null;
-  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-  static getInstance(): CurrencyService {
-    if (!CurrencyService.instance) {
-      CurrencyService.instance = new CurrencyService();
-    }
-    return CurrencyService.instance;
-  }
-
-  async getActiveCurrencies(): Promise<CurrencyInfo[]> {
-    await this.updateCacheIfNeeded();
-    return Array.from(this.cache.values()).filter(currency => 
-      this.cache.get(currency.code)?.symbol !== undefined
-    );
-  }
-
-  async getCurrencyByCode(code: string): Promise<CurrencyInfo | null> {
-    await this.updateCacheIfNeeded();
-    return this.cache.get(code.toUpperCase()) || null;
-  }
-
-  async convertAmount(
-    amount: number,
-    fromCurrency: string,
-    toCurrency: string
-  ): Promise<number> {
-    const from = await this.getCurrencyByCode(fromCurrency.toUpperCase());
-    const to = await this.getCurrencyByCode(toCurrency.toUpperCase());
-
-    if (!from || !to) {
-      throw new Error(`Invalid currency: ${fromCurrency} or ${toCurrency}`);
+  /**
+   * Convert amount from one currency to another
+   * @param amount Amount to convert
+   * @param fromCurrency Source currency code
+   * @param toCurrency Target currency code
+   * @returns Conversion result with rate information
+   */
+  static convert(amount: number, fromCurrency: string, toCurrency: string): ConversionResult {
+    if (amount < 0) {
+      throw new Error('Amount cannot be negative');
     }
 
-    // Convert to USD first, then to target currency
-    const usdAmount = amount / from.exchangeRate;
-    return usdAmount * to.exchangeRate;
+    // Get currency rates
+    const fromRate = CURRENCY_RATES[fromCurrency.toUpperCase()];
+    const toRate = CURRENCY_RATES[toCurrency.toUpperCase()];
+    
+    if (!fromRate) {
+      throw new Error(`Unsupported source currency: ${fromCurrency}`);
+    }
+    
+    if (!toRate) {
+      throw new Error(`Unsupported target currency: ${toCurrency}`);
+    }
+
+    // Convert to USD (base) first, then to target currency
+    const usdAmount = amount / fromRate.rate;
+    const convertedAmount = usdAmount * toRate.rate;
+    
+    return {
+      amount: convertedAmount,
+      fromCurrency: fromCurrency.toUpperCase(),
+      toCurrency: toCurrency.toUpperCase(),
+      rate: toRate.rate / fromRate.rate,
+      formatted: this.format(convertedAmount, toCurrency.toUpperCase()),
+    };
   }
 
-  formatCurrency(amount: number, currency: string): string {
-    const currencyInfo = this.cache.get(currency.toUpperCase());
+  /**
+   * Convert amount to a specific currency (from USD)
+   * @param amount Amount in USD
+   * @param toCurrency Target currency code
+   * @returns Converted amount
+   */
+  static fromUSD(amount: number, toCurrency: string): number {
+    return this.convert(amount, 'USD', toCurrency).amount;
+  }
+
+  /**
+   * Convert amount from a specific currency to USD
+   * @param amount Amount in source currency
+   * @param fromCurrency Source currency code
+   * @returns Amount in USD
+   */
+  static toUSD(amount: number, fromCurrency: string): number {
+    return this.convert(amount, fromCurrency, 'USD').amount;
+  }
+
+  /**
+   * Format currency amount with symbol
+   * @param amount Amount to format
+   * @param currency Currency code
+   * @returns Formatted string
+   */
+  static format(amount: number, currency: string): string {
+    const currencyInfo = CURRENCY_RATES[currency.toUpperCase()];
     if (!currencyInfo) {
       return `${currency} ${amount.toFixed(2)}`;
     }
-
+    
     const formattedAmount = amount.toFixed(currencyInfo.decimalPlaces);
+    return `${currencyInfo.symbol}${formattedAmount}`;
+  }
+
+  /**
+   * Get currency information
+   * @param currency Currency code
+   * @returns Currency information
+   */
+  static getCurrencyInfo(currency: string): CurrencyRate | null {
+    return CURRENCY_RATES[currency.toUpperCase()] || null;
+  }
+
+  /**
+   * Get all available currencies
+   * @returns Array of currency information
+   */
+  static getAllCurrencies(): CurrencyRate[] {
+    return Object.values(CURRENCY_RATES);
+  }
+
+  /**
+   * Validate currency code
+   * @param currency Currency code to validate
+   * @returns True if currency is supported
+   */
+  static isSupported(currency: string): boolean {
+    return currency.toUpperCase() in CURRENCY_RATES;
+  }
+
+  /**
+   * Calculate shipping cost in JMD (business logic)
+   * @param weightLbs Weight in pounds
+   * @returns Shipping cost in JMD
+   */
+  static calculateShippingCostJMD(weightLbs: number): number {
+    if (weightLbs <= 0) return 0;
+    const first = 700; // J$7.00 for first pound
+    const additional = Math.max(0, Math.ceil(weightLbs) - 1) * 350; // J$3.50 per additional pound
+    return first + additional;
+  }
+
+  /**
+   * Calculate storage fee in JMD (business logic)
+   * @param daysInStorage Number of days in storage
+   * @returns Storage fee in JMD
+   */
+  static calculateStorageFeeJMD(daysInStorage: number): number {
+    if (daysInStorage <= 7) return 0;
+    return (daysInStorage - 7) * 50; // J$50 per day after 7 days
+  }
+
+  /**
+   * Calculate customs duty in JMD (business logic)
+   * @param itemValueUSD Item value in USD
+   * @returns Customs duty in JMD
+   */
+  static calculateCustomsDutyJMD(itemValueUSD: number): number {
+    // 15% customs duty on items over $100 USD
+    if (itemValueUSD <= 100) return 0;
+    const itemValueJMD = this.fromUSD(itemValueUSD, 'JMD');
+    return itemValueJMD * 0.15;
+  }
+
+  /**
+   * Calculate total package cost in JMD
+   * @param itemValueUSD Item value in USD
+   * @param weightKg Weight in kilograms
+   * @returns Total cost in JMD
+   */
+  static calculateTotalPackageCostJMD(itemValueUSD: number, weightKg: number): {
+    itemValueJMD: number;
+    shippingCostJMD: number;
+    customsDutyJMD: number;
+    totalJMD: number;
+    totalUSD: number;
+  } {
+    // Convert item value to JMD
+    const itemValueJMD = this.fromUSD(itemValueUSD, 'JMD');
     
-    // Apply currency format
-    switch (currencyInfo.code) {
-      case 'USD':
-        return `$${formattedAmount}`;
-      case 'JMD':
-        return `J$${formattedAmount}`;
-      case 'GBP':
-        return `£${formattedAmount}`;
-      case 'EUR':
-        return `€${formattedAmount}`;
-      default:
-        return `${currencyInfo.symbol}${formattedAmount}`;
-    }
-  }
-
-  async updateExchangeRates(): Promise<void> {
-    try {
-      // Fetch real-time rates from a free API (exchangerate-api.com)
-      const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
-      if (!response.ok) {
-        throw new Error('Failed to fetch exchange rates');
-      }
-
-      const data = await response.json();
-      const rates = data.rates;
-
-      // Update currencies in database
-      const currencies = await Currency.find({ isActive: true });
-      
-      for (const currency of currencies) {
-        if (currency.code === 'USD') {
-          currency.exchangeRate = 1.0; // USD is base currency
-        } else if (rates[currency.code]) {
-          currency.exchangeRate = rates[currency.code];
-        }
-        currency.lastUpdated = new Date();
-        await currency.save();
-      }
-
-      // Clear cache to force refresh
-      this.cache.clear();
-      this.lastCacheUpdate = null;
-    } catch (error) {
-      console.error('Failed to update exchange rates:', error);
-      throw error;
-    }
-  }
-
-  private async updateCacheIfNeeded(): Promise<void> {
-    const now = new Date();
+    // Calculate weight in lbs
+    const weightLbs = weightKg * 2.20462;
     
-    if (
-      !this.lastCacheUpdate || 
-      now.getTime() - this.lastCacheUpdate.getTime() > this.CACHE_DURATION
-    ) {
-      const currencies = await Currency.find({ isActive: true });
-      
-      this.cache.clear();
-      
-      for (const currency of currencies) {
-        this.cache.set(currency.code, {
-          code: currency.code,
-          name: currency.name,
-          symbol: currency.symbol,
-          exchangeRate: currency.exchangeRate,
-          decimalPlaces: currency.decimalPlaces,
-          format: currency.format,
-        });
-      }
-      
-      this.lastCacheUpdate = now;
-    }
+    // Calculate costs
+    const shippingCostJMD = this.calculateShippingCostJMD(weightLbs);
+    const customsDutyJMD = this.calculateCustomsDutyJMD(itemValueUSD);
+    const totalJMD = itemValueJMD + shippingCostJMD + customsDutyJMD;
+    const totalUSD = this.toUSD(totalJMD, 'JMD');
+    
+    return {
+      itemValueJMD,
+      shippingCostJMD,
+      customsDutyJMD,
+      totalJMD,
+      totalUSD,
+    };
   }
 
-  async initializeDefaultCurrencies(): Promise<void> {
-    // Complete worldwide currencies - easily configurable
-    const configurableCurrencies = [
-      // Major Global Currencies
-      { code: 'USD', name: 'US Dollar', symbol: '$', exchangeRate: 1.0, decimalPlaces: 2, format: '$1,234.56', isActive: true },
-      { code: 'EUR', name: 'Euro', symbol: '€', exchangeRate: 0.92, decimalPlaces: 2, format: '€1,234.56', isActive: true },
-      { code: 'GBP', name: 'British Pound', symbol: '£', exchangeRate: 0.79, decimalPlaces: 2, format: '£1,234.56', isActive: true },
-      { code: 'JPY', name: 'Japanese Yen', symbol: '¥', exchangeRate: 149.50, decimalPlaces: 0, format: '¥1,234', isActive: true },
-      
-      // Americas
-      { code: 'CAD', name: 'Canadian Dollar', symbol: 'C$', exchangeRate: 1.36, decimalPlaces: 2, format: 'C$1,234.56', isActive: true },
-      { code: 'AUD', name: 'Australian Dollar', symbol: 'A$', exchangeRate: 1.53, decimalPlaces: 2, format: 'A$1,234.56', isActive: true },
-      { code: 'MXN', name: 'Mexican Peso', symbol: '$', exchangeRate: 17.15, decimalPlaces: 2, format: '$1,234.56', isActive: true },
-      { code: 'BRL', name: 'Brazilian Real', symbol: 'R$', exchangeRate: 4.92, decimalPlaces: 2, format: 'R$1,234.56', isActive: true },
-      { code: 'CHF', name: 'Swiss Franc', symbol: 'Fr', exchangeRate: 0.88, decimalPlaces: 2, format: 'Fr1,234.56', isActive: true },
-      { code: 'CNY', name: 'Chinese Yuan', symbol: '¥', exchangeRate: 7.24, decimalPlaces: 2, format: '¥1,234.56', isActive: true },
-      
-      // Caribbean
-      { code: 'JMD', name: 'Jamaican Dollar', symbol: 'J$', exchangeRate: 155.0, decimalPlaces: 2, format: 'J$1,234.56', isActive: true },
-      { code: 'BBD', name: 'Barbadian Dollar', symbol: 'Bds$', exchangeRate: 2.0, decimalPlaces: 2, format: 'Bds$1,234.56', isActive: true },
-      { code: 'TTD', name: 'Trinidad & Tobago Dollar', symbol: 'TT$', exchangeRate: 6.75, decimalPlaces: 2, format: 'TT$1,234.56', isActive: true },
-      { code: 'XCD', name: 'Eastern Caribbean Dollar', symbol: 'EC$', exchangeRate: 2.70, decimalPlaces: 2, format: 'EC$1,234.56', isActive: true },
-      { code: 'BSD', name: 'Bahamian Dollar', symbol: 'B$', exchangeRate: 1.0, decimalPlaces: 2, format: 'B$1,234.56', isActive: true },
-      
-      // Europe & Scandinavia
-      { code: 'SEK', name: 'Swedish Krona', symbol: 'kr', exchangeRate: 10.75, decimalPlaces: 2, format: 'kr1,234.56', isActive: true },
-      { code: 'NOK', name: 'Norwegian Krone', symbol: 'kr', exchangeRate: 10.65, decimalPlaces: 2, format: 'kr1,234.56', isActive: true },
-      { code: 'DKK', name: 'Danish Krone', symbol: 'kr', exchangeRate: 6.85, decimalPlaces: 2, format: 'kr1,234.56', isActive: true },
-      { code: 'PLN', name: 'Polish Złoty', symbol: 'zł', exchangeRate: 4.05, decimalPlaces: 2, format: '1,234.56 zł', isActive: true },
-      { code: 'CZK', name: 'Czech Koruna', symbol: 'Kč', exchangeRate: 22.95, decimalPlaces: 2, format: '1,234.56 Kč', isActive: true },
-      { code: 'HUF', name: 'Hungarian Forint', symbol: 'Ft', exchangeRate: 355.50, decimalPlaces: 0, format: '1,234 Ft', isActive: true },
-      
-      // Asia & Middle East
-      { code: 'INR', name: 'Indian Rupee', symbol: '₹', exchangeRate: 83.12, decimalPlaces: 2, format: '₹1,234.56', isActive: true },
-      { code: 'SGD', name: 'Singapore Dollar', symbol: 'S$', exchangeRate: 1.34, decimalPlaces: 2, format: 'S$1,234.56', isActive: true },
-      { code: 'HKD', name: 'Hong Kong Dollar', symbol: 'HK$', exchangeRate: 7.82, decimalPlaces: 2, format: 'HK$1,234.56', isActive: true },
-      { code: 'KRW', name: 'South Korean Won', symbol: '₩', exchangeRate: 1315.25, decimalPlaces: 0, format: '₩1,234', isActive: true },
-      { code: 'THB', name: 'Thai Baht', symbol: '฿', exchangeRate: 35.85, decimalPlaces: 2, format: '฿1,234.56', isActive: true },
-      { code: 'MYR', name: 'Malaysian Ringgit', symbol: 'RM', exchangeRate: 4.65, decimalPlaces: 2, format: 'RM1,234.56', isActive: true },
-      { code: 'IDR', name: 'Indonesian Rupiah', symbol: 'Rp', exchangeRate: 15425.0, decimalPlaces: 0, format: 'Rp1,234', isActive: true },
-      { code: 'PHP', name: 'Philippine Peso', symbol: '₱', exchangeRate: 56.35, decimalPlaces: 2, format: '₱1,234.56', isActive: true },
-      { code: 'AED', name: 'UAE Dirham', symbol: 'د.إ', exchangeRate: 3.67, decimalPlaces: 2, format: 'د.إ1,234.56', isActive: true },
-      { code: 'SAR', name: 'Saudi Riyal', symbol: '﷼', exchangeRate: 3.75, decimalPlaces: 2, format: '﷼1,234.56', isActive: true },
-      
-      // Africa
-      { code: 'ZAR', name: 'South African Rand', symbol: 'R', exchangeRate: 18.95, decimalPlaces: 2, format: 'R1,234.56', isActive: true },
-      { code: 'EGP', name: 'Egyptian Pound', symbol: 'E£', exchangeRate: 30.90, decimalPlaces: 2, format: 'E£1,234.56', isActive: true },
-      { code: 'NGN', name: 'Nigerian Naira', symbol: '₦', exchangeRate: 777.50, decimalPlaces: 2, format: '₦1,234.56', isActive: true },
-      { code: 'KES', name: 'Kenyan Shilling', symbol: 'KSh', exchangeRate: 152.75, decimalPlaces: 2, format: 'KSh1,234.56', isActive: true },
-      
-      // Other Major Currencies
-      { code: 'RUB', name: 'Russian Ruble', symbol: '₽', exchangeRate: 90.45, decimalPlaces: 2, format: '₽1,234.56', isActive: true },
-      { code: 'TRY', name: 'Turkish Lira', symbol: '₺', exchangeRate: 28.95, decimalPlaces: 2, format: '₺1,234.56', isActive: true },
-      { code: 'NZD', name: 'New Zealand Dollar', symbol: 'NZ$', exchangeRate: 1.63, decimalPlaces: 2, format: 'NZ$1,234.56', isActive: true },
-      { code: 'ISK', name: 'Icelandic Króna', symbol: 'kr', exchangeRate: 138.50, decimalPlaces: 0, format: 'kr1,234', isActive: true },
-    ];
-
-    for (const currencyData of configurableCurrencies) {
-      const existing = await Currency.findOne({ code: currencyData.code });
-      if (!existing) {
-        await Currency.create({
-          ...currencyData,
-          isActive: currencyData.isActive
-        });
-      } else {
-        // Update existing currency with new settings
-        existing.name = currencyData.name;
-        existing.symbol = currencyData.symbol;
-        existing.decimalPlaces = currencyData.decimalPlaces;
-        existing.format = currencyData.format;
-        existing.isActive = currencyData.isActive;
-        await existing.save();
-      }
-    }
+  /**
+   * Calculate total package cost in specified currency
+   * @param itemValueUSD Item value in USD
+   * @param weightKg Weight in kilograms
+   * @param targetCurrency Target currency code
+   * @returns Total cost breakdown
+   */
+  static calculateTotalPackageCost(
+    itemValueUSD: number, 
+    weightKg: number, 
+    targetCurrency: string = 'JMD'
+  ) {
+    const jmdBreakdown = this.calculateTotalPackageCostJMD(itemValueUSD, weightKg);
+    const totalInTargetCurrency = this.convert(jmdBreakdown.totalJMD, 'JMD', targetCurrency);
+    
+    return {
+      ...jmdBreakdown,
+      targetCurrency,
+      totalInTargetCurrency: totalInTargetCurrency.amount,
+      formattedTotal: totalInTargetCurrency.formatted,
+    };
   }
 }
 
-export const currencyService = CurrencyService.getInstance();
+export const currencyService = new CurrencyService();

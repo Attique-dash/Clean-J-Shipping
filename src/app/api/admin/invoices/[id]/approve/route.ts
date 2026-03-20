@@ -79,6 +79,22 @@ export async function POST(
       // Generate bill if requested
       if (data.generateBill) {
         try {
+          // Get customer information first
+          const userIdString = typeof pkg.userId === 'string' ? pkg.userId : pkg.userId?.toString();
+          const customer = await User.findById(userIdString);
+          
+          if (!customer) {
+            return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+          }
+
+          // Get customer name from available fields
+          const getCustomerName = (customer: any) => {
+            if (customer.name) return customer.name;
+            if (customer.firstName && customer.lastName) return `${customer.firstName} ${customer.lastName}`;
+            if (customer.firstName) return customer.firstName;
+            return 'Valued Customer';
+          };
+
           // Calculate fees
           const itemValue = pkg.pricePaid || 0;
           const shippingFeeValue = shippingFee || 0;
@@ -116,6 +132,8 @@ export async function POST(
           // Create the bill
           const bill = new Bill({
             customerId: pkg.userId,
+            customerName: getCustomerName(customer),
+            customerEmail: customer.email,
             packages: [{
               packageId: pkg._id,
               trackingNumber: pkg.trackingNumber,
@@ -147,15 +165,13 @@ export async function POST(
           let emailSent = false;
           let emailErrorMsg = '';
           try {
-            // Handle userId that might be string or ObjectId
-            const userIdString = typeof pkg.userId === 'string' ? pkg.userId : pkg.userId?.toString();
-            console.log('Looking up customer with userId:', userIdString);
+            console.log('Found customer for email:', { name: customer.name, email: customer.email, _id: customer._id });
             
-            const customer = await User.findById(userIdString);
-            console.log('Found customer for email:', customer ? { name: customer.name, email: customer.email, _id: customer._id } : 'null');
-            
-            if (customer && customer.email) {
-              const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://cleanjshipping.com';
+            if (customer.email) {
+
+              const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL 
+              ? `https://${process.env.VERCEL_URL}` 
+              : 'https://clean-j-shipping.vercel.app';
               const paymentLink = `${baseUrl}/customer/pay/${bill.billNumber}`;
 
               console.log('Sending billing email to:', customer.email);
@@ -168,7 +184,7 @@ export async function POST(
 
               emailSent = await emailService.sendBillingEmail({
                 to: customer.email,
-                customerName: customer.name || 'Valued Customer',
+                customerName: getCustomerName(customer),
                 billNumber: bill.billNumber,
                 packages: [{
                   trackingNumber: pkg.trackingNumber,
@@ -177,7 +193,8 @@ export async function POST(
                   itemValue: itemValue,
                   shippingFee: shippingFeeValue,
                   customsFee: customsFeeValue,
-                  total: itemValue + shippingFeeValue + customsFeeValue
+                  total: itemValue + shippingFeeValue + customsFeeValue,
+                  content: pkg.content || pkg.description || pkg.itemDescription || 'N/A'
                 }],
                 itemTotal: itemValue,
                 shippingFee: shippingFeeValue,

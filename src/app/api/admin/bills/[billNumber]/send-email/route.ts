@@ -36,25 +36,44 @@ export async function POST(
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
+    // Get customer name from available fields
+    const getCustomerName = (customer: any) => {
+      if (customer.name) return customer.name;
+      if (customer.firstName && customer.lastName) return `${customer.firstName} ${customer.lastName}`;
+      if (customer.firstName) return customer.firstName;
+      return 'Valued Customer';
+    };
+
     // Generate payment link with correct domain
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://clean-j-shipping.vercel.app';
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : 'https://clean-j-shipping.vercel.app';
     const paymentLink = `${baseUrl}/customer/pay/${billNumber}`;
 
     // Send billing email with package content/description
+    const packagesWithContent = await Promise.all(
+      bill.packages.map(async (pkg: IBill['packages'][0]) => {
+        // Fetch the full package details to get content/description
+        const fullPackage = await (await import('@/models/Package')).default.findById(pkg.packageId);
+        
+        return {
+          trackingNumber: pkg.trackingNumber,
+          shipper: pkg.shipper || 'Unknown',
+          weight: pkg.weight || 0,
+          itemValue: pkg.itemValue,
+          shippingFee: pkg.shippingFee,
+          customsFee: pkg.customsFee,
+          total: pkg.total,
+          content: fullPackage?.content || fullPackage?.description || fullPackage?.itemDescription || 'N/A'
+        };
+      })
+    );
+
     const emailSent = await emailService.sendBillingEmail({
       to: customer.email,
-      customerName: customer.name || 'Valued Customer',
+      customerName: getCustomerName(customer),
       billNumber: bill.billNumber,
-      packages: bill.packages.map((pkg: IBill['packages'][0]) => ({
-        trackingNumber: pkg.trackingNumber,
-        shipper: pkg.shipper || 'Unknown',
-        weight: pkg.weight || 0,
-        itemValue: pkg.itemValue,
-        shippingFee: pkg.shippingFee,
-        customsFee: pkg.customsFee,
-        total: pkg.total,
-        content: (pkg as any).content || (pkg as any).description || (pkg as any).itemDescription || 'N/A'
-      })),
+      packages: packagesWithContent,
       itemTotal: bill.itemTotal,
       shippingFee: bill.shippingFee,
       customsFee: bill.customsFee,

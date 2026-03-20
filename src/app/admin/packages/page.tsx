@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { ExportService } from '@/lib/export-service';
+import { CurrencyService } from '@/lib/currency-service';
 import { 
   Search, 
   Plus, 
@@ -193,7 +194,11 @@ export default function AdminPackagesPage() {
   const selectedCount = selectedIds.size;
 
   const formatUsd = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
+    return CurrencyService.format(amount, 'USD');
+  };
+
+  const formatJmd = (amount: number) => {
+    return CurrencyService.format(amount, 'JMD');
   };
 
   const humanStatus = (s: string) => {

@@ -187,7 +187,7 @@ export default function CustomerLayout({
           <nav className="flex-1 space-y-1 p-4 overflow-y-auto pr-2 scrollbar-orange overscroll-contain">
             {navItems.map((item) => {
               const Icon = item.icon;
-              // Special case: Bills & Payments should be active for both /customer/bills and /customer/payments
+              // Special case: Bills & Payments should be active for both /customer/bills, /customer/payments, and /customer/pay/
               const isActive =
                 item.href === "/customer"
                   ? pathname === "/customer"
@@ -195,7 +195,8 @@ export default function CustomerLayout({
                   ? pathname === item.href ||
                     pathname.startsWith(item.href + "/") ||
                     pathname === "/customer/payments" ||
-                    pathname.startsWith("/customer/payments/")
+                    pathname.startsWith("/customer/payments/") ||
+                    pathname.startsWith("/customer/pay/")
                   : pathname === item.href ||
                     pathname.startsWith(item.href + "/");
 

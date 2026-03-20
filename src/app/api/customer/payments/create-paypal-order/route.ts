@@ -1,28 +1,24 @@
 import { NextResponse } from "next/server";
 import { getAuthFromRequest } from "@/lib/rbac";
-import * as paypal from "@paypal/checkout-server-sdk";
-
-function paypalClient() {
-  const clientId = process.env.PAYPAL_CLIENT_ID;
-  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
-  const environment = process.env.PAYPAL_ENVIRONMENT || "sandbox";
-
-  if (!clientId || !clientSecret) {
-    return null;
-  }
-
-  const environment_obj =
-    environment === "production"
-      ? new paypal.core.LiveEnvironment(clientId, clientSecret)
-      : new paypal.core.SandboxEnvironment(clientId, clientSecret);
-
-  return new paypal.core.PayPalHttpClient(environment_obj);
-}
+import { createPayPalOrder, validatePayPalConfig, PayPalOrderRequest } from "@/lib/paypal";
 
 export async function POST(req: Request) {
   const payload = await getAuthFromRequest(req);
   if (!payload || payload.role !== "customer") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Validate PayPal configuration
+  const validation = validatePayPalConfig();
+  if (!validation.isValid) {
+    console.error("PayPal configuration error:", validation.error);
+    return NextResponse.json(
+      { 
+        error: "PayPal service unavailable", 
+        details: "Payment service is temporarily unavailable. Please try again later or contact support."
+      }, 
+      { status: 503 }
+    );
   }
 
   try {
@@ -33,87 +29,57 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
     }
 
-    const client = paypalClient();
-    if (!client) {
-      return NextResponse.json({ error: "PayPal not configured" }, { status: 500 });
+    // Validate currency
+    const supportedCurrencies = ["JMD", "USD", "EUR", "GBP"];
+    if (!supportedCurrencies.includes(currency)) {
+      return NextResponse.json({ 
+        error: "Unsupported currency",
+        supportedCurrencies 
+      }, { status: 400 });
     }
 
-    // Create PayPal order
-    const request = new (paypal as any).orders.OrdersCreateRequest();
-    request.prefer("return=representation");
-    
-    // Build purchase units - support both single and multiple items
-    const purchaseUnits: any[] = [];
-    
-    if (items && Array.isArray(items) && items.length > 0) {
-      // Multiple items - create breakdown
-      const itemList = items.map((item: any) => ({
-        name: item.invoiceNumber ? `Invoice #${item.invoiceNumber}` : `Package ${item.trackingNumber}`,
-        description: `Tracking: ${item.trackingNumber}`,
-        quantity: "1",
-        unit_amount: {
-          currency_code: currency,
-          value: (item.amount || 0).toFixed(2),
-        },
-      }));
-      
-      purchaseUnits.push({
-        description: description || `Payment for ${items.length} invoice${items.length !== 1 ? 's' : ''}`,
-        custom_id: items.map((i: any) => i.trackingNumber).join(','),
-        amount: {
-          currency_code: currency,
-          value: amount.toFixed(2),
-          breakdown: {
-            item_total: {
-              currency_code: currency,
-              value: amount.toFixed(2),
-            },
-          },
-        },
-        items: itemList,
-      });
-    } else {
-      // Single item (backward compatibility)
-      purchaseUnits.push({
-        description: description,
-        custom_id: trackingNumber || `INV-${Date.now()}`,
-        amount: {
-          currency_code: currency,
-          value: amount.toFixed(2),
-        },
-      });
-    }
-    
-    request.requestBody({
-      intent: "CAPTURE",
-      purchase_units: purchaseUnits,
-      application_context: {
-        brand_name: "Clean J Shipping",
-        landing_page: "NO_PREFERENCE",
-        user_action: "PAY_NOW",
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/customer/bills?paypal=success`,
-        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/customer/bills?paypal=cancelled`,
-      },
+    const orderRequest: PayPalOrderRequest = {
+      amount,
+      currency,
+      description,
+      trackingNumber,
+      items,
+    };
+
+    const order = await createPayPalOrder(orderRequest);
+
+    return NextResponse.json({
+      success: true,
+      orderId: order.orderId,
+      status: order.status,
+      approvalUrl: order.approvalUrl,
     });
-
-    const order = await client.execute(request);
-
-    if (order.statusCode === 201 && order.result) {
-      return NextResponse.json({
-        orderId: order.result.id,
-        status: order.result.status,
-      });
-    } else {
-      throw new Error("Failed to create PayPal order");
-    }
   } catch (error) {
     console.error("PayPal order creation error:", error);
+    
+    // Handle specific PayPal errors
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    let statusCode = 500;
+    let userMessage = "Failed to create payment order. Please try again.";
+
+    if (errorMessage.includes("Invalid amount")) {
+      statusCode = 400;
+      userMessage = "Invalid payment amount specified.";
+    } else if (errorMessage.includes("PayPal client not initialized")) {
+      statusCode = 503;
+      userMessage = "Payment service is temporarily unavailable.";
+    } else if (errorMessage.includes("Failed to create PayPal order")) {
+      statusCode = 502;
+      userMessage = "Payment provider error. Please try again or use alternative payment method.";
+    }
+
     return NextResponse.json(
       {
-        error: "Failed to create PayPal order",
-        details: error instanceof Error ? error.message : "Unknown error",
+        error: "Payment order creation failed",
+        details: userMessage,
+        ...(process.env.NODE_ENV === "development" && { technicalDetails: errorMessage })
       },
-      { status: 500 }
+      { status: statusCode }
     );
   }
 }

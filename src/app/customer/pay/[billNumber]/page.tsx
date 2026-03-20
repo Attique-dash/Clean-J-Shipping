@@ -519,10 +519,10 @@ export default function PaymentPage() {
             </div>
             
             <Link
-              href="/customer/bills"
+              href={`/customer/pay/${billNumber}`}
               className="inline-flex items-center gap-2 px-6 py-3 bg-[#0f4d8a] text-white rounded-xl hover:bg-[#1e6bb8] transition-colors font-medium"
             >
-              Go to Bills
+              View Payment Details
               <ChevronRight className="h-5 w-5" />
             </Link>
           </div>
@@ -822,17 +822,6 @@ export default function PaymentPage() {
               {/* Payment Method Selection */}
               <div className="flex gap-4 mb-6">
                 <button
-                  onClick={() => { setPaymentMethod('card'); setUsePayPal(false); }}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-colors ${
-                    paymentMethod === 'card' && !usePayPal
-                      ? 'border-[#0f4d8a] bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <CreditCard className="h-5 w-5" />
-                  <span className="font-medium">Credit Card</span>
-                </button>
-                <button
                   onClick={() => { setPaymentMethod('paypal'); setUsePayPal(true); }}
                   className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-colors ${
                     paymentMethod === 'paypal' || usePayPal
@@ -842,6 +831,17 @@ export default function PaymentPage() {
                 >
                   <DollarSign className="h-5 w-5" />
                   <span className="font-medium">PayPal</span>
+                </button>
+                <button
+                  onClick={() => { setPaymentMethod('card'); setUsePayPal(false); }}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-colors ${
+                    paymentMethod === 'card' && !usePayPal
+                      ? 'border-[#0f4d8a] bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <CreditCard className="h-5 w-5" />
+                  <span className="font-medium">Testing</span>
                 </button>
               </div>
 
@@ -874,7 +874,7 @@ export default function PaymentPage() {
                 <div className="space-y-4">
                   <PayPalScriptProvider
                     options={{
-                      clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "",
+                      clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || process.env.PAYPAL_CLIENT_ID || "",
                       currency: "USD",
                       intent: "capture",
                     }}
