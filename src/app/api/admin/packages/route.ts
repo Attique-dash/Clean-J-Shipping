@@ -6,8 +6,6 @@ import { User } from "@/models/User";
 import Invoice from "@/models/Invoice";
 import { InventoryService } from "@/lib/inventory-service";
 import { CurrencyService } from "@/lib/currency-service";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth-config";
 
 function asString(value: unknown): string {
   if (typeof value === 'string') return value;
@@ -635,7 +633,7 @@ export async function POST(req: Request) {
     let customerEmailResult: { sent: boolean; reason?: string } | undefined;
     try {
       const { sendNewPackageEmail } = await import('@/lib/email');
-      const invoiceId = billingInvoice?._id?.toString() || '';
+      const invoiceId: string = billingInvoice?._id?.toString() || '';
       
       // Get warehouse addresses from default warehouse
       let warehouseAddresses = { airAddress: '', seaAddress: '', chinaAddress: '' };
@@ -702,7 +700,7 @@ export async function POST(req: Request) {
     // NEW: Automatically deduct inventory materials
     try {
       const inventoryResult = await InventoryService.deductPackageMaterials(
-        { ...packageData, trackingNumber: String(trackingNumber), warehouseLocation: (packageData as any).warehouseLocation || 'Main Warehouse' },
+        { ...packageData, trackingNumber: String(trackingNumber), warehouseLocation: (packageData.warehouseLocation as string) || 'Main Warehouse' },
         created._id.toString(),
         payload?.id
       );
@@ -980,8 +978,8 @@ export async function PUT(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || !['admin', 'warehouse_staff', 'customer_support'].includes(session.user.role)) {
+  const payload = await getAuthFromRequest(req);
+  if (!payload || !['admin', 'warehouse_staff', 'customer_support'].includes(payload.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
