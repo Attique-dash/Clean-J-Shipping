@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
+import { getAuthFromRequest } from "@/lib/rbac";
 import { Package } from "@/models/Package";
 import { User } from "@/models/User";
 import Invoice from "@/models/Invoice";
 import { InventoryService } from "@/lib/inventory-service";
 import { CurrencyService } from "@/lib/currency-service";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth-config";
 
 function asString(value: unknown): string {
@@ -189,8 +190,8 @@ async function createBillingInvoice(packageData: any, user: any, trackingNumber:
 }
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || !['admin', 'warehouse_staff', 'customer_support'].includes(session.user.role)) {
+  const payload = await getAuthFromRequest(req);
+  if (!payload || !['admin', 'warehouse_staff', 'customer_support'].includes(payload.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -402,14 +403,14 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || !['admin', 'warehouse_staff', 'customer_support'].includes(session.user.role)) {
+  const payload = await getAuthFromRequest(req);
+  if (!payload || !['admin', 'warehouse_staff', 'customer_support'].includes(payload.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // Rate limiting
   const { rateLimit } = await import('@/lib/rateLimit');
-  const userIdentifier = session.user.id || session.user.email || 'unknown';
+  const userIdentifier = payload.id || payload.email || 'unknown';
   const rateLimitResult = rateLimit(`admin-packages-${userIdentifier}`, {
     windowMs: 60 * 1000, // 1 minute
     maxRequests: 30 // 30 requests per minute
@@ -601,7 +602,7 @@ export async function POST(req: Request) {
           origin: typeof branch === "string" ? branch : "Main Warehouse",
           expectedDate: new Date(),
           status: "approved", // Auto-approved since admin created it
-          notes: `Package added by admin${session?.user?.name ? ` (${session.user.name})` : ""}`,
+          notes: `Package added by admin${payload?.name ? ` (${payload.name})` : ""}`,
           decidedAt: new Date(),
         });
         console.log(`Pre-alert created for admin package ${asString(trackingNumber)}`);
@@ -662,7 +663,7 @@ export async function POST(req: Request) {
         weight: asNumber(weight),
         shipper: asString(shipper),
         warehouse: asString(branch) || 'Main Warehouse',
-        receivedBy: session.user.name || 'Admin',
+        receivedBy: payload?.name || 'Admin',
         receivedDate: new Date(),
         invoiceId: invoiceId, // Attach invoice PDF if available
         description: asString(description),
@@ -700,11 +701,10 @@ export async function POST(req: Request) {
 
     // NEW: Automatically deduct inventory materials
     try {
-      const session = await getServerSession(authOptions);
       const inventoryResult = await InventoryService.deductPackageMaterials(
-        { ...packageData, trackingNumber: String(trackingNumber), warehouseLocation: (packageData as Record<string, unknown>).warehouseLocation as string || 'Main Warehouse' },
+        { ...packageData, trackingNumber: String(trackingNumber), warehouseLocation: (packageData as any).warehouseLocation || 'Main Warehouse' },
         created._id.toString(),
-        session?.user?.id
+        payload?.id
       );
       
       if (inventoryResult.success) {
@@ -747,14 +747,14 @@ export async function POST(req: Request) {
 }
 
 export async function PUT(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || !['admin', 'warehouse_staff', 'customer_support'].includes(session.user.role)) {
+  const payload = await getAuthFromRequest(req);
+  if (!payload || !['admin', 'warehouse_staff', 'customer_support'].includes(payload.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // Rate limiting
   const { rateLimit } = await import('@/lib/rateLimit');
-  const userIdentifier = session.user.id || session.user.email || 'unknown';
+  const userIdentifier = payload.id || payload.email || 'unknown';
   const rateLimitResult = rateLimit(`admin-packages-update-${userIdentifier}`, {
     windowMs: 60 * 1000, // 1 minute
     maxRequests: 50 // 50 requests per minute

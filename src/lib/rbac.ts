@@ -28,6 +28,7 @@ export interface AuthPayload {
   email: string;
   role: "admin" | "customer" | "warehouse";
   userCode?: string;
+  name?: string;
 }
 
 export async function getAuthFromRequest(req: Request | NextRequest): Promise<AuthPayload | null> {
