@@ -22,7 +22,8 @@ import {
   UserCircle,
   Receipt,
   Settings,
-  Key
+  Key,
+  Plug
 } from "lucide-react";
 
 export default function AdminLayout({
@@ -131,6 +132,13 @@ export default function AdminLayout({
       icon: Key,
       description: "Manage API keys for integrations",
       color: "from-amber-500 to-amber-600",
+    },
+    {
+      href: "/admin/kcd-test",
+      label: "KCD Test",
+      icon: Plug,
+      description: "Test KCD Logistics webhook endpoint",
+      color: "from-teal-500 to-teal-600",
     },
     {
       href: "/admin/profile",

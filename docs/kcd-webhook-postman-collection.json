@@ -1,0 +1,262 @@
+{
+  "info": {
+    "name": "KCD Logistics Webhook Test",
+    "description": "Test collection for KCD webhook integration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "cleanj-shipping"
+  },
+  "item": [
+    {
+      "name": "1. Test Webhook - Valid Payload",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "XoZedblJE0neONu5EvN3CE2xGkOw9ggwCSysjrGpjF2S2KqY"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"trackingNumber\": \"TBA3295097\",\n  \"houseNumber\": \"CLEAN0000001\",\n  \"customerMailbox\": \"CLEAN-0007\",\n  \"weight\": \"2.5\",\n  \"shipper\": \"Amazon\",\n  \"receivedAt\": \"2026-03-23T10:12:00Z\"\n}"
+        },
+        "url": {
+          "raw": "https://cleanjshipping.vercel.app/api/kcd/packages/add",
+          "protocol": "https",
+          "host": [
+            "cleanjshipping",
+            "vercel",
+            "app"
+          ],
+          "path": [
+            "api",
+            "kcd",
+            "packages",
+            "add"
+          ]
+        },
+        "description": "Test the webhook with a valid payload. Should return 201 Created."
+      }
+    },
+    {
+      "name": "2. Test Webhook - Missing API Key",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"trackingNumber\": \"TBA3295098\",\n  \"customerMailbox\": \"CLEAN-0007\"\n}"
+        },
+        "url": {
+          "raw": "https://cleanjshipping.vercel.app/api/kcd/packages/add",
+          "protocol": "https",
+          "host": [
+            "cleanjshipping",
+            "vercel",
+            "app"
+          ],
+          "path": [
+            "api",
+            "kcd",
+            "packages",
+            "add"
+          ]
+        },
+        "description": "Test without API key. Should return 401 Unauthorized."
+      }
+    },
+    {
+      "name": "3. Test Webhook - Invalid API Key",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "invalid_key_here"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"trackingNumber\": \"TBA3295099\",\n  \"customerMailbox\": \"CLEAN-0007\"\n}"
+        },
+        "url": {
+          "raw": "https://cleanjshipping.vercel.app/api/kcd/packages/add",
+          "protocol": "https",
+          "host": [
+            "cleanjshipping",
+            "vercel",
+            "app"
+          ],
+          "path": [
+            "api",
+            "kcd",
+            "packages",
+            "add"
+          ]
+        },
+        "description": "Test with invalid API key. Should return 401 Unauthorized."
+      }
+    },
+    {
+      "name": "4. Test Webhook - Missing Required Fields",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "XoZedblJE0neONu5EvN3CE2xGkOw9ggwCSysjrGpjF2S2KqY"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"shipper\": \"Amazon\"\n}"
+        },
+        "url": {
+          "raw": "https://cleanjshipping.vercel.app/api/kcd/packages/add",
+          "protocol": "https",
+          "host": [
+            "cleanjshipping",
+            "vercel",
+            "app"
+          ],
+          "path": [
+            "api",
+            "kcd",
+            "packages",
+            "add"
+          ]
+        },
+        "description": "Test with missing trackingNumber and customerMailbox. Should return 400 Bad Request."
+      }
+    },
+    {
+      "name": "5. Test Webhook - Invalid JSON",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "XoZedblJE0neONu5EvN3CE2xGkOw9ggwCSysjrGpjF2S2KqY"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "this is not valid json"
+        },
+        "url": {
+          "raw": "https://cleanjshipping.vercel.app/api/kcd/packages/add",
+          "protocol": "https",
+          "host": [
+            "cleanjshipping",
+            "vercel",
+            "app"
+          ],
+          "path": [
+            "api",
+            "kcd",
+            "packages",
+            "add"
+          ]
+        },
+        "description": "Test with invalid JSON body. Should return 400 Bad Request."
+      }
+    },
+    {
+      "name": "6. Test Webhook - Duplicate Package",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "XoZedblJE0neONu5EvN3CE2xGkOw9ggwCSysjrGpjF2S2KqY"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"trackingNumber\": \"TBA3295097\",\n  \"houseNumber\": \"CLEAN0000001\",\n  \"customerMailbox\": \"CLEAN-0007\",\n  \"weight\": \"2.5\",\n  \"shipper\": \"Amazon\",\n  \"receivedAt\": \"2026-03-23T10:12:00Z\"\n}"
+        },
+        "url": {
+          "raw": "https://cleanjshipping.vercel.app/api/kcd/packages/add",
+          "protocol": "https",
+          "host": [
+            "cleanjshipping",
+            "vercel",
+            "app"
+          ],
+          "path": [
+            "api",
+            "kcd",
+            "packages",
+            "add"
+          ]
+        },
+        "description": "Test with duplicate tracking number. Should return 409 Conflict."
+      }
+    },
+    {
+      "name": "7. View Request Logs (Debug)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-API-Key",
+            "value": "XoZedblJE0neONu5EvN3CE2xGkOw9ggwCSysjrGpjF2S2KqY"
+          }
+        ],
+        "url": {
+          "raw": "https://cleanjshipping.vercel.app/api/kcd/packages/add",
+          "protocol": "https",
+          "host": [
+            "cleanjshipping",
+            "vercel",
+            "app"
+          ],
+          "path": [
+            "api",
+            "kcd",
+            "packages",
+            "add"
+          ]
+        },
+        "description": "View recent webhook request logs. Requires valid API key."
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://cleanjshipping.vercel.app",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "XoZedblJE0neONu5EvN3CE2xGkOw9ggwCSysjrGpjF2S2KqY",
+      "type": "string"
+    }
+  ]
+}
