@@ -557,7 +557,7 @@ export async function POST(req: Request) {
       branch: branch || "Main Warehouse",
       // Required fields with defaults
       shippingCost: 0,
-      totalAmount: calculateTotalAmount(asNumber(value), asNumber(weight)),
+      totalAmount: calculateTotalAmount(asNumber(value), asNumber(weight)).totalInTargetCurrency,
       paymentMethod: "cash",
       // Legacy fields for compatibility
       itemDescription: description || "Package description",
