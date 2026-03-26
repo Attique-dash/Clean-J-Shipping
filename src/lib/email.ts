@@ -487,3 +487,230 @@ export async function sendPackageNotificationToRecipient(opts: {
   });
   return { sent: true };
 }
+
+// ============== PAYPAL PAYMENT EMAILS ==============
+
+export async function sendBillCreatedEmail(opts: {
+  to: string;
+  firstName?: string;
+  billNumber: string;
+  amount: number;
+  currency: string;
+  dueDate?: Date;
+  paymentUrl?: string;
+  packageCount: number;
+}) {
+  const t = getTransporter();
+  if (!t) return { sent: false, reason: "Email not configured" };
+
+  const { to, firstName, billNumber, amount, currency, dueDate, paymentUrl, packageCount } = opts;
+  const dueDateStr = dueDate ? new Date(dueDate).toLocaleDateString() : 'N/A';
+  
+  const subject = `New Bill Created — #${billNumber}`;
+  const html = `
+  <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;max-width:600px;margin:0 auto;">
+    <div style="background:linear-gradient(135deg,#0f4d8a 0%,#1e6bb8 100%);padding:32px 24px;text-align:center;border-radius:8px 8px 0 0;">
+      <h1 style="color:#fff;margin:0;font-size:24px;">New Bill Available</h1>
+    </div>
+    <div style="background:#fff;padding:32px 24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;">
+      <p style="font-size:16px;margin:0 0 16px 0;">Hi ${firstName || "Customer"},</p>
+      <p style="font-size:16px;margin:0 0 16px 0;">A new bill has been created for your packages.</p>
+      
+      <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin:24px 0;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="padding:8px 0;color:#6b7280;font-size:14px;">Bill Number:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:600;font-size:16px;">${billNumber}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;color:#6b7280;font-size:14px;">Packages:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:600;font-size:16px;">${packageCount}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;color:#6b7280;font-size:14px;">Due Date:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:600;font-size:16px;">${dueDateStr}</td>
+          </tr>
+          <tr style="border-top:2px solid #e5e7eb;">
+            <td style="padding:12px 0 0 0;color:#111;font-size:16px;font-weight:600;">Total Amount:</td>
+            <td style="padding:12px 0 0 0;text-align:right;font-weight:700;font-size:20px;color:#059669;">${currency} ${amount.toFixed(2)}</td>
+          </tr>
+        </table>
+      </div>
+      
+      ${paymentUrl ? `
+      <div style="text-align:center;margin:32px 0;">
+        <a href="${paymentUrl}" style="background:linear-gradient(135deg,#0f4d8a 0%,#1e6bb8 100%);color:#fff;padding:16px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;display:inline-block;">Pay Now with PayPal</a>
+      </div>
+      <p style="font-size:14px;color:#6b7280;text-align:center;margin:16px 0;">Click the button above to pay securely via PayPal</p>
+      ` : '<p style="font-size:14px;color:#6b7280;">Payment link will be sent separately.</p>'}
+      
+      <p style="font-size:14px;color:#6b7280;margin:24px 0 0 0;">Questions? Contact us at <a href="mailto:support@cleanjshipping.com" style="color:#0f4d8a;">support@cleanjshipping.com</a></p>
+    </div>
+  </div>`;
+
+  await t.sendMail({ from: SMTP_USER, to, subject, html });
+  return { sent: true };
+}
+
+export async function sendPaymentConfirmationEmail(opts: {
+  to?: string;
+  firstName?: string;
+  billNumber: string;
+  amount: number;
+  currency: string;
+  paidAt: Date;
+  paypalOrderId: string;
+  transactionId?: string;
+  packageCount: number;
+}) {
+  const t = getTransporter();
+  if (!t) return { sent: false, reason: "Email not configured" };
+  if (!opts.to) return { sent: false, reason: "No recipient email" };
+
+  const { to, firstName, billNumber, amount, currency, paidAt, paypalOrderId, transactionId, packageCount } = opts;
+  const paidDateStr = new Date(paidAt).toLocaleString();
+  
+  const subject = `Payment Confirmed — Bill #${billNumber}`;
+  const html = `
+  <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;max-width:600px;margin:0 auto;">
+    <div style="background:linear-gradient(135deg,#059669 0%,#10b981 100%);padding:32px 24px;text-align:center;border-radius:8px 8px 0 0;">
+      <h1 style="color:#fff;margin:0;font-size:24px;">Payment Successful!</h1>
+    </div>
+    <div style="background:#fff;padding:32px 24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;">
+      <p style="font-size:16px;margin:0 0 16px 0;">Hi ${firstName || "Customer"},</p>
+      <p style="font-size:16px;margin:0 0 16px 0;">Thank you for your payment. Your bill has been paid successfully.</p>
+      
+      <div style="background:#ecfdf5;border:1px solid #10b981;border-radius:8px;padding:20px;margin:24px 0;">
+        <p style="text-align:center;font-size:18px;font-weight:700;color:#059669;margin:0 0 16px 0;">Payment Confirmed</p>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="padding:8px 0;color:#6b7280;font-size:14px;">Bill Number:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:600;">${billNumber}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;color:#6b7280;font-size:14px;">Amount Paid:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:700;color:#059669;">${currency} ${amount.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;color:#6b7280;font-size:14px;">Paid At:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:600;">${paidDateStr}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;color:#6b7280;font-size:14px;">Transaction ID:</td>
+            <td style="padding:8px 0;text-align:right;font-family:monospace;font-size:12px;">${transactionId || paypalOrderId}</td>
+          </tr>
+        </table>
+      </div>
+      
+      <p style="font-size:16px;margin:24px 0 8px 0;"><strong>Your packages are now ready for pickup!</strong></p>
+      <p style="font-size:14px;color:#6b7280;margin:0;">You can collect your ${packageCount} package${packageCount !== 1 ? 's' : ''} at your convenience.</p>
+      
+      <div style="text-align:center;margin:32px 0;">
+        <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/customer/dashboard" style="background:#0f4d8a;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block;">View My Packages</a>
+      </div>
+      
+      <p style="font-size:14px;color:#6b7280;margin:24px 0 0 0;">Questions? Contact us at <a href="mailto:support@cleanjshipping.com" style="color:#0f4d8a;">support@cleanjshipping.com</a></p>
+    </div>
+  </div>`;
+
+  await t.sendMail({ from: SMTP_USER, to, subject, html });
+  return { sent: true };
+}
+
+export async function sendPaymentFailedEmail(opts: {
+  to?: string;
+  firstName?: string;
+  billNumber: string;
+  amount: number;
+  currency: string;
+  reason: string;
+}) {
+  const t = getTransporter();
+  if (!t) return { sent: false, reason: "Email not configured" };
+  if (!opts.to) return { sent: false, reason: "No recipient email" };
+
+  const { to, firstName, billNumber, amount, currency, reason } = opts;
+  
+  const subject = `Payment Failed — Bill #${billNumber}`;
+  const html = `
+  <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;max-width:600px;margin:0 auto;">
+    <div style="background:linear-gradient(135deg,#dc2626 0%,#ef4444 100%);padding:32px 24px;text-align:center;border-radius:8px 8px 0 0;">
+      <h1 style="color:#fff;margin:0;font-size:24px;">Payment Failed</h1>
+    </div>
+    <div style="background:#fff;padding:32px 24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;">
+      <p style="font-size:16px;margin:0 0 16px 0;">Hi ${firstName || "Customer"},</p>
+      <p style="font-size:16px;margin:0 0 16px 0;">Unfortunately, your payment for bill <strong>${billNumber}</strong> could not be processed.</p>
+      
+      <div style="background:#fef2f2;border:1px solid #ef4444;border-radius:8px;padding:20px;margin:24px 0;">
+        <p style="text-align:center;font-size:16px;font-weight:600;color:#dc2626;margin:0 0 16px 0;">❌ Payment Declined</p>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="padding:8px 0;color:#6b7280;font-size:14px;">Amount:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:600;">${currency} ${amount.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;color:#6b7280;font-size:14px;">Reason:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:600;color:#dc2626;">${reason}</td>
+          </tr>
+        </table>
+      </div>
+      
+      <p style="font-size:16px;margin:24px 0 8px 0;"><strong>What to do next:</strong></p>
+      <ul style="font-size:14px;color:#6b7280;margin:0 0 24px 0;padding-left:20px;">
+        <li>Check your payment method has sufficient funds</li>
+        <li>Try a different payment method</li>
+        <li>Contact your bank if the issue persists</li>
+      </ul>
+      
+      <div style="text-align:center;margin:32px 0;">
+        <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/customer/bills" style="background:#0f4d8a;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block;">Try Payment Again</a>
+      </div>
+      
+      <p style="font-size:14px;color:#6b7280;margin:24px 0 0 0;">Need help? Contact us at <a href="mailto:support@cleanjshipping.com" style="color:#0f4d8a;">support@cleanjshipping.com</a></p>
+    </div>
+  </div>`;
+
+  await t.sendMail({ from: SMTP_USER, to, subject, html });
+  return { sent: true };
+}
+
+export async function sendAdminPaymentNotification(opts: {
+  billNumber: string;
+  customerName: string;
+  customerEmail: string;
+  amount: number;
+  currency: string;
+  packageCount: number;
+  packageIds: string;
+}) {
+  const t = getTransporter();
+  if (!t) return { sent: false, reason: "Email not configured" };
+
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_USER;
+  if (!adminEmail) return { sent: false, reason: "No admin email configured" };
+
+  const { billNumber, customerName, customerEmail, amount, currency, packageCount, packageIds } = opts;
+  
+  const subject = `Payment Received — Bill #${billNumber}`;
+  const html = `
+  <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;max-width:600px;margin:0 auto;">
+    <div style="background:linear-gradient(135deg,#059669 0%,#10b981 100%);padding:24px;text-align:center;border-radius:8px 8px 0 0;">
+      <h1 style="color:#fff;margin:0;font-size:20px;">💰 New Payment Received</h1>
+    </div>
+    <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;">
+      <p style="font-size:14px;color:#6b7280;margin:0 0 16px 0;">A customer has paid their bill. Packages are now ready for pickup.</p>
+      
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr><td style="padding:6px 0;color:#6b7280;width:120px;">Bill:</td><td style="padding:6px 0;font-weight:600;">${billNumber}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">Customer:</td><td style="padding:6px 0;">${customerName}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">Email:</td><td style="padding:6px 0;">${customerEmail}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">Amount:</td><td style="padding:6px 0;font-weight:700;color:#059669;">${currency} ${amount.toFixed(2)}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;">Packages:</td><td style="padding:6px 0;">${packageCount}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;vertical-align:top;">Tracking #s:</td><td style="padding:6px 0;font-family:monospace;font-size:12px;word-break:break-all;">${packageIds}</td></tr>
+      </table>
+    </div>
+  </div>`;
+
+  await t.sendMail({ from: SMTP_USER, to: adminEmail, subject, html });
+  return { sent: true };
+}

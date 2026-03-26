@@ -17,9 +17,19 @@ import {
   Plane,
   Ship,
   Truck,
-  Check
+  Check,
+  Eye,
+  Download,
 } from "lucide-react";
 import Loading from "@/components/Loading";
+
+interface InvoiceFile {
+  url: string;
+  publicId: string;
+  filename: string;
+  size: number;
+  uploadedAt: string;
+}
 
 interface PackageData {
   id: string;
@@ -34,7 +44,7 @@ interface PackageData {
   invoiceUploaded: boolean;
   pricePaid: number;
   pricePaidCurrency: string;
-  invoiceFiles: string[];
+  invoiceFiles: InvoiceFile[] | string[];
   invoiceSubmittedAt?: string;
   hasInvoice: boolean;
   description?: string;
@@ -621,19 +631,43 @@ export default function CustomerInvoiceUploadPage() {
                                   )}
                                 </div>
                               ) : (
-                                <div className="space-y-1">
-                                  {pkg.invoiceFiles.slice(0, 2).map((file, index) => (
-                                    <div key={index} className="flex items-center gap-2 text-sm">
-                                      {getFileIcon(file)}
-                                      <span className="truncate max-w-[150px] text-gray-600">
-                                        {file.split('/').pop()}
-                                      </span>
-                                    </div>
-                                  ))}
+                                <div className="space-y-2">
+                                  {pkg.invoiceFiles.slice(0, 2).map((file, index) => {
+                                    // Handle both old string format and new Cloudinary object format
+                                    const isCloudinaryFile = typeof file === 'object' && (file as any).url;
+                                    const fileUrl = isCloudinaryFile ? (file as any).url : String(file);
+                                    const fileName = isCloudinaryFile ? (file as any).filename : String(file).split('/').pop() || 'file';
+                                    
+                                    return (
+                                      <div key={index} className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg px-3 py-2">
+                                        {getFileIcon(fileName)}
+                                        <span className="truncate max-w-[120px] text-gray-700 flex-1" title={fileName}>
+                                          {fileName}
+                                        </span>
+                                        <a
+                                          href={fileUrl as string}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                                          title="View"
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                        </a>
+                                        <a
+                                          href={fileUrl as string}
+                                          download={fileName}
+                                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
+                                          title="Download"
+                                        >
+                                          <Download className="h-4 w-4" />
+                                        </a>
+                                      </div>
+                                    );
+                                  })}
                                   {pkg.invoiceFiles.length > 2 && (
-                                    <span className="text-xs text-gray-500">
-                                      +{pkg.invoiceFiles.length - 2} more
-                                    </span>
+                                    <div className="text-xs text-gray-500 pl-1">
+                                      +{pkg.invoiceFiles.length - 2} more file(s)
+                                    </div>
                                   )}
                                 </div>
                               )}

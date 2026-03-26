@@ -1,11 +1,12 @@
 // src/app/api/customer/invoice-upload/route.ts
+// Invoice upload endpoint with Cloudinary integration
+
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import Package from "@/models/Package";
 import { getAuthFromRequest } from "@/lib/rbac";
-import { writeFileSync, mkdirSync } from "fs";
-import { join } from "path";
 import { Types } from "mongoose";
+import { uploadFile, CloudinaryUploadResult } from "@/lib/cloudinary";
 
 // Maximum file size: 10MB
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -120,16 +121,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No uploads provided" }, { status: 400 });
     }
 
-    // Create uploads directory in /tmp for serverless environments
-    const uploadsDir = join("/tmp", "uploads", "invoices");
-    try {
-      mkdirSync(uploadsDir, { recursive: true });
-    } catch (_error) {
-      console.error("Failed to create uploads directory:", _error);
-    }
-
     const results = [];
-    const uploadedFileUrls: string[] = [];
+    const uploadedFiles: CloudinaryUploadResult[] = [];
 
     for (const upload of uploads) {
       try {
@@ -178,9 +171,7 @@ export async function POST(req: Request) {
           continue;
         }
 
-        // Validate and save uploaded files
-        const savedFiles: string[] = [];
-        
+        // Validate files
         if (!upload.files || upload.files.length === 0) {
           results.push({
             tracking_number: upload.tracking_number,
@@ -193,8 +184,8 @@ export async function POST(req: Request) {
         // Limit to 3 files per package
         const filesToProcess = upload.files.slice(0, 3);
         
+        // Validate file types and sizes
         for (const file of filesToProcess) {
-          // Validate file type
           if (!ALLOWED_TYPES.includes(file.type)) {
             results.push({
               tracking_number: upload.tracking_number,
@@ -204,7 +195,6 @@ export async function POST(req: Request) {
             continue;
           }
 
-          // Validate file size
           if (file.size > MAX_FILE_SIZE) {
             results.push({
               tracking_number: upload.tracking_number,
@@ -213,54 +203,56 @@ export async function POST(req: Request) {
             });
             continue;
           }
-          
-          const bytes = await file.arrayBuffer();
-          const buffer = Buffer.from(bytes);
-          
-          // Generate unique filename
-          const timestamp = Date.now();
-          const random = Math.random().toString(36).substring(2, 8);
-          const originalName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-          const filename = `${upload.tracking_number}_${timestamp}_${random}_${originalName}`;
-          const filepath = join(uploadsDir, filename);
-          
-          // Write file to /tmp
+        }
+
+        // Upload files to Cloudinary
+        const cloudinaryFiles: CloudinaryUploadResult[] = [];
+        
+        for (const file of filesToProcess) {
           try {
-            writeFileSync(filepath, buffer);
-            console.log(`File saved: ${filepath}`);
-          } catch (writeError) {
-            console.error(`Failed to write file ${filename}:`, writeError);
+            const result = await uploadFile(file, {
+              folder: `invoices/${upload.tracking_number}`,
+              tags: ['invoice', `package:${upload.tracking_number}`, `user:${userId}`],
+            });
+            cloudinaryFiles.push(result);
+            uploadedFiles.push(result);
+          } catch (uploadError) {
+            console.error(`Failed to upload ${file.name} to Cloudinary:`, uploadError);
+            // Rollback: delete already uploaded files for this package
+            for (const uploadedFile of cloudinaryFiles) {
+              try {
+                const { deleteFile } = await import("@/lib/cloudinary");
+                await deleteFile(uploadedFile.publicId);
+              } catch (deleteError) {
+                console.error("Failed to rollback file:", deleteError);
+              }
+            }
             results.push({
               tracking_number: upload.tracking_number,
               success: false,
-              error: `Failed to save file: ${writeError instanceof Error ? writeError.message : 'Unknown error'}`
+              error: `Failed to upload file ${file.name}: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`
             });
             continue;
           }
-          
-          // Store the file path (tmp files will be cleaned up, but we have the data)
-          const fileUrl = `/uploads/invoices/${filename}`;
-          savedFiles.push(fileUrl);
-          uploadedFileUrls.push(fileUrl);
         }
-        
-        // Check if at least one file was saved
-        if (savedFiles.length === 0) {
+
+        // Check if at least one file was uploaded
+        if (cloudinaryFiles.length === 0) {
           results.push({
             tracking_number: upload.tracking_number,
             success: false,
-            error: "No valid files were uploaded"
+            error: "No files were successfully uploaded"
           });
           continue;
         }
 
-        // Update package with invoice information
+        // Update package with invoice information and Cloudinary file data
         await Package.findByIdAndUpdate(
           pkg._id,
           { 
             $set: { 
               invoiceUploaded: true,
-              invoiceFiles: savedFiles,
+              invoiceFiles: cloudinaryFiles,
               pricePaid: upload.price_paid,
               pricePaidCurrency: upload.currency,
               invoiceSubmittedAt: new Date(),
@@ -272,9 +264,10 @@ export async function POST(req: Request) {
         results.push({
           tracking_number: upload.tracking_number,
           success: true,
-          files_uploaded: savedFiles.length,
+          files_uploaded: cloudinaryFiles.length,
           price_paid: upload.price_paid,
-          currency: upload.currency
+          currency: upload.currency,
+          invoiceFiles: cloudinaryFiles
         });
 
       } catch (error) {

@@ -250,7 +250,13 @@ export interface IPackage extends Document {
   
   // Invoice Upload Fields
   invoiceUploaded?: boolean;
-  invoiceFiles?: string[]; // URLs to uploaded files
+  invoiceFiles?: {
+    url: string;
+    publicId: string;
+    filename: string;
+    size: number;
+    uploadedAt: Date;
+  }[];
   pricePaid?: number;
   pricePaidCurrency?: string;
   invoiceSubmittedAt?: Date;
@@ -258,7 +264,14 @@ export interface IPackage extends Document {
   invoiceReviewedAt?: Date;
   invoiceReviewedBy?: string;
   invoiceRejectionReason?: string;
-  billId?: string; // Reference to generated bill
+  
+  // Billing Fields
+  billId?: string;
+  billStatus?: 'pending' | 'paid' | 'refunded';
+  
+  // Cart Fields
+  cartStatus?: 'in-cart';
+  cartAddedAt?: Date;
   
   // Warehouse-specific fields
   controlNumber?: string;
@@ -506,7 +519,13 @@ const PackageSchema = new Schema<IPackage>(
     
     // Invoice Upload Fields
     invoiceUploaded: { type: Boolean, default: false },
-    invoiceFiles: [{ type: String, trim: true }], // URLs to uploaded files
+    invoiceFiles: [{
+      url: { type: String, required: true, trim: true },
+      publicId: { type: String, required: true, trim: true },
+      filename: { type: String, required: true, trim: true },
+      size: { type: Number, required: true, min: 0 },
+      uploadedAt: { type: Date, default: Date.now }
+    }],
     pricePaid: { type: Number, min: 0, default: 0 },
     pricePaidCurrency: { type: String, trim: true, default: 'USD' },
     invoiceSubmittedAt: { type: Date },
@@ -518,7 +537,14 @@ const PackageSchema = new Schema<IPackage>(
     invoiceReviewedAt: { type: Date },
     invoiceReviewedBy: { type: String, trim: true },
     invoiceRejectionReason: { type: String, trim: true },
+    
+    // Billing Fields
     billId: { type: String, trim: true },
+    billStatus: { type: String, enum: ['pending', 'paid', 'refunded'], trim: true },
+    
+    // Cart Fields
+    cartStatus: { type: String, enum: ['in-cart'], trim: true },
+    cartAddedAt: { type: Date },
     
     // Warehouse-specific fields
     controlNumber: { type: String, trim: true },

@@ -249,16 +249,8 @@ export async function verifyPayPalWebhook(
   body: string,
   webhookId?: string
 ): Promise<boolean> {
-  // Implementation for webhook verification
-  // This would require the webhook ID from PayPal
   try {
-    const paypalClient = createPayPalClient();
-    if (!paypalClient || !webhookId) {
-      return false;
-    }
-
-    // Note: Full webhook verification implementation would go here
-    // For now, we'll do basic validation
+    // Check required headers
     const authAlgo = headers["paypal-auth-algo"];
     const transmissionId = headers["paypal-transmission-id"];
     const certId = headers["paypal-cert-id"];
@@ -266,13 +258,91 @@ export async function verifyPayPalWebhook(
     const transmissionTime = headers["paypal-transmission-time"];
 
     if (!authAlgo || !transmissionId || !certId || !transmissionSig || !transmissionTime) {
+      console.error("Missing required PayPal webhook headers");
       return false;
     }
 
-    // Basic validation - in production, you'd verify the signature
-    return true;
+    const paypalClient = createPayPalClient();
+    if (!paypalClient || !webhookId) {
+      // If no webhook ID configured, fall back to basic validation
+      console.warn("PayPal webhook ID not configured, using basic validation");
+      return !!transmissionSig && transmissionSig.length > 0;
+    }
+
+    // Get PayPal access token for API verification
+    const accessToken = await getPayPalAccessToken();
+    if (!accessToken) {
+      console.error("Failed to get PayPal access token for webhook verification");
+      return false;
+    }
+
+    // Call PayPal's webhook signature verification API
+    const baseUrl = getPayPalBaseUrl();
+    const verifyUrl = `${baseUrl}/v1/notifications/verify-webhook-signature`;
+
+    const verifyBody = {
+      auth_algo: authAlgo,
+      transmission_id: transmissionId,
+      cert_id: certId,
+      transmission_sig: transmissionSig,
+      transmission_time: transmissionTime,
+      webhook_id: webhookId,
+      webhook_event: JSON.parse(body)
+    };
+
+    const response = await fetch(verifyUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify(verifyBody)
+    });
+
+    if (!response.ok) {
+      console.error(`PayPal webhook verification failed: ${response.status}`);
+      return false;
+    }
+
+    const result = await response.json();
+    return result.verification_status === 'SUCCESS';
+
   } catch (error) {
     console.error("Webhook verification error:", error);
     return false;
+  }
+}
+
+// Get PayPal access token for API calls
+async function getPayPalAccessToken(): Promise<string | null> {
+  try {
+    const config = getPayPalConfig();
+    if (!config) return null;
+
+    const baseUrl = getPayPalBaseUrl();
+    const authUrl = `${baseUrl}/v1/oauth2/token`;
+
+    const credentials = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
+
+    const response = await fetch(authUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: 'grant_type=client_credentials'
+    });
+
+    if (!response.ok) {
+      console.error(`Failed to get PayPal access token: ${response.status}`);
+      return null;
+    }
+
+    const result = await response.json();
+    return result.access_token;
+
+  } catch (error) {
+    console.error("Error getting PayPal access token:", error);
+    return null;
   }
 }

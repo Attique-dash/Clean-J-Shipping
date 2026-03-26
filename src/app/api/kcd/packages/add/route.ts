@@ -8,6 +8,7 @@ import { User } from "@/models/User";
 import Invoice from "@/models/Invoice";
 import { InventoryService } from "@/lib/inventory-service";
 import { CurrencyService } from "@/lib/currency-service";
+import { sendNewPackageEmail } from "@/lib/email";
 import crypto from "crypto";
 
 // Simple in-memory request log for debugging (resets on deployment)
@@ -64,6 +65,13 @@ function asNumber(value: unknown): number {
     return Number.isFinite(n) ? n : 0;
   }
   return 0;
+}
+
+// Helper to format mailbox code as CLEAN-XXXX
+function formatMailboxCode(userCode: string): string {
+  if (userCode.startsWith("CLEAN-")) return userCode;
+  const cleanCode = userCode.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return `CLEAN-${cleanCode.slice(0, 4)}`;
 }
 
 /**
@@ -242,15 +250,17 @@ export async function POST(req: NextRequest) {
     const weightLbs = weightKg * 2.20462;
     const receivedDate = receivedAt ? new Date(asString(receivedAt)) : new Date();
     
+    const mailboxCode = formatMailboxCode(userCode);
+    
     const packageData = {
       trackingNumber: asString(trackingNumber).toUpperCase(),
       userId: user._id,
-      userCode: userCode,
+      userCode: mailboxCode,
       customer: user._id,
       
       // KCD specific fields
       controlNumber: houseNumber ? asString(houseNumber) : undefined,
-      mailboxNumber: userCode,
+      mailboxNumber: mailboxCode,
       
       // Package details
       weight: weightKg,
@@ -334,6 +344,7 @@ export async function POST(req: NextRequest) {
     console.log(`[KCD Webhook ${requestId}] Package created: ${createdPackage._id}`);
     
     // Create pre-alert for the package
+    let preAlertCreated = false;
     try {
       const { PreAlert } = await import('@/models/PreAlert');
       const existingPreAlert = await PreAlert.findOne({ 
@@ -342,7 +353,7 @@ export async function POST(req: NextRequest) {
       
       if (!existingPreAlert) {
         await PreAlert.create({
-          userCode: user.userCode,
+          userCode: mailboxCode,
           customer: user._id,
           trackingNumber: asString(trackingNumber),
           carrier: shipper ? asString(shipper) : 'Unknown Carrier',
@@ -352,11 +363,33 @@ export async function POST(req: NextRequest) {
           notes: 'Auto-created from KCD webhook',
           decidedAt: new Date(),
         });
+        preAlertCreated = true;
         console.log(`[KCD Webhook ${requestId}] Pre-alert created`);
       }
     } catch (preAlertError) {
       console.error(`[KCD Webhook ${requestId}] Failed to create pre-alert:`, preAlertError);
-      // Don't fail the request if pre-alert creation fails
+    }
+    
+    // Send email notification to customer
+    let emailSent = false;
+    try {
+      if (user.email) {
+        await sendNewPackageEmail({
+          to: user.email,
+          firstName: user.firstName || "Customer",
+          trackingNumber: createdPackage.trackingNumber,
+          status: createdPackage.status,
+          weight: createdPackage.weight,
+          shipper: createdPackage.shipper || shipper || 'KCD Logistics',
+          warehouse: createdPackage.warehouseLocation || "KCD Main Warehouse",
+          receivedDate: createdPackage.dateReceived || new Date(),
+          description: createdPackage.itemDescription || `Package from ${shipper || 'KCD'}`,
+        });
+        emailSent = true;
+        console.log(`[KCD Webhook ${requestId}] Email sent to ${user.email}`);
+      }
+    } catch (emailError) {
+      console.error(`[KCD Webhook ${requestId}] Failed to send email:`, emailError);
     }
     
     // Log success
@@ -378,8 +411,13 @@ export async function POST(req: NextRequest) {
         id: createdPackage._id,
         trackingNumber: createdPackage.trackingNumber,
         userCode: createdPackage.userCode,
+        mailboxCode: createdPackage.mailboxNumber,
         status: createdPackage.status,
         createdAt: createdPackage.createdAt
+      },
+      notifications: {
+        preAlertCreated,
+        emailSent
       }
     }, { status: 201 });
     

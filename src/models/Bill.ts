@@ -22,6 +22,10 @@ export interface IBill extends Document {
   packages: IBillPackage[];
   
   // Financial Details
+  subtotal: number;         // Sum of item values + shipping + customs
+  tax: number;              // Tax amount (15%)
+  taxRate: number;          // Tax rate (default 0.15)
+  totalAmount: number;      // Grand total (subtotal + tax)
   itemTotal: number;        // Sum of all item values (pricePaid)
   shippingFee: number;      // Admin added shipping fees
   customsFee: number;       // Calculated customs/duty fees
@@ -29,17 +33,20 @@ export interface IBill extends Document {
     label: string;
     amount: number;
   }>;
-  totalAmount: number;      // Grand total
   
   // Status & Tracking
   status: BillStatus;
+  dueDate?: Date;
   
-  // Payment Information
+  // PayPal Payment Information
+  paypalOrderId?: string;
+  paypalPaymentId?: string;
   paymentUrl?: string;
   paymentGateway?: string;
   paymentId?: string;
   paidAt?: Date;
   paidAmount?: number;
+  currency: string;
   
   // Invoice Reference
   invoiceId?: Types.ObjectId;
@@ -93,6 +100,9 @@ const BillSchema = new Schema<IBill>({
   },
   
   // Financial Details
+  subtotal: { type: Number, required: true, min: 0, default: 0 },
+  tax: { type: Number, required: true, min: 0, default: 0 },
+  taxRate: { type: Number, required: true, min: 0, default: 0.15 },
   itemTotal: { type: Number, required: true, min: 0, default: 0 },
   shippingFee: { type: Number, required: true, min: 0, default: 0 },
   customsFee: { type: Number, required: true, min: 0, default: 0 },
@@ -101,6 +111,7 @@ const BillSchema = new Schema<IBill>({
     amount: { type: Number, min: 0 }
   }],
   totalAmount: { type: Number, required: true, min: 0, default: 0 },
+  currency: { type: String, default: 'USD' },
   
   // Status
   status: {
@@ -109,8 +120,11 @@ const BillSchema = new Schema<IBill>({
     default: 'pending',
     index: true
   },
+  dueDate: { type: Date },
   
-  // Payment Information
+  // PayPal Payment Information
+  paypalOrderId: { type: String, trim: true, index: true },
+  paypalPaymentId: { type: String, trim: true },
   paymentUrl: { type: String, trim: true },
   paymentGateway: { type: String, trim: true },
   paymentId: { type: String, trim: true },
@@ -166,9 +180,12 @@ BillSchema.pre('save', async function(next) {
       pkg.total = (pkg.itemValue || 0) + (pkg.shippingFee || 0) + (pkg.customsFee || 0);
     });
     
-    // Calculate grand total
+    // Calculate subtotal and tax
     const additionalFeesTotal = (this.additionalFees || []).reduce((sum, fee) => sum + (fee.amount || 0), 0);
-    this.totalAmount = this.itemTotal + this.shippingFee + this.customsFee + additionalFeesTotal;
+    this.subtotal = this.itemTotal + this.shippingFee + this.customsFee + additionalFeesTotal;
+    this.taxRate = this.taxRate || 0.15;
+    this.tax = this.subtotal * this.taxRate;
+    this.totalAmount = this.subtotal + this.tax;
   }
 
   next();
