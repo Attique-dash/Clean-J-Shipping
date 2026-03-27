@@ -10,10 +10,13 @@ import { Types } from 'mongoose';
 
 interface UserDoc {
   _id: Types.ObjectId;
-  name: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   phone?: string;
   shippingId?: string;
+  userCode?: string;
 }
 
 // Helper function to format address as string
@@ -107,7 +110,7 @@ export async function GET(req: NextRequest) {
     // Fetch packages with submitted invoices AND populate customer data properly
     // Note: Using regular find without .lean() to get proper population
     const packages = await Package.find(query)
-      .populate('userId', '_id name email phone shippingId')
+      .populate('userId', '_id name firstName lastName email phone shippingId userCode')
       .sort({ invoiceSubmittedAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -132,7 +135,7 @@ export async function GET(req: NextRequest) {
     // Fetch users manually if needed
     const userMap = new Map<string, UserDoc>();
     if (userIdsToFetch.length > 0) {
-      const users = await User.find({ _id: { $in: userIdsToFetch } }).select('_id name email phone shippingId');
+      const users = await User.find({ _id: { $in: userIdsToFetch } }).select('_id name firstName lastName email phone shippingId userCode');
       users.forEach(user => {
         userMap.set(user._id.toString(), user as unknown as UserDoc);
       });
@@ -193,12 +196,22 @@ export async function GET(req: NextRequest) {
       // Build customer object with proper name from populated user data
       let customer = null;
       if (userData && userData._id) {
+        // Build full name from available fields
+        let fullName = userData.name || '';
+        if (!fullName && (userData.firstName || userData.lastName)) {
+          fullName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
+        }
+        // If still no name, use email as fallback
+        if (!fullName) {
+          fullName = userData.email ? userData.email.split('@')[0] : 'Customer';
+        }
+        
         customer = {
           id: userData._id.toString(),
-          name: userData.name || 'Unknown Customer',
+          name: fullName || 'Unknown Customer',
           email: userData.email || '',
           phone: userData.phone || 'N/A',
-          shippingId: userData.shippingId || `CJS-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+          shippingId: userData.shippingId || userData.userCode || ''
         };
         console.log('Built customer:', customer.name, 'for package:', pkg.trackingNumber);
       } else {
@@ -216,8 +229,8 @@ export async function GET(req: NextRequest) {
         warehouseLocation: warehouseAddress,
         
         // Package info
-        isReceived: !!pkg.dateReceived,
-        dateReceived: pkg.dateReceived?.toISOString(),
+        isReceived: !!(pkg.dateReceived || pkg.createdAt),
+        dateReceived: pkg.dateReceived?.toISOString() || pkg.createdAt?.toISOString(),
         invoiceSubmittedAt: pkg.invoiceSubmittedAt?.toISOString(),
         invoiceReviewedAt: pkg.invoiceReviewedAt?.toISOString(),
         invoiceReviewedBy: pkg.invoiceReviewedBy,

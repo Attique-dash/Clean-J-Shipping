@@ -162,6 +162,23 @@ export async function POST(req: Request) {
           continue;
         }
 
+        // Validate minimum price based on weight (minimum $1 per kg or $5 total)
+        const minPricePerKg = 1.0; // $1 per kg minimum
+        const absoluteMinPrice = 5.0; // $5 absolute minimum
+        const calculatedMinPrice = Math.max(
+          pkg.weight * minPricePerKg,
+          absoluteMinPrice
+        );
+        
+        if (upload.price_paid < calculatedMinPrice) {
+          results.push({
+            tracking_number: upload.tracking_number,
+            success: false,
+            error: `Declared price ($${upload.price_paid}) is too low. Minimum required: $${calculatedMinPrice.toFixed(2)} (based on ${pkg.weight}kg weight). Please enter the correct item value.`
+          });
+          continue;
+        }
+
         if (!upload.currency || upload.currency.length < 3) {
           results.push({
             tracking_number: upload.tracking_number,
