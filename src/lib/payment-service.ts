@@ -8,7 +8,7 @@ export function generatePaymentLink(invoiceId: string): string {
   
   // Store the token in your database or cache with the invoiceId
   // For now, we'll create a link with the token and invoiceId
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://clean-j-shipping.vercel.app';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.cleanjshipping.com';
   
   return `${baseUrl}/pay/${token}?invoice=${invoiceId}&t=${timestamp}`;
 }

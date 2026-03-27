@@ -82,9 +82,18 @@ export async function GET(req: NextRequest) {
       invoiceStatus: status
     };
 
-    // If status is 'all', show submitted, approved, and rejected
+    // If status is 'all', show submitted, approved, rejected, and billed
     if (status === 'all') {
-      query.invoiceStatus = { $in: ['submitted', 'approved', 'rejected'] };
+      query.invoiceStatus = { $in: ['submitted', 'approved', 'rejected', 'billed', 'pending'] };
+    }
+
+    // If status is 'pending', also show packages with no invoiceStatus (backward compatibility)
+    if (status === 'pending') {
+      query.$or = [
+        { invoiceStatus: 'pending' },
+        { invoiceStatus: { $exists: false } },
+        { invoiceStatus: null }
+      ];
     }
 
     // Add search filter
@@ -218,10 +227,18 @@ export async function GET(req: NextRequest) {
         pricePaid: pkg.pricePaid,
         pricePaidCurrency: pkg.pricePaidCurrency || 'USD',
         
-        // Invoice files - convert to download URLs
-        invoiceFiles: (pkg.invoiceFiles || []).map((file: string) => {
-          const filename = file.split('/').pop();
-          return `/api/invoices/download?file=${filename}`;
+        // Invoice files - handle both Cloudinary objects and string URLs
+        invoiceFiles: (pkg.invoiceFiles || []).map((file: any) => {
+          // If file is a Cloudinary object with url property
+          if (typeof file === 'object' && file.url) {
+            return file.url;
+          }
+          // If file is a string (legacy)
+          if (typeof file === 'string') {
+            const filename = file.split('/').pop();
+            return `/api/invoices/download?file=${filename}`;
+          }
+          return String(file);
         }),
         
         // Customer info - properly populated from userId

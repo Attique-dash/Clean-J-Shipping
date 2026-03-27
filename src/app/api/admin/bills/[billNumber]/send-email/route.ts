@@ -47,7 +47,7 @@ export async function POST(
     // Generate payment link with correct domain
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL 
       ? `https://${process.env.VERCEL_URL}` 
-      : 'https://clean-j-shipping.vercel.app';
+      : 'https://www.cleanjshipping.com';
     const paymentLink = `${baseUrl}/customer/pay/${billNumber}`;
 
     // Send billing email with package content/description

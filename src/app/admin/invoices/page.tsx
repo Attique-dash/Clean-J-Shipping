@@ -1,15 +1,5 @@
-import { Metadata } from 'next';
-import InvoiceClient from './InvoiceClient';
-
-export const metadata: Metadata = {
-  title: 'Invoice Generator | Admin Dashboard',
-  description: 'Generate and manage invoices',
-};
+import { redirect } from 'next/navigation';
 
 export default function InvoicesPage() {
-  return (
-    <div className="mx-auto max-w-7xl">
-      <InvoiceClient />
-    </div>
-  );
+  redirect('/admin/invoices/review');
 }

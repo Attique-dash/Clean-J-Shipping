@@ -171,7 +171,7 @@ export async function POST(
 
               const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL 
               ? `https://${process.env.VERCEL_URL}` 
-              : 'https://clean-j-shipping.vercel.app';
+              : 'https://www.cleanjshipping.com';
               const paymentLink = `${baseUrl}/customer/pay/${bill.billNumber}`;
 
               console.log('Sending billing email to:', customer.email);

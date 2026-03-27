@@ -417,8 +417,8 @@ export class EmailService {
     password?: string;
   }): string {
     const loginUrl = data.email && data.password 
-      ? `https://clean-j-shipping.vercel.app/login?email=${encodeURIComponent(data.email)}&password=${encodeURIComponent(data.password)}`
-      : 'https://clean-j-shipping.vercel.app/login';
+      ? `https://www.cleanjshipping.com/login?email=${encodeURIComponent(data.email)}&password=${encodeURIComponent(data.password)}`
+      : 'https://www.cleanjshipping.com/login';
     
     return this.getEmailWrapper(`
       <h2>🎉 Welcome to Clean J Shipping!</h2>

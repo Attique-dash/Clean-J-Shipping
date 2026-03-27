@@ -374,6 +374,11 @@ export async function GET(req: Request) {
         itemValueUsd,
         dateReceived: dateReceived ? new Date(String(dateReceived)).toISOString() : null,
         daysInStorage,
+        // Invoice fields
+        invoiceStatus: asString(p.invoiceStatus) || 'pending',
+        invoiceUploaded: Boolean(p.invoiceUploaded),
+        pricePaid: asNumber(p.pricePaid),
+        pricePaidCurrency: asString(p.pricePaidCurrency) || 'USD',
         // Sender information
         senderName: asString(p.senderName) || asString((p.sender as SenderInfo)?.name) || '',
         senderEmail: asString(p.senderEmail) || asString((p.sender as SenderInfo)?.email) || '',

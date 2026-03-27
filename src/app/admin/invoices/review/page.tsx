@@ -504,7 +504,7 @@ export default function AdminInvoiceReviewPage() {
                                   >
                                     {getFileIcon(file)}
                                     <span className="text-sm text-gray-700 truncate flex-1">
-                                      {file.split('/').pop()}
+                                      {file.includes('/') ? decodeURIComponent(file.split('/').pop() || 'file') : 'file'}
                                     </span>
                                     <Download className="h-4 w-4 text-gray-400" />
                                   </button>
@@ -605,7 +605,7 @@ export default function AdminInvoiceReviewPage() {
                         >
                           {getFileIcon(file)}
                           <span className="text-sm text-gray-700 truncate flex-1">
-                            {file.split('/').pop()}
+                            {file.includes('/') ? decodeURIComponent(file.split('/').pop() || 'file') : 'file'}
                           </span>
                           <Download className="h-4 w-4 text-gray-400" />
                         </button>

@@ -46,6 +46,11 @@ type PackageRow = {
   customsRequired?: boolean;
   customsStatus?: string;
   paymentStatus?: string;
+  // Invoice fields
+  invoiceStatus?: 'pending' | 'submitted' | 'approved' | 'rejected' | 'billed';
+  invoiceUploaded?: boolean;
+  pricePaid?: number;
+  pricePaidCurrency?: string;
   // Sender information
   senderName?: string;
   senderEmail?: string;
@@ -223,6 +228,38 @@ export default function AdminPackagesPage() {
     if (s === 'in_transit') return 'bg-yellow-100 text-yellow-800';
     if (s === 'received' || s === 'At Warehouse') return 'bg-purple-100 text-purple-800';
     return 'bg-gray-100 text-gray-800';
+  };
+
+  const getInvoiceStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'submitted':
+        return 'bg-blue-100 text-blue-800';
+      case 'approved':
+        return 'bg-green-100 text-green-800';
+      case 'rejected':
+        return 'bg-red-100 text-red-800';
+      case 'billed':
+        return 'bg-purple-100 text-purple-800';
+      case 'pending':
+      default:
+        return 'bg-yellow-100 text-yellow-800';
+    }
+  };
+
+  const getInvoiceStatusLabel = (status?: string) => {
+    switch (status) {
+      case 'submitted':
+        return 'Submitted';
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
+      case 'billed':
+        return 'Billed';
+      case 'pending':
+      default:
+        return 'Pending';
+    }
   };
 
   const runBulkStatusUpdate = async () => {
@@ -697,6 +734,8 @@ export default function AdminPackagesPage() {
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Weight (lbs)</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Value (USD)</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Invoice Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Invoice Value</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date Received</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Days</th>
                     <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
@@ -750,6 +789,20 @@ export default function AdminPackagesPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">{formatUsd(pkg.itemValueUsd || 0)}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getInvoiceStatusBadge(pkg.invoiceStatus)}`}>
+                          {getInvoiceStatusLabel(pkg.invoiceStatus)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {pkg.pricePaid && pkg.pricePaid > 0 ? (
+                          <span className="font-medium text-green-700">
+                            {pkg.pricePaidCurrency} {pkg.pricePaid.toFixed(2)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 text-sm text-gray-900">{pkg.dateReceived ? new Date(pkg.dateReceived).toLocaleDateString() : ''}</td>
                       <td className="px-6 py-4 text-sm text-gray-900">{pkg.daysInStorage}</td>
                       <td className="px-6 py-4 text-right">
