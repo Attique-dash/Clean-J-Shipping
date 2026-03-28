@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Inventory } from "@/models/Inventory";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth';
 
 export async function POST() {
   try {

@@ -1,7 +1,7 @@
 // src/app/api/admin/invoices/review/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth-config';
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth';
 import { dbConnect } from '@/lib/db';
 import Package from '@/models/Package';
 import User from '@/models/User';

@@ -1,6 +1,6 @@
 // my-app/src/app/api/admin/invoices/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
+import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth';
 import { dbConnect } from '@/lib/db';
 import Invoice from '@/models/Invoice';

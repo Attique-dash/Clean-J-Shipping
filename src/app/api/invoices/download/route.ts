@@ -1,7 +1,7 @@
 // src/app/api/invoices/download/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth-config';
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import Package from '@/models/Package';

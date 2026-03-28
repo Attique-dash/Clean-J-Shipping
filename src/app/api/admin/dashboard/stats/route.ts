@@ -3,8 +3,8 @@ import { dbConnect } from '@/lib/db';
 import { Package } from '@/models/Package';
 import { User } from '@/models/User';
 import { Payment } from '@/models/Payment';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth-config';
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth';
 import { headers } from 'next/headers';
 
 // Enable CORS

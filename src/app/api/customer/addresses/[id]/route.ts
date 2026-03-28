@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth';
 import { dbConnect } from '@/lib/db';
 import { ShippingAddress } from '@/models/ShippingAddress';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 
 export async function PUT(
   request: Request,

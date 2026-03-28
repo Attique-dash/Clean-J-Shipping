@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
+import { getServerSession } from 'next-auth';
 import dbConnect from '@/lib/db';
 import Shipment from '@/models/Shipment';
-import { authOptions } from '@/lib/auth-config';
 
 export async function PUT(request, { params }) {
   try {

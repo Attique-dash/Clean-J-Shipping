@@ -1,7 +1,6 @@
-// my-app/src/app/api/admin/invoices/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth-config';
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth';
 import { dbConnect } from '@/lib/db';
 import Invoice, { IInvoice, IInvoiceItem } from '@/models/Invoice';
 import { Types } from 'mongoose';

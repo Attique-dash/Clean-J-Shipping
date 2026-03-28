@@ -1,7 +1,7 @@
 // src/app/api/auth/me/route.ts
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth-config';
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth';
 import { dbConnect } from '@/lib/db';
 import { User } from '@/models/User';
 
