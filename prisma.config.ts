@@ -1,12 +1,11 @@
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
   },
-  engine: "classic",
   datasource: {
-    url: env("MONGODB_URI"),
+    url: process.env.MONGODB_URI || "mongodb://localhost:27017/default",
   },
 });

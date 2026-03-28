@@ -210,7 +210,6 @@ warehouseSchema.virtual('formattedChinaAddress').get(function() {
 });
 
 // Indexes
-warehouseSchema.index({ code: 1 });
 warehouseSchema.index({ name: 1 });
 warehouseSchema.index({ isActive: 1 });
 warehouseSchema.index({ isDefault: 1 });

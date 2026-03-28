@@ -63,8 +63,8 @@ export const RevenueChart = ({ data }: RevenueChartProps) => {
             borderRadius: '8px',
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
           }}
-          formatter={(value: number | string | undefined, name?: string) => [
-            name === 'Revenue' ? `$${Number(value || 0).toLocaleString()}` : value,
+          formatter={(value, name) => [
+            name === 'Revenue' ? `$${Number(value || 0).toLocaleString()}` : String(value),
             name || ''
           ]}
         />

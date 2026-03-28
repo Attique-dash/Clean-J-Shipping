@@ -27,7 +27,6 @@ const CurrencySchema = new Schema<ICurrency>(
 );
 
 // Index for faster lookups
-CurrencySchema.index({ code: 1 });
 CurrencySchema.index({ isActive: 1 });
 
 export const Currency = models.Currency || model<ICurrency>("Currency", CurrencySchema);

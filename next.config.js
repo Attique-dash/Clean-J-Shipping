@@ -14,7 +14,7 @@ const nextConfig = {
   },
   
   // External packages for server components
-  serverExternalPackages: ['canvas', 'pdfkit', 'jspdf'],
+  serverExternalPackages: ['canvas', 'pdfkit', 'jspdf', '@prisma/client'],
   
   // Experimental features for Next.js 16
   experimental: {

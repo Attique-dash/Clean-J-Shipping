@@ -51,7 +51,6 @@ const WarehouseSchema: Schema = new Schema({
 });
 
 // Indexes
-WarehouseSchema.index({ code: 1 });
 WarehouseSchema.index({ isActive: 1 });
 
 export const Warehouse = mongoose.models.Warehouse || mongoose.model<IWarehouse>('Warehouse', WarehouseSchema);
