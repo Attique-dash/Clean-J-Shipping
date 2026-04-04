@@ -107,10 +107,21 @@ export default function PayPage() {
   
   const fetchPaymentHistory = async () => {
     try {
-      const res = await fetch('/api/customer/payments/history', { credentials: 'include' });
+      const res = await fetch('/api/customer/payments', { credentials: 'include' });
       const data = await res.json();
       if (res.ok) {
-        setPaymentHistory(data.payments || []);
+        // Map payments to payment history format
+        const history = (data.payments || []).map((payment: any) => ({
+          _id: payment._id,
+          billNumber: payment.reference || payment.trackingNumber || 'Unknown',
+          amount: payment.amount,
+          currency: payment.currency,
+          status: payment.status,
+          paidAt: payment.createdAt || payment.paidAt,
+          paymentMethod: payment.method || payment.paymentMethod || 'card',
+          transactionId: payment.gatewayId || payment.transactionId
+        }));
+        setPaymentHistory(history);
       }
     } catch (error) {
       console.error('Error loading payment history:', error);

@@ -6,6 +6,7 @@ import { dbConnect } from "@/lib/db";
 import { Package, IPackage } from "@/models/Package";
 import Invoice from "@/models/Invoice";
 import { Payment } from "@/models/Payment";
+import { Bill } from "@/models/Bill";
 import { getAuthFromRequest } from "@/lib/rbac";
 import { Types } from "mongoose";
 
@@ -400,6 +401,79 @@ export async function GET(req: Request) {
         paid_payment: paidAmount,
         balance: balance,
       };
+    });
+
+    // Fetch admin-created bills from Bill model (these have billNumber like BILL-YYYYMM-XXXX)
+    let adminBills: any[] = [];
+    try {
+      const userObjectId = new Types.ObjectId(userId);
+      const dbBills = await Bill.find({
+        customerId: userObjectId,
+        status: { $in: ['pending', 'sent', 'overdue', 'paid'] }
+      })
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .lean();
+
+      adminBills = dbBills.map((bill: any) => {
+        const isPaid = bill.status === 'paid';
+        const totalAmount = bill.totalAmount || 0;
+        
+        return {
+          _id: bill._id?.toString(),
+          tracking_number: bill.packages?.[0]?.trackingNumber || bill.billNumber,
+          description: `Admin Bill - ${bill.packages?.length || 0} package(s)`,
+          invoice_number: bill.billNumber,
+          invoice_date: bill.createdAt ? new Date(bill.createdAt).toISOString() : undefined,
+          currency: bill.currency || "USD",
+          amount_due: isPaid ? 0 : totalAmount,
+          payment_status: isPaid ? 'paid' : (bill.status === 'overdue' ? 'overdue' : 'submitted'),
+          last_updated: bill.updatedAt ? new Date(bill.updatedAt).toISOString() : (bill.createdAt ? new Date(bill.createdAt).toISOString() : undefined),
+          payment_id: bill.paymentId,
+          payment_method: bill.paymentGateway,
+          due_payment: totalAmount,
+          paid_payment: isPaid ? totalAmount : 0,
+          balance: isPaid ? 0 : totalAmount,
+          // Additional fields for Bill model data
+          billNumber: bill.billNumber,
+          status: bill.status,
+          itemTotal: bill.itemTotal,
+          shippingFee: bill.shippingFee,
+          customsFee: bill.customsFee,
+          totalAmount: bill.totalAmount,
+          packages: bill.packages?.map((p: any) => ({
+            packageId: p.packageId?.toString(),
+            trackingNumber: p.trackingNumber,
+            shipper: p.shipper,
+            weight: p.weight,
+            itemValue: p.itemValue,
+            shippingFee: p.shippingFee,
+            customsFee: p.customsFee,
+            total: p.total
+          })),
+          paidAt: bill.paidAt ? new Date(bill.paidAt).toISOString() : undefined,
+          paidAmount: bill.paidAmount,
+          createdAt: bill.createdAt ? new Date(bill.createdAt).toISOString() : undefined,
+          adminNotes: bill.adminNotes,
+        };
+      });
+    } catch (err) {
+      console.error("Error fetching admin bills:", err);
+    }
+
+    // Add admin bills to the bills array, avoiding duplicates by billNumber
+    const existingBillNumbers = new Set(bills.map(b => b.invoice_number).filter(Boolean));
+    for (const adminBill of adminBills) {
+      if (!existingBillNumbers.has(adminBill.billNumber)) {
+        bills.push(adminBill);
+      }
+    }
+
+    // Re-sort bills by date (most recent first)
+    bills.sort((a, b) => {
+      const dateA = new Date(a.last_updated || a.invoice_date || 0).getTime();
+      const dateB = new Date(b.last_updated || b.invoice_date || 0).getTime();
+      return dateB - dateA;
     });
     
     return NextResponse.json({ bills });

@@ -255,7 +255,7 @@ export async function POST(req: NextRequest) {
     const packageData = {
       trackingNumber: asString(trackingNumber).toUpperCase(),
       userId: user._id,
-      userCode: mailboxCode,
+      userCode: user.userCode,
       customer: user._id,
       
       // KCD specific fields
@@ -353,7 +353,7 @@ export async function POST(req: NextRequest) {
       
       if (!existingPreAlert) {
         await PreAlert.create({
-          userCode: mailboxCode,
+          userCode: user.userCode,
           customer: user._id,
           trackingNumber: asString(trackingNumber),
           carrier: shipper ? asString(shipper) : 'Unknown Carrier',

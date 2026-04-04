@@ -112,10 +112,10 @@ export default function PaymentPage() {
   const [showCardPaymentModal, setShowCardPaymentModal] = useState(false);
   const [showSavedPaymentModal, setShowSavedPaymentModal] = useState(false);
 
-  // Bills history
-  const [allBills, setAllBills] = useState<BillListItem[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState("date");
+  // Bills history - REMOVED per user request
+  // const [allBills, setAllBills] = useState<BillListItem[]>([]);
+  // const [searchTerm, setSearchTerm] = useState("");
+  // const [sortBy, setSortBy] = useState("date");
 
   // Saved cards
   const [savedCards, setSavedCards] = useState<any[]>([]);
@@ -128,7 +128,7 @@ export default function PaymentPage() {
   useEffect(() => {
     if (session?.user && billNumber) {
       loadBill();
-      loadAllBills();
+      // loadAllBills(); // REMOVED - no longer loading bills history
       loadSavedCards();
       loadCustomerProfile();
     }
@@ -172,6 +172,8 @@ export default function PaymentPage() {
     }
   }
 
+  // Bills history loading - REMOVED per user request
+  /*
   async function loadAllBills() {
     try {
       const res = await fetch("/api/customer/bills", { cache: "no-store" });
@@ -183,6 +185,7 @@ export default function PaymentPage() {
       console.error("Error loading all bills:", error);
     }
   }
+  */
 
   // Load saved cards
   async function loadSavedCards() {
@@ -393,7 +396,8 @@ export default function PaymentPage() {
     }
   }
 
-  // Bills history filtering
+  // Bills history filtering - REMOVED per user request
+  /*
   const filteredAndSortedBills = allBills
     .filter(billItem => {
       // Only show paid bills in history
@@ -421,6 +425,7 @@ export default function PaymentPage() {
           return 0;
       }
     });
+  */
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
@@ -519,10 +524,11 @@ export default function PaymentPage() {
             </div>
             
             <Link
-              href={`/customer/pay/${billNumber}`}
+              href="/customer/pay"
               className="inline-flex items-center gap-2 px-6 py-3 bg-[#0f4d8a] text-white rounded-xl hover:bg-[#1e6bb8] transition-colors font-medium"
             >
-              View Payment Details
+              <FileText className="h-5 w-5" />
+              View All Bills
               <ChevronRight className="h-5 w-5" />
             </Link>
           </div>
@@ -656,13 +662,6 @@ export default function PaymentPage() {
                   <Package className="h-5 w-5 text-[#0f4d8a]" />
                   Package Details
                 </h2>
-                <button
-                  onClick={handleAddAllToCart}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#E67919] to-[#f59e42] text-white rounded-lg hover:shadow-lg transition-all text-sm font-medium"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add to Cart
-                </button>
               </div>
 
               {/* Packages */}
@@ -727,91 +726,11 @@ export default function PaymentPage() {
               </div>
             </div>
 
-            {/* Bills History Section */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-gray-600 to-gray-700 px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                    <Clock className="w-5 h-5" />
-                    Payment History
-                  </h2>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Search..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="px-3 py-1 rounded-lg text-sm text-gray-900 bg-white/90 border-0 focus:ring-2 focus:ring-white"
-                    />
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="px-3 py-1 rounded-lg text-sm text-gray-900 bg-white/90 border-0 focus:ring-2 focus:ring-white"
-                    >
-                      <option value="date">Sort by Date</option>
-                      <option value="amount">Sort by Amount</option>
-                      <option value="invoice">Sort by Invoice</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-              <div className="p-6">
-                {filteredAndSortedBills.length === 0 ? (
-                  <div className="text-center py-8">
-                    <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">No payment history found</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {filteredAndSortedBills.slice(0, 5).map((billItem) => (
-                      <div key={billItem._id || billItem.tracking_number} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                        <div className="flex items-center gap-3">
-                          <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${getStatusInfo(billItem.payment_status).bgColor}`}>
-                            <CheckCircle className={`h-5 w-5 ${getStatusInfo(billItem.payment_status).iconColor}`} />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-900">{billItem.invoice_number || billItem.tracking_number}</p>
-                            <p className="text-sm text-gray-500">{formatDate(billItem.invoice_date)}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-gray-900">{formatCurrency(billItem.amount_due, selectedCurrency)}</p>
-                          <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getStatusInfo(billItem.payment_status).bgColor}`}>
-                            {getStatusInfo(billItem.payment_status).label}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            {/* Bills History Section - REMOVED per user request */}
           </div>
 
           {/* Payment Section */}
           <div className="space-y-6">
-            {/* View Cart Button */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Shopping Cart</h3>
-                  <p className="text-sm text-gray-500">{billCart.size} item(s) in cart</p>
-                </div>
-                <button
-                  onClick={() => setShowCartModal(true)}
-                  className="relative flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#E67919] to-[#f59e42] text-white rounded-xl hover:shadow-lg transition-all font-medium"
-                >
-                  <ShoppingCart className="h-5 w-5" />
-                  View Cart
-                  {billCart.size > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
-                      {billCart.size}
-                    </span>
-                  )}
-                </button>
-              </div>
-            </div>
-
             {/* Payment Form */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
@@ -1041,97 +960,7 @@ export default function PaymentPage() {
         </div>
       </div>
 
-      {/* Cart Modal */}
-      {showCartModal && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
-          onClick={() => setShowCartModal(false)}
-        >
-          <div
-            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="bg-gradient-to-r from-[#E67919] to-[#f59e42] px-6 py-4 flex items-center justify-between">
-              <h3 className="text-xl font-semibold text-white flex items-center gap-2">
-                <ShoppingCart className="h-5 w-5" />
-                Your Cart ({billCart.size} items)
-              </h3>
-              <button
-                onClick={() => setShowCartModal(false)}
-                className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="p-6">
-              {getCartItems().length === 0 ? (
-                <div className="text-center py-8">
-                  <ShoppingCart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">Your cart is empty</p>
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-4 mb-6">
-                    {getCartItems().map((item) => (
-                      <div key={item.billNumber} className="bg-gray-50 p-4 rounded-lg">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-semibold text-gray-900">
-                              Bill #{item.billNumber}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              {item.packages.length} package(s)
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-bold text-[#E67919]">
-                              {formatCurrency(item.totalAmount, selectedCurrency)}
-                            </p>
-                            <button
-                              onClick={() => handleRemoveFromCart(item.billNumber)}
-                              className="text-red-500 hover:text-red-700 text-sm mt-1"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Cart Summary */}
-                  <div className="border-t pt-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-lg font-semibold">Total:</span>
-                      <span className="text-xl font-bold text-[#E67919]">
-                        {formatCurrency(getCartTotal(), selectedCurrency)}
-                      </span>
-                    </div>
-
-                    {/* Cart Actions */}
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => setShowCartModal(false)}
-                        className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleProcessToPayment}
-                        className="flex-1 px-4 py-2 bg-gradient-to-r from-[#E67919] to-[#f59e42] text-white rounded-lg hover:shadow-lg transition-all font-semibold"
-                      >
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        Process to Payment
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Cart Modal - REMOVED per user request */}
 
       {/* Saved Payment Methods Modal */}
       {showSavedPaymentModal && (
@@ -1163,13 +992,9 @@ export default function PaymentPage() {
                     <div className="text-left">
                       <p className="text-sm text-gray-600 mb-2">Total Amount</p>
                       <p className="text-3xl font-bold text-[#E67919]">
-                        {formatCurrency(getCartTotal(), selectedCurrency)}
+                        {formatCurrency(bill?.totalAmount || 0, selectedCurrency)}
                       </p>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-                    <ShoppingCart className="h-4 w-4" />
-                    <span>{billCart.size} bill(s) to pay</span>
                   </div>
                 </div>
               </div>
@@ -1283,7 +1108,7 @@ export default function PaymentPage() {
                 <div className="bg-gray-50 rounded-2xl p-6 mb-6">
                   <p className="text-sm text-gray-600 mb-2">Total Amount</p>
                   <p className="text-3xl font-bold text-[#E67919]">
-                    {formatCurrency(getCartTotal() || bill.totalAmount, selectedCurrency)}
+                    {formatCurrency(bill.totalAmount, selectedCurrency)}
                   </p>
                 </div>
               </div>
@@ -1374,7 +1199,7 @@ export default function PaymentPage() {
                   ) : (
                     <>
                       <CreditCard className="h-5 w-5" />
-                      Pay {formatCurrency(getCartTotal() || bill.totalAmount, selectedCurrency)}
+                      Pay {formatCurrency(bill.totalAmount, selectedCurrency)}
                     </>
                   )}
                 </button>
