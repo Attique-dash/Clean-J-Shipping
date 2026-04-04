@@ -23,7 +23,11 @@ import {
   Receipt,
   Settings,
   Key,
-  Plug
+  Plug,
+  Warehouse,
+  PackageCheck,
+  HelpCircle,
+  Activity
 } from "lucide-react";
 
 export default function AdminLayout({
@@ -139,6 +143,34 @@ export default function AdminLayout({
       icon: Plug,
       description: "Test KCD Logistics webhook endpoint",
       color: "from-teal-500 to-teal-600",
+    },
+    {
+      href: "/admin/warehouse",
+      label: "Warehouse",
+      icon: Warehouse,
+      description: "Manual package receiving and entry",
+      color: "from-orange-600 to-orange-700",
+    },
+    {
+      href: "/admin/receivals",
+      label: "Receivals",
+      icon: PackageCheck,
+      description: "Track incoming receivals and transfers",
+      color: "from-cyan-600 to-cyan-700",
+    },
+    {
+      href: "/admin/unknown-packages",
+      label: "Unknown Packages",
+      icon: HelpCircle,
+      description: "Link unmatched packages to customers",
+      color: "from-rose-500 to-rose-600",
+    },
+    {
+      href: "/admin/status",
+      label: "System Status",
+      icon: Activity,
+      description: "Real-time dashboard statistics",
+      color: "from-emerald-500 to-emerald-600",
     },
     {
       href: "/admin/profile",
