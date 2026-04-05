@@ -22,6 +22,7 @@ import {
   ShoppingCart,
   MapPin,
   Calculator,
+  Mail,
 } from "lucide-react";
 
 export default function CustomerLayout({
@@ -84,6 +85,13 @@ export default function CustomerLayout({
       description: "View shipping addresses for air, sea, and China deliveries",
       color: "from-orange-500 to-orange-600",
     },
+    {
+      href: "/customer/addresses",
+      label: "My Addresses",
+      icon: Home,
+      description: "Manage your personal delivery addresses",
+      color: "from-teal-500 to-teal-600",
+    },
      {
       href: "/customer/invoice-upload",
       label: "Package Invoices",
@@ -111,6 +119,13 @@ export default function CustomerLayout({
       icon: HelpCircle,
       description: "Frequently asked questions",
       color: "from-indigo-500 to-indigo-600",
+    },
+    {
+      href: "/customer/contact",
+      label: "Contact Us",
+      icon: Mail,
+      description: "Send us a message",
+      color: "from-rose-500 to-rose-600",
     },
     {
       href: "/customer/support",
@@ -187,15 +202,13 @@ export default function CustomerLayout({
           <nav className="flex-1 space-y-1 p-4 overflow-y-auto pr-2 scrollbar-orange overscroll-contain">
             {navItems.map((item) => {
               const Icon = item.icon;
-              // Special case: Bills & Payments should be active for both /customer/bills, /customer/payments, and /customer/pay/
+              // Special case: Bills & Payments should be active for both /customer/bills and /customer/pay/
               const isActive =
                 item.href === "/customer"
                   ? pathname === "/customer"
                   : item.href === "/customer/bills"
                   ? pathname === item.href ||
                     pathname.startsWith(item.href + "/") ||
-                    pathname === "/customer/payments" ||
-                    pathname.startsWith("/customer/payments/") ||
                     pathname.startsWith("/customer/pay/")
                   : pathname === item.href ||
                     pathname.startsWith(item.href + "/");
@@ -348,15 +361,14 @@ export default function CustomerLayout({
                 <nav className="space-y-1 p-4 overflow-y-auto h-[calc(100vh-140px)] pr-2 scrollbar-orange overscroll-contain">
                   {navItems.map((item) => {
                     const Icon = item.icon;
-                    // Special case: Bills & Payments should be active for both /customer/bills and /customer/payments
+                    // Special case: Bills & Payments should be active for both /customer/bills and /customer/pay
                     const isActive =
                       item.href === "/customer"
                         ? pathname === "/customer"
                         : item.href === "/customer/bills"
                         ? pathname === item.href ||
                           pathname.startsWith(item.href + "/") ||
-                          pathname === "/customer/payments" ||
-                          pathname.startsWith("/customer/payments/")
+                          pathname.startsWith("/customer/pay/")
                         : pathname === item.href ||
                           pathname.startsWith(item.href + "/");
                     return (

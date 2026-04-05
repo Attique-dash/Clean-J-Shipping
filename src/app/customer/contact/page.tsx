@@ -1,14 +1,41 @@
 // src/app/customer/contact/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Mail, Phone, MapPin, Send, Loader2, CheckCircle, XCircle, Clock, MessageSquare, Headphones } from "lucide-react";
+
+function isSupportOnline(): boolean {
+  // Jamaica timezone (America/Jamaica)
+  const now = new Date();
+  const jamaicaTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Jamaica" }));
+  const day = jamaicaTime.getDay(); // 0 = Sunday, 1-5 = Mon-Fri, 6 = Saturday
+  const hour = jamaicaTime.getHours();
+  
+  // Monday-Friday: 9AM - 6PM
+  if (day >= 1 && day <= 5) {
+    return hour >= 9 && hour < 18;
+  }
+  // Saturday: 10AM - 4PM
+  if (day === 6) {
+    return hour >= 10 && hour < 16;
+  }
+  // Sunday: Closed
+  return false;
+}
 
 export default function CustomerContactPage() {
   const [form, setForm] = useState({ fullName: "", email: "", subject: "", message: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(false);
+
+  useEffect(() => {
+    setIsOnline(isSupportOnline());
+    // Update every minute
+    const interval = setInterval(() => setIsOnline(isSupportOnline()), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -244,9 +271,11 @@ export default function CustomerContactPage() {
                 </div>
               </div>
 
-              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-2">
-                <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-semibold text-green-700">Support Currently Online</span>
+              <div className={`mt-4 p-3 border rounded-lg flex items-center space-x-2 ${isOnline ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                <div className={`h-2 w-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                <span className={`text-sm font-semibold ${isOnline ? 'text-green-700' : 'text-gray-600'}`}>
+                  {isOnline ? 'Support Currently Online' : 'Support Offline - We\'ll Respond ASAP'}
+                </span>
               </div>
             </div>
 

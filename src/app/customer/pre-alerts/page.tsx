@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Package, Plus, X, Loader2, CheckCircle, XCircle, Clock, Plane, MapPin, Calendar, FileText, Send } from "lucide-react";
+import { Bell, Package, Loader2, CheckCircle, XCircle, Clock, Plane, MapPin, Calendar, FileText, Send } from "lucide-react";
 import { toast } from "react-toastify";
 
 type PreAlert = {
@@ -33,15 +33,6 @@ export default function PreAlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ 
-    tracking_number: "", 
-    carrier: "", 
-    origin: "", 
-    expected_date: "", 
-    notes: "" 
-  });
-  const [saving, setSaving] = useState(false);
-  const [showForm, setShowForm] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -75,38 +66,6 @@ export default function PreAlertsPage() {
     load();
   }, []);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/customer/pre-alerts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tracking_number: form.tracking_number,
-          carrier: form.carrier,
-          origin: form.origin,
-          expected_date: form.expected_date,
-          notes: form.notes || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to create pre-alert");
-      toast.success("Pre-alert created successfully! We'll notify you when your package arrives.");
-      setForm({ tracking_number: "", carrier: "", origin: "", expected_date: "", notes: "" });
-      await load();
-      setShowForm(false);
-    } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : "Failed to create pre-alert";
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  
   function getStatusInfo(status?: PreAlert["status"]) {
     switch (status) {
       case "approved":
@@ -242,152 +201,6 @@ export default function PreAlertsPage() {
             </div>
           </div>
 
-          {/* Create Form Modal - REMOVED per requirements */}
-          {false && showForm && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 sm:p-6" onClick={() => setShowForm(false)}>
-              <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4" onClick={(e) => e.stopPropagation()}>
-                <div className="sticky top-0 bg-gradient-to-r from-[#0891b2] to-[#06b6d4] text-white p-4 sm:p-6 flex items-center justify-between">
-                  <h2 className="text-lg sm:text-xl font-semibold flex items-center gap-2">
-                    <Plus className="w-5 h-5" />
-                    Create New Pre-Alert
-                  </h2>
-                  <button
-                    type="button"
-                    onClick={() => setShowForm(false)}
-                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                  >
-                    <X className="h-5 w-5 text-white" />
-                  </button>
-                </div>
-
-                <form onSubmit={onSubmit} className="p-4 sm:p-6 space-y-5">
-                  <div className="grid gap-5 sm:grid-cols-2">
-                    {/* Tracking Number */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Tracking Number <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <Package className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input 
-                          className="w-full pl-10 pr-3 py-3 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
-                          placeholder="Enter tracking number" 
-                          value={form.tracking_number} 
-                          onChange={(e) => setForm({ ...form, tracking_number: e.target.value })}
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    {/* Carrier */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Carrier <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <Plane className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input 
-                          className="w-full pl-10 pr-3 py-3 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
-                          placeholder="e.g., DHL, FedEx, UPS" 
-                          value={form.carrier} 
-                          onChange={(e) => setForm({ ...form, carrier: e.target.value })}
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    {/* Origin */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Origin <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input 
-                          className="w-full pl-10 pr-3 py-3 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
-                          placeholder="Country or city of origin" 
-                          value={form.origin} 
-                          onChange={(e) => setForm({ ...form, origin: e.target.value })}
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    {/* Expected Date */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Expected Arrival Date <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input 
-                          type="date"
-                          className="w-full pl-10 pr-3 py-3 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
-                          value={form.expected_date} 
-                          onChange={(e) => setForm({ ...form, expected_date: e.target.value })}
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Notes */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Additional Notes
-                    </label>
-                    <div className="relative">
-                      <FileText className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <textarea 
-                        className="w-full pl-10 pr-3 py-3 border-2 border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 transition-all text-sm resize-none"
-                        placeholder="Any special instructions or notes about this shipment..."
-                        rows={3}
-                        value={form.notes} 
-                        onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Error Message */}
-                  {error && (
-                    <div className="flex items-start space-x-3 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-                      <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                      <p className="text-sm font-medium text-red-800">{error}</p>
-                    </div>
-                  )}
-
-                  {/* Buttons */}
-                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
-                    <button 
-                      type="button" 
-                      onClick={() => setShowForm(false)}
-                      className="px-6 py-2.5 border-2 border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all"
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      type="submit"
-                      disabled={saving}
-                      className="flex items-center space-x-2 px-6 py-2.5 bg-gradient-to-r from-[#E67919] to-[#f59e42] text-white rounded-lg font-bold hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {saving ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>Submitting...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send className="h-4 w-4" />
-                          <span>Submit Pre-Alert</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
           {/* Pre-Alerts List Section */}
           <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
             <div className="bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] px-6 py-4">
@@ -406,8 +219,7 @@ export default function PreAlertsPage() {
                 <div className="text-center py-12">
                   <Bell className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">No pre-alerts yet</h3>
-                  <p className="text-sm text-gray-500 mb-6">Create your first pre-alert to notify us about incoming shipments</p>
-                  <p className="text-sm text-gray-500">Pre-alerts will appear here when packages are added, bills are created, or messages are sent.</p>
+                  <p className="text-sm text-gray-500 mb-6">Pre-alerts will appear here when packages are added, bills are created, or messages are sent.</p>
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -586,8 +398,7 @@ export default function PreAlertsPage() {
                     <div className="text-center py-12">
                       <Bell className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">No alerts yet</h3>
-                      <p className="text-sm text-gray-500 mb-6">Create your first pre-alert to notify us about incoming shipments</p>
-                      <p className="text-sm text-gray-500">Alerts will appear here when packages are added, bills are created, or messages are sent.</p>
+                      <p className="text-sm text-gray-500 mb-6">Alerts will appear here when packages are added, bills are created, or messages are sent.</p>
                     </div>
                   )}
                 </div>

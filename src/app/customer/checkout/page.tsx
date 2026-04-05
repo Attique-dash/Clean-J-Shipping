@@ -10,7 +10,8 @@ import {
   Loader2,
   FileText,
   DollarSign,
-  X
+  X,
+  AlertTriangle
 } from "lucide-react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { toast } from "react-toastify";
@@ -39,6 +40,7 @@ function CheckoutPageContent() {
   const [processing, setProcessing] = useState(false);
   const [_paypalOrderId, setPaypalOrderId] = useState<string | null>(null);
   const [cartTrackingNumbers, setCartTrackingNumbers] = useState<string[]>([]);
+  const [isPayPalSandbox, setIsPayPalSandbox] = useState(false);
 
   useEffect(() => {
     // Get cart items from localStorage or URL params
@@ -51,6 +53,10 @@ function CheckoutPageContent() {
         console.error("Failed to parse cart data:", _e);
       }
     }
+    
+    // Check if PayPal is in sandbox mode
+    const paypalClientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
+    setIsPayPalSandbox(paypalClientId.includes("sandbox") || paypalClientId.startsWith("A"));
     
     // Load bills
     loadBills();
@@ -254,6 +260,20 @@ function CheckoutPageContent() {
             <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-medium text-red-800">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* PayPal Sandbox Warning */}
+        {isPayPalSandbox && (
+          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-4 flex items-start space-x-3">
+            <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-yellow-800">Test Mode Active</p>
+              <p className="text-xs text-yellow-700 mt-1">
+                PayPal is currently in sandbox mode. No real payments will be processed. 
+                Use sandbox test accounts for testing.
+              </p>
             </div>
           </div>
         )}

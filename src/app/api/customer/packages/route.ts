@@ -24,11 +24,11 @@ export async function GET(req: NextRequest) {
     }
 
     // TypeScript now knows auth is not null - use consistent ID extraction
-    const userId = auth!.id || auth!._id || auth!.uid;
+    const userIdString = auth!.id || auth!._id || auth!.uid;
     
-    console.log('User ID extracted:', userId);
+    console.log('User ID extracted:', userIdString);
 
-    if (!userId) {
+    if (!userIdString) {
       console.error('User ID not found in auth payload');
       return NextResponse.json(
         { error: 'User ID not found in authentication' },
@@ -36,32 +36,51 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    console.log('Fetching packages for user:', userId);
+    console.log('Fetching packages for user:', userIdString);
 
     // Connect to database
     await dbConnect();
 
+    // Get user information to include userCode in query (for KCD-synced packages)
+    const user = (await User.findById(userIdString).select('userCode').lean()) as unknown as { userCode?: string } | null;
+    const userCode = user?.userCode || '';
+    
+    console.log('User userCode for KCD package lookup:', userCode);
+
+    // CRITICAL FIX: Convert userId string to ObjectId for proper MongoDB matching
+    // Also query by userCode to catch packages synced from KCD that may have different ID formats
+    const userObjectId = new Types.ObjectId(userIdString);
+    
+    const packageQuery: any = {
+      $or: [
+        { userId: userObjectId },
+        { userId: userIdString },  // Also check string format for backward compatibility
+      ]
+    };
+    
+    // If user has a userCode, also include it in the query for KCD-synced packages
+    if (userCode) {
+      packageQuery.$or.push(
+        { userCode: userCode },
+        { customerCode: userCode }
+      );
+    }
+
     // Fetch both packages and invoices for this customer
     const [packages, invoices] = await Promise.all([
-      Package.find({
-        userId: userId,
-      })
+      Package.find(packageQuery)
       .select('trackingNumber status itemDescription weight senderName currentLocation receiverName receiverEmail receiverPhone receiverAddress receiverCountry updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords itemValue value dimensions length width height dimensionUnit serviceMode customsRequired customsStatus paymentStatus dateReceived daysInStorage warehouseLocation senderEmail senderPhone senderAddress senderCountry shipper warehouseAddresses')
       .sort({ createdAt: -1 })
       .limit(100)
       .lean(),
-      Invoice.find({ userId: new Types.ObjectId(userId) })
+      Invoice.find({ userId: new Types.ObjectId(userIdString) })
         .populate('package', 'trackingNumber')
         .select('invoiceNumber package status')
         .sort({ createdAt: -1 })
         .lean()
     ]);
 
-    console.log(`Found ${packages.length} packages and ${invoices.length} invoices for user ${userId}`);
-
-    // Get user information to include shippingId (userCode) in response
-    const user = (await User.findById(userId).select('userCode').lean()) as unknown as { userCode?: string } | null;
-    const userCode = user?.userCode || '';
+    console.log(`Found ${packages.length} packages and ${invoices.length} invoices for user ${userIdString} (userCode: ${userCode})`);
 
     // Create a map of invoice numbers to package tracking numbers
     const invoiceMap = new Map();

@@ -24,8 +24,8 @@ import {
   Settings,
   Key,
   Plug,
-  Warehouse,
-  PackageCheck,
+  Building,
+  CheckCircle,
   HelpCircle,
   Activity
 } from "lucide-react";
@@ -147,14 +147,14 @@ export default function AdminLayout({
     {
       href: "/admin/warehouse",
       label: "Warehouse",
-      icon: Warehouse,
+      icon: Building,
       description: "Manual package receiving and entry",
       color: "from-orange-600 to-orange-700",
     },
     {
       href: "/admin/receivals",
       label: "Receivals",
-      icon: PackageCheck,
+      icon: CheckCircle,
       description: "Track incoming receivals and transfers",
       color: "from-cyan-600 to-cyan-700",
     },
