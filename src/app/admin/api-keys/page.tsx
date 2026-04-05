@@ -3,12 +3,12 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { 
-  Key, 
-  Plus, 
-  Trash2, 
-  Copy, 
-  RefreshCw, 
+import {
+  Key,
+  Plus,
+  Trash2,
+  Copy,
+  RefreshCw,
   AlertTriangle,
   Check,
   X,
@@ -17,14 +17,11 @@ import {
   Code,
   Loader2,
   Search,
-  ExternalLink
+  Eye,
+  EyeOff,
+  Filter,
+  ChevronRight,
 } from 'lucide-react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import AddButton from '@/components/admin/AddButton';
-import SharedModal from '@/components/admin/SharedModal';
 import DeleteConfirmationModal from '@/components/admin/DeleteConfirmationModal';
 
 interface ApiKey {
@@ -57,18 +54,22 @@ export default function ApiKeysPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  
+  const [statusFilter, setStatusFilter] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showKcdModal, setShowKcdModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; key: ApiKey | null }>({ open: false, key: null });
-  
+  const [viewKey, setViewKey] = useState<ApiKey | null>(null);
+
   // Form states
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyDescription, setNewKeyDescription] = useState('');
   const [courierCode, setCourierCode] = useState('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchApiKeys();
@@ -83,6 +84,9 @@ export default function ApiKeysPage() {
       setApiKeys(data.data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load API keys');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -95,9 +99,13 @@ export default function ApiKeysPage() {
       }
     } catch (err) {
       console.error('Failed to fetch KCD key:', err);
-    } finally {
-      setLoading(false);
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchApiKeys();
+    fetchKcdKey();
   };
 
   const createApiKey = async () => {
@@ -105,18 +113,12 @@ export default function ApiKeysPage() {
       const response = await fetch('/api/admin/api-keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          name: newKeyName, 
-          description: newKeyDescription 
-        }),
+        body: JSON.stringify({ name: newKeyName, description: newKeyDescription }),
       });
-      
       if (!response.ok) throw new Error('Failed to create API key');
-      
+      const data = await response.json();
+      if (data.data?.key) setGeneratedKey(data.data.key);
       await fetchApiKeys();
-      setShowCreateModal(false);
-      setNewKeyName('');
-      setNewKeyDescription('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create API key');
     }
@@ -129,14 +131,9 @@ export default function ApiKeysPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ courierCode }),
       });
-      
       if (!response.ok) throw new Error('Failed to generate KCD key');
-      
       const data = await response.json();
-      if (data.data?.apiKey) {
-        setGeneratedKey(data.data.apiKey);
-      }
-      
+      if (data.data?.apiKey) setGeneratedKey(data.data.apiKey);
       await fetchKcdKey();
       setCourierCode('');
     } catch (err) {
@@ -146,12 +143,8 @@ export default function ApiKeysPage() {
 
   const revokeApiKey = async (id: string) => {
     try {
-      const response = await fetch(`/api/admin/api-keys/${id}`, {
-        method: 'DELETE',
-      });
-      
+      const response = await fetch(`/api/admin/api-keys/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Failed to revoke API key');
-      
       await fetchApiKeys();
       setDeleteConfirm({ open: false, key: null });
     } catch (err) {
@@ -165,10 +158,31 @@ export default function ApiKeysPage() {
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
+  const toggleReveal = (id: string) => {
+    setRevealedKeys((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
   const maskKey = (key: string) => {
     if (key.length <= 8) return key;
-    return `${key.substring(0, 8)}...${key.substring(key.length - 4)}`;
+    return `${key.substring(0, 8)}${'•'.repeat(12)}${key.substring(key.length - 4)}`;
   };
+
+  const filteredKeys = apiKeys.filter((key) => {
+    const matchesSearch =
+      !searchQuery ||
+      key.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      key.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      key.courierCode?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus =
+      !statusFilter ||
+      (statusFilter === 'active' && key.isActive) ||
+      (statusFilter === 'inactive' && !key.isActive);
+    return matchesSearch && matchesStatus;
+  });
 
   if (loading) {
     return (
@@ -178,418 +192,516 @@ export default function ApiKeysPage() {
     );
   }
 
-  const filteredKeys = apiKeys.filter(key => 
-    key.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    key.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    key.courierCode?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Key className="h-6 w-6 text-[#0f4d8a]" />
-            API Keys Management
-          </h1>
-          <p className="text-gray-500 mt-1">
-            Manage API keys for third-party integrations and KCD Logistics
-          </p>
-        </div>
-        <AddButton onClick={() => setShowCreateModal(true)} label="Create API Key" />
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
 
-      {/* Error Alert */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0" />
-          <p className="text-red-700 text-sm flex-1">{error}</p>
-          <button 
-            onClick={() => setError(null)}
-            className="text-red-400 hover:text-red-600"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
-      {/* KCD API Key Section */}
-      <Card className="overflow-hidden">
-        <div className="bg-gradient-to-r from-[#0f4d8a] to-[#1a6db5] px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <Shield className="h-5 w-5 text-white" />
+        {/* ── Header ── */}
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-white/10" />
+          <div className="relative flex flex-col gap-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
+                  <Key className="h-7 w-7" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold leading-tight md:text-4xl">API Keys</h1>
+                  <p className="text-blue-100 mt-1">
+                    Total keys: <span className="font-semibold">{apiKeys.length}</span>
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-semibold text-white">KCD Logistics Integration</h2>
-                <p className="text-blue-100 text-sm">Primary API key for KCD Logistics webhook integration</p>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="group flex items-center gap-2 rounded-lg bg-white/20 backdrop-blur px-3 py-2.5 sm:px-4 font-medium text-white shadow-md ring-1 ring-white/30 transition-all hover:bg-white/30 hover:shadow-lg disabled:opacity-50 text-sm sm:text-base"
+                >
+                  <RefreshCw className={`h-4 w-4 transition-transform ${refreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+                <button
+                  onClick={() => { setShowKcdModal(true); setGeneratedKey(null); }}
+                  className="group flex items-center gap-2 rounded-xl bg-white/20 backdrop-blur px-4 py-3 sm:px-5 font-medium text-white shadow-md ring-1 ring-white/30 transition-all hover:bg-white/30 text-sm sm:text-base"
+                >
+                  <Shield className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span>{kcdKeyInfo ? 'Regen KCD Key' : 'Generate KCD Key'}</span>
+                </button>
+                <button
+                  onClick={() => { setShowCreateModal(true); setGeneratedKey(null); }}
+                  className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#E67919] to-[#d46a0f] px-4 py-3 sm:px-6 font-medium text-white shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 text-sm sm:text-base"
+                >
+                  <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span>Create API Key</span>
+                  <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 transition-transform group-hover:translate-x-0.5" />
+                </button>
               </div>
             </div>
-            <Button
-              onClick={() => setShowKcdModal(true)}
-              className="bg-white text-[#0f4d8a] hover:bg-blue-50"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              {kcdKeyInfo ? 'Regenerate Key' : 'Generate Key'}
-            </Button>
+          </div>
+        </header>
+
+        {/* ── Error Alert ── */}
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0" />
+            <p className="text-red-700 text-sm flex-1">{error}</p>
+            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* ── KCD Integration Card ── */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0f4d8a] to-[#E67919] px-6 py-4">
+            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+              <Shield className="w-5 h-5" />
+              KCD Logistics Integration
+            </h2>
+          </div>
+          <div className="p-6">
+            {kcdKeyInfo ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">API Key</label>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 bg-gray-100 px-3 py-2 rounded-lg font-mono text-xs truncate">
+                      {revealedKeys.has('kcd') ? kcdKeyInfo.apiKey : maskKey(kcdKeyInfo.apiKey)}
+                    </code>
+                    <button
+                      onClick={() => toggleReveal('kcd')}
+                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-gray-600"
+                    >
+                      {revealedKeys.has('kcd') ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                    <button
+                      onClick={() => copyToClipboard(kcdKeyInfo.apiKey, 'kcd')}
+                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-gray-600"
+                    >
+                      {copiedKey === 'kcd' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Status</label>
+                  <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${kcdKeyInfo.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    {kcdKeyInfo.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Courier Code</label>
+                  <p className="text-sm font-semibold text-gray-900 font-mono">{kcdKeyInfo.courierCode}</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Usage</label>
+                  <div className="flex items-center gap-2 text-sm text-gray-900">
+                    <Clock className="h-4 w-4 text-gray-400" />
+                    <span>{kcdKeyInfo.usageCount || 0} uses</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-10">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Shield className="h-8 w-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">No KCD API Key</h3>
+                <p className="text-gray-500 text-sm mb-4">Generate a key to enable KCD Logistics integration</p>
+                <button
+                  onClick={() => { setShowKcdModal(true); setGeneratedKey(null); }}
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#0f4d8a] to-[#0a3d6e] px-5 py-2.5 font-medium text-white shadow-md hover:shadow-lg transition-all text-sm"
+                >
+                  <Plus className="h-4 w-4" />
+                  Generate KCD Key
+                </button>
+              </div>
+            )}
           </div>
         </div>
-        
-        <div className="p-6">
-          {kcdKeyInfo ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-500">API Key</label>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-gray-100 px-3 py-2 rounded-lg font-mono text-sm">
-                    {maskKey(kcdKeyInfo.apiKey)}
-                  </code>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => copyToClipboard(kcdKeyInfo.apiKey, 'kcd')}
-                  >
-                    {copiedKey === 'kcd' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-500">Status</label>
-                <div>
-                  <Badge className={kcdKeyInfo.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
-                    {kcdKeyInfo.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-500">Courier Code</label>
-                <p className="text-gray-900 font-medium">{kcdKeyInfo.courierCode}</p>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-500">Usage</label>
-                <div className="flex items-center gap-2 text-gray-900">
-                  <Clock className="h-4 w-4 text-gray-400" />
-                  <span>{kcdKeyInfo.usageCount || 0} uses</span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Shield className="h-8 w-8 text-gray-400" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-1">No KCD API Key</h3>
-              <p className="text-gray-500 mb-4">Generate a key to enable KCD Logistics integration</p>
-              <Button onClick={() => setShowKcdModal(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Generate Key
-              </Button>
-            </div>
-          )}
-        </div>
-      </Card>
 
-      {/* General API Keys Section */}
-      <Card>
-        <div className="p-6 border-b border-gray-100">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Code className="h-5 w-5 text-[#0f4d8a]" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">General API Keys</h2>
-                <p className="text-gray-500 text-sm">{filteredKeys.length} key{filteredKeys.length !== 1 ? 's' : ''} total</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search keys..."
+        {/* ── Search & Filter ── */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
+            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+              <Search className="w-5 h-5" />
+              Search & Filter Keys
+            </h2>
+          </div>
+          <div className="p-6">
+            <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-3">
+              <div className="relative md:col-span-2">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+                  <Search className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  className="block w-full h-12 pl-10 pr-4 text-sm border border-gray-300 rounded-xl bg-white/80 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  placeholder="Search by name, description or courier code..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 w-64"
                 />
               </div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+                  <Filter className="h-5 w-5 text-gray-400" />
+                </div>
+                <select
+                  className="block w-full h-12 pl-10 pr-8 text-sm border border-gray-300 rounded-xl bg-white/80 backdrop-blur-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="">All Statuses</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
             </div>
+
+            {(searchQuery || statusFilter) && (
+              <div className="flex flex-wrap items-center gap-2 mt-4">
+                {searchQuery && (
+                  <div className="flex items-center gap-2 rounded-lg bg-blue-100 px-3 py-1.5 text-sm">
+                    <Search className="h-4 w-4 text-blue-600" />
+                    <span className="font-medium text-blue-800">"{searchQuery}"</span>
+                    <button onClick={() => setSearchQuery('')} className="ml-1 text-blue-600 hover:text-blue-800">×</button>
+                  </div>
+                )}
+                {statusFilter && (
+                  <div className="flex items-center gap-2 rounded-lg bg-orange-100 px-3 py-1.5 text-sm">
+                    <Filter className="h-4 w-4 text-orange-600" />
+                    <span className="font-medium text-orange-800">Status: {statusFilter}</span>
+                    <button onClick={() => setStatusFilter('')} className="ml-1 text-orange-600 hover:text-orange-800">×</button>
+                  </div>
+                )}
+                <button
+                  onClick={() => { setSearchQuery(''); setStatusFilter(''); }}
+                  className="text-sm text-gray-600 hover:text-gray-800 underline"
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="divide-y divide-gray-100">
+        {/* ── API Keys List ── */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <Code className="w-5 h-5" />
+                General API Keys
+              </h2>
+              <div className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-lg">
+                <span className="text-white text-sm font-medium">
+                  {filteredKeys.length} key{filteredKeys.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+          </div>
+
           {filteredKeys.length === 0 ? (
-            <div className="text-center py-12">
+            <div className="p-12 text-center">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Key className="h-8 w-8 text-gray-400" />
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-1">No API Keys</h3>
-              <p className="text-gray-500">
-                {searchQuery ? 'No keys match your search' : 'Create your first API key to get started'}
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No API Keys Found</h3>
+              <p className="text-sm text-gray-600 mb-6">
+                {searchQuery || statusFilter ? 'Try adjusting your search or filters' : 'Create your first API key to get started'}
               </p>
+              <button
+                onClick={() => { setShowCreateModal(true); setGeneratedKey(null); }}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#0f4d8a] to-[#0a3d6e] px-6 py-3 font-medium text-white shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5"
+              >
+                <Plus className="h-5 w-5" />
+                Create API Key
+              </button>
             </div>
           ) : (
-            filteredKeys.map((key) => (
-              <div key={key._id} className="p-6 hover:bg-gray-50 transition-colors">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="font-semibold text-gray-900">{key.name}</h3>
-                      <Badge className={key.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}>
-                        {key.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </div>
-                    
-                    {key.description && (
-                      <p className="text-gray-500 text-sm mb-3">{key.description}</p>
-                    )}
-                    
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
-                      <div className="flex items-center gap-1.5">
-                        <Code className="h-4 w-4" />
-                        <code className="bg-gray-100 px-2 py-0.5 rounded text-xs">
-                          {maskKey(key.key)}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Key Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">API Key</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Usage</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Created</th>
+                    <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredKeys.map((key) => (
+                    <tr key={key._id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-gradient-to-br from-[#0f4d8a] to-[#1a6db5] flex items-center justify-center">
+                            <Key className="h-5 w-5 text-white" />
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-semibold text-gray-900">{key.name}</div>
+                            {key.description && (
+                              <div className="text-xs text-gray-500 mt-0.5 max-w-[200px] truncate">{key.description}</div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono">
+                          {revealedKeys.has(key._id) ? key.key : maskKey(key.key)}
                         </code>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="h-4 w-4" />
-                        <span>{key.usageCount || 0} uses</span>
-                      </div>
-                      <div>
-                        Created {new Date(key.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 ml-4">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => copyToClipboard(key.key, key._id)}
-                      title="Copy key"
-                    >
-                      {copiedKey === key._id ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setDeleteConfirm({ open: true, key })}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      title="Revoke key"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${key.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                          {key.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1.5 text-sm text-gray-700">
+                          <Clock className="h-4 w-4 text-gray-400" />
+                          <span>{key.usageCount || 0} uses</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {new Date(key.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1 bg-gray-100 rounded-lg p-1">
+                          <button
+                            onClick={() => toggleReveal(key._id)}
+                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 bg-white rounded-md hover:bg-gray-50 transition-all shadow-sm"
+                            title={revealedKeys.has(key._id) ? 'Hide key' : 'Reveal key'}
+                          >
+                            {revealedKeys.has(key._id) ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+                            {revealedKeys.has(key._id) ? 'Hide' : 'Show'}
+                          </button>
+                          <button
+                            onClick={() => copyToClipboard(key.key, key._id)}
+                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-white rounded-md hover:bg-blue-50 transition-all shadow-sm"
+                            title="Copy key"
+                          >
+                            {copiedKey === key._id ? <Check className="h-3 w-3 mr-1 text-green-600" /> : <Copy className="h-3 w-3 mr-1" />}
+                            Copy
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm({ open: true, key })}
+                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-white rounded-md hover:bg-red-50 transition-all shadow-sm"
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Revoke
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
-      </Card>
+      </div>
 
-      {/* Create API Key Modal */}
-      <SharedModal
-        open={showCreateModal}
-        onClose={() => {
-          setShowCreateModal(false);
-          setNewKeyName('');
-          setNewKeyDescription('');
-        }}
-        title="Create New API Key"
-      >
-        {generatedKey ? (
-          <div className="space-y-4">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <Check className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="font-medium text-green-900">Key Generated Successfully</h4>
-                  <p className="text-green-700 text-sm mt-1">
-                    Copy this key now. It will not be shown again.
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Your API Key</label>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 bg-gray-100 px-4 py-3 rounded-lg font-mono text-sm break-all">
-                  {generatedKey}
-                </code>
-                <Button
-                  onClick={() => copyToClipboard(generatedKey!, 'new')}
-                  variant="outline"
-                  size="icon"
-                >
-                  {copiedKey === 'new' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-            
-            <div className="flex justify-end">
-              <Button onClick={() => {
-                setShowCreateModal(false);
-                setNewKeyName('');
-                setNewKeyDescription('');
-              }}>
-                Done
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Key Name <span className="text-red-500">*</span>
-              </label>
-              <Input
-                value={newKeyName}
-                onChange={(e) => setNewKeyName(e.target.value)}
-                placeholder="e.g., Mobile App Integration"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description (optional)
-              </label>
-              <textarea
-                value={newKeyDescription}
-                onChange={(e) => setNewKeyDescription(e.target.value)}
-                placeholder="Describe the purpose of this API key"
-                rows={3}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#0f4d8a] focus:border-[#0f4d8a]"
-              />
-            </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setShowCreateModal(false)}>
-                Cancel
-              </Button>
-              <Button 
-                onClick={createApiKey}
-                disabled={!newKeyName.trim()}
+      {/* ── Create API Key Modal ── */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-[#E67919] to-[#d46a0f] px-6 py-4 flex items-center justify-between z-10 rounded-t-2xl">
+              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <Key className="w-5 h-5" />
+                Create New API Key
+              </h2>
+              <button
+                onClick={() => { setShowCreateModal(false); setGeneratedKey(null); setNewKeyName(''); setNewKeyDescription(''); }}
+                className="text-white hover:text-gray-200 transition-colors"
               >
-                Create Key
-              </Button>
+                <X className="h-5 w-5" />
+              </button>
             </div>
-          </div>
-        )}
-      </SharedModal>
-
-      {/* Generate KCD Key Modal */}
-      <SharedModal
-        open={showKcdModal}
-        onClose={() => {
-          setShowKcdModal(false);
-          setGeneratedKey(null);
-          setCourierCode('');
-        }}
-        title="Regenerate KCD API Key"
-      >
-        {generatedKey ? (
-          <div className="space-y-4">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <Check className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="font-medium text-green-900">KCD Key Generated</h4>
-                  <p className="text-green-700 text-sm mt-1">
-                    Copy this key and configure it in the KCD portal.
-                  </p>
+            <div className="p-6">
+              {generatedKey ? (
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-green-200 bg-green-50 p-4 flex items-start gap-3">
+                    <Check className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-semibold text-green-900">Key Generated Successfully</h4>
+                      <p className="text-green-700 text-sm mt-1">Copy this key now — it will not be shown again.</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">Your API Key</label>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 bg-gray-100 px-4 py-3 rounded-xl font-mono text-sm break-all">{generatedKey}</code>
+                      <button
+                        onClick={() => copyToClipboard(generatedKey, 'new')}
+                        className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                      >
+                        {copiedKey === 'new' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4 text-gray-600" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => { setShowCreateModal(false); setGeneratedKey(null); setNewKeyName(''); setNewKeyDescription(''); }}
+                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#0f4d8a] to-[#0a3d6e] px-5 py-2.5 text-sm font-medium text-white shadow-md hover:shadow-lg transition-all"
+                    >
+                      Done
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">KCD API Key</label>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 bg-gray-100 px-4 py-3 rounded-lg font-mono text-sm break-all">
-                  {generatedKey}
-                </code>
-                <Button
-                  onClick={() => copyToClipboard(generatedKey!, 'kcd-new')}
-                  variant="outline"
-                  size="icon"
-                >
-                  {copiedKey === 'kcd-new' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-            
-            <div className="bg-blue-50 rounded-lg p-4 text-sm">
-              <p className="font-medium text-blue-900 mb-2">Next Steps:</p>
-              <ol className="list-decimal list-inside space-y-1 text-blue-800">
-                <li>Copy the API key above</li>
-                <li>Go to KCD portal → Admin → Couriers</li>
-                <li>Paste the key in the API Access Token field</li>
-                <li>Save and test the connection</li>
-              </ol>
-            </div>
-            
-            <div className="flex justify-end">
-              <Button onClick={() => {
-                setShowKcdModal(false);
-                setGeneratedKey(null);
-                setCourierCode('');
-              }}>
-                Done
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Courier Code <span className="text-red-500">*</span>
-              </label>
-              <Input
-                value={courierCode}
-                onChange={(e) => setCourierCode(e.target.value.toUpperCase())}
-                placeholder="e.g., CLEAN"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Unique identifier for this courier integration (e.g., CLEAN)
-              </p>
-            </div>
-            
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 text-yellow-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-yellow-800">
-                  Generating a new key will invalidate any existing KCD integration. 
-                  Make sure to update the key in the KCD portal immediately.
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setShowKcdModal(false)}>
-                Cancel
-              </Button>
-              <Button 
-                onClick={generateKcdKey}
-                disabled={!courierCode.trim()}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Generate Key
-              </Button>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      Key Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                      placeholder="e.g., Mobile App Integration"
+                      value={newKeyName}
+                      onChange={(e) => setNewKeyName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Description (optional)</label>
+                    <textarea
+                      className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                      placeholder="Describe the purpose of this API key"
+                      rows={3}
+                      value={newKeyDescription}
+                      onChange={(e) => setNewKeyDescription(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button
+                      onClick={() => { setShowCreateModal(false); setNewKeyName(''); setNewKeyDescription(''); }}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={createApiKey}
+                      disabled={!newKeyName.trim()}
+                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#0f4d8a] to-[#0a3d6e] px-5 py-2.5 text-sm font-medium text-white shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Create Key
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        )}
-      </SharedModal>
+        </div>
+      )}
 
-      {/* Delete Confirmation */}
+      {/* ── Generate KCD Key Modal ── */}
+      {showKcdModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-[#0f4d8a] to-[#0e447d] px-6 py-4 flex items-center justify-between z-10 rounded-t-2xl">
+              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <Shield className="w-5 h-5" />
+                {kcdKeyInfo ? 'Regenerate KCD API Key' : 'Generate KCD API Key'}
+              </h2>
+              <button
+                onClick={() => { setShowKcdModal(false); setGeneratedKey(null); setCourierCode(''); }}
+                className="text-white hover:text-gray-200 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              {generatedKey ? (
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-green-200 bg-green-50 p-4 flex items-start gap-3">
+                    <Check className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-semibold text-green-900">KCD Key Generated</h4>
+                      <p className="text-green-700 text-sm mt-1">Copy this key and configure it in the KCD portal.</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">KCD API Key</label>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 bg-gray-100 px-4 py-3 rounded-xl font-mono text-sm break-all">{generatedKey}</code>
+                      <button
+                        onClick={() => copyToClipboard(generatedKey, 'kcd-new')}
+                        className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                      >
+                        {copiedKey === 'kcd-new' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4 text-gray-600" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-blue-50 border border-blue-100 p-4 text-sm">
+                    <p className="font-semibold text-blue-900 mb-2">Next Steps:</p>
+                    <ol className="list-decimal list-inside space-y-1 text-blue-800">
+                      <li>Copy the API key above</li>
+                      <li>Go to KCD portal → Admin → Couriers</li>
+                      <li>Paste the key in the API Access Token field</li>
+                      <li>Save and test the connection</li>
+                    </ol>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => { setShowKcdModal(false); setGeneratedKey(null); setCourierCode(''); }}
+                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#0f4d8a] to-[#0a3d6e] px-5 py-2.5 text-sm font-medium text-white shadow-md hover:shadow-lg transition-all"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      Courier Code <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                      placeholder="e.g., CLEAN"
+                      value={courierCode}
+                      onChange={(e) => setCourierCode(e.target.value.toUpperCase())}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Unique identifier for this courier integration</p>
+                  </div>
+                  <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-yellow-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-yellow-800">
+                      Generating a new key will invalidate any existing KCD integration. Update the key in the KCD portal immediately.
+                    </p>
+                  </div>
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button
+                      onClick={() => { setShowKcdModal(false); setCourierCode(''); }}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={generateKcdKey}
+                      disabled={!courierCode.trim()}
+                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#0f4d8a] to-[#0a3d6e] px-5 py-2.5 text-sm font-medium text-white shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Generate Key
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Confirmation ── */}
       <DeleteConfirmationModal
         open={deleteConfirm.open}
         onClose={() => setDeleteConfirm({ open: false, key: null })}
         onConfirm={() => deleteConfirm.key && revokeApiKey(deleteConfirm.key._id)}
         title="Revoke API Key"
         message={`Are you sure you want to revoke "${deleteConfirm.key?.name}"? This action cannot be undone.`}
+        itemName={deleteConfirm.key?.name}
       />
     </div>
   );

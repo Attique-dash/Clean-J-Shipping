@@ -81,6 +81,7 @@ declare module 'lucide-react' {
   export const Calculator: any;
   export const FileSearch: any;
   export const Package2: any;
+  export const LayoutGrid: any;
   export const Edit: any;
   export const Trash: any;
   export const Filter: any;

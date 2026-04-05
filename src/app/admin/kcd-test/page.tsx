@@ -2,11 +2,11 @@
 'use client';
 
 import { useState } from 'react';
-import { 
-  Plug, 
-  Send, 
-  CheckCircle, 
-  XCircle, 
+import {
+  Plug,
+  Send,
+  CheckCircle,
+  XCircle,
   AlertTriangle,
   Copy,
   Check,
@@ -18,13 +18,10 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
-  Globe
+  Globe,
+  ChevronRight,
+  Filter,
 } from 'lucide-react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import AddButton from '@/components/admin/AddButton';
 
 interface TestResult {
   success: boolean;
@@ -52,6 +49,7 @@ export default function KcdTestPage() {
   const [logs, setLogs] = useState<RequestLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
 
   // Test payload state
   const [trackingNumber, setTrackingNumber] = useState('TEST' + Date.now().toString().slice(-6));
@@ -73,53 +71,24 @@ export default function KcdTestPage() {
   const testWebhook = async () => {
     setLoading(true);
     setResult(null);
-    
     const startTime = performance.now();
     const timestamp = new Date().toISOString();
-    
     try {
-      const payload = {
-        trackingNumber,
-        houseNumber,
-        customerMailbox,
-        weight,
-        shipper,
-        receivedAt: timestamp
-      };
-
+      const payload = { trackingNumber, houseNumber, customerMailbox, weight, shipper, receivedAt: timestamp };
       const response = await fetch('/api/kcd/packages/add', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': apiKey
-        },
-        body: JSON.stringify(payload)
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+        body: JSON.stringify(payload),
       });
-
       const responseTime = Math.round(performance.now() - startTime);
       const data = await response.json().catch(() => null);
-
-      setResult({
-        success: response.ok,
-        status: response.status,
-        statusText: response.statusText,
-        data,
-        responseTime,
-        timestamp
-      });
-
-      // Refresh logs after successful test
-      if (response.ok) {
-        fetchLogs();
-      }
+      setResult({ success: response.ok, status: response.status, statusText: response.statusText, data, responseTime, timestamp });
+      if (response.ok) fetchLogs();
     } catch (error) {
       setResult({
-        success: false,
-        status: 0,
-        statusText: 'Network Error',
+        success: false, status: 0, statusText: 'Network Error',
         data: { error: error instanceof Error ? error.message : 'Unknown error' },
-        responseTime: Math.round(performance.now() - startTime),
-        timestamp
+        responseTime: Math.round(performance.now() - startTime), timestamp,
       });
     } finally {
       setLoading(false);
@@ -129,12 +98,7 @@ export default function KcdTestPage() {
   const fetchLogs = async () => {
     setLogsLoading(true);
     try {
-      const response = await fetch('/api/kcd/packages/add', {
-        headers: {
-          'X-API-Key': apiKey
-        }
-      });
-      
+      const response = await fetch('/api/kcd/packages/add', { headers: { 'X-API-Key': apiKey } });
       if (response.ok) {
         const data = await response.json();
         setLogs(data.logs || []);
@@ -146,19 +110,10 @@ export default function KcdTestPage() {
     }
   };
 
-  const [showLogs, setShowLogs] = useState(false);
-
-  const getStatusColor = (status: number) => {
-    if (status >= 200 && status < 300) return 'bg-green-100 text-green-700 border-green-200';
-    if (status >= 400 && status < 500) return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-    if (status >= 500) return 'bg-red-100 text-red-700 border-red-200';
-    return 'bg-gray-100 text-gray-700 border-gray-200';
-  };
-
-  const getStatusBadge = (status: number) => {
-    if (status >= 200 && status < 300) return 'bg-green-100 text-green-700';
-    if (status >= 400) return 'bg-red-100 text-red-700';
-    return 'bg-gray-100 text-gray-700';
+  const getStatusBadgeClass = (status: number) => {
+    if (status >= 200 && status < 300) return 'bg-green-100 text-green-800';
+    if (status >= 400) return 'bg-red-100 text-red-800';
+    return 'bg-gray-100 text-gray-800';
   };
 
   const getStatusIcon = (status: number) => {
@@ -168,351 +123,366 @@ export default function KcdTestPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Plug className="h-6 w-6 text-[#0f4d8a]" />
-            KCD Webhook Testing
-          </h1>
-          <p className="text-gray-500 mt-1">
-            Test the KCD Logistics webhook endpoint and view request logs
-          </p>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
 
-      {/* API Key Configuration */}
-      <Card>
-        <div className="p-6 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Code className="h-5 w-5 text-[#0f4d8a]" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">API Configuration</h2>
-              <p className="text-gray-500 text-sm">Configure your API key for testing</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              X-API-Key Header Value
-            </label>
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Input
-                  type={showApiKey ? 'text' : 'password'}
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="pr-10 font-mono"
-                  placeholder="Enter your API key"
-                />
-                <button
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => copyToClipboard(apiKey)}
-              >
-                {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-              </Button>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              This key is used for both sending test requests and viewing logs
-            </p>
-          </div>
-
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">Endpoint Information</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <span className="text-xs text-gray-500 uppercase">Method</span>
-                <Badge className="bg-blue-100 text-blue-700 font-mono">POST</Badge>
-              </div>
-              <div className="space-y-1">
-                <span className="text-xs text-gray-500 uppercase">URL</span>
-                <code className="block text-sm font-mono text-gray-700">/api/kcd/packages/add</code>
-              </div>
-              <div className="space-y-1">
-                <span className="text-xs text-gray-500 uppercase">Content-Type</span>
-                <code className="block text-sm font-mono text-gray-700">application/json</code>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Test Payload Form */}
-      <Card>
-        <div className="p-6 border-b border-gray-100">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Send className="h-5 w-5 text-green-600" />
+        {/* ── Header ── */}
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-white/10" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
+                <Plug className="h-7 w-7" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Test Payload</h2>
-                <p className="text-gray-500 text-sm">Configure and send test webhook</p>
+                <h1 className="text-3xl font-bold leading-tight md:text-4xl">KCD Webhook Testing</h1>
+                <p className="text-blue-100 mt-1">Test the KCD Logistics webhook endpoint and view request logs</p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={generateNewTracking}
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              New Tracking
-            </Button>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <button
+                onClick={generateNewTracking}
+                className="group flex items-center gap-2 rounded-lg bg-white/20 backdrop-blur px-3 py-2.5 sm:px-4 font-medium text-white shadow-md ring-1 ring-white/30 transition-all hover:bg-white/30 hover:shadow-lg text-sm sm:text-base"
+              >
+                <RefreshCw className="h-4 w-4 group-hover:rotate-180 transition-transform" />
+                <span className="hidden sm:inline">New Tracking</span>
+              </button>
+              <button
+                onClick={testWebhook}
+                disabled={loading || !apiKey || !trackingNumber || !customerMailbox}
+                className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#E67919] to-[#d46a0f] px-4 py-3 sm:px-6 font-medium text-white shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 text-sm sm:text-base"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 sm:h-5 sm:w-5" />
+                )}
+                <span>{loading ? 'Sending...' : 'Send Test Webhook'}</span>
+                {!loading && <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 transition-transform group-hover:translate-x-0.5" />}
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* ── API Configuration ── */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0f4d8a] to-[#E67919] px-6 py-4">
+            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+              <Code className="w-5 h-5" />
+              API Configuration
+            </h2>
+          </div>
+          <div className="p-6 space-y-6">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                X-API-Key Header Value
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 pr-10 text-sm font-mono focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                    placeholder="Enter your API key"
+                  />
+                  <button
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <button
+                  onClick={() => copyToClipboard(apiKey)}
+                  className="p-2.5 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 transition-colors text-gray-600"
+                >
+                  {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1.5">
+                Used for both sending test requests and viewing logs
+              </p>
+            </div>
+
+            {/* Endpoint Info */}
+            <div className="rounded-xl bg-gradient-to-r from-[#0f4d8a]/5 to-[#E67919]/5 border border-gray-200 p-4">
+              <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-3">Endpoint Information</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Method</span>
+                  <div>
+                    <span className="inline-flex px-3 py-1 text-xs font-bold rounded-full bg-blue-100 text-blue-800 font-mono">
+                      POST
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">URL</span>
+                  <code className="block text-sm font-mono text-gray-700 bg-white px-2 py-1 rounded-lg border border-gray-200">
+                    /api/kcd/packages/add
+                  </code>
+                </div>
+                <div className="space-y-1.5">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Content-Type</span>
+                  <code className="block text-sm font-mono text-gray-700 bg-white px-2 py-1 rounded-lg border border-gray-200">
+                    application/json
+                  </code>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">
-                Tracking Number <span className="text-red-500">*</span>
-              </label>
-              <Input
-                value={trackingNumber}
-                onChange={(e) => setTrackingNumber(e.target.value.toUpperCase())}
-                className="font-mono"
-                placeholder="e.g., TBA3295097"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">
-                Customer Mailbox <span className="text-red-500">*</span>
-              </label>
-              <Input
-                value={customerMailbox}
-                onChange={(e) => setCustomerMailbox(e.target.value.toUpperCase())}
-                className="font-mono"
-                placeholder="e.g., CLEAN-0007"
-              />
-              <p className="text-xs text-gray-500">Maps to userCode in database</p>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">House Number</label>
-              <Input
-                value={houseNumber}
-                onChange={(e) => setHouseNumber(e.target.value)}
-                placeholder="e.g., CLEAN0000001"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Weight (kg)</label>
-              <Input
-                type="text"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-                placeholder="e.g., 2.5"
-              />
-            </div>
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-sm font-medium text-gray-700">Shipper</label>
-              <Input
-                value={shipper}
-                onChange={(e) => setShipper(e.target.value)}
-                placeholder="e.g., Amazon, eBay, etc."
-              />
+        {/* ── Test Payload Form ── */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <Send className="w-5 h-5" />
+                Test Payload
+              </h2>
+              <button
+                onClick={generateNewTracking}
+                className="flex items-center gap-2 rounded-lg bg-white/20 backdrop-blur px-3 py-1.5 text-sm font-medium text-white ring-1 ring-white/30 hover:bg-white/30 transition-all"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                New Tracking
+              </button>
             </div>
           </div>
-
-          <Button
-            onClick={testWebhook}
-            disabled={loading || !apiKey || !trackingNumber || !customerMailbox}
-            className="w-full sm:w-auto"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Sending Request...
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4 mr-2" />
-                Send Test Webhook
-              </>
-            )}
-          </Button>
-        </div>
-      </Card>
-
-      {/* Test Result */}
-      {result && (
-        <Card className={`border-l-4 ${result.success ? 'border-l-green-500' : 'border-l-red-500'}`}>
           <div className="p-6">
-            <div className="flex items-start gap-4">
-              <div className="mt-0.5">
-                {getStatusIcon(result.status)}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                  Tracking Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={trackingNumber}
+                  onChange={(e) => setTrackingNumber(e.target.value.toUpperCase())}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-mono focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                  placeholder="e.g., TBA3295097"
+                />
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-lg font-semibold text-gray-900">
-                    {result.success ? 'Success' : 'Failed'}
-                  </span>
-                  <Badge className={getStatusBadge(result.status)}>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                  Customer Mailbox <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={customerMailbox}
+                  onChange={(e) => setCustomerMailbox(e.target.value.toUpperCase())}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-mono focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                  placeholder="e.g., CLEAN-0007"
+                />
+                <p className="text-xs text-gray-500 mt-1">Maps to userCode in database</p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">House Number</label>
+                <input
+                  value={houseNumber}
+                  onChange={(e) => setHouseNumber(e.target.value)}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                  placeholder="e.g., CLEAN0000001"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Weight (kg)</label>
+                <input
+                  type="text"
+                  value={weight}
+                  onChange={(e) => setWeight(e.target.value)}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                  placeholder="e.g., 2.5"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Shipper</label>
+                <input
+                  value={shipper}
+                  onChange={(e) => setShipper(e.target.value)}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
+                  placeholder="e.g., Amazon, eBay, etc."
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={testWebhook}
+              disabled={loading || !apiKey || !trackingNumber || !customerMailbox}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#0f4d8a] to-[#0a3d6e] px-6 py-2.5 text-sm font-medium text-white shadow-md hover:shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            >
+              {loading ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Sending Request...</>
+              ) : (
+                <><Send className="h-4 w-4" /> Send Test Webhook</>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* ── Test Result ── */}
+        {result && (
+          <div className={`bg-white rounded-2xl shadow-lg border-2 overflow-hidden ${result.success ? 'border-green-400' : 'border-red-400'}`}>
+            <div className={`px-6 py-4 ${result.success ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 'bg-gradient-to-r from-red-500 to-rose-500'}`}>
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 bg-white/20 rounded-lg">
+                  {result.success
+                    ? <CheckCircle className="h-5 w-5 text-white" />
+                    : <XCircle className="h-5 w-5 text-white" />}
+                </div>
+                <h2 className="text-xl font-semibold text-white">
+                  {result.success ? 'Request Successful' : 'Request Failed'}
+                </h2>
+                <div className="ml-auto flex items-center gap-3">
+                  <span className="inline-flex px-3 py-1 text-xs font-bold rounded-full bg-white/20 text-white font-mono">
                     {result.status} {result.statusText}
-                  </Badge>
-                  <span className="flex items-center gap-1 text-sm text-gray-500">
+                  </span>
+                  <span className="flex items-center gap-1.5 text-sm text-white/80">
                     <Clock className="h-4 w-4" />
                     {result.responseTime}ms
                   </span>
                 </div>
-                
-                <div className="bg-gray-50 rounded-lg p-4 font-mono text-sm overflow-auto max-h-60">
-                  <pre className="text-gray-700">{JSON.stringify(result.data, null, 2)}</pre>
-                </div>
               </div>
             </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Request Logs */}
-      <Card>
-        <div className="p-6 border-b border-gray-100">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Clock className="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Request Logs</h2>
-                <p className="text-gray-500 text-sm">{logs.length} log{logs.length !== 1 ? 's' : ''} available</p>
+            <div className="p-6">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Response Body</label>
+              <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 font-mono text-sm overflow-auto max-h-60">
+                <pre className="text-gray-700">{JSON.stringify(result.data, null, 2)}</pre>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowLogs(!showLogs)}
-              >
-                {showLogs ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                {showLogs ? 'Hide Logs' : 'Show Logs'}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchLogs}
-                disabled={logsLoading || !apiKey}
-              >
-                {logsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {showLogs && (
-          <div className="p-6">
-            {logs.length === 0 ? (
-              <div className="text-center py-8">
-                <Clock className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p className="text-gray-500">No logs available</p>
-                <p className="text-sm text-gray-400">Send a test request to see logs</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {logs.map((log, index) => (
-                  <div 
-                    key={index} 
-                    className={`border rounded-lg p-4 ${
-                      log.responseStatus >= 200 && log.responseStatus < 300 
-                        ? 'border-green-200 bg-green-50/30' 
-                        : log.responseStatus >= 400 
-                          ? 'border-red-200 bg-red-50/30' 
-                          : 'border-gray-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <Badge className={getStatusBadge(log.responseStatus)}>
-                        {log.method}
-                      </Badge>
-                      <span className="text-sm text-gray-500">
-                        {new Date(log.timestamp).toLocaleString()}
-                      </span>
-                      <Badge className={getStatusBadge(log.responseStatus)}>
-                        {log.responseStatus}
-                      </Badge>
-                    </div>
-                    
-                    {log.error && (
-                      <div className="text-sm text-red-600 mb-2">
-                        Error: {log.error}
-                      </div>
-                    )}
-                    
-                    <details className="text-sm">
-                      <summary className="cursor-pointer text-[#0f4d8a] hover:text-blue-700 font-medium">
-                        View Request Details
-                      </summary>
-                      <div className="mt-2 space-y-2">
-                        <div>
-                          <span className="text-gray-500 font-medium text-xs uppercase">Headers</span>
-                          <pre className="mt-1 bg-gray-100 rounded p-2 text-xs overflow-auto font-mono">
-                            {JSON.stringify(log.headers, null, 2)}
-                          </pre>
-                        </div>
-                        {log.body && (
-                          <div>
-                            <span className="text-gray-500 font-medium text-xs uppercase">Body</span>
-                            <pre className="mt-1 bg-gray-100 rounded p-2 text-xs overflow-auto font-mono">
-                              {JSON.stringify(log.body, null, 2)}
-                            </pre>
-                          </div>
-                        )}
-                      </div>
-                    </details>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
-      </Card>
 
-      {/* Quick Reference */}
-      <Card className="bg-blue-50 border-blue-200">
-        <div className="p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Globe className="h-5 w-5 text-blue-600" />
+        {/* ── Request Logs ── */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0891b2] to-[#06b6d4] px-6 py-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                Request Logs
+              </h2>
+              <div className="flex items-center gap-2">
+                <div className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-lg">
+                  <span className="text-white text-sm font-medium">{logs.length} log{logs.length !== 1 ? 's' : ''}</span>
+                </div>
+                <button
+                  onClick={() => setShowLogs(!showLogs)}
+                  className="flex items-center gap-1.5 rounded-lg bg-white/20 backdrop-blur px-3 py-1.5 text-sm font-medium text-white ring-1 ring-white/30 hover:bg-white/30 transition-all"
+                >
+                  {showLogs ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {showLogs ? 'Hide' : 'Show'}
+                </button>
+                <button
+                  onClick={fetchLogs}
+                  disabled={logsLoading || !apiKey}
+                  className="p-2 rounded-lg bg-white/20 backdrop-blur ring-1 ring-white/30 hover:bg-white/30 transition-all text-white disabled:opacity-50"
+                >
+                  {logsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
-            <h3 className="text-lg font-semibold text-blue-900">Quick Reference</h3>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <span className="block text-sm font-medium text-blue-700 mb-1">Endpoint URL</span>
-              <code className="block text-sm font-mono bg-blue-100 text-blue-900 px-2 py-1 rounded">
-                POST /api/kcd/packages/add
-              </code>
+
+          {showLogs && (
+            <div className="p-6">
+              {logs.length === 0 ? (
+                <div className="text-center py-10">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Clock className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">No Logs Available</h3>
+                  <p className="text-sm text-gray-500">Send a test request to see logs here</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {logs.map((log, index) => (
+                    <div
+                      key={index}
+                      className={`rounded-xl border p-4 ${
+                        log.responseStatus >= 200 && log.responseStatus < 300
+                          ? 'border-green-200 bg-green-50/40'
+                          : log.responseStatus >= 400
+                          ? 'border-red-200 bg-red-50/40'
+                          : 'border-gray-200 bg-gray-50/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
+                        <span className={`inline-flex px-2 py-0.5 text-xs font-bold rounded-full font-mono ${getStatusBadgeClass(log.responseStatus)}`}>
+                          {log.method}
+                        </span>
+                        <span className="text-xs text-gray-500">{new Date(log.timestamp).toLocaleString()}</span>
+                        <span className={`inline-flex px-2 py-0.5 text-xs font-bold rounded-full ${getStatusBadgeClass(log.responseStatus)}`}>
+                          {log.responseStatus}
+                        </span>
+                        {log.error && (
+                          <span className="text-xs text-red-600 font-medium">Error: {log.error}</span>
+                        )}
+                      </div>
+                      <details className="text-sm">
+                        <summary className="cursor-pointer text-[#0f4d8a] hover:text-blue-700 font-medium text-xs">
+                          View Request Details
+                        </summary>
+                        <div className="mt-3 space-y-3">
+                          <div>
+                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Headers</span>
+                            <pre className="mt-1 bg-white rounded-lg border border-gray-200 p-3 text-xs overflow-auto font-mono">
+                              {JSON.stringify(log.headers, null, 2)}
+                            </pre>
+                          </div>
+                          {log.body && (
+                            <div>
+                              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Body</span>
+                              <pre className="mt-1 bg-white rounded-lg border border-gray-200 p-3 text-xs overflow-auto font-mono">
+                                {JSON.stringify(log.body, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      </details>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div>
-              <span className="block text-sm font-medium text-blue-700 mb-1">Required Headers</span>
-              <code className="block text-sm font-mono bg-blue-100 text-blue-900 px-2 py-1 rounded">
-                X-API-Key: {'<your-key>'}
-              </code>
-              <code className="block text-sm font-mono bg-blue-100 text-blue-900 px-2 py-1 rounded mt-1">
-                Content-Type: application/json
-              </code>
-            </div>
-            <div>
-              <span className="block text-sm font-medium text-blue-700 mb-1">Required Fields</span>
-              <code className="block text-sm font-mono bg-blue-100 text-blue-900 px-2 py-1 rounded">
-                trackingNumber, customerMailbox
-              </code>
+          )}
+        </div>
+
+        {/* ── Quick Reference ── */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0f4d8a] to-[#E67919] px-6 py-4">
+            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+              <Globe className="w-5 h-5" />
+              Quick Reference
+            </h2>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-4">
+                <span className="block text-xs font-bold text-blue-700 uppercase tracking-wider mb-2">Endpoint URL</span>
+                <code className="block text-sm font-mono bg-white text-blue-900 px-3 py-2 rounded-lg border border-blue-100">
+                  POST /api/kcd/packages/add
+                </code>
+              </div>
+              <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-4">
+                <span className="block text-xs font-bold text-blue-700 uppercase tracking-wider mb-2">Required Headers</span>
+                <code className="block text-sm font-mono bg-white text-blue-900 px-3 py-2 rounded-lg border border-blue-100 mb-2">
+                  X-API-Key: {'<your-key>'}
+                </code>
+                <code className="block text-sm font-mono bg-white text-blue-900 px-3 py-2 rounded-lg border border-blue-100">
+                  Content-Type: application/json
+                </code>
+              </div>
+              <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-4">
+                <span className="block text-xs font-bold text-blue-700 uppercase tracking-wider mb-2">Required Fields</span>
+                <code className="block text-sm font-mono bg-white text-blue-900 px-3 py-2 rounded-lg border border-blue-100">
+                  trackingNumber, customerMailbox
+                </code>
+              </div>
             </div>
           </div>
         </div>
-      </Card>
+
+      </div>
     </div>
   );
 }
