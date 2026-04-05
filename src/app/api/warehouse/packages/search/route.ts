@@ -5,6 +5,8 @@ import { Package } from "@/models/Package";
 import { User } from "@/models/User";
 import { getAuthFromRequest } from "@/lib/rbac";
 
+export const dynamic = 'force-dynamic';
+
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }

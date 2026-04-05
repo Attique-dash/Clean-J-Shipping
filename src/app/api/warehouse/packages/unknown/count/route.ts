@@ -4,6 +4,8 @@ import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
 import { getAuthFromRequest } from "@/lib/rbac";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   const auth = await getAuthFromRequest(req);
   if (!auth || auth.role !== "warehouse") {

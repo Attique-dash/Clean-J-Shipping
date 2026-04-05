@@ -7,6 +7,8 @@ import { User } from "@/models/User";
 import { IInvoice } from "@/models/Invoice";
 import Invoice from "@/models/Invoice";
 
+export const dynamic = 'force-dynamic';
+
 function toCsv(rows: Array<Record<string, unknown>>): string {
   if (!rows.length) return "";
   const headers = Object.keys(rows[0]);

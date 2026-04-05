@@ -7,6 +7,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth';
 import { headers } from 'next/headers';
 
+export const dynamic = 'force-dynamic';
+
 // Enable CORS
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

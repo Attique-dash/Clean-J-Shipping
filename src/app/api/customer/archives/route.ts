@@ -6,6 +6,8 @@ import { Package, IPackage } from "@/models/Package";
 import { Message } from "@/models/Message";
 import { Types } from "mongoose";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   const payload = await getAuthFromRequest(req);
   if (!payload || (payload.role !== "customer" && payload.role !== "admin")) {

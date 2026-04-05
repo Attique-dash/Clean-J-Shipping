@@ -3,6 +3,8 @@ import { getAuthFromRequest } from "@/lib/rbac";
 import { promises as fs } from "fs";
 import path from "path";
 
+export const dynamic = 'force-dynamic';
+
 const DOCS_ROOT = path.join(process.cwd(), "src", "docs");
 
 async function listMarkdownFiles(dir: string, base = ""): Promise<Array<{ path: string; name: string }>> {

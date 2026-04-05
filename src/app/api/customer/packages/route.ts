@@ -7,6 +7,8 @@ import { User } from '@/models/User';
 import Invoice from '@/models/Invoice';
 import { Types } from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     console.log('Customer packages API called');

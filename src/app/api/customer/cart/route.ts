@@ -6,6 +6,8 @@ import { dbConnect } from "@/lib/db";
 import Package from "@/models/Package";
 import { getAuthFromRequest } from "@/lib/rbac";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     // Authenticate user

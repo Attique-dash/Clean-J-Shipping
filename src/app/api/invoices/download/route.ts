@@ -7,6 +7,8 @@ import { join } from 'path';
 import Package from '@/models/Package';
 import { dbConnect } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 // GET - Download invoice file
 export async function GET(req: NextRequest) {
   try {

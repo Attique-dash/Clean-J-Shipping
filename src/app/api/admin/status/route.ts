@@ -6,6 +6,8 @@ import { Payment } from "@/models/Payment";
 import { User } from "@/models/User";
 import { getAuthFromRequest } from "@/lib/rbac";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   // Check authentication
   const payload = await getAuthFromRequest(req);

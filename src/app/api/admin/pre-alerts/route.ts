@@ -4,6 +4,8 @@ import { getAuthFromRequest } from "@/lib/rbac";
 import { PreAlert } from "@/models/PreAlert";
 import { IPreAlert } from "@/models/PreAlert";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   await dbConnect();
   const payload = await getAuthFromRequest(req);

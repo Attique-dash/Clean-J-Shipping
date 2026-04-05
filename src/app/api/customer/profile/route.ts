@@ -3,6 +3,8 @@ import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
 import { getAuthFromRequest } from "@/lib/rbac";
 
+export const dynamic = 'force-dynamic';
+
 // Default shipping addresses configuration
 const DEFAULT_SHIPPING_ADDRESSES = [
   {

@@ -5,6 +5,8 @@ import { Package } from "@/models/Package";
 import { User } from "@/models/User";
 import { getAuthFromRequest } from "@/lib/rbac";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   try {
     console.log("📊 Warehouse analytics request received");

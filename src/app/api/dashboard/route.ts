@@ -5,6 +5,8 @@ import { User } from '@/models/User';
 import { Payment } from '@/models/Payment';
 import { DashboardResponse } from '@/types/dashboard';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     await dbConnect();
@@ -104,7 +106,7 @@ export async function GET() {
     const activeShipmentsData = await Package.find({
       status: { $in: ['in_transit', 'out_for_delivery'] }
     })
-      .populate('origin destination', 'address coordinates')
+      .select('trackingNumber status estimatedDelivery carrier senderAddress receiverAddress currentLocation')
       .limit(50)
       .lean();
 
@@ -198,18 +200,18 @@ export async function GET() {
         id: (shipment as any)._id.toString(),
         trackingNumber: shipment.trackingNumber,
         origin: {
-          lat: shipment.origin?.coordinates?.coordinates[1] || 0,
-          lng: shipment.origin?.coordinates?.coordinates[0] || 0,
-          address: shipment.origin?.address || 'Unknown'
+          lat: 0,
+          lng: 0,
+          address: (shipment as any).senderAddress || 'Unknown'
         },
         destination: {
-          lat: shipment.destination?.coordinates?.coordinates[1] || 0,
-          lng: shipment.destination?.coordinates?.coordinates[0] || 0,
-          address: shipment.destination?.address || 'Unknown'
+          lat: 0,
+          lng: 0,
+          address: (shipment as any).receiverAddress || 'Unknown'
         },
         status: (shipment.status as 'in_transit' | 'out_for_delivery' | 'in_progress') || 'in_progress',
         estimatedDelivery: shipment.estimatedDelivery?.toISOString() || '',
-        carrier: shipment.carrier || 'Standard'
+        carrier: (shipment as any).carrier || 'Standard'
       })),
       customerStats: {
         totalCustomers,

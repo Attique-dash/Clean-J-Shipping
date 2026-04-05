@@ -6,6 +6,8 @@ import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
 import crypto from "crypto";
 
+export const dynamic = 'force-dynamic';
+
 function getKcdApiKey(): string {
   return process.env.KCD_API_KEY || "";
 }

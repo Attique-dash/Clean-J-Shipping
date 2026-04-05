@@ -8,6 +8,8 @@ import User from '@/models/User';
 import { Warehouse } from '@/models/Warehouse';
 import { Types } from 'mongoose';
 
+export const dynamic = 'force-dynamic';
+
 interface UserDoc {
   _id: Types.ObjectId;
   name?: string;

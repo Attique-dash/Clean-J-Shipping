@@ -5,6 +5,8 @@ import { Payment } from "@/models/Payment";
 import { PosTransaction } from "@/models/PosTransaction";
 import jsPDF from 'jspdf';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   const payload = await getAuthFromRequest(req);
   if (!payload || payload.role !== "admin") {

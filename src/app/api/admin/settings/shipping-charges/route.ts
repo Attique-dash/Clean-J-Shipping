@@ -3,6 +3,8 @@ import { dbConnect } from "@/lib/db";
 import { getAuthFromRequest } from "@/lib/rbac";
 import { Settings } from "@/models/Settings";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   const payload = await getAuthFromRequest(req);
   if (!payload || payload.role !== "admin") {
