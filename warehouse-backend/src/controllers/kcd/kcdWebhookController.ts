@@ -80,7 +80,13 @@ export class KCDWebhookController {
         userId: customer._id,
         status: 'received',
         dateReceived: new Date(timestamp || Date.now()),
-        source: 'kcd-packing-system',
+        source: 'kcd_webhook',
+        sourceDetails: {
+          webhookId: req.body.webhookId || `kcd-${Date.now()}`,
+          apiEndpoint: '/api/kcd/packages/add',
+          syncedAt: new Date(),
+          syncStatus: 'synced'
+        },
         courierCode: authenticatedCourierCode,
         processedAt: new Date(),
         ...packageData

@@ -290,6 +290,16 @@ export interface IPackage extends Document {
   coloadIndicator?: string;
   packagePayments?: string;
   
+  // Source tracking for KCD sync visibility
+  source?: 'manual' | 'kcd_webhook' | 'api' | 'bulk_upload';
+  sourceDetails?: {
+    webhookId?: string;
+    apiEndpoint?: string;
+    syncedAt?: Date;
+    syncStatus?: 'pending' | 'synced' | 'failed';
+    lastSyncError?: string;
+  };
+  
   createdAt: Date;
   updatedAt: Date;
 }
@@ -562,6 +572,25 @@ const PackageSchema = new Schema<IPackage>(
     coloaded: { type: Boolean, default: false },
     coloadIndicator: { type: String, trim: true },
     packagePayments: { type: String, trim: true },
+    
+    // Source tracking for KCD sync visibility
+    source: { 
+      type: String, 
+      enum: ['manual', 'kcd_webhook', 'api', 'bulk_upload'], 
+      default: 'manual',
+      trim: true 
+    },
+    sourceDetails: {
+      webhookId: { type: String, trim: true },
+      apiEndpoint: { type: String, trim: true },
+      syncedAt: { type: Date },
+      syncStatus: { 
+        type: String, 
+        enum: ['pending', 'synced', 'failed'], 
+        default: 'synced' 
+      },
+      lastSyncError: { type: String, trim: true }
+    },
   },
   { timestamps: true }
 );

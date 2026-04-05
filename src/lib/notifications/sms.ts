@@ -24,12 +24,12 @@ const smsTemplates: Record<NotificationType, (data: any) => string> = {
 
   shipment_picked_up: (data) =>
     `Your order #${data.orderNumber || ''} has been picked up and is on its way! ` +
-    `Track it here: ${APP_URL}/tracking/${data.trackingNumber}`,
+    `Track it here: ${APP_URL}/track/${data.trackingNumber}`,
 
   in_transit_update: (data) =>
     `Update: Your order #${data.orderNumber || ''} is now ${data.status || 'in transit'}. ` +
     `${data.location ? `Current location: ${data.location}. ` : ''}` +
-    `Track: ${APP_URL}/tracking/${data.trackingNumber}`,
+    `Track: ${APP_URL}/track/${data.trackingNumber}`,
 
   delivery_confirmation: (data) =>
     `Great news! Your order #${data.orderNumber || ''} has been delivered. ` +

@@ -81,7 +81,7 @@ const emailTemplates: Record<NotificationType, (data: ExtendedEmailData) => { su
         
         <p>You can track your shipment using the button below:</p>
         <p>
-          <a href="${APP_URL}/tracking/${data.trackingNumber}" 
+          <a href="${APP_URL}/track/${data.trackingNumber}" 
              style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">
             Track Your Package
           </a>
@@ -105,7 +105,7 @@ const emailTemplates: Record<NotificationType, (data: ExtendedEmailData) => { su
         
         <p>You can track your shipment using the button below:</p>
         <p>
-          <a href="${APP_URL}/tracking/${data.trackingNumber}" 
+          <a href="${APP_URL}/track/${data.trackingNumber}" 
              style="display: inline-block; padding: 10px 20px; background-color: #2196F3; color: white; text-decoration: none; border-radius: 5px;">
             Track Your Package
           </a>

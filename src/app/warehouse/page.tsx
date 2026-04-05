@@ -322,8 +322,8 @@ export default function WarehouseDashboard() {
                     />
                     <ActionCard 
                       title="Search" 
-                      href="/warehouse/search" 
-                      desc="Advanced package search"
+                      href="/warehouse/packages" 
+                      desc="Search and manage packages"
                       icon={<AlertCircle className="w-6 h-6" />}
                       color="blue"
                     />

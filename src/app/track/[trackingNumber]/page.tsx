@@ -240,7 +240,7 @@ export default function TrackingResultPage() {
         <Button 
           variant="ghost" 
           className="mb-6" 
-          onClick={() => router.push('/tracking')}
+          onClick={() => router.push('/track')}
         >
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
@@ -251,7 +251,7 @@ export default function TrackingResultPage() {
           <p className="text-muted-foreground mb-6">
             We couldn&apos;t find a shipment with that tracking number.
           </p>
-          <Button onClick={() => router.push('/tracking')}>
+          <Button onClick={() => router.push('/track')}>
             Track Another Shipment
           </Button>
         </div>
@@ -275,7 +275,7 @@ export default function TrackingResultPage() {
       <div className="flex items-center justify-between mb-6">
         <Button 
           variant="ghost" 
-          onClick={() => router.push('/tracking')}
+          onClick={() => router.push('/track')}
         >
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Tracking
         </Button>

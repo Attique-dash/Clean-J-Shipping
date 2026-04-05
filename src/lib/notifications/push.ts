@@ -33,7 +33,7 @@ const pushTemplates: Record<NotificationType, (data: any) => { title: string; bo
       orderId: data.orderNumber || '',
       trackingNumber: data.trackingNumber || '',
       status: 'picked_up',
-      url: `/tracking/${data.trackingNumber}`,
+      url: `/track/${data.trackingNumber}`,
     },
   }),
 
@@ -46,7 +46,7 @@ const pushTemplates: Record<NotificationType, (data: any) => { title: string; bo
       trackingNumber: data.trackingNumber || '',
       status: 'in_transit',
       location: data.location || '',
-      url: `/tracking/${data.trackingNumber}`,
+      url: `/track/${data.trackingNumber}`,
     },
   }),
 

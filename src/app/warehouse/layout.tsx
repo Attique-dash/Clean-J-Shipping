@@ -19,6 +19,9 @@ import {
   FaWarehouse,
   FaUserTie,
   FaMapMarkerAlt,
+  FaUserCircle,
+  FaPlug,
+  FaChartBar,
 } from 'react-icons/fa';
 import type { IconType } from 'react-icons';
 import { ChevronRight, Menu, X } from 'lucide-react';
@@ -96,6 +99,13 @@ export default function WarehouseLayout({
       color: "from-orange-500 to-orange-600",
     },
     {
+      href: "/warehouse/reports",
+      label: "Reports",
+      icon: FaChartBar,
+      description: "Generate warehouse reports",
+      color: "from-emerald-500 to-emerald-600",
+    },
+    {
       href: "/warehouse/customers",
       label: "Customers",
       icon: FaUsers,
@@ -110,6 +120,13 @@ export default function WarehouseLayout({
       color: "from-amber-500 to-amber-600",
     },
     {
+      href: "/warehouse/integrations",
+      label: "Integrations",
+      icon: FaPlug,
+      description: "KCD API endpoints and webhooks",
+      color: "from-violet-500 to-violet-600",
+    },
+    {
       href: "/warehouse/addresses",
       label: "Addresses",
       icon: FaMapMarkerAlt,
@@ -122,6 +139,13 @@ export default function WarehouseLayout({
       icon: FaComments,
       description: "Customer messages and support",
       color: "from-green-500 to-green-600",
+    },
+    {
+      href: "/warehouse/account",
+      label: "Account",
+      icon: FaUserCircle,
+      description: "Manage your profile and password",
+      color: "from-cyan-500 to-cyan-600",
     },
     {
       href: "/warehouse/settings",

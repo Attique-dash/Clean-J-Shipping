@@ -1,6 +1,6 @@
 // src/pages/_app.tsx
 import { SessionProvider } from 'next-auth/react';
-import { WebSocketProvider } from '@/contexts/WebSocketContext';
+import { WebSocketProvider } from '@/components/providers/WebSocketProvider';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import ErrorBoundary from '@/components/ErrorBoundary';

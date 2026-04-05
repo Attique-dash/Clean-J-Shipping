@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useWebSocket } from "@/components/providers/WebSocketProvider";
 import { useNotification } from "@/contexts/NotificationContext";
 
 interface TrackingData {
@@ -48,7 +47,6 @@ export function useRealTimeTracking({
   const [error, setError] = useState<string | null>(null);
   const [isLive, setIsLive] = useState(false);
   
-  const { socket, isConnected, lastMessage } = useWebSocket();
   const { addNotification } = useNotification();
   
   const previousStatusRef = useRef<string | undefined>(undefined);
@@ -74,6 +72,12 @@ export function useRealTimeTracking({
       
       const trackingData = await response.json();
       
+      // Check for status changes
+      if (previousStatusRef.current && trackingData.status !== previousStatusRef.current) {
+        onStatusChange?.(trackingData.status, previousStatusRef.current);
+        addNotification("Package Update: Status changed to: " + trackingData.status, "info");
+      }
+      
       previousStatusRef.current = trackingData.status;
       setData(trackingData);
       onUpdate?.(trackingData);
@@ -86,115 +90,30 @@ export function useRealTimeTracking({
     } finally {
       setIsLoading(false);
     }
-  }, [trackingNumber, onUpdate]);
+  }, [trackingNumber, onUpdate, onStatusChange, addNotification]);
 
   // Initial fetch
   useEffect(() => {
     fetchTrackingData();
   }, [fetchTrackingData]);
 
-  // Subscribe to WebSocket events for this package
-  useEffect(() => {
-    if (!socket || !isConnected || !trackingNumber) return;
-
-    // Join package-specific room
-    socket.emit("track:package", { trackingNumber });
-    setIsLive(true);
-
-    // Listen for package updates
-    const handlePackageUpdate = (message: any) => {
-      if (message?.data?.trackingNumber === trackingNumber) {
-        console.log("Real-time update received:", message);
-        
-        const updateData = message.data;
-        
-        // Update local data
-        setData((prev) => {
-          if (!prev) return prev;
-          
-          const newData = {
-            ...prev,
-            status: updateData.status || prev.status,
-            currentLocation: updateData.location ? {
-              lat: updateData.location.latitude,
-              lng: updateData.location.longitude,
-              address: updateData.location.address,
-              lastUpdated: new Date().toISOString(),
-            } : prev.currentLocation,
-          };
-          
-          // Add to history if it's a new update
-          if (updateData.status && updateData.status !== prev.status) {
-            newData.statusHistory = [
-              {
-                status: updateData.status,
-                location: updateData.location,
-                timestamp: new Date().toISOString(),
-                description: updateData.description || `Status updated to ${updateData.status}`,
-              },
-              ...(prev.statusHistory || []),
-            ];
-          }
-          
-          return newData;
-        });
-
-        // Trigger callbacks
-        if (updateData.location) {
-          onLocationChange?.({
-            lat: updateData.location.latitude,
-            lng: updateData.location.longitude,
-            address: updateData.location.address,
-          });
-        }
-
-        if (updateData.status && updateData.status !== previousStatusRef.current) {
-          onStatusChange?.(updateData.status, previousStatusRef.current);
-          previousStatusRef.current = updateData.status;
-          
-          // Show toast notification
-          addNotification("Package Update: Status changed to: " + updateData.status, "info");
-        }
-
-        lastUpdateRef.current = Date.now();
-        onUpdate?.(updateData);
-      }
-    };
-
-    socket.on("package:update", handlePackageUpdate);
-    socket.on("package:location", handlePackageUpdate);
-    socket.on("message", (message) => {
-      if (message?.type === "package_update") {
-        handlePackageUpdate(message);
-      }
-    });
-
-    return () => {
-      socket.off("package:update", handlePackageUpdate);
-      socket.off("package:location", handlePackageUpdate);
-      socket.off("message", handlePackageUpdate);
-    };
-  }, [socket, isConnected, trackingNumber, onUpdate, onLocationChange, onStatusChange, addNotification]);
-
-  // Polling fallback when WebSocket is not connected
+  // Polling for real-time updates (WebSocket alternative for serverless environments)
   useEffect(() => {
     if (!enablePolling || !trackingNumber) return;
 
-    // Only poll if WebSocket is not connected or hasn't received updates recently
-    const shouldPoll = !isConnected || (Date.now() - lastUpdateRef.current > pollingInterval * 2);
-
-    if (shouldPoll) {
-      pollingRef.current = setInterval(() => {
-        fetchTrackingData();
-      }, pollingInterval);
-    }
+    // Always use polling on Vercel (serverless doesn't support WebSockets)
+    setIsLive(true);
+    
+    pollingRef.current = setInterval(() => {
+      fetchTrackingData();
+    }, pollingInterval);
 
     return () => {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
       }
     };
-  }, [enablePolling, trackingNumber, pollingInterval, fetchTrackingData, isConnected]);
+  }, [enablePolling, trackingNumber, pollingInterval, fetchTrackingData]);
 
   // Manual refresh function
   const refresh = useCallback(async () => {
@@ -206,8 +125,8 @@ export function useRealTimeTracking({
     data,
     isLoading,
     error,
-    isLive: isConnected && isLive,
-    isConnected,
+    isLive: enablePolling, // Always show as "live" when polling is enabled
+    isConnected: enablePolling, // Treat polling as "connected"
     refresh,
     lastUpdate: lastUpdateRef.current,
   };
@@ -217,8 +136,7 @@ export function useRealTimeTracking({
 export function useRealTimeTrackingList(trackingNumbers: string[]) {
   const [packages, setPackages] = useState<Record<string, TrackingData>>({});
   const [isLoading, setIsLoading] = useState(true);
-  
-  const { socket, isConnected, lastMessage } = useWebSocket();
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch all packages
   const fetchAll = useCallback(async () => {
@@ -248,44 +166,23 @@ export function useRealTimeTrackingList(trackingNumbers: string[]) {
 
   useEffect(() => {
     fetchAll();
-  }, [fetchAll]);
-
-  // Subscribe to updates for all packages
-  useEffect(() => {
-    if (!socket || !isConnected) return;
-
-    // Subscribe to packages room
-    socket.emit("subscribe:packages");
-
-    const handleUpdate = (message: any) => {
-      if (message?.data?.trackingNumber && trackingNumbers.includes(message.data.trackingNumber)) {
-        setPackages((prev) => ({
-          ...prev,
-          [message.data.trackingNumber]: {
-            ...prev[message.data.trackingNumber],
-            ...message.data,
-          },
-        }));
-      }
-    };
-
-    socket.on("package:update", handleUpdate);
-    socket.on("message", (message) => {
-      if (message?.type === "package_update") {
-        handleUpdate(message);
-      }
-    });
-
+    
+    // Poll for updates every 30 seconds
+    pollingRef.current = setInterval(() => {
+      fetchAll();
+    }, 30000);
+    
     return () => {
-      socket.off("package:update", handleUpdate);
-      socket.off("message", handleUpdate);
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
     };
-  }, [socket, isConnected, trackingNumbers]);
+  }, [fetchAll]);
 
   return {
     packages,
     isLoading,
-    isConnected,
+    isConnected: true, // Always connected via polling
     refresh: fetchAll,
   };
 }
