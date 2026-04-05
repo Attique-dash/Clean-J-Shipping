@@ -6,14 +6,23 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import {
-  FaUser,
-  FaSearch,
-  FaLink,
-  FaTrash,
-  FaExclamationTriangle,
-  FaEnvelope,
-} from 'react-icons/fa';
-import { Loader2 } from 'lucide-react';
+  User,
+  Search,
+  Trash2,
+  AlertTriangle,
+  Mail,
+  Loader2,
+  Package,
+  Calendar,
+  ExternalLink
+} from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import AddButton from '@/components/admin/AddButton';
+import DeleteConfirmationModal from '@/components/admin/DeleteConfirmationModal';
+import SharedModal from '@/components/admin/SharedModal';
 
 interface Package {
   _id: string;
@@ -117,114 +126,157 @@ export default function UnknownPackagesPage() {
     }
   };
 
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; pkg: Package | null }>({ open: false, pkg: null });
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20">
+      <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-[#0f4d8a]" />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8">
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Unknown Packages</h1>
-          <p className="text-gray-600">Packages that couldn&apos;t be matched to a customer</p>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Package className="h-6 w-6 text-[#0f4d8a]" />
+            Unknown Packages
+          </h1>
+          <p className="text-gray-500 mt-1">
+            Packages that couldn&apos;t be matched to a customer
+          </p>
         </div>
       </div>
 
       {/* Search Bar */}
-      <div className="mb-6">
-        <div className="relative rounded-md shadow-sm">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FaSearch className="h-5 w-5 text-gray-400" />
-          </div>
-          <input
+      <Card className="p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <Input
             type="text"
-            className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 pr-12 sm:text-sm border-gray-300 rounded-md p-3 border"
+            className="pl-10"
             placeholder="Search by tracking #, sender name, or email"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-      </div>
+      </Card>
 
-      {/* Packages List */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-        <ul className="divide-y divide-gray-200">
-          {filteredPackages.length === 0 ? (
-            <li className="p-4 text-center text-gray-500">
-              {searchTerm ? 'No packages match your search' : 'No unknown packages found'}
-            </li>
-          ) : (
-            filteredPackages.map((pkg) => (
-              <li key={pkg._id} className="p-4 hover:bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-12 w-12 rounded-full bg-yellow-100 flex items-center justify-center">
-                        <FaExclamationTriangle className="h-6 w-6 text-yellow-600" />
-                      </div>
-                      <div className="ml-4">
-                        <div className="flex items-center">
-                          <p className="text-sm font-medium text-yellow-800 truncate">
-                            {pkg.trackingNumber}
-                          </p>
-                          <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                            Unassigned
-                          </span>
-                        </div>
-                        <div className="mt-1 text-sm text-gray-500">
-                          <div className="flex items-center">
-                            <FaUser className="mr-1" />
-                            <span>{pkg.sender?.name || 'Unknown Sender'}</span>
-                          </div>
-                          {pkg.sender?.email && (
-                            <div className="mt-1 flex items-center text-xs text-gray-400">
-                              <FaEnvelope className="mr-1" />
-                              <span>{pkg.sender.email}</span>
-                            </div>
-                          )}
-                          <div className="mt-1 text-xs text-gray-400">
-                            <span>Received: {new Date(pkg.receivedAt).toLocaleString()}</span>
-                          </div>
-                        </div>
-                      </div>
+      {/* Packages Table */}
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Package Info
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Sender
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Received
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filteredPackages.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Package className="h-8 w-8 text-gray-400" />
                     </div>
-                  </div>
-                  <div className="ml-4 flex-shrink-0 flex space-x-2">
-                    <button
-                      onClick={() => {
-                        // In a real app, this would open a modal to select a customer
-                        const customerId = prompt('Enter customer ID:');
-                        if (customerId) {
-                          linkToCustomer(pkg._id, customerId);
-                        }
-                      }}
-                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                      <FaLink className="mr-1" /> Link to Customer
-                    </button>
-                    <button
-                      onClick={() => handleDelete(pkg._id)}
-                      className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                      <FaTrash className="mr-1" /> Delete
-                    </button>
-                  </div>
-                </div>
-                {pkg.notes && (
-                  <div className="mt-2 text-sm text-gray-500 bg-yellow-50 p-2 rounded-md">
-                    <p className="font-medium">Notes:</p>
-                    <p>{pkg.notes}</p>
-                  </div>
-                )}
-              </li>
-            ))
-          )}
-        </ul>
-      </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-1">
+                      {searchTerm ? 'No packages match your search' : 'No unknown packages found'}
+                    </h3>
+                  </td>
+                </tr>
+              ) : (
+                filteredPackages.map((pkg) => (
+                  <tr key={pkg._id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                          <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900">{pkg.trackingNumber}</span>
+                            <Badge className="bg-yellow-100 text-yellow-800">Unassigned</Badge>
+                          </div>
+                          {pkg.notes && (
+                            <p className="text-sm text-gray-500 mt-1">{pkg.notes}</p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 text-sm text-gray-900">
+                          <User className="h-4 w-4 text-gray-400" />
+                          <span>{pkg.sender?.name || 'Unknown Sender'}</span>
+                        </div>
+                        {pkg.sender?.email && (
+                          <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                            <Mail className="h-4 w-4 text-gray-400" />
+                            <span>{pkg.sender.email}</span>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <span>{new Date(pkg.receivedAt).toLocaleString()}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const customerId = prompt('Enter customer ID:');
+                            if (customerId) {
+                              linkToCustomer(pkg._id, customerId);
+                            }
+                          }}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-1" />
+                          Link
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setDeleteConfirm({ open: true, pkg })}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Delete Confirmation */}
+      <DeleteConfirmationModal
+        open={deleteConfirm.open}
+        onClose={() => setDeleteConfirm({ open: false, pkg: null })}
+        onConfirm={() => deleteConfirm.pkg && handleDelete(deleteConfirm.pkg._id)}
+        title="Delete Package"
+        message={`Are you sure you want to delete package "${deleteConfirm.pkg?.trackingNumber}"? This action cannot be undone.`}
+      />
     </div>
   );
 }

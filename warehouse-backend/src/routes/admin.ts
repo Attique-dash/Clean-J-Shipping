@@ -1385,4 +1385,10 @@ router.delete('/warehouses/:id',
   asyncHandler(adminController.deleteWarehouse)
 );
 
+// Mount API key management routes
+router.use('/api-keys', apiKeyRoutes);
+
+// Mount KCD key retrieval route
+router.use('/get-kcd-key', getKcdKeyRoute);
+
 export default router;
