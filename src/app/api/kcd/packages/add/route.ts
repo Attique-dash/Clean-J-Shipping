@@ -9,6 +9,7 @@ import Invoice from "@/models/Invoice";
 import { InventoryService } from "@/lib/inventory-service";
 import { CurrencyService } from "@/lib/currency-service";
 import { sendNewPackageEmail } from "@/lib/email";
+import { validateApiKey } from "@/lib/api-key-validation";
 import crypto from "crypto";
 
 // Simple in-memory request log for debugging (resets on deployment)
@@ -27,28 +28,6 @@ function addLog(log: typeof requestLogs[0]) {
   requestLogs.unshift(log);
   if (requestLogs.length > MAX_LOGS) {
     requestLogs.pop();
-  }
-}
-
-function getKcdApiKey(): string {
-  return process.env.KCD_API_KEY || "";
-}
-
-function verifyApiKey(requestKey: string): boolean {
-  const expectedKey = getKcdApiKey();
-  if (!expectedKey) {
-    console.error("[KCD Webhook] KCD_API_KEY not configured in environment");
-    return false;
-  }
-  
-  // Use timing-safe comparison to prevent timing attacks
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(requestKey),
-      Buffer.from(expectedKey)
-    );
-  } catch {
-    return false;
   }
 }
 
@@ -98,43 +77,27 @@ export async function POST(req: NextRequest) {
     
     console.log(`[KCD Webhook ${requestId}] Headers:`, JSON.stringify(headers, null, 2));
     
-    // Verify API Key
+    // Verify API Key using new validation
     const apiKey = req.headers.get('x-api-key');
-    if (!apiKey) {
-      console.error(`[KCD Webhook ${requestId}] Missing X-API-Key header`);
+    const validation = await validateApiKey(apiKey);
+    if (!validation.valid) {
+      console.error(`[KCD Webhook ${requestId}] API key validation failed: ${validation.error}`);
       const log = {
         timestamp,
         method: 'POST',
         headers,
         body: null,
         responseStatus: 401,
-        error: 'Missing X-API-Key header'
+        error: validation.error || 'Invalid API key'
       };
       addLog(log);
       return NextResponse.json(
-        { error: "Unauthorized - Missing API key" },
+        { error: `Unauthorized - ${validation.error}` },
         { status: 401 }
       );
     }
     
-    if (!verifyApiKey(apiKey)) {
-      console.error(`[KCD Webhook ${requestId}] Invalid API key`);
-      const log = {
-        timestamp,
-        method: 'POST',
-        headers,
-        body: null,
-        responseStatus: 401,
-        error: 'Invalid API key'
-      };
-      addLog(log);
-      return NextResponse.json(
-        { error: "Unauthorized - Invalid API key" },
-        { status: 401 }
-      );
-    }
-    
-    console.log(`[KCD Webhook ${requestId}] API key validated`);
+    console.log(`[KCD Webhook ${requestId}] API key validated for: ${validation.key?.name || 'unknown'}`);
     
     // Parse body
     let body: Record<string, unknown>;
@@ -258,6 +221,14 @@ export async function POST(req: NextRequest) {
       userCode: user.userCode,
       customer: user._id,
       
+      // Source tracking
+      source: 'kcd_webhook' as const,
+      sourceDetails: {
+        syncedAt: new Date(),
+        syncStatus: 'synced' as const,
+        apiEndpoint: '/api/kcd/packages/add'
+      },
+      
       // KCD specific fields
       controlNumber: houseNumber ? asString(houseNumber) : undefined,
       mailboxNumber: mailboxCode,
@@ -343,6 +314,77 @@ export async function POST(req: NextRequest) {
     const createdPackage = await Package.create(packageData);
     console.log(`[KCD Webhook ${requestId}] Package created: ${createdPackage._id}`);
     
+    // Create billing invoice for the package
+    let billingInvoice: { _id: any } | null = null;
+    let invoiceCreated = false;
+    try {
+      const { CurrencyService } = await import('@/lib/currency-service');
+      const Invoice = (await import('@/models/Invoice')).default;
+      
+      const weightLbs = weightKg * 2.20462;
+      const costBreakdown = CurrencyService.calculateTotalPackageCost(0, weightKg, 'JMD');
+      
+      // Create invoice items
+      const invoiceItems = [];
+      if (costBreakdown.shippingCostJMD > 0) {
+        invoiceItems.push({
+          description: `Shipping charges (${weightLbs.toFixed(1)} lbs)`,
+          quantity: 1,
+          unitPrice: costBreakdown.shippingCostJMD,
+          taxRate: 0,
+          amount: costBreakdown.shippingCostJMD,
+          taxAmount: 0,
+          total: costBreakdown.shippingCostJMD
+        });
+      }
+      
+      const invoiceData = {
+        userId: user._id,
+        customer: {
+          id: user._id.toString(),
+          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+          email: user.email,
+          phone: user.phone,
+          address: user.address,
+        },
+        package: {
+          trackingNumber: asString(trackingNumber),
+          userCode: user.userCode,
+        },
+        invoiceType: "billing",
+        currency: "JMD",
+        subtotal: costBreakdown.itemValueJMD,
+        taxTotal: 0,
+        discountAmount: 0,
+        total: costBreakdown.totalJMD,
+        amountPaid: 0,
+        balanceDue: costBreakdown.totalJMD,
+        items: invoiceItems,
+        notes: `Auto-generated invoice for KCD package ${trackingNumber}`,
+        issueDate: new Date().toISOString(),
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+      
+      billingInvoice = await Invoice.create(invoiceData);
+      invoiceCreated = true;
+      
+      // Link invoice to package
+      if (billingInvoice) {
+        await Package.findByIdAndUpdate(createdPackage._id, {
+          $set: { 
+            billingInvoiceId: billingInvoice._id,
+            invoiceStatus: 'pending',
+            invoiceUploaded: false
+          }
+        });
+        
+        console.log(`[KCD Webhook ${requestId}] Billing invoice created: ${billingInvoice._id}`);
+      }
+    } catch (invoiceError) {
+      console.error(`[KCD Webhook ${requestId}] Failed to create billing invoice:`, invoiceError);
+      // Don't fail package creation if invoice creation fails
+    }
+    
     // Create pre-alert for the package
     let preAlertCreated = false;
     try {
@@ -417,7 +459,8 @@ export async function POST(req: NextRequest) {
       },
       notifications: {
         preAlertCreated,
-        emailSent
+        emailSent,
+        invoiceCreated
       }
     }, { status: 201 });
     
@@ -448,13 +491,12 @@ export async function POST(req: NextRequest) {
  */
 export async function GET(req: NextRequest) {
   try {
-    // Simple auth check - verify admin API key or session
     const apiKey = req.headers.get('x-api-key');
-    const adminKey = process.env.ADMIN_API_KEY || process.env.KCD_API_KEY;
+    const validation = await validateApiKey(apiKey);
     
-    if (!apiKey || !adminKey || apiKey !== adminKey) {
+    if (!validation.valid) {
       return NextResponse.json(
-        { error: "Unauthorized" },
+        { error: `Unauthorized - ${validation.error}` },
         { status: 401 }
       );
     }

@@ -137,6 +137,8 @@ export default function AdminPackagesPage() {
         if (userCodeFilter) params.set('userCode', userCodeFilter);
         if (searchTerm) params.set('q', searchTerm);
         if (selectedStatuses.length > 0) params.set('statuses', selectedStatuses.join(','));
+        // Fetch all packages without pagination
+        params.set('per_page', 'all');
         
         const res = await fetch(`/api/admin/packages?${params.toString()}`, {
           credentials: 'include',

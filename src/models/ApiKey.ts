@@ -41,3 +41,16 @@ export function generateApiKey(): { key: string; hash: string; prefix: string } 
 export function hashApiKey(key: string): string {
   return crypto.createHash('sha256').update(key).digest('hex');
 }
+
+// Calculate expiration date (30 days from now)
+export function calculateExpirationDate(days: number = 30): Date {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date;
+}
+
+// Check if key is expired
+export function isKeyExpired(expiresAt: Date | undefined): boolean {
+  if (!expiresAt) return false;
+  return new Date() > new Date(expiresAt);
+}

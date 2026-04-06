@@ -25,7 +25,7 @@ const manifestSchema = z.object({
 
 export async function POST(req: Request) {
   const payload = await getAuthFromRequest(req);
-  if (!payload || payload.role !== "admin") {
+  if (!payload || !['admin', 'warehouse_staff', 'customer_support'].includes(payload.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -142,7 +142,7 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   const payload = await getAuthFromRequest(req);
-  if (!payload || payload.role !== "admin") {
+  if (!payload || !['admin', 'warehouse_staff', 'customer_support'].includes(payload.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -194,7 +194,7 @@ export async function GET(req: Request) {
 
 export async function DELETE(req: Request) {
   const payload = await getAuthFromRequest(req);
-  if (!payload || payload.role !== "admin") {
+  if (!payload || !['admin', 'warehouse_staff'].includes(payload.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

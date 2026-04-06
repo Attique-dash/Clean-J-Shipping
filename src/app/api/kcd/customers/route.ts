@@ -4,30 +4,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
+import { validateApiKey } from "@/lib/api-key-validation";
 import crypto from "crypto";
 
 export const dynamic = 'force-dynamic';
-
-function getKcdApiKey(): string {
-  return process.env.KCD_API_KEY || "";
-}
-
-function verifyApiKey(requestKey: string | null): boolean {
-  if (!requestKey) return false;
-  const expectedKey = getKcdApiKey();
-  if (!expectedKey) {
-    console.error("[KCD API] KCD_API_KEY not configured");
-    return false;
-  }
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(requestKey),
-      Buffer.from(expectedKey)
-    );
-  } catch {
-    return false;
-  }
-}
 
 export async function GET(req: NextRequest) {
   const timestamp = new Date().toISOString();
@@ -37,10 +17,12 @@ export async function GET(req: NextRequest) {
 
   try {
     const apiKey = req.headers.get("x-api-key") || req.nextUrl.searchParams.get("apiKey");
-
-    if (!apiKey || !verifyApiKey(apiKey)) {
+    
+    // Validate API key using new validation function
+    const validation = await validateApiKey(apiKey);
+    if (!validation.valid) {
       return NextResponse.json(
-        { error: "Unauthorized - Invalid or missing API key" },
+        { error: `Unauthorized - ${validation.error}` },
         { status: 401 }
       );
     }

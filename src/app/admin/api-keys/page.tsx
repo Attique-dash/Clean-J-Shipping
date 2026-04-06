@@ -26,15 +26,22 @@ import DeleteConfirmationModal from '@/components/admin/DeleteConfirmationModal'
 
 interface ApiKey {
   _id: string;
-  key: string;
+  key?: string;
+  keyPrefix?: string;
   name: string;
   description?: string;
-  isActive: boolean;
+  active?: boolean;
+  isActive?: boolean;
   usageCount: number;
+  lastUsedAt?: string;
   lastUsed?: string;
   createdAt: string;
   expiresAt?: string;
   courierCode?: string;
+  type?: string;
+  // Computed fields from API
+  isExpired?: boolean;
+  daysUntilExpiry?: number | null;
 }
 
 interface KcdKeyInfo {
@@ -78,7 +85,7 @@ export default function ApiKeysPage() {
 
   const fetchApiKeys = async () => {
     try {
-      const response = await fetch('/api/admin/api-keys');
+      const response = await fetch('/api/admin/api-keys/v2');
       if (!response.ok) throw new Error('Failed to fetch API keys');
       const data = await response.json();
       setApiKeys(data.data || []);
@@ -110,7 +117,7 @@ export default function ApiKeysPage() {
 
   const createApiKey = async () => {
     try {
-      const response = await fetch('/api/admin/api-keys', {
+      const response = await fetch('/api/admin/api-keys/v2', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newKeyName, description: newKeyDescription }),
@@ -143,12 +150,22 @@ export default function ApiKeysPage() {
 
   const revokeApiKey = async (id: string) => {
     try {
-      const response = await fetch(`/api/admin/api-keys/${id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/admin/api-keys/v2/${id}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Failed to revoke API key');
       await fetchApiKeys();
       setDeleteConfirm({ open: false, key: null });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to revoke API key');
+    }
+  };
+
+  const refreshApiKey = async (id: string) => {
+    try {
+      const response = await fetch(`/api/admin/api-keys/v2/${id}`, { method: 'POST' });
+      if (!response.ok) throw new Error('Failed to refresh API key');
+      await fetchApiKeys();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to refresh API key');
     }
   };
 
@@ -426,8 +443,8 @@ export default function ApiKeysPage() {
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Key Name</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">API Key</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Expiration</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Usage</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Created</th>
                     <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -449,22 +466,38 @@ export default function ApiKeysPage() {
                       </td>
                       <td className="px-6 py-4">
                         <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono">
-                          {revealedKeys.has(key._id) ? key.key : maskKey(key.key)}
+                          {revealedKeys.has(key._id) ? key.keyPrefix || key.key || '' : maskKey(key.key || key.keyPrefix || '')}
                         </code>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${key.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                          {key.isActive ? 'Active' : 'Inactive'}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full w-fit ${(key.active || key.isActive) ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                            {(key.active || key.isActive) ? 'Active' : 'Inactive'}
+                          </span>
+                          {key.isExpired && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800 w-fit">
+                              Expired
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm text-gray-700">
+                            {key.expiresAt ? new Date(key.expiresAt).toLocaleDateString() : 'Never'}
+                          </span>
+                          {key.daysUntilExpiry !== null && key.daysUntilExpiry !== undefined && (
+                            <span className={`text-xs ${key.daysUntilExpiry <= 7 ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
+                              {key.daysUntilExpiry > 0 ? `${key.daysUntilExpiry} days left` : 'Expired'}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1.5 text-sm text-gray-700">
                           <Clock className="h-4 w-4 text-gray-400" />
                           <span>{key.usageCount || 0} uses</span>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {new Date(key.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1 bg-gray-100 rounded-lg p-1">
@@ -477,12 +510,20 @@ export default function ApiKeysPage() {
                             {revealedKeys.has(key._id) ? 'Hide' : 'Show'}
                           </button>
                           <button
-                            onClick={() => copyToClipboard(key.key, key._id)}
+                            onClick={() => copyToClipboard(key.key || '', key._id)}
                             className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-white rounded-md hover:bg-blue-50 transition-all shadow-sm"
                             title="Copy key"
                           >
                             {copiedKey === key._id ? <Check className="h-3 w-3 mr-1 text-green-600" /> : <Copy className="h-3 w-3 mr-1" />}
                             Copy
+                          </button>
+                          <button
+                            onClick={() => refreshApiKey(key._id)}
+                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-700 bg-white rounded-md hover:bg-green-50 transition-all shadow-sm"
+                            title="Refresh expiration (30 days)"
+                          >
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            Refresh
                           </button>
                           <button
                             onClick={() => setDeleteConfirm({ open: true, key })}

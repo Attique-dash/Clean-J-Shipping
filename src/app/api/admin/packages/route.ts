@@ -209,7 +209,10 @@ export async function GET(req: Request) {
     const from = (url.searchParams.get("from") || "").trim();
     const to = (url.searchParams.get("to") || "").trim();
     const page = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
-    const per_page = Math.min(Math.max(parseInt(url.searchParams.get("per_page") || "20", 10), 1), 100);
+    const per_page_param = url.searchParams.get("per_page");
+    // Support 'all' to return all packages without pagination
+    const per_page = per_page_param === 'all' ? 'all' : Math.min(Math.max(parseInt(per_page_param || "20", 10), 1), 100);
+    const showAll = per_page === 'all';
 
     // Build query filter
     const filter: Record<string, unknown> = {};
@@ -306,13 +309,17 @@ export async function GET(req: Request) {
       }
     }
 
+    const packageQuery = Package.find(filter)
+      .populate('userId', 'firstName lastName email phone userCode address')
+      .sort({ createdAt: -1 });
+    
+    // Only apply pagination if not showing all
+    if (!showAll) {
+      packageQuery.skip((page - 1) * (per_page as number)).limit(per_page as number);
+    }
+
     const [packages, total_count, status_counts] = await Promise.all([
-      Package.find(filter)
-        .populate('userId', 'firstName lastName email phone userCode address')
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * per_page)
-        .limit(per_page)
-        .lean(),
+      packageQuery.lean(),
       Package.countDocuments(filter),
       Package.aggregate([{ $match: filter }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
     ]);
