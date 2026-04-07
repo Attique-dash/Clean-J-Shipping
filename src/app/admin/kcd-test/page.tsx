@@ -67,10 +67,15 @@ export default function KcdTestPage() {
           const data = await response.json();
           if (data.key) {
             setApiKey(data.key);
+          } else if (data.apiKey) {
+            setApiKey(data.apiKey);
           }
+        } else {
+          console.error('Failed to fetch API key:', response.status, await response.text());
         }
       } catch (error) {
         console.error('Failed to fetch API key:', error);
+        // Keep the default key if fetch fails
       }
     };
     fetchApiKey();

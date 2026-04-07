@@ -11,10 +11,13 @@ export async function GET(req: NextRequest) {
     const authError = requireRole(auth, 'admin');
     if (authError) return authError;
 
+    // Get the cookie header to forward to warehouse backend
+    const cookieHeader = req.headers.get('cookie') || '';
+
     // Call the correct warehouse-backend endpoint: /api/admin/get-kcd-key
     const response = await fetch(`${WAREHOUSE_BACKEND_URL}/api/admin/get-kcd-key`, {
       headers: {
-        'Authorization': `Bearer ${req.headers.get('authorization')?.replace('Bearer ', '')}`,
+        'Cookie': cookieHeader,
         'Content-Type': 'application/json',
       },
     });
@@ -47,11 +50,14 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
 
+    // Get the cookie header to forward to warehouse backend
+    const cookieHeader = req.headers.get('cookie') || '';
+
     // Call the correct warehouse-backend endpoint: /api/admin/api-keys/kcd
     const response = await fetch(`${WAREHOUSE_BACKEND_URL}/api/admin/api-keys/kcd`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${req.headers.get('authorization')?.replace('Bearer ', '')}`,
+        'Cookie': cookieHeader,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
