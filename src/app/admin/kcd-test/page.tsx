@@ -1,7 +1,7 @@
 // src/app/admin/kcd-test/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Plug,
   Send,
@@ -57,6 +57,24 @@ export default function KcdTestPage() {
   const [logsLoading, setLogsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+
+  // Fetch the actual KCD API key from the server
+  useEffect(() => {
+    const fetchApiKey = async () => {
+      try {
+        const response = await fetch('/api/admin/kcd-key');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.key) {
+            setApiKey(data.key);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch API key:', error);
+      }
+    };
+    fetchApiKey();
+  }, []);
 
   const [trackingNumber, setTrackingNumber] = useState('TEST' + Date.now().toString().slice(-6));
   const [customerMailbox, setCustomerMailbox] = useState('CLEAN-0007');
@@ -309,7 +327,7 @@ export default function KcdTestPage() {
                     <select value={serviceMode} onChange={(e) => setServiceMode(e.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20">
                       <option value="air">Air</option>
                       <option value="sea">Sea</option>
-                      <option value="land">Land</option>
+                      <option value="land">Local</option>
                     </select>
                   </div>
                   <div>
@@ -371,7 +389,7 @@ export default function KcdTestPage() {
                       <option value="">Keep current</option>
                       <option value="air">Air</option>
                       <option value="sea">Sea</option>
-                      <option value="land">Land</option>
+                      <option value="land">Local</option>
                     </select>
                   </div>
                   <div className="md:col-span-2">
@@ -392,7 +410,7 @@ export default function KcdTestPage() {
                     <select value={shipmentMode} onChange={(e) => setShipmentMode(e.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20">
                       <option value="air">air</option>
                       <option value="sea">sea</option>
-                      <option value="land">land</option>
+                      <option value="land">Local</option>
                     </select>
                   </div>
                   <div>
