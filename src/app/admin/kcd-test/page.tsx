@@ -62,9 +62,10 @@ export default function KcdTestPage() {
   const [customerMailbox, setCustomerMailbox] = useState('CLEAN-0007');
   const [weight, setWeight] = useState('2.5');
   const [shipper, setShipper] = useState('Amazon');
-  const [houseNumber, setHouseNumber] = useState('CLEAN0000001');
+  const [serviceMode, setServiceMode] = useState('air');
+  const [packageDimensions, setPackageDimensions] = useState({ length: '', width: '', height: '' });
+  const [packageStatus, setPackageStatus] = useState('received');
   const [description, setDescription] = useState('Test package from KCD');
-  const [status, setStatus] = useState('received');
   const [manifestId, setManifestId] = useState('MANIFEST-001');
   const [shipmentMode, setShipmentMode] = useState('air');
   const [flightNumber, setFlightNumber] = useState('AA1234');
@@ -86,7 +87,7 @@ export default function KcdTestPage() {
     const startTime = performance.now();
     const timestamp = new Date().toISOString();
     try {
-      const payload = { trackingNumber, houseNumber, customerMailbox, weight: parseFloat(weight), shipper, description, receivedAt: timestamp };
+      const payload = { trackingNumber, customerMailbox, weight: parseFloat(weight), shipper, description, receivedAt: timestamp, serviceMode, packageDimensions, status: packageStatus };
       const response = await fetch('/api/kcd/packages/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
@@ -130,8 +131,8 @@ export default function KcdTestPage() {
       if (weight) payload.weight = parseFloat(weight);
       if (shipper) payload.shipper = shipper;
       if (description) payload.description = description;
-      if (status) payload.status = status;
-      if (houseNumber) payload.houseNumber = houseNumber;
+      if (packageStatus) payload.status = packageStatus;
+      if (serviceMode) payload.serviceMode = serviceMode;
       const response = await fetch(`/api/kcd/packages/${trackingNumber}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey }, body: JSON.stringify(payload) });
       const responseTime = Math.round(performance.now() - startTime);
       const data = await response.json().catch(() => null);
@@ -304,16 +305,38 @@ export default function KcdTestPage() {
                     <p className="text-xs text-gray-500 mt-1">Maps to userCode in database</p>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">House Number</label>
-                    <input value={houseNumber} onChange={(e) => setHouseNumber(e.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" placeholder="e.g., CLEAN0000001" />
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Service Mode</label>
+                    <select value={serviceMode} onChange={(e) => setServiceMode(e.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20">
+                      <option value="air">Air</option>
+                      <option value="sea">Sea</option>
+                      <option value="land">Land</option>
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Weight (kg)</label>
                     <input type="number" step="0.1" value={weight} onChange={(e) => setWeight(e.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" placeholder="e.g., 2.5" />
                   </div>
                   <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
+                    <select value={packageStatus} onChange={(e) => setPackageStatus(e.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20">
+                      <option value="received">Received</option>
+                      <option value="in_transit">In Transit</option>
+                      <option value="at_warehouse">At Warehouse</option>
+                      <option value="out_for_delivery">Out for Delivery</option>
+                      <option value="delivered">Delivered</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Shipper</label>
                     <input value={shipper} onChange={(e) => setShipper(e.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" placeholder="e.g., Amazon" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Package Dimensions (L×W×H cm)</label>
+                    <div className="flex gap-2">
+                      <input type="number" value={packageDimensions.length} onChange={(e) => setPackageDimensions({...packageDimensions, length: e.target.value})} className="flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" placeholder="Length" />
+                      <input type="number" value={packageDimensions.width} onChange={(e) => setPackageDimensions({...packageDimensions, width: e.target.value})} className="flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" placeholder="Width" />
+                      <input type="number" value={packageDimensions.height} onChange={(e) => setPackageDimensions({...packageDimensions, height: e.target.value})} className="flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" placeholder="Height" />
+                    </div>
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Description</label>
@@ -330,7 +353,7 @@ export default function KcdTestPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
-                    <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20">
+                    <select value={packageStatus} onChange={(e) => setPackageStatus(e.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20">
                       <option value="received">received</option>
                       <option value="in_transit">in_transit</option>
                       <option value="at_warehouse">at_warehouse</option>
@@ -343,8 +366,13 @@ export default function KcdTestPage() {
                     <input value={shipper} onChange={(e) => setShipper(e.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" placeholder="Leave empty to keep current" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">House Number</label>
-                    <input value={houseNumber} onChange={(e) => setHouseNumber(e.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" placeholder="Leave empty to keep current" />
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Service Mode</label>
+                    <select value={serviceMode} onChange={(e) => setServiceMode(e.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20">
+                      <option value="">Keep current</option>
+                      <option value="air">Air</option>
+                      <option value="sea">Sea</option>
+                      <option value="land">Land</option>
+                    </select>
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Description</label>

@@ -44,20 +44,9 @@ interface ApiKey {
   daysUntilExpiry?: number | null;
 }
 
-interface KcdKeyInfo {
-  apiKey: string;
-  courierCode: string;
-  isActive: boolean;
-  createdAt: string;
-  expiresAt?: string;
-  usageCount: number;
-  lastUsed?: string;
-}
-
 export default function ApiKeysPage() {
   const { data: session } = useSession();
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
-  const [kcdKeyInfo, setKcdKeyInfo] = useState<KcdKeyInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -66,21 +55,19 @@ export default function ApiKeysPage() {
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showKcdModal, setShowKcdModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; key: ApiKey | null }>({ open: false, key: null });
   const [viewKey, setViewKey] = useState<ApiKey | null>(null);
 
   // Form states
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyDescription, setNewKeyDescription] = useState('');
-  const [courierCode, setCourierCode] = useState('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
+  const [revealedFullKeys, setRevealedFullKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchApiKeys();
-    fetchKcdKey();
   }, []);
 
   const fetchApiKeys = async () => {
@@ -97,22 +84,9 @@ export default function ApiKeysPage() {
     }
   };
 
-  const fetchKcdKey = async () => {
-    try {
-      const response = await fetch('/api/admin/kcd-key');
-      if (response.ok) {
-        const data = await response.json();
-        setKcdKeyInfo(data.data || null);
-      }
-    } catch (err) {
-      console.error('Failed to fetch KCD key:', err);
-    }
-  };
-
   const handleRefresh = () => {
     setRefreshing(true);
     fetchApiKeys();
-    fetchKcdKey();
   };
 
   const createApiKey = async () => {
@@ -128,23 +102,6 @@ export default function ApiKeysPage() {
       await fetchApiKeys();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create API key');
-    }
-  };
-
-  const generateKcdKey = async () => {
-    try {
-      const response = await fetch('/api/admin/kcd-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ courierCode }),
-      });
-      if (!response.ok) throw new Error('Failed to generate KCD key');
-      const data = await response.json();
-      if (data.data?.apiKey) setGeneratedKey(data.data.apiKey);
-      await fetchKcdKey();
-      setCourierCode('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate KCD key');
     }
   };
 
@@ -239,13 +196,6 @@ export default function ApiKeysPage() {
                   <span className="hidden sm:inline">Refresh</span>
                 </button>
                 <button
-                  onClick={() => { setShowKcdModal(true); setGeneratedKey(null); }}
-                  className="group flex items-center gap-2 rounded-xl bg-white/20 backdrop-blur px-4 py-3 sm:px-5 font-medium text-white shadow-md ring-1 ring-white/30 transition-all hover:bg-white/30 text-sm sm:text-base"
-                >
-                  <Shield className="h-4 w-4 sm:h-5 sm:w-5" />
-                  <span>{kcdKeyInfo ? 'Regen KCD Key' : 'Generate KCD Key'}</span>
-                </button>
-                <button
                   onClick={() => { setShowCreateModal(true); setGeneratedKey(null); }}
                   className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#E67919] to-[#d46a0f] px-4 py-3 sm:px-6 font-medium text-white shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 text-sm sm:text-base"
                 >
@@ -268,74 +218,6 @@ export default function ApiKeysPage() {
             </button>
           </div>
         )}
-
-        {/* ── KCD Integration Card ── */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-[#0f4d8a] to-[#E67919] px-6 py-4">
-            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-              <Shield className="w-5 h-5" />
-              KCD Logistics Integration
-            </h2>
-          </div>
-          <div className="p-6">
-            {kcdKeyInfo ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">API Key</label>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 bg-gray-100 px-3 py-2 rounded-lg font-mono text-xs truncate">
-                      {revealedKeys.has('kcd') ? kcdKeyInfo.apiKey : maskKey(kcdKeyInfo.apiKey)}
-                    </code>
-                    <button
-                      onClick={() => toggleReveal('kcd')}
-                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-gray-600"
-                    >
-                      {revealedKeys.has('kcd') ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                    <button
-                      onClick={() => copyToClipboard(kcdKeyInfo.apiKey, 'kcd')}
-                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-gray-600"
-                    >
-                      {copiedKey === 'kcd' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Status</label>
-                  <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${kcdKeyInfo.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                    {kcdKeyInfo.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Courier Code</label>
-                  <p className="text-sm font-semibold text-gray-900 font-mono">{kcdKeyInfo.courierCode}</p>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Usage</label>
-                  <div className="flex items-center gap-2 text-sm text-gray-900">
-                    <Clock className="h-4 w-4 text-gray-400" />
-                    <span>{kcdKeyInfo.usageCount || 0} uses</span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-10">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Shield className="h-8 w-8 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">No KCD API Key</h3>
-                <p className="text-gray-500 text-sm mb-4">Generate a key to enable KCD Logistics integration</p>
-                <button
-                  onClick={() => { setShowKcdModal(true); setGeneratedKey(null); }}
-                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#0f4d8a] to-[#0a3d6e] px-5 py-2.5 font-medium text-white shadow-md hover:shadow-lg transition-all text-sm"
-                >
-                  <Plus className="h-4 w-4" />
-                  Generate KCD Key
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
 
         {/* ── Search & Filter ── */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
@@ -627,105 +509,6 @@ export default function ApiKeysPage() {
                     >
                       <Plus className="h-4 w-4" />
                       Create Key
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Generate KCD Key Modal ── */}
-      {showKcdModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gradient-to-r from-[#0f4d8a] to-[#0e447d] px-6 py-4 flex items-center justify-between z-10 rounded-t-2xl">
-              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                <Shield className="w-5 h-5" />
-                {kcdKeyInfo ? 'Regenerate KCD API Key' : 'Generate KCD API Key'}
-              </h2>
-              <button
-                onClick={() => { setShowKcdModal(false); setGeneratedKey(null); setCourierCode(''); }}
-                className="text-white hover:text-gray-200 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="p-6">
-              {generatedKey ? (
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-green-200 bg-green-50 p-4 flex items-start gap-3">
-                    <Check className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-semibold text-green-900">KCD Key Generated</h4>
-                      <p className="text-green-700 text-sm mt-1">Copy this key and configure it in the KCD portal.</p>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-gray-700">KCD API Key</label>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 bg-gray-100 px-4 py-3 rounded-xl font-mono text-sm break-all">{generatedKey}</code>
-                      <button
-                        onClick={() => copyToClipboard(generatedKey, 'kcd-new')}
-                        className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
-                      >
-                        {copiedKey === 'kcd-new' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4 text-gray-600" />}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="rounded-xl bg-blue-50 border border-blue-100 p-4 text-sm">
-                    <p className="font-semibold text-blue-900 mb-2">Next Steps:</p>
-                    <ol className="list-decimal list-inside space-y-1 text-blue-800">
-                      <li>Copy the API key above</li>
-                      <li>Go to KCD portal → Admin → Couriers</li>
-                      <li>Paste the key in the API Access Token field</li>
-                      <li>Save and test the connection</li>
-                    </ol>
-                  </div>
-                  <div className="flex justify-end">
-                    <button
-                      onClick={() => { setShowKcdModal(false); setGeneratedKey(null); setCourierCode(''); }}
-                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#0f4d8a] to-[#0a3d6e] px-5 py-2.5 text-sm font-medium text-white shadow-md hover:shadow-lg transition-all"
-                    >
-                      Done
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                      Courier Code <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20"
-                      placeholder="e.g., CLEAN"
-                      value={courierCode}
-                      onChange={(e) => setCourierCode(e.target.value.toUpperCase())}
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Unique identifier for this courier integration</p>
-                  </div>
-                  <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 text-yellow-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-yellow-800">
-                      Generating a new key will invalidate any existing KCD integration. Update the key in the KCD portal immediately.
-                    </p>
-                  </div>
-                  <div className="flex justify-end gap-3 pt-2">
-                    <button
-                      onClick={() => { setShowKcdModal(false); setCourierCode(''); }}
-                      className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={generateKcdKey}
-                      disabled={!courierCode.trim()}
-                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#0f4d8a] to-[#0a3d6e] px-5 py-2.5 text-sm font-medium text-white shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      Generate Key
                     </button>
                   </div>
                 </div>

@@ -22,7 +22,12 @@ export async function validateApiKey(requestKey: string | null): Promise<{ valid
   try {
     await dbConnect();
     const hashedKey = hashApiKey(requestKey);
-    const apiKey = await ApiKey.findOne({ key: hashedKey, active: true });
+    const apiKey = await ApiKey.findOne({ 
+      $or: [
+        { key: hashedKey, active: true },
+        { key: hashedKey, isActive: true }
+      ]
+    });
 
     if (!apiKey) {
       return { valid: false, error: 'Invalid API key' };
