@@ -6,6 +6,8 @@ import { getAuthFromRequest, requireRole } from '@/lib/rbac';
 import { dbConnect } from '@/lib/db';
 import { ApiKey } from '@/models/ApiKey';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     // Verify admin access
