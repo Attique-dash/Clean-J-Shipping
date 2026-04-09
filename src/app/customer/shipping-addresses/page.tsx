@@ -81,11 +81,11 @@ export default function ShippingAddressesPage() {
     const mailboxCode = profile.mailboxNumber || address.mailboxCode || profile.userCode;
 
     if (address.type === "air") {
-      return `✈️ Standard Air Address:\n${fullName}\n${address.street}\n${address.addressLine2 || `KCDE-${mailboxCode}`}\n${address.city},\n${address.state}\n${address.zipCode}`;
+      return `✈️ Standard Air Address:\n${fullName}\n${address.street}\n${address.addressLine2 || `AIR-${mailboxCode}`}\n${address.city},\n${address.state}\n${address.zipCode}`;
     }
 
     if (address.type === "sea") {
-      return `🚢 Standard Sea Address:\n${fullName}\n${address.street}\n${address.addressLine2 || `KCDX-${mailboxCode}`}\n${address.city},\n${address.state}\n${address.zipCode}`;
+      return `🚢 Standard Sea Address:\n${fullName}\n${address.street}\n${address.addressLine2 || `SEA-${mailboxCode}`}\n${address.city},\n${address.state}\n${address.zipCode}`;
     }
 
     if (address.type === "china") {

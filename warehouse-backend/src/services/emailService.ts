@@ -512,7 +512,7 @@ export class EmailService {
       // Helper function to format address with user details
       const formatShippingAddress = (type: string) => {
         const fullName = `${firstName} ${lastName}`;
-        const mailboxCode = type === 'air' ? `KCDE-${courierCode}` : type === 'sea' ? `KCDX-${courierCode}` : courierCode;
+        const mailboxCode = type === 'air' ? `AIR-${courierCode}` : type === 'sea' ? `SEA-${courierCode}` : courierCode;
         
         if (type === 'china') {
           return `
@@ -526,9 +526,9 @@ export class EmailService {
         } else {
           return `
             <strong>${fullName}</strong><br>
-            3200 NW 112th Ave<br>
+            700 NW 57 Place<br>
             ${mailboxCode}<br>
-            Doral, Florida 33172<br>
+            Ft. Lauderdale, Florida 33309<br>
             USA<br>
             <strong>Phone:</strong> 1 (876) 578-5945<br>
             <strong>Email:</strong> cleanjshipping@gmail.com, info@cleanshipping.com

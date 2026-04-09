@@ -93,40 +93,40 @@ const seedData = async () => {
     ]);
     console.log(`Created ${customers.length} customer users`);
 
-    // Create warehouses with KCD Logistics Corp addresses
+    // Create warehouses with Clean J Shipping addresses
     const warehouses = await Promise.all([
       Warehouse.create({
-        name: 'KCD Logistics Corp - Main',
-        code: 'KCD',
-        address: '3200 NW 112th Ave',
-        city: 'Doral',
+        name: 'Clean J Shipping - Florida Warehouse',
+        code: 'CLEAN-FL',
+        address: '700 NW 57 Place',
+        city: 'Ft. Lauderdale',
         state: 'Florida',
-        zipCode: '33172',
+        zipCode: '33309',
         country: 'USA',
         isActive: true,
         isDefault: true,
         companyAbbreviation: 'CLEAN',
         airAddress: {
-          name: 'KCD Logistics Corp',
-          street: '3200 NW 112th Ave',
-          city: 'Doral',
+          name: 'Clean J Shipping - Air Cargo (Tax Exempt)',
+          street: '700 NW 57 Place',
+          city: 'Ft. Lauderdale',
           state: 'Florida',
-          zipCode: '33172',
+          zipCode: '33309',
           country: 'USA',
-          phone: '+1-305-555-0100',
-          email: 'air@kcdlogistics.com',
-          instructions: 'Standard Air Address - Use KCDE-[MAILBOX#] format for recipient line'
+          phone: '1 (876) 578-5945',
+          email: 'cleanjshipping@gmail.com',
+          instructions: 'Standard Air Address - Use AIR-[MAILBOX#] format for recipient line'
         },
         seaAddress: {
-          name: 'KCD Logistics Corp',
-          street: '3200 NW 112th Ave',
-          city: 'Doral',
+          name: 'Clean J Shipping - Sea Cargo (Tax Exempt)',
+          street: '700 NW 57 Place',
+          city: 'Ft. Lauderdale',
           state: 'Florida',
-          zipCode: '33172',
+          zipCode: '33309',
           country: 'USA',
-          phone: '+1-305-555-0200',
-          email: 'sea@kcdlogistics.com',
-          instructions: 'Standard Sea Address - Use KCDX-[MAILBOX#] format for recipient line'
+          phone: '1 (876) 578-5945',
+          email: 'cleanjshipping@gmail.com',
+          instructions: 'Standard Sea Address - Use SEA-[MAILBOX#] format for recipient line'
         },
         chinaAddress: {
           name: 'KCD Logistics Corp - China Office',
@@ -141,35 +141,35 @@ const seedData = async () => {
         }
       }),
       Warehouse.create({
-        name: 'KCD Logistics Corp - Backup',
-        code: 'KCDB',
-        address: '3200 NW 112th Ave',
-        city: 'Doral',
+        name: 'Clean J Shipping - Backup',
+        code: 'CLEAN-BK',
+        address: '700 NW 57 Place',
+        city: 'Ft. Lauderdale',
         state: 'Florida',
-        zipCode: '33172',
+        zipCode: '33309',
         country: 'USA',
         isActive: true,
         isDefault: false,
         companyAbbreviation: 'CLEAN',
         airAddress: {
-          name: 'KCD Logistics Corp - Backup',
-          street: '3200 NW 112th Ave',
-          city: 'Doral',
+          name: 'Clean J Shipping - Air Backup',
+          street: '700 NW 57 Place',
+          city: 'Ft. Lauderdale',
           state: 'Florida',
-          zipCode: '33172',
+          zipCode: '33309',
           country: 'USA',
-          phone: '+1-305-555-0400',
-          email: 'backup-air@kcdlogistics.com'
+          phone: '1 (876) 578-5945',
+          email: 'cleanjshipping@gmail.com'
         },
         seaAddress: {
-          name: 'KCD Logistics Corp - Backup',
-          street: '3200 NW 112th Ave',
-          city: 'Doral',
+          name: 'Clean J Shipping - Sea Backup',
+          street: '700 NW 57 Place',
+          city: 'Ft. Lauderdale',
           state: 'Florida',
-          zipCode: '33172',
+          zipCode: '33309',
           country: 'USA',
-          phone: '+1-305-555-0500',
-          email: 'backup-sea@kcdlogistics.com'
+          phone: '1 (876) 578-5945',
+          email: 'cleanjshipping@gmail.com'
         },
         chinaAddress: {
           name: 'KCD Logistics Corp - China Backup',
@@ -286,15 +286,15 @@ const seedData = async () => {
     console.log(`Created ${apiKeys.length} API keys`);
 
     console.log('\n=== Database Seeding Complete ===');
-    console.log('\n✅ KCD LOGISTICS CORP ADDRESSES CONFIGURED:');
-    console.log('\n📍 Air Address (KCDE):');
-    console.log('   3200 NW 112th Ave');
-    console.log('   KCDE-[MAILBOX#]');
-    console.log('   Doral, Florida 33172');
-    console.log('\n🚢 Sea Address (KCDX):');
-    console.log('   3200 NW 112th Ave');
-    console.log('   KCDX-[MAILBOX#]');
-    console.log('   Doral, Florida 33172');
+    console.log('\n✅ CLEAN J SHIPPING ADDRESSES CONFIGURED:');
+    console.log('\n📍 Air Address (AIR):');
+    console.log('   700 NW 57 Place');
+    console.log('   AIR-[MAILBOX#]');
+    console.log('   Ft. Lauderdale, Florida 33309');
+    console.log('\n🚢 Sea Address (SEA):');
+    console.log('   700 NW 57 Place');
+    console.log('   SEA-[MAILBOX#]');
+    console.log('   Ft. Lauderdale, Florida 33309');
     console.log('\n🇨🇳 China Address:');
     console.log('   FirstName LastName / [MAILBOX#]');
     console.log('   China, Guangdong Province, Shenzhen');

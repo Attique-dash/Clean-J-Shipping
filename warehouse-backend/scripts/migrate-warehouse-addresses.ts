@@ -28,29 +28,29 @@ const migrateWarehouseAddresses = async () => {
       return;
     }
 
-    // Default addresses for Clean J Shipping
+    // Default addresses for Clean J Shipping (Florida Warehouse)
     const defaultAddresses = {
       airAddress: {
-        name: 'Clean J Shipping Air Facility',
-        street: '123 Airport Road',
-        city: 'Miami',
-        state: 'FL',
-        zipCode: '33101',
+        name: 'Clean J Shipping - Air Cargo (Tax Exempt)',
+        street: '700 NW 57 Place',
+        city: 'Ft. Lauderdale',
+        state: 'Florida',
+        zipCode: '33309',
         country: 'USA',
-        phone: '+1-305-555-0100',
-        email: 'air@clean-shipping.com',
-        instructions: 'Please include tracking number on all air shipments'
+        phone: '1 (876) 578-5945',
+        email: 'cleanjshipping@gmail.com',
+        instructions: 'Include your mailbox number (AIR-[MAILBOX#]) for air shipments'
       },
       seaAddress: {
-        name: 'Clean J Shipping Sea Terminal',
-        street: '456 Harbor Drive',
-        city: 'Los Angeles',
-        state: 'CA',
-        zipCode: '90001',
+        name: 'Clean J Shipping - Sea Cargo (Tax Exempt)',
+        street: '700 NW 57 Place',
+        city: 'Ft. Lauderdale',
+        state: 'Florida',
+        zipCode: '33309',
         country: 'USA',
-        phone: '+1-310-555-0200',
-        email: 'sea@clean-shipping.com',
-        instructions: 'Sea shipments typically arrive within 7-14 business days'
+        phone: '1 (876) 578-5945',
+        email: 'cleanjshipping@gmail.com',
+        instructions: 'Include your mailbox number (SEA-[MAILBOX#]) for sea shipments'
       },
       chinaAddress: {
         name: 'Clean J Shipping China Office',
