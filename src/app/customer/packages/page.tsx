@@ -339,9 +339,9 @@ export default function CustomerPackagesPage() {
     const mailboxCode = customerProfile.mailboxNumber || customerProfile.userCode;
     
     if (modeLower === 'air') {
-      return `${fullName}\n${address.street}\n${address.addressLine2 || `KCDE-${mailboxCode}`}\n${address.city}, ${address.state}\n${address.zipCode}`;
+      return `${fullName}\n${address.street}\n${address.addressLine2 || `AIR-${mailboxCode}`}\n${address.city}, ${address.state}\n${address.zipCode}`;
     } else if (modeLower === 'ocean' || modeLower === 'sea') {
-      return `${fullName}\n${address.street}\n${address.addressLine2 || `KCDX-${mailboxCode}`}\n${address.city}, ${address.state}\n${address.zipCode}`;
+      return `${fullName}\n${address.street}\n${address.addressLine2 || `SEA-${mailboxCode}`}\n${address.city}, ${address.state}\n${address.zipCode}`;
     }
     
     return 'Address not configured';
