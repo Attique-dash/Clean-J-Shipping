@@ -85,13 +85,6 @@ export default function CustomerLayout({
       description: "View shipping addresses for air, sea, and China deliveries",
       color: "from-orange-500 to-orange-600",
     },
-    {
-      href: "/customer/addresses",
-      label: "My Addresses",
-      icon: Home,
-      description: "Manage your personal delivery addresses",
-      color: "from-teal-500 to-teal-600",
-    },
      {
       href: "/customer/invoice-upload",
       label: "Package Invoices",

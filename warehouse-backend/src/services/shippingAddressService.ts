@@ -136,9 +136,9 @@ export class ShippingAddressService {
         
         // Format address line 2 with mailbox code based on type
         if (addr.type === 'air') {
-          formattedAddr.addressLine2 = `KCDE-${mailboxCode}`;
+          formattedAddr.addressLine2 = `AIR-${mailboxCode}`;
         } else if (addr.type === 'sea') {
-          formattedAddr.addressLine2 = `KCDX-${mailboxCode}`;
+          formattedAddr.addressLine2 = `SEA-${mailboxCode}`;
         } else if (addr.type === 'china') {
           formattedAddr.addressLine2 = mailboxCode;
         } else {
