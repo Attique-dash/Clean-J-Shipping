@@ -22,7 +22,8 @@ export async function validateApiKey(
 
   // 1. Check legacy KCD_API_KEY from environment
   const kcdApiKey = process.env.KCD_API_KEY;
-  if (kcdApiKey && requestKey === kcdApiKey) {
+  if (kcdApiKey && apiKey === kcdApiKey) {
+    console.log('[API Key Validation] Validated via KCD_API_KEY environment variable');
     return { valid: true, key: { type: 'legacy', name: 'KCD Legacy Key' } };
   }
 
