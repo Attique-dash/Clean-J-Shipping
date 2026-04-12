@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
     const apiKey = req.headers.get("x-api-key") || req.nextUrl.searchParams.get("apiKey");
     
     // Validate API key using new validation function
-    const validation = await validateApiKey(apiKey);
+    // Note: For GET requests, body token is not applicable, so we pass null
+    const validation = await validateApiKey(apiKey, null);
     if (!validation.valid) {
       return NextResponse.json(
         { error: `Unauthorized - ${validation.error}` },

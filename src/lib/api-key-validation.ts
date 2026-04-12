@@ -6,9 +6,17 @@ import { ApiKey, hashApiKey, isKeyExpired } from '@/models/ApiKey';
  * Validate an API key against both:
  * 1. KCD_API_KEY environment variable (legacy)
  * 2. Database API keys with expiration
+ * 
+ * Supports token from header (x-api-key) or from request body (token field)
  */
-export async function validateApiKey(requestKey: string | null): Promise<{ valid: boolean; error?: string; key?: any }> {
-  if (!requestKey) {
+export async function validateApiKey(
+  requestKey: string | null,
+  bodyToken?: string | null
+): Promise<{ valid: boolean; error?: string; key?: any }> {
+  // Use header token or fallback to body token
+  const apiKey = requestKey || bodyToken;
+  
+  if (!apiKey) {
     return { valid: false, error: 'Missing API key' };
   }
 
@@ -21,29 +29,29 @@ export async function validateApiKey(requestKey: string | null): Promise<{ valid
   // 2. Check database API keys
   try {
     await dbConnect();
-    const hashedKey = hashApiKey(requestKey);
-    const apiKey = await ApiKey.findOne({ 
+    const hashedKey = hashApiKey(apiKey);
+    const apiKeyRecord = await ApiKey.findOne({ 
       $or: [
         { key: hashedKey, active: true },
         { key: hashedKey, isActive: true }
       ]
     });
 
-    if (!apiKey) {
+    if (!apiKeyRecord) {
       return { valid: false, error: 'Invalid API key' };
     }
 
     // Check expiration
-    if (isKeyExpired(apiKey.expiresAt)) {
+    if (isKeyExpired(apiKeyRecord.expiresAt)) {
       return { valid: false, error: 'API key has expired' };
     }
 
     // Update last used
-    apiKey.lastUsedAt = new Date();
-    apiKey.usageCount = (apiKey.usageCount || 0) + 1;
-    await apiKey.save();
+    apiKeyRecord.lastUsedAt = new Date();
+    apiKeyRecord.usageCount = (apiKeyRecord.usageCount || 0) + 1;
+    await apiKeyRecord.save();
 
-    return { valid: true, key: apiKey };
+    return { valid: true, key: apiKeyRecord };
   } catch (error) {
     console.error('Error validating API key:', error);
     return { valid: false, error: 'Internal server error' };

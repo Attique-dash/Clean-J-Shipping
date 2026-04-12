@@ -40,27 +40,39 @@ export async function POST(
   console.log(`[KCD Update ${requestId}] Received request for ${trackingNumber} at ${timestamp}`);
 
   try {
-    // Verify API Key
-    const apiKey = req.headers.get('x-api-key');
-    const validation = await validateApiKey(apiKey);
-    if (!validation.valid) {
-      return NextResponse.json(
-        { error: `Unauthorized - ${validation.error}` },
-        { status: 401 }
-      );
-    }
-
-    // Parse body
+    // Parse body first to extract token (Askenish portal sends token in body)
     let body: Record<string, unknown>;
+    let bodyToken: string | null = null;
     try {
-      body = await req.json();
-      console.log(`[KCD Update ${requestId}] Body:`, JSON.stringify(body, null, 2));
+      const rawBody = await req.text();
+      body = JSON.parse(rawBody);
+      bodyToken = (body as any)?.token || null;
+      console.log(`[KCD Update ${requestId}] Token from body:`, bodyToken ? '[PRESENT]' : '[MISSING]');
+      
+      // Re-create request with body for later use
+      req = new NextRequest(req.url, {
+        method: req.method,
+        headers: req.headers,
+        body: rawBody,
+      });
     } catch {
       return NextResponse.json(
         { error: "Invalid JSON body" },
         { status: 400 }
       );
     }
+    
+    // Verify API Key using header or body token
+    const headerApiKey = req.headers.get('x-api-key');
+    const validation = await validateApiKey(headerApiKey, bodyToken);
+    if (!validation.valid) {
+      return NextResponse.json(
+        { error: `Unauthorized - ${validation.error}` },
+        { status: 401 }
+      );
+    }
+    
+    console.log(`[KCD Update ${requestId}] Body:`, JSON.stringify(body, null, 2));
 
     await dbConnect();
 

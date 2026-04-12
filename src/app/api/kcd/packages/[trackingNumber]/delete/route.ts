@@ -40,9 +40,27 @@ export async function POST(
   console.log(`[KCD Delete ${requestId}] Received request for ${trackingNumber} at ${timestamp}`);
 
   try {
-    // Verify API Key
-    const apiKey = req.headers.get('x-api-key');
-    const validation = await validateApiKey(apiKey);
+    // Parse body first to extract token (Askenish portal sends token in body)
+    let bodyToken: string | null = null;
+    try {
+      const rawBody = await req.text();
+      const body = JSON.parse(rawBody);
+      bodyToken = body?.token || null;
+      console.log(`[KCD Delete ${requestId}] Token from body:`, bodyToken ? '[PRESENT]' : '[MISSING]');
+      
+      // Re-create request with body for later use if needed
+      req = new NextRequest(req.url, {
+        method: req.method,
+        headers: req.headers,
+        body: rawBody,
+      });
+    } catch {
+      // Body might not be JSON or empty, continue with header check
+    }
+    
+    // Verify API Key using header or body token
+    const headerApiKey = req.headers.get('x-api-key');
+    const validation = await validateApiKey(headerApiKey, bodyToken);
     if (!validation.valid) {
       return NextResponse.json(
         { error: `Unauthorized - ${validation.error}` },

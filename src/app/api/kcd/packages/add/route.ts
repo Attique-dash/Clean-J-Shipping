@@ -77,9 +77,30 @@ export async function POST(req: NextRequest) {
     
     console.log(`[KCD Webhook ${requestId}] Headers:`, JSON.stringify(headers, null, 2));
     
-    // Verify API Key using new validation
-    const apiKey = req.headers.get('x-api-key');
-    const validation = await validateApiKey(apiKey);
+    // Parse body first to check for token in body (Askenish portal sends token in body)
+    let rawBody: string | null = null;
+    let bodyToken: string | null = null;
+    try {
+      rawBody = await req.text();
+      const bodyJson = JSON.parse(rawBody);
+      bodyToken = bodyJson?.token || null;
+      console.log(`[KCD Webhook ${requestId}] Token from body:`, bodyToken ? '[PRESENT]' : '[MISSING]');
+    } catch (e) {
+      // Body might not be JSON or empty, continue with header check
+    }
+    
+    // Re-create request with body for later parsing
+    if (rawBody) {
+      req = new NextRequest(req.url, {
+        method: req.method,
+        headers: req.headers,
+        body: rawBody,
+      });
+    }
+    
+    // Verify API Key using header or body token
+    const headerApiKey = req.headers.get('x-api-key');
+    const validation = await validateApiKey(headerApiKey, bodyToken);
     if (!validation.valid) {
       console.error(`[KCD Webhook ${requestId}] API key validation failed: ${validation.error}`);
       const log = {
