@@ -30,13 +30,13 @@ const extractToken = (req: Request): string | null => {
     return req.query.id.trim();
   }
 
-  // 2. Request body APIToken — used by Add/Update/Delete Package & Update Manifest
+  // 2. Request body APIToken or token — used by Add/Update/Delete Package & Update Manifest
   const body = req.body;
   if (body) {
     const item = Array.isArray(body) ? body[0] : body;
-    const bodyToken = item?.APIToken || item?.apiToken;
+    const bodyToken = item?.APIToken || item?.apiToken || item?.token;
     if (bodyToken && typeof bodyToken === 'string' && bodyToken.trim()) {
-      console.log('[KCD Auth] Token from body.APIToken');
+      console.log('[KCD Auth] Token from body (APIToken/apiToken/token)');
       return bodyToken.trim();
     }
   }
@@ -93,9 +93,24 @@ export const authKcdApiKey = async (
       res.status(401).json({
         success: false,
         message: 'Unauthorized: No API token provided.',
-        hint: 'GET: use ?id=TOKEN | POST: include "APIToken" in body | or Authorization: TOKEN (no Bearer prefix)',
+        hint: 'GET: use ?id=TOKEN | POST: include "APIToken" or "token" in body | or Authorization: TOKEN (no Bearer prefix)',
       });
       return;
+    }
+
+    // Check environment variable KCD_API_KEY first (for Askenish integration)
+    const envApiKey = process.env.KCD_API_KEY;
+    if (envApiKey && apiKey === envApiKey) {
+      console.log('[KCD Auth] ✅ Validated via KCD_API_KEY environment variable');
+      // Create a mock key object for compatibility
+      req.kcdApiKey = { 
+        _id: 'env-key', 
+        name: 'KCD Environment Key',
+        courierCode: 'CLEANJ',
+        isActive: true 
+      };
+      req.courierCode = 'CLEANJ';
+      return next();
     }
 
     const kcdKey = await ApiKey.findOne({
