@@ -44,6 +44,18 @@ router.get('/health', (req, res) => {
   });
 });
 
+// Debug endpoint - check KCD_API_KEY env var
+router.get('/debug/kcd-env', (req, res) => {
+  const kcdApiKey = process.env.KCD_API_KEY;
+  res.json({
+    kcdApiKeyExists: !!kcdApiKey,
+    kcdApiKeyLength: kcdApiKey ? kcdApiKey.length : 0,
+    kcdApiKeyPrefix: kcdApiKey ? kcdApiKey.substring(0, 15) + '...' : null,
+    nodeEnv: process.env.NODE_ENV,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Apply database connection middleware to all routes except health
 router.use('/auth', ensureDatabaseConnection, authRoutes);
 router.use('/warehouse', ensureDatabaseConnection, warehouseRoutes);
