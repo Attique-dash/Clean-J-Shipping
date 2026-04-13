@@ -5,6 +5,7 @@
 
 const API_BASE_URL = 'https://cleanjshipping.vercel.app';
 const API_TOKEN = 'XoZedbLJE0neONu5EVN3CE2xGkOw9ggwCSysjrGpjF2S2Kq';
+const AUTH_HEADER = 'XoZedbLJE0neONu5EVN3CE2xGkOw9ggwCSysjrGpjF2S2Kq'; // Raw token for Authorization header
 
 const colors = {
   reset: '\x1b[0m',
@@ -19,10 +20,11 @@ function log(message, color = 'reset') {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
-async function testEndpoint(name, method, url, body = null, useHeader = true) {
+async function testEndpoint(name, method, url, body = null, authType = 'header') {
   log(`\n${'='.repeat(60)}`, 'cyan');
   log(`Testing: ${name}`, 'cyan');
   log(`${method} ${url}`, 'blue');
+  log(`Auth Type: ${authType}`, 'yellow');
   log(`${'='.repeat(60)}`, 'cyan');
 
   try {
@@ -30,13 +32,20 @@ async function testEndpoint(name, method, url, body = null, useHeader = true) {
       'Content-Type': 'application/json',
     };
 
-    // Add token to header or body
-    if (useHeader) {
+    // Handle different auth types
+    if (authType === 'header') {
       headers['x-api-key'] = API_TOKEN;
+    } else if (authType === 'auth') {
+      headers['Authorization'] = AUTH_HEADER;
+    } else if (authType === 'xkcd') {
+      headers['x-kcd-api-key'] = API_TOKEN;
     }
 
     const requestBody = body ? { ...body } : null;
-    if (!useHeader && requestBody) {
+    // KCD uses "APIToken" field in body
+    if (authType === 'body' && requestBody) {
+      requestBody.APIToken = API_TOKEN;
+    } else if (authType === 'token' && requestBody) {
       requestBody.token = API_TOKEN;
     }
 
