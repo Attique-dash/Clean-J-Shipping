@@ -88,6 +88,11 @@ export const authKcdApiKey = async (
 
     const apiKey = extractToken(req);
 
+    // DEBUG: Log extracted token
+    console.log('[KCD Auth] Extracted token:', apiKey ? `${apiKey.substring(0, 10)}... (len=${apiKey.length})` : 'null');
+    console.log('[KCD Auth] KCD_API_KEY env var exists:', !!process.env.KCD_API_KEY);
+    console.log('[KCD Auth] KCD_API_KEY env var value:', process.env.KCD_API_KEY ? `${process.env.KCD_API_KEY.substring(0, 10)}...` : 'not set');
+
     if (!apiKey) {
       console.error('[KCD Auth] No token found in request');
       res.status(401).json({
@@ -111,6 +116,13 @@ export const authKcdApiKey = async (
       };
       req.courierCode = 'CLEANJ';
       return next();
+    }
+
+    // DEBUG: Log why validation failed
+    if (envApiKey) {
+      console.log('[KCD Auth] Token mismatch - extracted:', apiKey.substring(0, 10), 'env:', envApiKey.substring(0, 10));
+    } else {
+      console.log('[KCD Auth] KCD_API_KEY env var is NOT set');
     }
 
     const kcdKey = await ApiKey.findOne({
