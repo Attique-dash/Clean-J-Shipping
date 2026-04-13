@@ -82,7 +82,7 @@ export class KCDWebhookController {
         dateReceived: new Date(timestamp || Date.now()),
         source: 'kcd_webhook',
         sourceDetails: {
-          webhookId: req.body.webhookId || `kcd-${Date.now()}`,
+          webhookId: (req.body as any).webhookId || `kcd-${Date.now()}`,
           apiEndpoint: '/api/kcd/packages/add',
           syncedAt: new Date(),
           syncStatus: 'synced'
