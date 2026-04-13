@@ -132,33 +132,48 @@ export async function POST(
     // Handle manifest association if manifestId provided
     if (body.manifestId) {
       const manifestId = asString(body.manifestId);
-      const manifest = await ShipmentManifest.findOne({ manifestId });
+      let manifest = await ShipmentManifest.findOne({ manifestId });
       
-      if (manifest) {
-        // Check if package is already in manifest
-        const existingShipment = manifest.shipments.find(
-          (s: { trackingNumber?: string }) => s.trackingNumber === trackingNumber.toUpperCase()
-        );
-
-        if (!existingShipment) {
-          // Add package to manifest
-          manifest.shipments.push({
-            trackingNumber: trackingNumber.toUpperCase(),
-            status: existingPackage.status || 'pending',
-            weight: existingPackage.weight,
-            notes: asString(body.notes) || 'Added via KCD manifest API'
-          });
-          manifest.totalItems = manifest.shipments.length;
-          manifest.totalWeight = manifest.shipments.reduce(
-            (sum: number, s: { weight?: number }) => sum + (s.weight || 0), 0
-          );
-          manifest.updatedAt = new Date();
-          await manifest.save();
-          console.log(`[KCD Manifest ${requestId}] Added package to manifest ${manifestId}`);
-        }
-
-        updateData.shipmentManifestId = manifest._id;
+      // Create manifest if it doesn't exist
+      if (!manifest) {
+        manifest = await ShipmentManifest.create({
+          manifestId: manifestId,
+          title: `Manifest ${manifestId}`,
+          mode: asString(body.shipmentMode) || 'air',
+          batchDate: new Date(),
+          shipments: [],
+          totalItems: 0,
+          totalWeight: 0,
+          status: 'active'
+        });
+        console.log(`[KCD Manifest ${requestId}] Created new manifest ${manifestId}`);
       }
+      
+      // Check if package is already in manifest
+      const existingShipment = manifest.shipments.find(
+        (s: { trackingNumber?: string }) => s.trackingNumber === trackingNumber.toUpperCase()
+      );
+
+      if (!existingShipment) {
+        // Add package to manifest
+        manifest.shipments.push({
+          trackingNumber: trackingNumber.toUpperCase(),
+          status: existingPackage.status || 'pending',
+          weight: existingPackage.weight,
+          notes: asString(body.notes) || 'Added via KCD manifest API'
+        });
+      }
+
+      // Recalculate totals
+      manifest.totalItems = manifest.shipments.length;
+      manifest.totalWeight = manifest.shipments.reduce(
+        (sum: number, s: { weight?: number }) => sum + (s.weight || 0), 0
+      );
+      manifest.updatedAt = new Date();
+      await manifest.save();
+      console.log(`[KCD Manifest ${requestId}] Updated manifest ${manifestId} with package`);
+
+      updateData.shipmentManifestId = manifest._id;
     }
 
     // Track source
