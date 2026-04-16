@@ -9,6 +9,7 @@ import { logger } from '../../utils/logger';
 
 interface KCDWebhookRequest extends AuthRequest {
   body: {
+    // Original format fields
     trackingNumber?: string;
     courierCode?: string;
     status?: string;
@@ -24,6 +25,77 @@ interface KCDWebhookRequest extends AuthRequest {
     arrivalDate?: string;
     test?: boolean;
     message?: string;
+    // PDF format fields (PascalCase)
+    PackageID?: string;
+    CourierID?: string;
+    ManifestID?: string;
+    CollectionID?: string;
+    TrackingNumber?: string;
+    ControlNumber?: string;
+    FirstName?: string;
+    LastName?: string;
+    UserCode?: string;
+    Weight?: number;
+    Shipper?: string;
+    EntryStaff?: string;
+    EntryDate?: string;
+    EntryDateTime?: string;
+    Branch?: string;
+    Claimed?: boolean;
+    APIToken?: string;
+    ShowControls?: boolean;
+    Description?: string;
+    HSCode?: string;
+    Unknown?: boolean;
+    AIProcessed?: boolean;
+    OriginalHouseNumber?: string;
+    Cubes?: number;
+    Length?: number;
+    Width?: number;
+    Height?: number;
+    Pieces?: number;
+    Discrepancy?: boolean;
+    DiscrepancyDescription?: string;
+    ServiceTypeID?: string;
+    HazmatCodeID?: string;
+    Coloaded?: boolean;
+    ColoadIndicator?: string;
+    PackageStatus?: number;
+    PackagePayments?: string;
+    // Also allow camelCase versions
+    packageId?: string;
+    courierId?: string;
+    collectionId?: string;
+    userCode?: string;
+    weight?: number;
+    shipper?: string;
+    description?: string;
+    controlNumber?: string;
+    firstName?: string;
+    lastName?: string;
+    pieces?: number;
+    cubes?: number;
+    length?: number;
+    width?: number;
+    height?: number;
+    branch?: string;
+    entryStaff?: string;
+    claimed?: boolean;
+    showControls?: boolean;
+    hsCode?: string;
+    unknown?: boolean;
+    aiProcessed?: boolean;
+    originalHouseNumber?: string;
+    discrepancy?: boolean;
+    discrepancyDescription?: string;
+    serviceTypeId?: string;
+    hazmatCodeId?: string;
+    coloaded?: boolean;
+    coloadIndicator?: string;
+    packageStatus?: number;
+    packagePayments?: string;
+    apiToken?: string;
+    token?: string;
   };
 }
 
@@ -32,19 +104,81 @@ export class KCDWebhookController {
   // Handle package creation from KCD
   static async packageCreated(req: KCDWebhookRequest, res: Response): Promise<void> {
     try {
-      const { trackingNumber, courierCode, packageData, timestamp } = req.body;
+      // Support both old format (trackingNumber, courierCode, packageData) and PDF format (flat PascalCase)
+      const body = req.body;
+      
+      // Check if this is PDF format (has UserCode, TrackingNumber, etc.)
+      const isPdfFormat = body.UserCode || body.TrackingNumber || body.Weight !== undefined;
+      
+      let trackingNumber: string | undefined;
+      let courierCode: string | undefined;
+      let packageData: any;
+      let timestamp: string | undefined;
+      
+      if (isPdfFormat) {
+        // PDF Format - flat structure with PascalCase
+        trackingNumber = body.TrackingNumber || body.trackingNumber;
+        courierCode = 'CLEAN'; // Default for PDF format
+        timestamp = body.EntryDateTime || body.EntryDate || new Date().toISOString();
+        
+        // Map PDF fields to packageData structure
+        packageData = {
+          userCode: body.UserCode || body.userCode,
+          weight: body.Weight || body.weight,
+          shipper: body.Shipper || body.shipper,
+          description: body.Description || body.description,
+          controlNumber: body.ControlNumber || body.controlNumber,
+          firstName: body.FirstName || body.firstName,
+          lastName: body.LastName || body.lastName,
+          pieces: body.Pieces || body.pieces || 1,
+          cubes: body.Cubes || body.cubes || 0,
+          length: body.Length || body.length || 0,
+          width: body.Width || body.width || 0,
+          height: body.Height || body.height || 0,
+          branch: body.Branch || body.branch,
+          entryStaff: body.EntryStaff || body.entryStaff,
+          packageId: body.PackageID || body.packageId,
+          courierId: body.CourierID || body.courierId,
+          manifestId: body.ManifestID || body.manifestId,
+          collectionId: body.CollectionID || body.collectionId,
+          claimed: body.Claimed || body.claimed || false,
+          showControls: body.ShowControls || body.showControls || false,
+          hsCode: body.HSCode || body.hsCode,
+          unknown: body.Unknown || body.unknown || false,
+          aiProcessed: body.AIProcessed || body.aiProcessed || false,
+          originalHouseNumber: body.OriginalHouseNumber || body.originalHouseNumber,
+          discrepancy: body.Discrepancy || body.discrepancy || false,
+          discrepancyDescription: body.DiscrepancyDescription || body.discrepancyDescription,
+          serviceTypeId: body.ServiceTypeID || body.serviceTypeId,
+          hazmatCodeId: body.HazmatCodeID || body.hazmatCodeId,
+          coloaded: body.Coloaded || body.coloaded || false,
+          coloadIndicator: body.ColoadIndicator || body.coloadIndicator,
+          packageStatus: body.PackageStatus !== undefined ? body.PackageStatus : body.packageStatus,
+          packagePayments: body.PackagePayments || body.packagePayments,
+          apiToken: body.APIToken || body.apiToken || body.token
+        };
+      } else {
+        // Original format - nested structure
+        trackingNumber = body.trackingNumber;
+        courierCode = body.courierCode;
+        packageData = body.packageData;
+        timestamp = body.timestamp;
+      }
 
-      if (!trackingNumber || !courierCode || !packageData) {
-        errorResponse(res, 'Missing required fields: trackingNumber, courierCode, packageData', 400);
+      if (!trackingNumber) {
+        errorResponse(res, 'Missing required field: trackingNumber (or TrackingNumber in PDF format)', 400);
         return;
       }
 
-      // Verify courier code matches the authenticated API key's courier code
+      // Verify courier code matches the authenticated API key's courier code (skip for PDF format)
       const authenticatedCourierCode = (req as any).apiKey?.courierCode;
-      if (!authenticatedCourierCode || courierCode !== authenticatedCourierCode) {
+      if (!isPdfFormat && authenticatedCourierCode && courierCode !== authenticatedCourierCode) {
         errorResponse(res, `Invalid courier code. Expected: ${authenticatedCourierCode}, Received: ${courierCode}`, 400);
         return;
       }
+      
+      // For PDF format, use authenticated courier code or default to CLEAN
+      const finalCourierCode = authenticatedCourierCode || 'CLEAN';
 
       // Check if package already exists
       const existingPackage = await Package.findOne({ trackingNumber });
@@ -76,7 +210,7 @@ export class KCDWebhookController {
       // Create new package
       const newPackage = new Package({
         trackingNumber,
-        userCode: packageData.userCode || authenticatedCourierCode,
+        userCode: packageData.userCode || finalCourierCode,
         userId: customer._id,
         status: 'received',
         dateReceived: new Date(timestamp || Date.now()),
@@ -87,7 +221,7 @@ export class KCDWebhookController {
           syncedAt: new Date(),
           syncStatus: 'synced'
         },
-        courierCode: authenticatedCourierCode,
+        courierCode: finalCourierCode,
         processedAt: new Date(),
         ...packageData
       });
