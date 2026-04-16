@@ -88,33 +88,79 @@ export async function POST(
       );
     }
 
-    // Build update data
+    // Build update data - Support both old field names and Tasoko PDF field names (PascalCase)
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };
 
-    // Update fields if provided
-    if (body.weight !== undefined) {
-      updateData.weight = asNumber(body.weight);
+    // Update fields if provided (handle both camelCase and PascalCase)
+    const weight = body.weight !== undefined ? body.weight : body.Weight;
+    if (weight !== undefined) {
+      updateData.weight = asNumber(weight);
     }
-    if (body.shipper !== undefined) {
-      updateData.shipper = asString(body.shipper);
+    
+    const shipper = body.shipper !== undefined ? body.shipper : body.Shipper;
+    if (shipper !== undefined) {
+      updateData.shipper = asString(shipper);
     }
-    if (body.description !== undefined) {
-      updateData.description = asString(body.description);
-      updateData.itemDescription = asString(body.description);
+    
+    const description = body.description !== undefined ? body.description : body.Description;
+    if (description !== undefined) {
+      updateData.description = asString(description);
+      updateData.itemDescription = asString(description);
     }
-    if (body.status !== undefined) {
-      updateData.status = asString(body.status);
+    
+    // Support both status and PackageStatus
+    const status = body.status !== undefined ? body.status : body.PackageStatus;
+    if (status !== undefined) {
+      updateData.status = asString(status);
     }
-    if (body.receivedAt !== undefined) {
-      const receivedDate = new Date(asString(body.receivedAt));
+    
+    // Support receivedAt, EntryDate, or EntryDateTime
+    const receivedAt = body.receivedAt !== undefined ? body.receivedAt : (body.EntryDate !== undefined ? body.EntryDate : body.EntryDateTime);
+    if (receivedAt !== undefined) {
+      const receivedDate = new Date(asString(receivedAt));
       updateData.dateReceived = receivedDate;
       updateData.entryDate = receivedDate;
       updateData.receivedAt = receivedDate;
     }
-    if (body.houseNumber !== undefined) {
-      updateData.controlNumber = asString(body.houseNumber);
+    
+    // Support houseNumber or ControlNumber
+    const houseNumber = body.houseNumber !== undefined ? body.houseNumber : body.ControlNumber;
+    if (houseNumber !== undefined) {
+      updateData.controlNumber = asString(houseNumber);
+    }
+    
+    // Additional Tasoko PDF fields
+    if (body.PackageID !== undefined || body.packageId !== undefined) {
+      updateData.kcdPackageId = asString(body.PackageID || body.packageId);
+    }
+    if (body.CourierID !== undefined || body.courierId !== undefined) {
+      updateData.kcdCourierId = asString(body.CourierID || body.courierId);
+    }
+    if (body.ManifestID !== undefined || body.manifestId !== undefined) {
+      updateData.kcdManifestId = asString(body.ManifestID || body.manifestId);
+    }
+    if (body.CollectionID !== undefined || body.collectionId !== undefined) {
+      updateData.kcdCollectionId = asString(body.CollectionID || body.collectionId);
+    }
+    if (body.EntryStaff !== undefined || body.entryStaff !== undefined) {
+      updateData.entryStaff = asString(body.EntryStaff || body.entryStaff);
+    }
+    if (body.Branch !== undefined || body.branch !== undefined) {
+      updateData.branch = asString(body.Branch || body.branch);
+    }
+    if (body.Pieces !== undefined || body.pieces !== undefined) {
+      updateData.pieces = asNumber(body.Pieces || body.pieces);
+    }
+    if (body.Cubes !== undefined || body.cubes !== undefined) {
+      updateData.cubes = asNumber(body.Cubes || body.cubes);
+    }
+    if (body.FirstName !== undefined || body.firstName !== undefined) {
+      updateData.receiverFirstName = asString(body.FirstName || body.firstName);
+    }
+    if (body.LastName !== undefined || body.lastName !== undefined) {
+      updateData.receiverLastName = asString(body.LastName || body.lastName);
     }
 
     // Track source

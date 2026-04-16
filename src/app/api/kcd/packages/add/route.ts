@@ -142,22 +142,38 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    // Validate required fields
-    const {
-      trackingNumber,
-      houseNumber,
-      customerMailbox,
-      weight,
-      shipper,
-      receivedAt
-    } = body;
+    // Validate required fields - Support both old field names and Tasoko PDF field names (PascalCase)
+    const trackingNumber = body.trackingNumber || body.TrackingNumber;
+    const houseNumber = body.houseNumber || body.HouseNumber || body.ControlNumber;
+    const customerMailbox = body.customerMailbox || body.customerCode || body.UserCode;
+    const weight = body.weight || body.Weight;
+    const shipper = body.shipper || body.Shipper;
+    const receivedAt = body.receivedAt || body.EntryDate || body.EntryDateTime;
+    const description = body.description || body.Description;
+    const firstName = body.firstName || body.FirstName;
+    const lastName = body.lastName || body.LastName;
+    
+    // Additional Tasoko PDF fields (optional)
+    const packageId = body.PackageID || body.packageId;
+    const courierId = body.CourierID || body.courierId;
+    const manifestId = body.ManifestID || body.manifestId;
+    const collectionId = body.CollectionID || body.collectionId;
+    const entryStaff = body.EntryStaff || body.entryStaff;
+    const branch = body.Branch || body.branch;
+    const pieces = body.Pieces || body.pieces || 1;
+    const cubes = body.Cubes || body.cubes;
+    const length = body.Length || body.length;
+    const width = body.Width || body.width;
+    const height = body.Height || body.height;
+    const packageStatus = body.PackageStatus || body.status;
     
     const missingFields: string[] = [];
-    if (!trackingNumber) missingFields.push('trackingNumber');
-    if (!customerMailbox) missingFields.push('customerMailbox');
+    if (!trackingNumber) missingFields.push('trackingNumber/TrackingNumber');
+    if (!customerMailbox) missingFields.push('customerMailbox/UserCode');
     
     if (missingFields.length > 0) {
       console.error(`[KCD Webhook ${requestId}] Missing required fields:`, missingFields);
+      console.error(`[KCD Webhook ${requestId}] Received body keys:`, Object.keys(body));
       const log = {
         timestamp,
         method: 'POST',
@@ -168,7 +184,7 @@ export async function POST(req: NextRequest) {
       };
       addLog(log);
       return NextResponse.json(
-        { error: "Missing required fields", missingFields },
+        { error: "Missing required fields", missingFields, receivedFields: Object.keys(body) },
         { status: 400 }
       );
     }
@@ -178,7 +194,7 @@ export async function POST(req: NextRequest) {
     await dbConnect();
     console.log(`[KCD Webhook ${requestId}] Database connected`);
     
-    // Find user by customerMailbox (this maps to userCode)
+    // Find user by customerMailbox/UserCode (this maps to userCode)
     const userCode = asString(customerMailbox);
     console.log(`[KCD Webhook ${requestId}] Looking up user with userCode: ${userCode}`);
     
@@ -247,18 +263,30 @@ export async function POST(req: NextRequest) {
       sourceDetails: {
         syncedAt: new Date(),
         syncStatus: 'synced' as const,
-        apiEndpoint: '/api/kcd/packages/add'
+        apiEndpoint: '/api/kcd/packages/add',
+        kcdPackageId: packageId || undefined,
+        kcdCourierId: courierId || undefined
       },
       
-      // KCD specific fields
+      // KCD specific fields from Tasoko PDF
       controlNumber: houseNumber ? asString(houseNumber) : undefined,
       mailboxNumber: mailboxCode,
+      
+      // Tasoko PDF additional fields
+      kcdPackageId: packageId ? asString(packageId) : undefined,
+      kcdCourierId: courierId ? asString(courierId) : undefined,
+      kcdManifestId: manifestId ? asString(manifestId) : undefined,
+      kcdCollectionId: collectionId ? asString(collectionId) : undefined,
+      entryStaff: entryStaff ? asString(entryStaff) : 'KCD Webhook',
+      branch: branch ? asString(branch) : 'KCD Main Warehouse',
+      pieces: pieces ? asNumber(pieces) : 1,
+      cubes: cubes ? asNumber(cubes) : 0,
       
       // Package details
       weight: weightKg,
       weightUnit: 'kg',
-      itemDescription: body.description || `Package from ${shipper || 'Unknown'}`,
-      description: body.description || `Package from ${shipper || 'Unknown'}`,
+      itemDescription: description || `Package from ${shipper || 'Unknown'}`,
+      description: description || `Package from ${shipper || 'Unknown'}`,
       shipper: shipper ? asString(shipper) : 'Unknown Shipper',
       
       // Dates
@@ -266,8 +294,8 @@ export async function POST(req: NextRequest) {
       entryDate: receivedDate,
       receivedAt: receivedDate,
       
-      // Status
-      status: 'received',
+      // Status - use PackageStatus from PDF if provided
+      status: packageStatus ? asString(packageStatus) : 'received',
       paymentStatus: 'pending',
       
       // Service defaults
@@ -289,7 +317,7 @@ export async function POST(req: NextRequest) {
       senderCountry: 'Jamaica',
       
       // Receiver info (customer)
-      receiverName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Customer',
+      receiverName: `${firstName || user.firstName || ''} ${lastName || user.lastName || ''}`.trim() || 'Customer',
       receiverPhone: user.phone || '0000000000',
       receiverEmail: user.email || '',
       receiverAddress: user.address?.street || 'No Address',
@@ -317,14 +345,12 @@ export async function POST(req: NextRequest) {
       // Additional metadata
       warehouseLocation: 'KCD Main Warehouse',
       currentLocation: 'KCD Main Warehouse',
-      branch: 'KCD Main Warehouse',
-      entryStaff: 'KCD Webhook',
       
-      // Dimensions placeholder
+      // Dimensions from PDF if provided
       dimensions: {
-        length: 0,
-        width: 0,
-        height: 0,
+        length: length ? asNumber(length) : 0,
+        width: width ? asNumber(width) : 0,
+        height: height ? asNumber(height) : 0,
         unit: 'cm',
         weight: weightKg,
         weightUnit: 'kg'
