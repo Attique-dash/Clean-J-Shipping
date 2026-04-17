@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import mongoose from 'mongoose';
 import { AuthRequest } from '../../middleware/auth';
 import { Package } from '../../models/Package';
 import { Manifest } from '../../models/Manifest';
@@ -96,6 +97,16 @@ interface KCDWebhookRequest extends AuthRequest {
     packagePayments?: string;
     apiToken?: string;
     token?: string;
+    // Additional PascalCase fields for manifest and status updates
+    Status?: string;
+    Location?: string;
+    Notes?: string;
+    Timestamp?: string;
+    CourierCode?: string;
+    Packages?: string[];
+    DepartureDate?: string;
+    ArrivalDate?: string;
+    manifestID?: string;
   };
 }
 
@@ -237,16 +248,23 @@ export class KCDWebhookController {
         message: 'Package created successfully'
       }, 'Package created from KCD webhook');
 
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error processing KCD package created webhook:', error);
-      errorResponse(res, 'Failed to process package creation', 500);
+      logger.error('Error details:', error?.message || 'Unknown error');
+      logger.error('Error stack:', error?.stack || 'No stack trace');
+      errorResponse(res, `Failed to process package creation: ${error?.message || 'Unknown error'}`, 500);
     }
   }
 
   // Handle package status updates from KCD
   static async packageUpdated(req: KCDWebhookRequest, res: Response): Promise<void> {
     try {
-      const { trackingNumber, status, location, notes, timestamp } = req.body;
+      // Support both camelCase and PascalCase (PDF format)
+      const trackingNumber = req.body.trackingNumber || req.body.TrackingNumber;
+      const status = req.body.status || req.body.Status;
+      const location = req.body.location || req.body.Location;
+      const notes = req.body.notes || req.body.Notes;
+      const timestamp = req.body.timestamp || req.body.Timestamp;
 
       if (!trackingNumber || !status) {
         errorResponse(res, 'Missing required fields: trackingNumber, status', 400);
@@ -289,9 +307,10 @@ export class KCDWebhookController {
         timestamp: historyEntry.at
       }, 'Package status updated successfully');
 
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error processing KCD package updated webhook:', error);
-      errorResponse(res, 'Failed to process package update', 500);
+      logger.error('Error details:', error?.message || 'Unknown error');
+      errorResponse(res, `Failed to process package update: ${error?.message || 'Unknown error'}`, 500);
     }
   }
 
@@ -356,7 +375,10 @@ export class KCDWebhookController {
   // Handle package deletion from KCD
   static async packageDeleted(req: KCDWebhookRequest, res: Response): Promise<void> {
     try {
-      const { trackingNumber, courierCode, timestamp } = req.body;
+      // Support both camelCase and PascalCase (PDF format)
+      const trackingNumber = req.body.trackingNumber || req.body.TrackingNumber;
+      const courierCode = req.body.courierCode || req.body.CourierCode;
+      const timestamp = req.body.timestamp || req.body.Timestamp;
 
       if (!trackingNumber || !courierCode) {
         errorResponse(res, 'Missing required fields: trackingNumber, courierCode', 400);
@@ -387,18 +409,25 @@ export class KCDWebhookController {
         message: 'Package deleted successfully'
       }, 'Package deleted successfully');
 
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error processing package deletion webhook:', error);
-      errorResponse(res, 'Failed to process package deletion', 500);
+      logger.error('Error details:', error?.message || 'Unknown error');
+      errorResponse(res, `Failed to process package deletion: ${error?.message || 'Unknown error'}`, 500);
     }
   }
 
   // Handle manifest creation from KCD
   static async manifestCreated(req: KCDWebhookRequest, res: Response): Promise<void> {
     try {
-      const { manifestId, courierCode, packages, departureDate, arrivalDate, timestamp } = req.body;
+      // Support both camelCase and PascalCase (PDF format)
+      const manifestId = req.body.manifestId || req.body.ManifestID || req.body.manifestID;
+      const courierCode = req.body.courierCode || req.body.CourierCode || req.body.CourierID;
+      const packageTrackingNumbers = req.body.packages || req.body.Packages;
+      const departureDate = req.body.departureDate || req.body.DepartureDate;
+      const arrivalDate = req.body.arrivalDate || req.body.ArrivalDate;
+      const timestamp = req.body.timestamp || req.body.Timestamp;
 
-      if (!manifestId || !courierCode || !packages || !Array.isArray(packages)) {
+      if (!manifestId || !courierCode || !packageTrackingNumbers || !Array.isArray(packageTrackingNumbers)) {
         errorResponse(res, 'Missing required fields: manifestId, courierCode, packages', 400);
         return;
       }
@@ -410,32 +439,53 @@ export class KCDWebhookController {
         return;
       }
 
-      // Check if manifest already exists
-      const existingManifest = await Manifest.findOne({ manifestId });
+      // Check if manifest already exists (using manifestNumber field)
+      const existingManifest = await Manifest.findOne({ manifestNumber: manifestId });
       if (existingManifest) {
         errorResponse(res, `Manifest already exists: ${manifestId}`, 409);
         return;
       }
 
-      // Create new manifest
+      // Find packages by tracking numbers to get their ObjectIds
+      const packageDocs = await Package.find({ trackingNumber: { $in: packageTrackingNumbers } });
+      
+      if (packageDocs.length === 0) {
+        errorResponse(res, 'No packages found with the provided tracking numbers', 404);
+        return;
+      }
+
+      // Format packages for manifest (as array of objects with packageId and trackingNumber)
+      const manifestPackages = packageDocs.map(pkg => ({
+        packageId: pkg._id,
+        trackingNumber: pkg.trackingNumber,
+        status: 'pending' as const
+      }));
+
+      // Get API key record for createdBy
+      const apiKeyRecord = (req as any).apiKey;
+      const createdById = apiKeyRecord?.createdBy || new mongoose.Types.ObjectId();
+
+      // Create new manifest with proper structure
       const newManifest = new Manifest({
-        manifestId,
-        courierCode,
-        packages,
-        departureDate: departureDate ? new Date(departureDate) : new Date(),
-        arrivalDate: arrivalDate ? new Date(arrivalDate) : null,
-        status: 'created',
-        createdAt: new Date(timestamp || Date.now())
+        manifestNumber: manifestId,
+        warehouseId: new mongoose.Types.ObjectId(), // Create a new ObjectId for warehouse
+        packages: manifestPackages,
+        status: 'draft', // Use valid enum value
+        scheduledDate: departureDate ? new Date(departureDate) : new Date(),
+        totalPackages: manifestPackages.length,
+        deliveredPackages: 0,
+        createdBy: createdById,
+        createdAt: new Date(timestamp || Date.now()),
+        updatedAt: new Date()
       });
 
       await newManifest.save();
 
       // Update all packages in manifest to link them
       await Package.updateMany(
-        { trackingNumber: { $in: packages } },
+        { trackingNumber: { $in: packageTrackingNumbers } },
         { 
-          manifestId: newManifest._id,
-          status: 'in_transit',
+          $set: { manifestId: newManifest._id },
           $push: {
             history: {
               status: 'in_transit',
@@ -446,19 +496,21 @@ export class KCDWebhookController {
         }
       );
 
-      logger.info(`Manifest created from KCD webhook: ${manifestId} with ${packages.length} packages`);
+      logger.info(`Manifest created from KCD webhook: ${manifestId} with ${manifestPackages.length} packages`);
 
       successResponse(res, {
         manifestId,
-        packageCount: packages.length,
+        manifestNumber: manifestId,
+        packageCount: manifestPackages.length,
         departureDate,
         arrivalDate,
         manifestDbId: newManifest._id
       }, 'Manifest created successfully');
 
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error processing KCD manifest created webhook:', error);
-      errorResponse(res, 'Failed to process manifest creation', 500);
+      logger.error('Error details:', error?.message || 'Unknown error');
+      errorResponse(res, `Failed to process manifest creation: ${error?.message || 'Unknown error'}`, 500);
     }
   }
 

@@ -29,7 +29,7 @@ export interface IPackage extends Document {
   courierCode?: string;
   customerId?: mongoose.Types.ObjectId;
   customerCode?: string;
-  source?: 'web' | 'kcd-packing-system' | 'api';
+  source?: 'web' | 'kcd-packing-system' | 'api' | 'kcd_webhook';
   warehouseAddress?: string;
   location?: string;
   estimatedDelivery?: Date;
@@ -250,7 +250,7 @@ const packageSchema = new Schema<IPackage>({
     unique: true,
     trim: true,
     uppercase: true,
-    match: [/^[A-Z0-9]{10,20}$/, 'Tracking number must be 10-20 alphanumeric characters']
+    match: [/^[A-Z0-9-]{5,30}$/, 'Tracking number must be 5-30 alphanumeric characters (hyphens allowed)']
   },
   userCode: {
     type: String,
@@ -285,7 +285,7 @@ const packageSchema = new Schema<IPackage>({
   },
   source: {
     type: String,
-    enum: ['web', 'kcd-packing-system', 'api'],
+    enum: ['web', 'kcd-packing-system', 'api', 'kcd_webhook'],
     default: 'web',
     index: true
   },
@@ -362,7 +362,7 @@ const packageSchema = new Schema<IPackage>({
   },
   status: {
     type: String,
-    enum: ['received', 'in_transit', 'out_for_delivery', 'delivered', 'pending', 'customs', 'returned', 'at_warehouse', 'processing', 'ready_for_pickup'],
+    enum: ['received', 'in_transit', 'out_for_delivery', 'delivered', 'pending', 'customs', 'returned', 'at_warehouse', 'processing', 'ready_for_pickup', 'processed'],
     default: 'received'
   },
   
