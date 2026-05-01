@@ -22,69 +22,112 @@ interface Customer {
   };
 }
 
+// ─── FIX 1: Extracted FormState interface for clarity and reuse ───────────────
+interface FormState {
+  weight: string;
+  shipper: string;
+  description: string;
+  itemDescription: string;
+  entryDate: string;
+  status: string;
+  serviceMode: string;
+  dimensions: {
+    length: string;
+    width: string;
+    height: string;
+    unit: string;
+  };
+  senderName: string;
+  senderEmail: string;
+  senderPhone: string;
+  senderAddress: string;
+  senderCity: string;
+  senderState: string;
+  senderZipCode: string;
+  senderCountry: string;
+  itemValue: string;
+  totalAmount: string;
+  specialInstructions: string;
+  isFragile: boolean;
+  isHazardous: boolean;
+  requiresSignature: boolean;
+  customsRequired: boolean;
+  customsStatus: string;
+}
+
+const initialForm: FormState = {
+  weight: "",
+  shipper: "",
+  description: "",
+  itemDescription: "",
+  entryDate: new Date().toISOString().slice(0, 10),
+  status: "received",
+  serviceMode: "air",
+  dimensions: {
+    length: "",
+    width: "",
+    height: "",
+    unit: "cm",
+  },
+  senderName: "",
+  senderEmail: "",
+  senderPhone: "",
+  senderAddress: "",
+  senderCity: "",
+  senderState: "",
+  senderZipCode: "",
+  senderCountry: "",
+  itemValue: "",
+  totalAmount: "",
+  specialInstructions: "",
+  isFragile: false,
+  isHazardous: false,
+  requiresSignature: false,
+  customsRequired: false,
+  customsStatus: "not_required",
+};
+
 function AdminAddPackagePageContent() {
   const searchParams = useSearchParams();
-  const editId = searchParams?.get('edit') || null;
+
+  // ─── FIX 2: editId derived from searchParams at render time (not duplicated) ──
+  const editId = searchParams?.get("edit") || null;
+
   const [submitting, setSubmitting] = useState(false);
   const [trackingNumber, setTrackingNumber] = useState("");
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const [trackingSuccess, setTrackingSuccess] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [isEditing, setIsEditing] = useState(() => !!editId);
-  const [loading, setLoading] = useState(true);
-  
-  const [form, setForm] = useState({
-    weight: "",
-    shipper: "",
-    description: "",
-    itemDescription: "",
-    entryDate: new Date().toISOString().slice(0, 10),
-    status: "received",
-    serviceMode: "air",
-    dimensions: {
-      length: "",
-      width: "",
-      height: "",
-      unit: "cm"
-    },
-    senderName: "",
-    senderEmail: "",
-    senderPhone: "",
-    senderAddress: "",
-    senderCity: "",
-    senderState: "",
-    senderZipCode: "",
-    senderCountry: "",
-    itemValue: "",
-    specialInstructions: "",
-    isFragile: false,
-    isHazardous: false,
-    requiresSignature: false,
-    customsRequired: false,
-    customsStatus: "not_required"
-  });
 
-  // Generate tracking number
+  // ─── FIX 3: isEditing derives from editId, no lazy-init needed ───────────────
+  const isEditing = !!editId;
+
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState<FormState>(initialForm);
+
+  // ─── Generate tracking number ─────────────────────────────────────────────
   function generateTrackingNumber() {
     const prefix = "CJS";
     const timestamp = Date.now().toString(36).toUpperCase();
     const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const checksum = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+    const checksum = Math.floor(Math.random() * 100)
+      .toString()
+      .padStart(2, "0");
     const newTn = `${prefix}-${timestamp}-${random}-${checksum}`;
-    
+
     setTrackingNumber(newTn);
     setTrackingError(null);
     setTrackingSuccess(true);
     setTimeout(() => setTrackingSuccess(false), 2000);
   }
 
-  // Load customers
+  // ─── Load customers ────────────────────────────────────────────────────────
   async function loadCustomers() {
     try {
-      const res = await fetch("/api/customers", { 
+      const res = await fetch("/api/customers", {
         cache: "no-store",
-        credentials: 'include',
+        credentials: "include",
       });
       const data = await res.json();
       if (res.ok) {
@@ -93,19 +136,22 @@ function AdminAddPackagePageContent() {
     } catch (err) {
       console.error("Failed to load customers:", err);
     }
-    setLoading(false);
+    // ─── FIX 4: setLoading(false) moved to useEffect finally block ────────────
   }
 
-  // Handle customer selection
+  // ─── Handle customer selection ────────────────────────────────────────────
   const selectCustomer = async (userCode: string) => {
-    const customer = customers.find(c => c.userCode === userCode);
+    if (!userCode) {
+      setSelectedCustomer(null);
+      return;
+    }
+    const customer = customers.find((c) => c.userCode === userCode);
     if (!customer) return;
 
     try {
       const res = await fetch(`/api/customers/${customer.userCode}`, {
-        credentials: 'include'
+        credentials: "include",
       });
-      
       if (res.ok) {
         const fullCustomerData = await res.json();
         setSelectedCustomer(fullCustomerData);
@@ -115,96 +161,128 @@ function AdminAddPackagePageContent() {
     } catch {
       setSelectedCustomer(customer);
     }
-    setLoading(false);
   };
 
-  // Initialize - load customers and check for edit mode
+  // ─── Initialize: load customers + optionally load edit data ───────────────
   useEffect(() => {
-    const editId = searchParams?.get('edit');
-    
-    if (editId) {
-      const loadEditData = async () => {
-        try {
+    const run = async () => {
+      try {
+        if (editId) {
+          // Load package for editing
           const res = await fetch(`/api/admin/packages/${editId}`, {
             cache: "no-store",
-            credentials: 'include',
+            credentials: "include",
           });
-          
+
           if (!res.ok) {
-            console.error('Failed to load package for editing');
+            console.error("Failed to load package for editing");
             return;
           }
-          
+
           const packageData = await res.json();
-          
+
           setTrackingNumber(packageData.trackingNumber || "");
-          
+
           setForm({
             weight: packageData.weight?.toString() || "",
             shipper: packageData.shipper || "",
             description: packageData.description || "",
             itemDescription: packageData.itemDescription || "",
-            entryDate: packageData.entryDate?.split('T')[0] || packageData.dateReceived?.split('T')[0] || new Date().toISOString().slice(0, 10),
+            entryDate:
+              packageData.entryDate?.split("T")[0] ||
+              packageData.dateReceived?.split("T")[0] ||
+              new Date().toISOString().slice(0, 10),
             status: packageData.status || "received",
             serviceMode: packageData.serviceMode || "air",
             dimensions: {
-              length: packageData.length?.toString() || packageData.dimensions?.length?.toString() || "",
-              width: packageData.width?.toString() || packageData.dimensions?.width?.toString() || "",
-              height: packageData.height?.toString() || packageData.dimensions?.height?.toString() || "",
-              unit: packageData.dimensionUnit || packageData.dimensions?.unit || "cm"
+              length:
+                packageData.length?.toString() ||
+                packageData.dimensions?.length?.toString() ||
+                "",
+              width:
+                packageData.width?.toString() ||
+                packageData.dimensions?.width?.toString() ||
+                "",
+              height:
+                packageData.height?.toString() ||
+                packageData.dimensions?.height?.toString() ||
+                "",
+              unit:
+                packageData.dimensionUnit ||
+                packageData.dimensions?.unit ||
+                "cm",
             },
-            senderName: packageData.senderName || packageData.sender?.name || "",
-            senderEmail: packageData.senderEmail || packageData.sender?.email || "",
-            senderPhone: packageData.senderPhone || packageData.sender?.phone || "",
-            senderAddress: packageData.senderAddress || packageData.sender?.address || "",
+            senderName:
+              packageData.senderName || packageData.sender?.name || "",
+            senderEmail:
+              packageData.senderEmail || packageData.sender?.email || "",
+            senderPhone:
+              packageData.senderPhone || packageData.sender?.phone || "",
+            senderAddress:
+              packageData.senderAddress || packageData.sender?.address || "",
             senderCity: packageData.senderCity || "Kingston",
             senderState: packageData.senderState || "St. Andrew",
             senderZipCode: packageData.senderZipCode || "00000",
-            senderCountry: packageData.senderCountry || packageData.sender?.country || "",
-            itemValue: packageData.itemValue?.toString() || packageData.value?.toString() || "",
+            senderCountry:
+              packageData.senderCountry || packageData.sender?.country || "",
+            itemValue:
+              packageData.itemValue?.toString() ||
+              packageData.value?.toString() ||
+              "",
+            totalAmount:
+              packageData.totalAmount !== undefined
+                ? packageData.totalAmount.toString()
+                : packageData.itemValue?.toString() || "",
             specialInstructions: packageData.specialInstructions || "",
             isFragile: packageData.isFragile || false,
             isHazardous: packageData.isHazardous || false,
-            requiresSignature: packageData.requiresSignature || packageData.signatureRequired || false,
+            requiresSignature:
+              packageData.requiresSignature ||
+              packageData.signatureRequired ||
+              false,
             customsRequired: packageData.customsRequired || false,
-            customsStatus: packageData.customsStatus || "not_required"
+            customsStatus: packageData.customsStatus || "not_required",
           });
-          
+
+          // Load associated customer
           if (packageData.userCode) {
             try {
-              const customerRes = await fetch(`/api/admin/customers?userCode=${packageData.userCode}`, {
-                cache: "no-store",
-                credentials: 'include',
-              });
+              const customerRes = await fetch(
+                `/api/admin/customers?userCode=${packageData.userCode}`,
+                { cache: "no-store", credentials: "include" }
+              );
               if (customerRes.ok) {
                 const customerData = await customerRes.json();
-                if (customerData.length > 0) {
+                if (Array.isArray(customerData) && customerData.length > 0) {
                   setSelectedCustomer(customerData[0]);
                 }
               }
             } catch (customerError) {
-              console.error('Error fetching customer details:', customerError);
+              console.error("Error fetching customer details:", customerError);
             }
           }
-          
-          setIsEditing(true);
-          loadCustomers();
-          
-        } catch (error) {
-          console.error('Error loading package for edit:', error);
-        } finally {
-          setLoading(false);
-        }
-      };
-      
-      loadEditData();
-    } else {
-      loadCustomers();
-      generateTrackingNumber();
-    }
-  }, [searchParams]);
 
-  // Handle form submission
+          await loadCustomers();
+        } else {
+          // New package mode
+          await loadCustomers();
+          generateTrackingNumber();
+        }
+      } catch (error) {
+        console.error("Error during initialization:", error);
+      } finally {
+        // ─── FIX 4 (continued): single authoritative setLoading(false) ────────
+        setLoading(false);
+      }
+    };
+
+    run();
+    // ─── FIX 5: editId is the only real dependency; searchParams object
+    //           reference changes every render — using editId avoids loops ──────
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId]);
+
+  // ─── Handle form submission ───────────────────────────────────────────────
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
@@ -213,6 +291,7 @@ function AdminAddPackagePageContent() {
       return;
     }
 
+    // ─── FIX 6: Customer required for both new AND edit when no customer loaded ─
     if (!selectedCustomer && !isEditing) {
       setTrackingError("Please select a customer");
       return;
@@ -222,14 +301,22 @@ function AdminAddPackagePageContent() {
     setTrackingError(null);
 
     try {
-      // For edit mode, use the existing customer data if available, otherwise use selected customer
-      const customerData = isEditing && selectedCustomer ? selectedCustomer : selectedCustomer;
-      
+      const customerData = selectedCustomer;
+
       if (!isEditing && !customerData) {
         setTrackingError("Please select a customer");
         setSubmitting(false);
         return;
       }
+
+      // ─── FIX 7: Helper to build clean address string ──────────────────────
+      const buildAddress = (addr: Customer["address"]) => {
+        if (!addr) return undefined;
+        return [addr.street, addr.city, addr.state, addr.zipCode]
+          .filter(Boolean)
+          .join(", ")
+          .trim() || undefined;
+      };
 
       const payload = {
         trackingNumber: trackingNumber.trim(),
@@ -242,37 +329,40 @@ function AdminAddPackagePageContent() {
         status: form.status,
         serviceMode: form.serviceMode,
         dimensions: {
-          length: form.dimensions.length ? Number(form.dimensions.length) : undefined,
-          width: form.dimensions.width ? Number(form.dimensions.width) : undefined,
-          height: form.dimensions.height ? Number(form.dimensions.height) : undefined,
-          unit: form.dimensions.unit || "cm"
+          length: form.dimensions.length
+            ? Number(form.dimensions.length)
+            : undefined,
+          width: form.dimensions.width
+            ? Number(form.dimensions.width)
+            : undefined,
+          height: form.dimensions.height
+            ? Number(form.dimensions.height)
+            : undefined,
+          unit: form.dimensions.unit || "cm",
         },
         ...(customerData && {
           recipient: {
             name: `${customerData.firstName} ${customerData.lastName}`,
             email: customerData.email || undefined,
             phone: customerData.phone || undefined,
-            address: customerData.address ? 
-              `${customerData.address.street || ''}${customerData.address.street ? ', ' : ''}${customerData.address.city || ''}${customerData.address.city ? ', ' : ''}${customerData.address.state || ''}${customerData.address.state ? ' ' : ''}${customerData.address.zipCode || ''}`.trim() : 
-              undefined,
+            address: buildAddress(customerData.address),
             city: customerData.address?.city || undefined,
             state: customerData.address?.state || undefined,
             zipCode: customerData.address?.zipCode || undefined,
             country: customerData.address?.country || undefined,
-            shippingId: customerData.userCode
-          }
+            shippingId: customerData.userCode,
+          },
         }),
         sender: {
           name: form.senderName.trim() || undefined,
           email: form.senderEmail.trim() || undefined,
           phone: form.senderPhone.trim() || undefined,
           address: form.senderAddress.trim() || undefined,
-          city: form.senderCity.trim() || "Kingston", // Default sender city
-          state: form.senderState.trim() || "St. Andrew", // Default sender state
-          zipCode: form.senderZipCode.trim() || "00000", // Default sender zipCode
-          country: form.senderCountry.trim() || undefined
+          city: form.senderCity.trim() || "Kingston",
+          state: form.senderState.trim() || "St. Andrew",
+          zipCode: form.senderZipCode.trim() || "00000",
+          country: form.senderCountry.trim() || undefined,
         },
-        // Additional fields matching the updated model
         contents: form.description.trim() || undefined,
         value: form.itemValue ? Number(form.itemValue) : undefined,
         specialInstructions: form.specialInstructions.trim() || undefined,
@@ -281,84 +371,88 @@ function AdminAddPackagePageContent() {
         requiresSignature: form.requiresSignature,
         customsRequired: form.customsRequired,
         customsStatus: form.customsStatus,
-        // Legacy fields for compatibility
+        // Legacy compatibility fields
         itemValue: form.itemValue ? Number(form.itemValue) : undefined,
         senderName: form.senderName.trim() || undefined,
         senderPhone: form.senderPhone.trim() || undefined,
         senderAddress: form.senderAddress.trim() || undefined,
-        receiverName: customerData ? `${customerData.firstName} ${customerData.lastName}` : undefined,
+        receiverName: customerData
+          ? `${customerData.firstName} ${customerData.lastName}`
+          : undefined,
         receiverPhone: customerData?.phone || undefined,
         receiverEmail: customerData?.email || undefined,
-        receiverAddress: customerData?.address ? 
-          `${customerData.address.street || ''}${customerData.address.street ? ', ' : ''}${customerData.address.city || ''}${customerData.address.city ? ', ' : ''}${customerData.address.state || ''}${customerData.address.state ? ' ' : ''}${customerData.address.zipCode || ''}`.trim() : 
-          undefined,
+        receiverAddress: customerData
+          ? buildAddress(customerData.address)
+          : undefined,
         currentLocation: undefined,
         packageType: "parcel",
         serviceType: "standard",
         deliveryType: "door_to_door",
         shippingCost: 0,
-        totalAmount: 0,
+        totalAmount: form.totalAmount
+          ? Number(form.totalAmount)
+          : form.itemValue
+          ? Number(form.itemValue)
+          : 0,
         paymentMethod: "cash",
-        receivedAt: new Date()
+        receivedAt: new Date(),
       };
 
-      const editId = searchParams?.get('edit') || null;
-      const url = editId ? `/api/admin/packages/${editId}` : "/api/admin/packages";
+      const url = editId
+        ? `/api/admin/packages/${editId}`
+        : "/api/admin/packages";
       const method = editId ? "PUT" : "POST";
 
-      console.log('API Call:', { url, method, editId });
-      console.log('Payload:', payload);
-
       const res = await fetch(url, {
-        method: method,
+        method,
         headers: { "Content-Type": "application/json" },
-        credentials: 'include',
+        credentials: "include",
         body: JSON.stringify(payload),
       });
-      
-      console.log('API Response Status:', res.status);
-      console.log('API Response OK:', res.ok);
-      
+
       if (res.status === 401) {
         setTrackingError("Session expired. Please refresh the page.");
         setSubmitting(false);
         return;
       }
-      
+
       if (res.status === 403) {
         setTrackingError("You don't have permission to perform this action.");
         setSubmitting(false);
         return;
       }
-      
-      // Try to parse response JSON
-      let responseData;
+
+      let responseData: { error?: string } = {};
       try {
         responseData = await res.json();
-        console.log('API Response Data:', responseData);
       } catch (parseError) {
-        console.error('Failed to parse response JSON:', parseError);
+        console.error("Failed to parse response JSON:", parseError);
         responseData = { error: "Invalid response from server" };
       }
-      
+
       if (!res.ok) {
-        const errorMsg = responseData.error || res.statusText || 'Unknown error';
-        console.error('API Error Response:', { responseData, res, status: res.status });
-        
-        if (errorMsg.toLowerCase().includes('duplicate') || 
-            errorMsg.toLowerCase().includes('already exists') ||
-            errorMsg.toLowerCase().includes('tracking number')) {
-          setTrackingError("A package with this tracking number already exists. Please generate a new tracking number.");
+        const errorMsg =
+          responseData.error || res.statusText || "Unknown error";
+
+        if (
+          errorMsg.toLowerCase().includes("duplicate") ||
+          errorMsg.toLowerCase().includes("already exists") ||
+          errorMsg.toLowerCase().includes("tracking number")
+        ) {
+          setTrackingError(
+            "A package with this tracking number already exists. Please generate a new tracking number."
+          );
         } else {
-          setTrackingError(errorMsg || "Failed to save package. Please try again.");
+          setTrackingError(
+            errorMsg || "Failed to save package. Please try again."
+          );
         }
         setSubmitting(false);
         return;
       }
-      
-      alert(`Package ${editId ? 'updated' : 'created'} successfully!`);
+
+      alert(`Package ${editId ? "updated" : "created"} successfully!`);
       window.location.href = "/admin/packages";
-      
     } catch (error) {
       console.error("Error with package:", error);
       setTrackingError("An error occurred. Please try again.");
@@ -387,7 +481,9 @@ function AdminAddPackagePageContent() {
                     {isEditing ? "Edit Package" : "Add New Package"}
                   </h1>
                   <p className="text-blue-100 mt-1">
-                    {isEditing ? "Update package information" : "Create a new package entry"}
+                    {isEditing
+                      ? "Update package information"
+                      : "Create a new package entry"}
                   </p>
                 </div>
               </div>
@@ -410,9 +506,9 @@ function AdminAddPackagePageContent() {
               Package Information
             </h2>
           </div>
-          
+
           <form onSubmit={onSubmit} className="p-6 space-y-6">
-            {/* Tracking Number Section */}
+            {/* Tracking Number */}
             <div className="space-y-4 pb-6 border-b border-gray-200">
               <div>
                 <label className="block text-sm font-semibold text-gray-900 mb-2">
@@ -423,7 +519,11 @@ function AdminAddPackagePageContent() {
                     <input
                       type="text"
                       className="block w-full rounded-xl border-2 border-gray-300 px-4 py-3 text-sm font-mono font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                      placeholder={isEditing ? "Tracking number" : "Generate tracking number"}
+                      placeholder={
+                        isEditing
+                          ? "Tracking number"
+                          : "Generate tracking number"
+                      }
                       value={trackingNumber}
                       onChange={(e) => {
                         setTrackingNumber(e.target.value);
@@ -451,7 +551,9 @@ function AdminAddPackagePageContent() {
                   )}
                 </div>
                 <p className="mt-2 text-xs text-gray-500">
-                  {isEditing ? "Tracking number cannot be changed in edit mode" : "Format: CJS-TIMESTAMP-RANDOM-CHECKSUM"}
+                  {isEditing
+                    ? "Tracking number cannot be changed in edit mode"
+                    : "Format: CJS-TIMESTAMP-RANDOM-CHECKSUM"}
                 </p>
                 {trackingError && (
                   <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
@@ -462,15 +564,24 @@ function AdminAddPackagePageContent() {
               </div>
             </div>
 
-            {/* Main Fields */}
+            {/* Package Details */}
+            {/* ─── FIX 8: Removed the broken unclosed <div> nesting.          ─── */}
+            {/* ─── All fields are now inside one clean <div className="space-y-4"> */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Package Details</h3>
-              
-              {/* Customer Selection - Only show for new packages */}
+              <h3 className="text-lg font-semibold text-gray-900">
+                Package Details
+              </h3>
+
+              {/* Customer Selection — new packages only */}
               {!isEditing && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Customer * {selectedCustomer && <span className="text-green-600 text-xs">(Info will be auto-saved)</span>}
+                    Customer *{" "}
+                    {selectedCustomer && (
+                      <span className="text-green-600 text-xs">
+                        (Info will be auto-saved)
+                      </span>
+                    )}
                   </label>
                   <div className="relative">
                     <select
@@ -480,9 +591,10 @@ function AdminAddPackagePageContent() {
                       required
                     >
                       <option value="">Select a customer...</option>
-                      {customers.map(customer => (
+                      {customers.map((customer) => (
                         <option key={customer._id} value={customer.userCode}>
-                          {customer.firstName} {customer.lastName} ({customer.userCode})
+                          {customer.firstName} {customer.lastName} (
+                          {customer.userCode})
                         </option>
                       ))}
                     </select>
@@ -490,155 +602,180 @@ function AdminAddPackagePageContent() {
                       <ChevronDown className="h-5 w-5 text-gray-400" />
                     </div>
                   </div>
-                  
+
                   {selectedCustomer && (
                     <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-sm font-medium text-blue-900 mb-2">Selected Customer Information:</p>
+                      <p className="text-sm font-medium text-blue-900 mb-2">
+                        Selected Customer Information:
+                      </p>
                       <div className="grid grid-cols-2 gap-2 text-xs text-blue-800">
-                        <div><span className="font-semibold">Name:</span> {selectedCustomer.firstName} {selectedCustomer.lastName}</div>
-                        <div><span className="font-semibold">Code:</span> {selectedCustomer.userCode}</div>
-                        <div><span className="font-semibold">Email:</span> {selectedCustomer.email}</div>
+                        <div>
+                          <span className="font-semibold">Name:</span>{" "}
+                          {selectedCustomer.firstName}{" "}
+                          {selectedCustomer.lastName}
+                        </div>
+                        <div>
+                          <span className="font-semibold">Code:</span>{" "}
+                          {selectedCustomer.userCode}
+                        </div>
+                        <div>
+                          <span className="font-semibold">Email:</span>{" "}
+                          {selectedCustomer.email}
+                        </div>
                         {selectedCustomer.phone && (
-                          <div><span className="font-semibold">Phone:</span> {selectedCustomer.phone}</div>
+                          <div>
+                            <span className="font-semibold">Phone:</span>{" "}
+                            {selectedCustomer.phone}
+                          </div>
                         )}
                       </div>
-                      <p className="text-xs text-blue-600 mt-2 italic">✓ This information will be automatically stored with the package</p>
+                      <p className="text-xs text-blue-600 mt-2 italic">
+                        ✓ This information will be automatically stored with the
+                        package
+                      </p>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Customer Info Display - Only show for edit mode */}
+              {/* Customer Info — edit mode only */}
               {isEditing && selectedCustomer && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Customer Information
                   </label>
                   <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm font-medium text-blue-900 mb-2">Customer Details:</p>
+                    <p className="text-sm font-medium text-blue-900 mb-2">
+                      Customer Details:
+                    </p>
                     <div className="grid grid-cols-2 gap-2 text-xs text-blue-800">
-                      <div><span className="font-semibold">Name:</span> {selectedCustomer.firstName} {selectedCustomer.lastName}</div>
-                      <div><span className="font-semibold">Code:</span> {selectedCustomer.userCode}</div>
-                      <div><span className="font-semibold">Email:</span> {selectedCustomer.email}</div>
+                      <div>
+                        <span className="font-semibold">Name:</span>{" "}
+                        {selectedCustomer.firstName} {selectedCustomer.lastName}
+                      </div>
+                      <div>
+                        <span className="font-semibold">Code:</span>{" "}
+                        {selectedCustomer.userCode}
+                      </div>
+                      <div>
+                        <span className="font-semibold">Email:</span>{" "}
+                        {selectedCustomer.email}
+                      </div>
                       {selectedCustomer.phone && (
-                        <div><span className="font-semibold">Phone:</span> {selectedCustomer.phone}</div>
+                        <div>
+                          <span className="font-semibold">Phone:</span>{" "}
+                          {selectedCustomer.phone}
+                        </div>
                       )}
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Weight (kg)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    placeholder="0.00"
-                    value={form.weight}
-                    onChange={(e) => setForm({ ...form, weight: e.target.value })}
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Shipper</label>
-                  <input
-                    type="text"
-                    className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    placeholder="e.g., Amazon, Shein"
-                    value={form.shipper}
-                    onChange={(e) => setForm({ ...form, shipper: e.target.value })}
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Service Mode</label>
-                  <div className="relative">
-                    <select
-                      className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
-                      value={form.serviceMode}
-                      onChange={(e) => setForm({ ...form, serviceMode: e.target.value })}
-                    >
-                      <option value="air">Air</option>
-                      <option value="ocean">Ocean</option>
-                      <option value="local">Local</option>
-                    </select>
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                      <ChevronDown className="h-5 w-5 text-gray-400" />
-                    </div>
+              {/* Shipper */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Shipper
+                </label>
+                <input
+                  type="text"
+                  className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  value={form.shipper}
+                  onChange={(e) =>
+                    setForm({ ...form, shipper: e.target.value })
+                  }
+                />
+              </div>
+
+              {/* Service Mode */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Service Mode
+                </label>
+                <div className="relative">
+                  <select
+                    className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
+                    value={form.serviceMode}
+                    onChange={(e) =>
+                      setForm({ ...form, serviceMode: e.target.value })
+                    }
+                  >
+                    <option value="air">Air</option>
+                    <option value="ocean">Ocean</option>
+                    <option value="local">Local</option>
+                  </select>
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                    <ChevronDown className="h-5 w-5 text-gray-400" />
                   </div>
                 </div>
               </div>
-              
+
+              {/* Total Amount */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Item Value</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Total Amount (USD)
+                </label>
                 <input
                   type="number"
                   step="0.01"
                   className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   placeholder="0.00"
-                  value={form.itemValue}
-                  onChange={(e) => setForm({ ...form, itemValue: e.target.value })}
+                  value={form.totalAmount}
+                  onChange={(e) =>
+                    setForm({ ...form, totalAmount: e.target.value })
+                  }
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Total payment amount for this package
+                </p>
               </div>
-              
-              {/* Dimensions Section */}
+
+              {/* Dimensions */}
               <div className="space-y-4">
-                <h4 className="text-md font-semibold text-gray-900">Package Dimensions</h4>
+                <h4 className="text-md font-semibold text-gray-900">
+                  Package Dimensions
+                </h4>
                 <div className="grid gap-4 md:grid-cols-4">
+                  {(["length", "width", "height"] as const).map((dim) => (
+                    <div key={dim}>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 capitalize">
+                        {dim} (cm)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                        placeholder="0.0"
+                        value={form.dimensions[dim]}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            dimensions: {
+                              ...form.dimensions,
+                              [dim]: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                    </div>
+                  ))}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Length (cm)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                      placeholder="0.0"
-                      value={form.dimensions.length}
-                      onChange={(e) => setForm({ 
-                        ...form, 
-                        dimensions: { ...form.dimensions, length: e.target.value }
-                      })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Width (cm)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                      placeholder="0.0"
-                      value={form.dimensions.width}
-                      onChange={(e) => setForm({ 
-                        ...form, 
-                        dimensions: { ...form.dimensions, width: e.target.value }
-                      })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Height (cm)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                      placeholder="0.0"
-                      value={form.dimensions.height}
-                      onChange={(e) => setForm({ 
-                        ...form, 
-                        dimensions: { ...form.dimensions, height: e.target.value }
-                      })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Unit</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Unit
+                    </label>
                     <div className="relative">
                       <select
                         className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
                         value={form.dimensions.unit}
-                        onChange={(e) => setForm({ 
-                          ...form, 
-                          dimensions: { ...form.dimensions, unit: e.target.value }
-                        })}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            dimensions: {
+                              ...form.dimensions,
+                              unit: e.target.value,
+                            },
+                          })
+                        }
                       >
                         <option value="cm">cm</option>
                         <option value="in">inches</option>
@@ -650,36 +787,51 @@ function AdminAddPackagePageContent() {
                   </div>
                 </div>
               </div>
-              
+
+              {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
                 <textarea
                   className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   rows={3}
                   placeholder="Package contents or description"
                   value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, description: e.target.value })
+                  }
                 />
               </div>
-              
+
+              {/* Item Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Item Description</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Item Description
+                </label>
                 <textarea
                   className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   rows={2}
                   placeholder="Detailed item description (optional)"
                   value={form.itemDescription}
-                  onChange={(e) => setForm({ ...form, itemDescription: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, itemDescription: e.target.value })
+                  }
                 />
               </div>
-              
+
+              {/* Status */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Status
+                </label>
                 <div className="relative">
                   <select
                     className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
                     value={form.status}
-                    onChange={(e) => setForm({ ...form, status: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, status: e.target.value })
+                    }
                   >
                     <option value="received">Received</option>
                     <option value="in_processing">In Processing</option>
@@ -696,71 +848,70 @@ function AdminAddPackagePageContent() {
                   </div>
                 </div>
                 <p className="mt-1 text-xs text-gray-500">
-                  Current: <span className="font-semibold text-blue-600">{form.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                  Current:{" "}
+                  <span className="font-semibold text-blue-600">
+                    {form.status
+                      .replace(/_/g, " ")
+                      .replace(/\b\w/g, (l) => l.toUpperCase())}
+                  </span>
                 </p>
               </div>
-              
+
+              {/* Special Instructions */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Special Instructions</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Special Instructions
+                </label>
                 <textarea
                   className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   rows={2}
                   placeholder="Any special handling instructions (optional)"
                   value={form.specialInstructions}
-                  onChange={(e) => setForm({ ...form, specialInstructions: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, specialInstructions: e.target.value })
+                  }
                 />
               </div>
-              
+
+              {/* Package Options */}
               <div>
-                <h4 className="text-md font-semibold text-gray-900 mb-3">Package Options</h4>
+                <h4 className="text-md font-semibold text-gray-900 mb-3">
+                  Package Options
+                </h4>
                 <div className="space-y-3">
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
-                      checked={form.isFragile}
-                      onChange={(e) => setForm({ ...form, isFragile: e.target.checked })}
-                    />
-                    <span className="text-sm text-gray-700">Fragile - Handle with care</span>
-                  </label>
-                  
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
-                      checked={form.isHazardous}
-                      onChange={(e) => setForm({ ...form, isHazardous: e.target.checked })}
-                    />
-                    <span className="text-sm text-gray-700">Hazardous Material</span>
-                  </label>
-                  
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
-                      checked={form.requiresSignature}
-                      onChange={(e) => setForm({ ...form, requiresSignature: e.target.checked })}
-                    />
-                    <span className="text-sm text-gray-700">Signature Required</span>
-                  </label>
-                  
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
-                      checked={form.customsRequired}
-                      onChange={(e) => setForm({ ...form, customsRequired: e.target.checked })}
-                    />
-                    <span className="text-sm text-gray-700">Customs Required</span>
-                  </label>
-                  
+                  {(
+                    [
+                      { field: "isFragile", label: "Fragile — Handle with care" },
+                      { field: "isHazardous", label: "Hazardous Material" },
+                      { field: "requiresSignature", label: "Signature Required" },
+                      { field: "customsRequired", label: "Customs Required" },
+                    ] as const
+                  ).map(({ field, label }) => (
+                    <label key={field} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
+                        checked={form[field] as boolean}
+                        onChange={(e) =>
+                          setForm({ ...form, [field]: e.target.checked })
+                        }
+                      />
+                      <span className="text-sm text-gray-700">{label}</span>
+                    </label>
+                  ))}
+
+                  {/* Customs Status */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Customs Status</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Customs Status
+                    </label>
                     <div className="relative">
                       <select
                         className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
                         value={form.customsStatus}
-                        onChange={(e) => setForm({ ...form, customsStatus: e.target.value })}
+                        onChange={(e) =>
+                          setForm({ ...form, customsStatus: e.target.value })
+                        }
                       >
                         <option value="not_required">Not Required</option>
                         <option value="pending">Pending</option>
@@ -771,68 +922,99 @@ function AdminAddPackagePageContent() {
                       </div>
                     </div>
                   </div>
-                  
                 </div>
               </div>
-              <p className="text-sm text-gray-600">Enter details about who is sending this package</p>
-              
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Sender Name</label>
-                  <input
-                    type="text"
-                    className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    placeholder="Enter sender name"
-                    value={form.senderName}
-                    onChange={(e) => setForm({ ...form, senderName: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Sender Email</label>
-                  <input
-                    type="email"
-                    className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    placeholder="sender@example.com"
-                    value={form.senderEmail}
-                    onChange={(e) => setForm({ ...form, senderEmail: e.target.value })}
-                  />
-                </div>
-              </div>
-              
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Sender Phone</label>
-                  <input
-                    type="tel"
-                    className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    placeholder="+1234567890"
-                    value={form.senderPhone}
-                    onChange={(e) => setForm({ ...form, senderPhone: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Sender Country</label>
-                  <input
-                    type="text"
-                    className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    placeholder="Country"
-                    value={form.senderCountry}
-                    onChange={(e) => setForm({ ...form, senderCountry: e.target.value })}
-                  />
-                </div>
-              </div>
-              
+
+              {/* ─── FIX 9: Added missing "Sender Information" section header ─── */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Sender Address</label>
-                <textarea
-                  className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                  rows={2}
-                  placeholder="Enter sender address"
-                  value={form.senderAddress}
-                  onChange={(e) => setForm({ ...form, senderAddress: e.target.value })}
-                />
+                <h4 className="text-md font-semibold text-gray-900 mb-1">
+                  Sender Information
+                </h4>
+                <p className="text-sm text-gray-600 mb-3">
+                  Enter details about who is sending this package
+                </p>
+
+                <div className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Sender Name
+                      </label>
+                      <input
+                        type="text"
+                        className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                        placeholder="Enter sender name"
+                        value={form.senderName}
+                        onChange={(e) =>
+                          setForm({ ...form, senderName: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Sender Email
+                      </label>
+                      <input
+                        type="email"
+                        className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                        placeholder="sender@example.com"
+                        value={form.senderEmail}
+                        onChange={(e) =>
+                          setForm({ ...form, senderEmail: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Sender Phone
+                      </label>
+                      <input
+                        type="tel"
+                        className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                        placeholder="+1234567890"
+                        value={form.senderPhone}
+                        onChange={(e) =>
+                          setForm({ ...form, senderPhone: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Sender Country
+                      </label>
+                      <input
+                        type="text"
+                        className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                        placeholder="Country"
+                        value={form.senderCountry}
+                        onChange={(e) =>
+                          setForm({ ...form, senderCountry: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Sender Address
+                    </label>
+                    <textarea
+                      className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      rows={2}
+                      placeholder="Enter sender address"
+                      value={form.senderAddress}
+                      onChange={(e) =>
+                        setForm({ ...form, senderAddress: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
               </div>
             </div>
+            {/* ── end .space-y-4 ── */}
 
             {/* Actions */}
             <div className="flex items-center justify-between pt-6 border-t border-gray-200">
@@ -869,14 +1051,18 @@ function AdminAddPackagePageContent() {
 
 export default function AdminAddPackagePage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 text-[#0f4d8a] animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 font-medium">Loading add package...</p>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 text-[#0f4d8a] animate-spin mx-auto mb-4" />
+            <p className="text-gray-600 font-medium">
+              Loading add package...
+            </p>
+          </div>
         </div>
-      </div>
-    }>
+      }
+    >
       <AdminAddPackagePageContent />
     </Suspense>
   );

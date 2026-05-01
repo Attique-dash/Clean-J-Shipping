@@ -115,6 +115,9 @@ export async function PUT(
         value: typeof body.itemValue === "number" ? body.itemValue : Number(body.itemValue) || existingPackage.value,
         itemValue: typeof body.itemValue === "number" ? body.itemValue : Number(body.itemValue) || existingPackage.itemValue 
       }),
+      ...(body.totalAmount !== undefined && { 
+        totalAmount: typeof body.totalAmount === "number" ? body.totalAmount : Number(body.totalAmount) || existingPackage.totalAmount 
+      }),
       ...(body.specialInstructions !== undefined && { specialInstructions: body.specialInstructions }),
       ...(body.entryStaff && { entryStaff: body.entryStaff }),
       ...(body.branch && { branch: body.branch }),

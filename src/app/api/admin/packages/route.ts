@@ -378,7 +378,7 @@ export async function GET(req: Request) {
         weight,
         weightUnit,
         weightLbs,
-        itemValueUsd,
+        totalAmount: asNumber(p.totalAmount),
         dateReceived: dateReceived ? new Date(String(dateReceived)).toISOString() : null,
         daysInStorage,
         // Invoice fields
@@ -469,6 +469,7 @@ export async function POST(req: Request) {
       sender,
       contents,
       value,
+      totalAmount,
       specialInstructions,
       branch,
       customsRequired,
@@ -569,7 +570,7 @@ export async function POST(req: Request) {
       branch: branch || "Main Warehouse",
       // Required fields with defaults
       shippingCost: 0,
-      totalAmount: calculateTotalAmount(asNumber(value), asNumber(weight)).totalInTargetCurrency,
+      totalAmount: asNumber(totalAmount) || calculateTotalAmount(asNumber(value), asNumber(weight)).totalInTargetCurrency,
       paymentMethod: "cash",
       // Legacy fields for compatibility
       itemDescription: description || "Package description",
@@ -819,6 +820,7 @@ export async function PUT(req: Request) {
       dateReceived,
       itemValueUsd,
       itemValue, // Add this to handle the field sent by frontend
+      totalAmount,
       customsRequired,
       customsStatus,
       paymentStatus,
@@ -897,6 +899,10 @@ export async function PUT(req: Request) {
     if (amountPaid !== undefined && amountPaid !== currentPackage.amountPaid) {
       updateData.amountPaid = amountPaid;
       changedFields.push('amountPaid');
+    }
+    if (totalAmount !== undefined && totalAmount !== currentPackage.totalAmount) {
+      updateData.totalAmount = totalAmount;
+      changedFields.push('totalAmount');
     }
     if (length !== undefined) {
       updateData.length = length;

@@ -25,8 +25,9 @@ export interface AuthPayload {
   id?: string;
   _id?: string;
   uid?: string;
+  userId?: string;
   email: string;
-  role: "admin" | "customer" | "warehouse";
+  role: "admin" | "customer" | "warehouse" | "staff";
   userCode?: string;
   name?: string;
 }

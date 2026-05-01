@@ -81,7 +81,17 @@ export interface IPackage extends Document {
   shippingCost: number;
   totalAmount: number;
   paymentStatus: 'pending' | 'paid' | 'partially_paid';
-  
+  paymentHistory?: Array<{
+    timestamp: Date;
+    status: string;
+    amountPaid: number;
+    paymentMethod: string;
+    note?: string;
+    updatedBy?: string;
+  }>;
+  paidAt?: Date;
+  paidBy?: string;
+
   // Flags
   isFragile: boolean;
   isHazardous: boolean;
@@ -465,7 +475,17 @@ const packageSchema = new Schema<IPackage>({
     enum: ['pending', 'paid', 'partially_paid'],
     default: 'pending'
   },
-  
+  paymentHistory: [{
+    timestamp: { type: Date, default: Date.now },
+    status: { type: String, required: true },
+    amountPaid: { type: Number, default: 0 },
+    paymentMethod: { type: String, default: 'cash' },
+    note: { type: String, trim: true },
+    updatedBy: { type: String }
+  }],
+  paidAt: { type: Date },
+  paidBy: { type: String },
+
   // Flags
   isFragile: {
     type: Boolean,

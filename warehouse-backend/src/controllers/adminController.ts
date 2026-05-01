@@ -926,9 +926,9 @@ export const updatePackage = async (req: AdminRequest, res: Response): Promise<v
 export const deletePackage = async (req: AdminRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    
+
     const packageItem = await Package.findById(id);
-    
+
     if (!packageItem) {
       errorResponse(res, 'Package not found', 404);
       return;
@@ -954,6 +954,71 @@ export const deletePackage = async (req: AdminRequest, res: Response): Promise<v
   } catch (error) {
     logger.error('Error deleting package:', error);
     errorResponse(res, 'Failed to delete package');
+  }
+};
+
+// Update package payment status (for cash payments)
+export const updatePackagePaymentStatus = async (req: AdminRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { paymentStatus, amountPaid, paymentMethod, paymentNote } = req.body;
+
+    // Validate paymentStatus
+    const validStatuses = ['pending', 'paid', 'partially_paid'];
+    if (!paymentStatus || !validStatuses.includes(paymentStatus)) {
+      errorResponse(res, `Invalid payment status. Must be one of: ${validStatuses.join(', ')}`, 400);
+      return;
+    }
+
+    const packageItem = await Package.findById(id);
+
+    if (!packageItem) {
+      errorResponse(res, 'Package not found', 404);
+      return;
+    }
+
+    // Build update data
+    const updateData: any = {
+      paymentStatus: paymentStatus
+    };
+
+    // If marking as paid, update related fields
+    if (paymentStatus === 'paid') {
+      updateData.paidAt = new Date();
+      updateData.paidBy = (req as any).user?.email || 'admin';
+    }
+
+    // Add payment history entry
+    const paymentHistoryEntry = {
+      timestamp: new Date(),
+      status: paymentStatus,
+      amountPaid: amountPaid || packageItem.totalAmount || 0,
+      paymentMethod: paymentMethod || 'cash',
+      note: paymentNote || `Payment status updated to ${paymentStatus} by admin`,
+      updatedBy: (req as any).user?.email || 'admin'
+    };
+
+    // Update package
+    const updatedPackage = await Package.findByIdAndUpdate(
+      id,
+      {
+        $set: updateData,
+        $push: { paymentHistory: paymentHistoryEntry }
+      },
+      { new: true, runValidators: true }
+    ).populate('userId', 'firstName lastName email userCode');
+
+    logger.info(`Admin updated package payment status: ${id} -> ${paymentStatus}`);
+    successResponse(res, {
+      message: `Package payment status updated to ${paymentStatus}`,
+      data: {
+        package: updatedPackage,
+        paymentUpdate: paymentHistoryEntry
+      }
+    });
+  } catch (error) {
+    logger.error('Error updating package payment status:', error);
+    errorResponse(res, 'Failed to update package payment status');
   }
 };
 

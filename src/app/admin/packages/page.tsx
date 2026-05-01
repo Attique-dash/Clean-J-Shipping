@@ -45,7 +45,13 @@ type PackageRow = {
   warehouseLocation?: string;
   customsRequired?: boolean;
   customsStatus?: string;
-  paymentStatus?: string;
+  paymentStatus?: 'pending' | 'paid' | 'partially_paid';
+  paymentMethod?: 'cash' | 'card' | 'paypal' | 'bank_transfer';
+  totalAmount?: number;
+  shippingCost?: number;
+  amountPaid?: number;
+  paidAt?: string;
+  paidBy?: string;
   // Invoice fields
   invoiceStatus?: 'pending' | 'submitted' | 'approved' | 'rejected' | 'billed';
   invoiceUploaded?: boolean;
@@ -113,6 +119,17 @@ export default function AdminPackagesPage() {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [packageToView, setPackageToView] = useState<PackageRow | null>(null);
 
+  // Payment update modal state
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [packageToUpdatePayment, setPackageToUpdatePayment] = useState<PackageRow | null>(null);
+  const [paymentFormData, setPaymentFormData] = useState({
+    paymentStatus: 'paid' as 'pending' | 'paid' | 'partially_paid',
+    paymentMethod: 'cash' as 'cash' | 'card' | 'paypal' | 'bank_transfer',
+    amountPaid: 0,
+    paymentNote: ''
+  });
+  const [updatingPayment, setUpdatingPayment] = useState(false);
+
   // Get userCode from URL params on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -129,43 +146,45 @@ export default function AdminPackagesPage() {
     }
   }, [status, router]);
 
-  // Load packages
-  useEffect(() => {
-    const fetchPackages = async () => {
-      try {
-        const params = new URLSearchParams();
-        if (userCodeFilter) params.set('userCode', userCodeFilter);
-        if (searchTerm) params.set('q', searchTerm);
-        if (selectedStatuses.length > 0) params.set('statuses', selectedStatuses.join(','));
-        // Fetch all packages without pagination
-        params.set('per_page', 'all');
-        
-        const res = await fetch(`/api/admin/packages?${params.toString()}`, {
-          credentials: 'include',
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setPackages(data.packages || []);
-          setSelectedIds(new Set());
-        } else {
-          const errorMessage = data.error || data.message || 'Failed to load packages';
-          console.error('API Error:', errorMessage, data);
-          throw new Error(errorMessage);
-        }
-      } catch (error) {
-        console.error('Error loading packages:', error);
-        toast.error('Failed to load packages');
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    };
+  // Fetch packages function - defined at component level for reuse
+  const fetchPackages = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (userCodeFilter) params.set('userCode', userCodeFilter);
+      if (searchTerm) params.set('q', searchTerm);
+      if (selectedStatuses.length > 0) params.set('statuses', selectedStatuses.join(','));
+      // Fetch all packages without pagination
+      params.set('per_page', 'all');
 
+      const res = await fetch(`/api/admin/packages?${params.toString()}`, {
+        credentials: 'include',
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPackages(data.packages || []);
+        setSelectedIds(new Set());
+      } else {
+        const errorMessage = data.error || data.message || 'Failed to load packages';
+        console.error('API Error:', errorMessage, data);
+        throw new Error(errorMessage);
+      }
+    } catch (error) {
+      console.error('Error loading packages:', error);
+      toast.error('Failed to load packages');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // Load packages on mount and when filters change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
     if (status === 'authenticated') {
       fetchPackages();
     }
@@ -264,6 +283,30 @@ export default function AdminPackagesPage() {
     }
   };
 
+  const getPaymentStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'paid':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'partially_paid':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'pending':
+      default:
+        return 'bg-red-100 text-red-800 border-red-200';
+    }
+  };
+
+  const getPaymentStatusLabel = (status?: string) => {
+    switch (status) {
+      case 'paid':
+        return 'Paid';
+      case 'partially_paid':
+        return 'Partially Paid';
+      case 'pending':
+      default:
+        return 'Pending';
+    }
+  };
+
   const runBulkStatusUpdate = async () => {
     if (!bulkStatus || selectedIds.size === 0) return;
     try {
@@ -309,7 +352,7 @@ export default function AdminPackagesPage() {
       'Service Type': String(p.serviceMode).toUpperCase(),
       'Status': humanStatus(p.status),
       'Weight (lbs)': Number(p.weightLbs || 0).toFixed(2),
-      'Value (USD)': Number(p.itemValueUsd || 0).toFixed(2),
+      'Total Amount (USD)': Number(p.totalAmount || 0).toFixed(2),
       'Date Received': p.dateReceived ? new Date(p.dateReceived).toLocaleDateString() : '',
       'Days in Storage': p.daysInStorage,
       'Warehouse Location': p.warehouseLocation,
@@ -371,7 +414,7 @@ export default function AdminPackagesPage() {
   // Confirm delete
   const confirmDelete = async () => {
     if (!packageToDelete) return;
-    
+
     setDeleting(true);
     try {
       const res = await fetch(`/api/admin/packages?id=${packageToDelete._id}`, {
@@ -393,6 +436,66 @@ export default function AdminPackagesPage() {
       toast.error('Error deleting package');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  // Handle open payment update modal
+  const handleOpenPaymentModal = (pkg: PackageRow) => {
+    setPackageToUpdatePayment(pkg);
+
+    // Calculate proper total amount (itemValue + shippingCost)
+    const itemValue = pkg.itemValueUsd || 0;
+    const shippingCost = pkg.shippingCost || 0;
+    const calculatedTotal = itemValue > 0 ? itemValue + shippingCost : pkg.totalAmount || 0;
+
+    // Use existing amountPaid if available, otherwise use calculated total
+    const existingAmountPaid = pkg.amountPaid || 0;
+
+    setPaymentFormData({
+      paymentStatus: pkg.paymentStatus || 'pending',
+      paymentMethod: pkg.paymentMethod || 'cash',
+      amountPaid: existingAmountPaid > 0 ? existingAmountPaid : (calculatedTotal || itemValue || 0),
+      paymentNote: ''
+    });
+    setPaymentModalOpen(true);
+  };
+
+  // Handle payment update submit
+  const handleUpdatePayment = async () => {
+    if (!packageToUpdatePayment) return;
+
+    setUpdatingPayment(true);
+    try {
+      const res = await fetch(`/api/admin/packages/${packageToUpdatePayment._id}/payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          paymentStatus: paymentFormData.paymentStatus,
+          paymentMethod: paymentFormData.paymentMethod,
+          amountPaid: paymentFormData.amountPaid,
+          paymentNote: paymentFormData.paymentNote
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success(`Payment status updated to ${getPaymentStatusLabel(paymentFormData.paymentStatus)}`);
+        // Refresh packages list to get updated data from backend
+        await fetchPackages();
+        // Also trigger refresh token to ensure full reload
+        setRefreshToken((v) => v + 1);
+        setPaymentModalOpen(false);
+        setPackageToUpdatePayment(null);
+      } else {
+        toast.error(data.error || data.message || 'Failed to update payment status');
+      }
+    } catch (error) {
+      console.error('Error updating payment:', error);
+      toast.error('Error updating payment status');
+    } finally {
+      setUpdatingPayment(false);
     }
   };
 
@@ -680,15 +783,21 @@ export default function AdminPackagesPage() {
                           <span className="font-medium text-gray-900">{Number(pkg.weightLbs || 0).toFixed(2)} lbs</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Value:</span>
-                          <span className="font-medium text-gray-900">{formatUsd(pkg.itemValueUsd || 0)}</span>
+                          <span className="text-gray-600">Total Amount:</span>
+                          <span className="font-medium text-gray-900">{formatUsd(pkg.totalAmount || 0)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Days in storage:</span>
                           <span className="font-medium text-gray-900">{pkg.daysInStorage}</span>
                         </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Payment:</span>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${getPaymentStatusBadge(pkg.paymentStatus)}`}>
+                            {getPaymentStatusLabel(pkg.paymentStatus)}
+                          </span>
+                        </div>
                       </div>
-                      
+
                       <div className="flex items-center justify-end gap-2">
                         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
                           <button
@@ -735,9 +844,10 @@ export default function AdminPackagesPage() {
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Service</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Weight (lbs)</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Value (USD)</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Total Amount</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Invoice Status</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Invoice Value</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Payment Status</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date Received</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Days</th>
                     <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
@@ -790,7 +900,7 @@ export default function AdminPackagesPage() {
                           {Number(pkg.weightLbs || 0).toFixed(2)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{formatUsd(pkg.itemValueUsd || 0)}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatUsd(pkg.totalAmount || 0)}</td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getInvoiceStatusBadge(pkg.invoiceStatus)}`}>
                           {getInvoiceStatusLabel(pkg.invoiceStatus)}
@@ -805,6 +915,11 @@ export default function AdminPackagesPage() {
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getPaymentStatusBadge(pkg.paymentStatus)}`}>
+                          {getPaymentStatusLabel(pkg.paymentStatus)}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 text-sm text-gray-900">{pkg.dateReceived ? new Date(pkg.dateReceived).toLocaleDateString() : ''}</td>
                       <td className="px-6 py-4 text-sm text-gray-900">{pkg.daysInStorage}</td>
                       <td className="px-6 py-4 text-right">
@@ -817,6 +932,16 @@ export default function AdminPackagesPage() {
                             >
                               <Eye className="h-3 w-3 mr-1" />
                               View
+                            </button>
+                            <button
+                              onClick={() => handleOpenPaymentModal(pkg)}
+                              className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-700 bg-white rounded-md hover:bg-green-50 transition-all shadow-sm"
+                              title="Update Payment Status"
+                            >
+                              <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Payment
                             </button>
                             <Link
                               href={`/admin/add-package?edit=${pkg._id}`}
@@ -889,7 +1014,8 @@ export default function AdminPackagesPage() {
                     <div className="flex justify-between"><span className="text-sm text-gray-600">Customer:</span><span className="text-sm font-medium text-gray-900">{packageToView.customerName || 'N/A'}</span></div>
                     <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.customerPhone || 'N/A'}</span></div>
                     <div className="flex justify-between"><span className="text-sm text-gray-600">Weight:</span><span className="text-sm font-medium text-gray-900">{Number(packageToView.weightLbs || 0).toFixed(2)} lbs</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Value:</span><span className="text-sm font-medium text-gray-900">{formatUsd(packageToView.itemValueUsd || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Total Amount:</span><span className="text-sm font-medium text-gray-900">{formatUsd(packageToView.totalAmount || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-gray-600">Amount Paid:</span><span className={`text-sm font-medium ${(packageToView.amountPaid || 0) > 0 ? 'text-green-600' : 'text-gray-900'}`}>{formatUsd(packageToView.amountPaid || 0)}</span></div>
                     <div className="flex justify-between"><span className="text-sm text-gray-600">Date Received:</span><span className="text-sm font-medium text-gray-900">{packageToView.dateReceived ? new Date(packageToView.dateReceived).toLocaleDateString() : ''}</span></div>
                     <div className="flex justify-between"><span className="text-sm text-gray-600">Days in Storage:</span><span className="text-sm font-medium text-gray-900">{packageToView.daysInStorage}</span></div>
                   </div>
@@ -933,18 +1059,187 @@ export default function AdminPackagesPage() {
                     <div className="flex justify-between"><span className="text-sm text-gray-600">Warehouse:</span><span className="text-sm font-medium text-gray-900">{packageToView.warehouseLocation || 'N/A'}</span></div>
                     <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Required:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsRequired ? 'Yes' : 'No'}</span></div>
                     <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsStatus || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Payment Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.paymentStatus || 'N/A'}</span></div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Payment Status:</span>
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${getPaymentStatusBadge(packageToView.paymentStatus)}`}>
+                        {getPaymentStatusLabel(packageToView.paymentStatus)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Payment Method:</span>
+                      <span className="text-sm font-medium text-gray-900 capitalize">{packageToView.paymentMethod || 'N/A'}</span>
+                    </div>
                     <div className="flex justify-between"><span className="text-sm text-gray-600">Entry Date:</span><span className="text-sm font-medium text-gray-900">{packageToView.dateReceived ? new Date(packageToView.dateReceived).toLocaleDateString() : 'N/A'}</span></div>
                   </div>
                 </div>
               </div>
 
-              <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6">
+              <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 space-y-3">
+                <button
+                  onClick={() => {
+                    setViewModalOpen(false);
+                    handleOpenPaymentModal(packageToView);
+                  }}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all font-medium shadow-lg flex items-center justify-center gap-2"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Update Payment
+                </button>
                 <button
                   onClick={() => setViewModalOpen(false)}
                   className="w-full px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl hover:from-gray-700 hover:to-gray-800 transition-all font-medium shadow-lg"
                 >
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Payment Update Modal */}
+        {paymentModalOpen && packageToUpdatePayment && (
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col">
+              <div className="bg-gradient-to-r from-green-600 to-green-700 p-4 rounded-t-2xl flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Update Payment Status
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setPaymentModalOpen(false);
+                      setPackageToUpdatePayment(null);
+                    }}
+                    className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-all"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <p className="text-green-100 mt-1 text-xs">
+                  Tracking: <span className="font-mono font-medium">{packageToUpdatePayment.trackingNumber}</span>
+                </p>
+              </div>
+
+              <div className="p-5 space-y-3 overflow-y-auto">
+                {/* Current Status Display */}
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs text-gray-600">Current Status:</span>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${getPaymentStatusBadge(packageToUpdatePayment.paymentStatus)}`}>
+                      {getPaymentStatusLabel(packageToUpdatePayment.paymentStatus)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs text-gray-600">Total Amount:</span>
+                    <span className="text-sm font-medium text-gray-900">{formatUsd(packageToUpdatePayment.totalAmount || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-600">Amount Paid:</span>
+                    <span className={`text-sm font-medium ${(packageToUpdatePayment.amountPaid || 0) > 0 ? 'text-green-600' : 'text-gray-900'}`}>
+                      {formatUsd(packageToUpdatePayment.amountPaid || 0)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Payment Status Select */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    New Payment Status *
+                  </label>
+                  <select
+                    value={paymentFormData.paymentStatus}
+                    onChange={(e) => setPaymentFormData({ ...paymentFormData, paymentStatus: e.target.value as 'pending' | 'paid' | 'partially_paid' })}
+                    className="block w-full h-10 px-3 text-sm border border-gray-300 rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="partially_paid">Partially Paid</option>
+                    <option value="paid">Paid</option>
+                  </select>
+                </div>
+
+                {/* Payment Method Select */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Payment Method *
+                  </label>
+                  <select
+                    value={paymentFormData.paymentMethod}
+                    onChange={(e) => setPaymentFormData({ ...paymentFormData, paymentMethod: e.target.value as 'cash' | 'card' | 'paypal' | 'bank_transfer' })}
+                    className="block w-full h-10 px-3 text-sm border border-gray-300 rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="card">Card</option>
+                    <option value="paypal">PayPal</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                  </select>
+                </div>
+
+                {/* Amount Paid */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Amount Paid (USD) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={paymentFormData.amountPaid}
+                    onChange={(e) => setPaymentFormData({ ...paymentFormData, amountPaid: parseFloat(e.target.value) || 0 })}
+                    className="block w-full h-10 px-3 text-sm border border-gray-300 rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                    placeholder="Enter amount paid"
+                  />
+                </div>
+
+                {/* Payment Note */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Payment Note (Optional)
+                  </label>
+                  <textarea
+                    value={paymentFormData.paymentNote}
+                    onChange={(e) => setPaymentFormData({ ...paymentFormData, paymentNote: e.target.value })}
+                    rows={2}
+                    className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all resize-none"
+                    placeholder="e.g., Cash payment received at counter"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="p-4 border-t border-gray-200 space-y-2 flex-shrink-0">
+                <button
+                  onClick={handleUpdatePayment}
+                  disabled={updatingPayment}
+                  className="w-full px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+                >
+                  {updatingPayment ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Confirm Payment Update
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setPaymentModalOpen(false);
+                    setPackageToUpdatePayment(null);
+                  }}
+                  disabled={updatingPayment}
+                  className="w-full px-4 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all font-medium shadow-md disabled:opacity-50 text-sm"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

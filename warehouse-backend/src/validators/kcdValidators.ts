@@ -21,20 +21,24 @@ export const generateApiKeyValidation = [
     .withMessage('Description cannot exceed 500 characters')
 ];
 
-// Validation for adding package - complete warehouse fields
+// Validation for adding package - supports both camelCase and PascalCase (PDF format)
 export const addPackageValidation = [
-  body('trackingNumber')
+  // Support both trackingNumber (camelCase) and TrackingNumber (PDF PascalCase)
+  body(['trackingNumber', 'TrackingNumber'])
     .optional()
     .isLength({ min: 3, max: 50 })
     .withMessage('Tracking number must be 3-50 characters'),
   
-  body('userCode')
+  // Support both userCode (camelCase) and UserCode (PDF PascalCase)
+  body(['userCode', 'UserCode'])
     .notEmpty()
     .withMessage('Customer code is required')
-    .matches(/^[A-Z]{2,6}-\d{3,5}$/)
-    .withMessage('Customer code must be in format CLEAN-XXXX (3-5 digits)'),
+    .matches(/^[A-Z]{2,6}-\d{2,5}$/)
+    .withMessage('Customer code must be in format CLEAN-XXXX (2-5 digits)'),
   
-  body('weight')
+  // Support both weight (camelCase) and Weight (PDF PascalCase) - optional
+  body(['weight', 'Weight'])
+    .optional({ checkFalsy: true })
     .isFloat({ min: 0 })
     .withMessage('Weight must be a positive number'),
   

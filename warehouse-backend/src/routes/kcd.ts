@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
 import { authKcdApiKey, AuthenticatedKcdRequest } from '../middleware/authKcd';
 import { 
@@ -9,8 +9,52 @@ import {
 } from '../validators/kcdValidators';
 import { Package } from '../models/Package';
 import { User } from '../models/User';
+import { EmailService } from '../services/emailService';
 
 const router = Router();
+
+// Middleware to normalize PascalCase (PDF format) fields to camelCase
+const normalizePdfFields = (req: Request, res: Response, next: NextFunction) => {
+  if (req.body && typeof req.body === 'object') {
+    const fieldMappings: Record<string, string> = {
+      'PackageID': 'packageId',
+      'TrackingNumber': 'trackingNumber',
+      'ControlNumber': 'controlNumber',
+      'HouseNumber': 'houseNumber',
+      'FirstName': 'firstName',
+      'LastName': 'lastName',
+      'UserCode': 'userCode',
+      'Weight': 'weight',
+      'Shipper': 'shipper',
+      'EntryDate': 'entryDate',
+      'EntryDateTime': 'entryDateTime',
+      'EntryStaff': 'entryStaff',
+      'Branch': 'branch',
+      'Description': 'description',
+      'Pieces': 'pieces',
+      'Cubes': 'cubes',
+      'Length': 'length',
+      'Width': 'width',
+      'Height': 'height',
+      'PackageStatus': 'status',
+      'Status': 'status',
+      'CourierID': 'courierId',
+      'ManifestID': 'manifestId',
+      'CollectionID': 'collectionId',
+      'Location': 'location',
+      'Notes': 'notes',
+      'CourierCode': 'courierCode',
+      'APIToken': 'apiToken'
+    };
+    
+    for (const [pascalCase, camelCase] of Object.entries(fieldMappings)) {
+      if (req.body[pascalCase] !== undefined && req.body[camelCase] === undefined) {
+        req.body[camelCase] = req.body[pascalCase];
+      }
+    }
+  }
+  next();
+};
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/kcd/customers
@@ -68,37 +112,49 @@ router.get('/customers',
 // ─────────────────────────────────────────────────────────────
 router.post('/packages/add',
   authKcdApiKey,
+  normalizePdfFields,
   addPackageValidation,
   handleValidationErrors,
   async (req: AuthenticatedKcdRequest, res: Response): Promise<void> => {
     try {
-      const {
-        trackingNumber,
-        userCode,
-        weight,
-        shipper,
-        description,
-        itemDescription,
-        serviceMode = 'local',
-        status = 'received',
-        dimensions,
-        senderName,
-        senderEmail,
-        senderPhone,
-        senderAddress,
-        senderCountry,
-        recipient,
-        itemValue,
-        specialInstructions,
-        isFragile,
-        isHazardous,
-        requiresSignature,
-        customsRequired,
-        customsStatus,
-        entryDate
-      } = req.body;
+      // Support both camelCase and PascalCase (PDF format) fields
+      const body = req.body;
+      
+      const trackingNumber = body.trackingNumber || body.TrackingNumber;
+      const userCode = body.userCode || body.UserCode;
+      const weight = body.weight || body.Weight;
+      const shipper = body.shipper || body.Shipper;
+      const description = body.description || body.Description;
+      const itemDescription = body.itemDescription || body.ItemDescription;
+      const serviceMode = body.serviceMode || body.ServiceMode || 'local';
+      const status = body.status || body.PackageStatus || body.Status || 'received';
+      const dimensions = body.dimensions || body.Dimensions;
+      const senderName = body.senderName || body.SenderName;
+      const senderEmail = body.senderEmail || body.SenderEmail;
+      const senderPhone = body.senderPhone || body.SenderPhone;
+      const senderAddress = body.senderAddress || body.SenderAddress;
+      const senderCountry = body.senderCountry || body.SenderCountry;
+      const recipient = body.recipient || body.Recipient;
+      const itemValue = body.itemValue || body.ItemValue;
+      const specialInstructions = body.specialInstructions || body.SpecialInstructions;
+      const isFragile = body.isFragile || body.IsFragile;
+      const isHazardous = body.isHazardous || body.IsHazardous;
+      const requiresSignature = body.requiresSignature || body.RequiresSignature;
+      const customsRequired = body.customsRequired || body.CustomsRequired;
+      const customsStatus = body.customsStatus || body.CustomsStatus;
+      const entryDate = body.entryDate || body.EntryDate || body.EntryDateTime;
 
       const authenticatedCourierCode = req.courierCode;
+
+      // Validate required fields
+      if (!userCode) {
+        res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: [{ field: 'userCode', message: 'Customer code is required (userCode or UserCode)' }]
+        });
+        return;
+      }
 
       // Find the customer
       const customer = await User.findOne({ 
@@ -184,6 +240,30 @@ router.post('/packages/add',
       newPackage.trackingHistory = newPackage.trackingHistory || [];
       newPackage.trackingHistory.push(historyEntry);
       await newPackage.save();
+
+      // Send email notification to customer
+      try {
+        if (customer.email) {
+          await EmailService.sendPackagePreAlert(customer.email, {
+            trackingNumber: finalTrackingNumber,
+            shipper: shipper || 'Amazon',
+            weight: weight || 0,
+            mailboxNumber: customer.mailboxNumber || customer.userCode,
+            customerName: `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Customer',
+            receivedDate: entryDate ? new Date(entryDate) : new Date(),
+            description: description || '',
+            itemDescription: itemDescription || '',
+            serviceMode: serviceMode || 'air',
+            status: status || 'received',
+            dimensions: dimensions || { length: 0, width: 0, height: 0, unit: 'cm' },
+            warehouseLocation: 'KCD Main Warehouse'
+          });
+          console.log(`[KCD Webhook] Email sent to ${customer.email} for package ${finalTrackingNumber}`);
+        }
+      } catch (emailError) {
+        console.error('[KCD Webhook] Failed to send email:', emailError);
+        // Don't fail the request if email fails
+      }
 
       res.status(201).json({
         success: true,

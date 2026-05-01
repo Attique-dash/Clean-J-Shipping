@@ -403,11 +403,86 @@ router.put('/packages/:id',
  *       401:
  *         description: Unauthorized - Admin access required
  */
-router.delete('/packages/:id', 
-  authenticate, 
-  authorize('admin'), 
+router.delete('/packages/:id',
+  authenticate,
+  authorize('admin'),
   validateMongoId,
   asyncHandler(adminController.deletePackage)
+);
+
+/**
+ * @swagger
+ * /api/admin/packages/{id}/payment:
+ *   post:
+ *     summary: Update package payment status (admin only)
+ *     description: Updates the payment status of a package. Used to mark packages as paid when receiving cash payments. Requires admin privileges.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Package ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [paymentStatus]
+ *             properties:
+ *               paymentStatus:
+ *                 type: string
+ *                 enum: [pending, paid, partially_paid]
+ *                 description: New payment status
+ *                 example: "paid"
+ *               amountPaid:
+ *                 type: number
+ *                 description: Amount paid (defaults to package totalAmount)
+ *                 example: 150.00
+ *               paymentMethod:
+ *                 type: string
+ *                 enum: [cash, card, paypal, stripe, bank_transfer]
+ *                 description: Payment method used
+ *                 example: "cash"
+ *               paymentNote:
+ *                 type: string
+ *                 description: Optional note about the payment
+ *                 example: "Cash payment received at counter"
+ *     responses:
+ *       200:
+ *         description: Payment status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     package:
+ *                       type: object
+ *                     paymentUpdate:
+ *                       type: object
+ *       404:
+ *         description: Package not found
+ *       400:
+ *         description: Invalid payment status
+ *       401:
+ *         description: Unauthorized - Admin access required
+ */
+router.post('/packages/:id/payment',
+  authenticate,
+  authorize('admin'),
+  validateMongoId,
+  asyncHandler(adminController.updatePackagePaymentStatus)
 );
 
 /**
