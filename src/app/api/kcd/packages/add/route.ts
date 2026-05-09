@@ -534,30 +534,242 @@ export async function POST(req: NextRequest) {
 
 /**
  * GET /api/kcd/packages/add
- * Debug endpoint to view recent request logs (admin only)
+ * Primary endpoint for KCD GET requests (with query params)
+ * Also serves as debug endpoint for viewing logs
  */
 export async function GET(req: NextRequest) {
+  const timestamp = new Date().toISOString();
+  const requestId = crypto.randomUUID();
+  
+  // Check if this is a debug/log request (has x-api-key header)
+  const apiKey = req.headers.get('x-api-key');
+  if (apiKey) {
+    // Debug mode - return logs
+    try {
+      const validation = await validateApiKey(apiKey, null);
+      if (!validation.valid) {
+        return NextResponse.json(
+          { error: `Unauthorized - ${validation.error}` },
+          { status: 401 }
+        );
+      }
+      return NextResponse.json({
+        logs: requestLogs,
+        count: requestLogs.length,
+        maxLogs: MAX_LOGS,
+        serverTime: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error fetching logs:", error);
+      return NextResponse.json(
+        { error: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  }
+  
+  // Package creation mode - handle KCD GET requests
+  console.log(`[KCD Webhook ${requestId}] Received GET request at ${timestamp}`);
+  
   try {
-    const apiKey = req.headers.get('x-api-key');
-    const validation = await validateApiKey(apiKey);
+    // Get data from query parameters (KCD sends data in URL for GET requests)
+    const { searchParams } = new URL(req.url);
     
+    // Support multiple field name variations
+    const trackingNumber = searchParams.get('trackingNumber') || searchParams.get('TrackingNumber');
+    const houseNumber = searchParams.get('houseNumber') || searchParams.get('HouseNumber') || searchParams.get('ControlNumber');
+    const customerMailbox = searchParams.get('customerMailbox') || searchParams.get('customerCode') || searchParams.get('UserCode');
+    const weight = searchParams.get('weight') || searchParams.get('Weight');
+    const shipper = searchParams.get('shipper') || searchParams.get('Shipper');
+    const receivedAt = searchParams.get('receivedAt') || searchParams.get('EntryDate') || searchParams.get('EntryDateTime');
+    const description = searchParams.get('description') || searchParams.get('Description');
+    const firstName = searchParams.get('firstName') || searchParams.get('FirstName');
+    const lastName = searchParams.get('lastName') || searchParams.get('LastName');
+    
+    // Token can be in query param or header
+    const tokenFromQuery = searchParams.get('token') || searchParams.get('apiKey') || searchParams.get('api_key');
+    const tokenFromHeader = req.headers.get('x-api-key') || req.headers.get('authorization')?.replace('Bearer ', '');
+    const bodyToken = tokenFromQuery || tokenFromHeader;
+    
+    console.log(`[KCD Webhook ${requestId}] Query params:`, {
+      trackingNumber,
+      customerMailbox,
+      houseNumber,
+      weight,
+      shipper,
+      hasToken: !!bodyToken
+    });
+    
+    // Log the request
+    const log = {
+      timestamp,
+      method: 'GET',
+      headers: Object.fromEntries(req.headers.entries()),
+      body: Object.fromEntries(searchParams.entries()),
+      responseStatus: 0,
+      error: undefined as string | undefined,
+    };
+    
+    // Validate API Key
+    const validation = await validateApiKey(tokenFromHeader ?? null, bodyToken);
     if (!validation.valid) {
+      console.error(`[KCD Webhook ${requestId}] API key validation failed: ${validation.error}`);
+      log.responseStatus = 401;
+      log.error = validation.error || 'Invalid API key';
+      addLog(log);
       return NextResponse.json(
         { error: `Unauthorized - ${validation.error}` },
         { status: 401 }
       );
     }
     
-    return NextResponse.json({
-      logs: requestLogs,
-      count: requestLogs.length,
-      maxLogs: MAX_LOGS,
-      serverTime: new Date().toISOString()
+    // Validate required fields
+    const missingFields: string[] = [];
+    if (!trackingNumber) missingFields.push('trackingNumber/TrackingNumber');
+    if (!customerMailbox) missingFields.push('customerMailbox/UserCode');
+    
+    if (missingFields.length > 0) {
+      console.error(`[KCD Webhook ${requestId}] Missing required fields:`, missingFields);
+      log.responseStatus = 400;
+      log.error = `Missing required fields: ${missingFields.join(', ')}`;
+      addLog(log);
+      return NextResponse.json(
+        { error: "Missing required fields", missingFields, receivedParams: Object.fromEntries(searchParams.entries()) },
+        { status: 400 }
+      );
+    }
+    
+    // Connect to database and create package (same as POST)
+    await dbConnect();
+    
+    const userCode = asString(customerMailbox);
+    console.log(`[KCD Webhook ${requestId}] Looking up user with userCode: ${userCode}`);
+    
+    const user = await User.findOne({ userCode });
+    
+    if (!user) {
+      console.error(`[KCD Webhook ${requestId}] User not found for userCode: ${userCode}`);
+      log.responseStatus = 404;
+      log.error = `User not found for userCode: ${userCode}`;
+      addLog(log);
+      return NextResponse.json(
+        { error: "User not found", userCode },
+        { status: 404 }
+      );
+    }
+    
+    // Check for duplicate
+    const existingPackage = await Package.findOne({ 
+      trackingNumber: asString(trackingNumber) 
     });
+    
+    if (existingPackage) {
+      log.responseStatus = 409;
+      log.error = `Package with tracking number ${trackingNumber} already exists`;
+      addLog(log);
+      return NextResponse.json(
+        { error: "Package already exists", trackingNumber, packageId: existingPackage._id },
+        { status: 409 }
+      );
+    }
+    
+    // Create package
+    const weightKg = asNumber(weight);
+    const receivedDate = receivedAt ? new Date(asString(receivedAt)) : new Date();
+    const mailboxCode = formatMailboxCode(userCode);
+    
+    const packageData = {
+      trackingNumber: asString(trackingNumber).toUpperCase(),
+      userId: user._id,
+      userCode: user.userCode,
+      customer: user._id,
+      source: 'kcd_webhook' as const,
+      sourceDetails: {
+        syncedAt: new Date(),
+        syncStatus: 'synced' as const,
+        apiEndpoint: '/api/kcd/packages/add',
+      },
+      controlNumber: houseNumber ? asString(houseNumber) : undefined,
+      mailboxNumber: mailboxCode,
+      weight: weightKg,
+      weightUnit: 'kg',
+      itemDescription: description || `Package from ${shipper || 'Unknown'}`,
+      description: description || `Package from ${shipper || 'Unknown'}`,
+      shipper: shipper ? asString(shipper) : 'Unknown Shipper',
+      dateReceived: receivedDate,
+      entryDate: receivedDate,
+      receivedAt: receivedDate,
+      status: 'received',
+      paymentStatus: 'pending',
+      serviceMode: 'air',
+      packageType: 'parcel',
+      senderType: 'warehouse',
+      senderName: shipper ? asString(shipper) : 'KCD Logistics',
+      senderCompany: 'KCD Logistics',
+      receiverName: `${firstName || user.firstName || ''} ${lastName || user.lastName || ''}`.trim() || 'Customer',
+      receiverPhone: user.phone || '0000000000',
+      receiverEmail: user.email || '',
+      receiverAddress: user.address?.street || 'No Address',
+      receiverCity: user.address?.city || 'Kingston',
+      receiverState: user.address?.state || 'St. Andrew',
+      receiverZipCode: user.address?.zipCode || '00000',
+      receiverCountry: user.address?.country || 'Jamaica',
+      shippingCost: 0,
+      insurance: 0,
+      tax: 0,
+      discount: 0,
+      totalAmount: 0,
+      paymentMethod: 'cash',
+      warehouseLocation: 'KCD Main Warehouse',
+      currentLocation: 'KCD Main Warehouse',
+    };
+    
+    const createdPackage = await Package.create(packageData);
+    console.log(`[KCD Webhook ${requestId}] Package created: ${createdPackage._id}`);
+    
+    // Send email notification
+    let emailSent = false;
+    try {
+      if (user.email) {
+        await sendNewPackageEmail({
+          to: user.email,
+          firstName: user.firstName || "Customer",
+          trackingNumber: createdPackage.trackingNumber,
+          status: createdPackage.status,
+          weight: createdPackage.weight,
+          shipper: createdPackage.shipper || shipper || 'KCD Logistics',
+          warehouse: createdPackage.warehouseLocation || "KCD Main Warehouse",
+          receivedDate: createdPackage.dateReceived || new Date(),
+          description: createdPackage.itemDescription || `Package from ${shipper || 'KCD'}`,
+        });
+        emailSent = true;
+      }
+    } catch (emailError) {
+      console.error(`[KCD Webhook ${requestId}] Failed to send email:`, emailError);
+    }
+    
+    log.responseStatus = 201;
+    addLog(log);
+    
+    return NextResponse.json({
+      success: true,
+      message: "Package created successfully via GET",
+      package: {
+        id: createdPackage._id,
+        trackingNumber: createdPackage.trackingNumber,
+        userCode: createdPackage.userCode,
+        mailboxCode: createdPackage.mailboxNumber,
+        status: createdPackage.status,
+        createdAt: createdPackage.createdAt
+      },
+      notifications: { emailSent }
+    }, { status: 201 });
+    
   } catch (error) {
-    console.error("Error fetching logs:", error);
+    console.error(`[KCD Webhook ${requestId}] Unexpected error:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", requestId },
       { status: 500 }
     );
   }

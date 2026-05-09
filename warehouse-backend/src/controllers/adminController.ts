@@ -144,6 +144,12 @@ interface AdminRequest extends AuthRequest {
       email?: string;
       instructions?: string;
     };
+
+    // Payment fields
+    paymentStatus?: string;
+    amountPaid?: number;
+    paymentMethod?: string;
+    paymentNote?: string;
   };
 }
 
