@@ -25,62 +25,15 @@ import {
 import Link from 'next/link';
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
 import Loading from "@/components/Loading";
-
-type PackageRow = {
-  _id: string;
-  trackingNumber: string;
-  customerName: string;
-  customerEmail?: string;
-  customerPhone?: string;
-  mailboxNumber?: string;
-  userCode?: string;
-  serviceMode?: 'air' | 'ocean' | 'local';
-  status: string;
-  weight: number;
-  weightUnit: string;
-  weightLbs: number;
-  itemValueUsd?: number;
-  dateReceived?: string | null;
-  daysInStorage: number;
-  warehouseLocation?: string;
-  customsRequired?: boolean;
-  customsStatus?: string;
-  paymentStatus?: 'pending' | 'paid' | 'partially_paid';
-  paymentMethod?: 'cash' | 'card' | 'paypal' | 'bank_transfer';
-  totalAmount?: number;
-  shippingCost?: number;
-  amountPaid?: number;
-  paidAt?: string;
-  paidBy?: string;
-  // Invoice fields
-  invoiceStatus?: 'pending' | 'submitted' | 'approved' | 'rejected' | 'billed';
-  invoiceUploaded?: boolean;
-  pricePaid?: number;
-  pricePaidCurrency?: string;
-  // Sender information
-  senderName?: string;
-  senderEmail?: string;
-  senderPhone?: string;
-  senderAddress?: string;
-  senderCountry?: string;
-  // Recipient information
-  receiverName?: string;
-  receiverEmail?: string;
-  receiverPhone?: string;
-  receiverAddress?: string;
-  receiverCountry?: string;
-  recipient?: {
-    name?: string;
-    email?: string;
-    phone?: string;
-    address?: string;
-    country?: string;
-  };
-  // Additional details
-  shipper?: string;
-  createdAt?: string | null;
-  updatedAt?: string | null;
-};
+import type { KcdPackageRecord } from '@/types/kcd-package';
+import {
+  formatPackageAmount,
+  getCustomerDisplayName,
+  getPackageStatusLabel,
+  logKcdPackages,
+  logKcdPackageConsole,
+} from '@/lib/package-format';
+import PackageDetailsPanel from '@/components/packages/PackageDetailsPanel';
 
 type StatusOption = {
   value: string;
@@ -99,7 +52,7 @@ const STATUS_OPTIONS: StatusOption[] = [
 export default function AdminPackagesPage() {
   const { status } = useSession();
   const router = useRouter();
-  const [packages, setPackages] = useState<PackageRow[]>([]);
+  const [packages, setPackages] = useState<KcdPackageRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [userCodeFilter, setUserCodeFilter] = useState('');
@@ -112,16 +65,16 @@ export default function AdminPackagesPage() {
   
   // Delete confirmation modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [packageToDelete, setPackageToDelete] = useState<PackageRow | null>(null);
+  const [packageToDelete, setPackageToDelete] = useState<KcdPackageRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   
   // View package modal state
   const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [packageToView, setPackageToView] = useState<PackageRow | null>(null);
+  const [packageToView, setPackageToView] = useState<KcdPackageRecord | null>(null);
 
   // Payment update modal state
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [packageToUpdatePayment, setPackageToUpdatePayment] = useState<PackageRow | null>(null);
+  const [packageToUpdatePayment, setPackageToUpdatePayment] = useState<KcdPackageRecord | null>(null);
   const [paymentFormData, setPaymentFormData] = useState({
     paymentStatus: 'paid' as 'pending' | 'paid' | 'partially_paid',
     paymentMethod: 'cash' as 'cash' | 'card' | 'paypal' | 'bank_transfer',
@@ -166,7 +119,9 @@ export default function AdminPackagesPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setPackages(data.packages || []);
+        const list: KcdPackageRecord[] = data.packages || [];
+        setPackages(list);
+        logKcdPackages('Admin Packages Panel', list);
         setSelectedIds(new Set());
       } else {
         const errorMessage = data.error || data.message || 'Failed to load packages';
@@ -219,19 +174,14 @@ export default function AdminPackagesPage() {
 
   const selectedCount = selectedIds.size;
 
-  const formatUsd = (amount: number) => {
-    return CurrencyService.format(amount, 'USD');
-  };
+  const formatPkgAmount = (pkg: KcdPackageRecord, amount: number) =>
+    formatPackageAmount(amount, pkg.pricePaidCurrency || 'USD');
 
   const formatJmd = (amount: number) => {
     return CurrencyService.format(amount, 'JMD');
   };
 
-  const humanStatus = (s: string) => {
-    const found = STATUS_OPTIONS.find((o) => o.value === s);
-    if (found) return found.label;
-    return s.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
-  };
+  const humanStatus = (pkg: KcdPackageRecord) => getPackageStatusLabel(pkg);
 
   const getServiceBadge = (mode: string) => {
     if (mode === 'air') return 'bg-sky-100 text-sky-800 border-sky-200';
@@ -240,15 +190,13 @@ export default function AdminPackagesPage() {
     return 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
-  const getStatusBadge = (s: string) => {
-    if (s === 'delivered') return 'bg-emerald-100 text-emerald-800';
-    if (s === 'out_for_delivery') return 'bg-blue-100 text-blue-800';
-    if (s === 'ready_for_delivery') return 'bg-cyan-100 text-cyan-800';
-    if (s === 'customs_pending') return 'bg-amber-100 text-amber-800';
-    if (s === 'customs_cleared') return 'bg-green-100 text-green-800';
-    if (s === 'in_transit') return 'bg-yellow-100 text-yellow-800';
-    if (s === 'received' || s === 'At Warehouse') return 'bg-purple-100 text-purple-800';
-    return 'bg-gray-100 text-gray-800';
+  const getStatusBadge = (pkg: KcdPackageRecord) => {
+    const s = pkg.PackageStatus ?? 0;
+    if (s >= 4) return 'bg-emerald-100 text-emerald-800';
+    if (s === 3) return 'bg-cyan-100 text-cyan-800';
+    if (s === 2) return 'bg-yellow-100 text-yellow-800';
+    if (s === 1) return 'bg-blue-100 text-blue-800';
+    return 'bg-purple-100 text-purple-800';
   };
 
   const getInvoiceStatusBadge = (status?: string) => {
@@ -344,26 +292,18 @@ export default function AdminPackagesPage() {
     }
 
     const exportRows = rows.map((p) => ({
-      'Tracking Number': p.trackingNumber,
-      'Customer Name': p.customerName,
-      'Customer Email': p.customerEmail || '',
-      'Customer Phone': p.customerPhone || '',
-      'Mailbox Number': p.mailboxNumber,
-      'Service Type': String(p.serviceMode).toUpperCase(),
-      'Status': humanStatus(p.status),
-      'Weight (lbs)': Number(p.weightLbs || 0).toFixed(2),
-      'Total Amount (USD)': Number(p.totalAmount || 0).toFixed(2),
-      'Date Received': p.dateReceived ? new Date(p.dateReceived).toLocaleDateString() : '',
-      'Days in Storage': p.daysInStorage,
-      'Warehouse Location': p.warehouseLocation,
-      'Customs Required': p.customsRequired ? 'Yes' : 'No',
-      'Customs Status': p.customsStatus,
-      'Payment Status': p.paymentStatus,
-      'Shipper': p.shipper || '',
-      'Sender Name': p.senderName || '',
-      'Sender Email': p.senderEmail || '',
-      'Sender Phone': p.senderPhone || '',
-      'Sender Country': p.senderCountry || '',
+      PackageID: p.PackageID,
+      TrackingNumber: p.TrackingNumber,
+      UserCode: p.UserCode,
+      FirstName: p.FirstName,
+      LastName: p.LastName,
+      Weight: p.Weight,
+      Shipper: p.Shipper,
+      Branch: p.Branch,
+      PackageStatus: p.PackageStatus,
+      PackagePayments: p.PackagePayments,
+      EntryDate: p.EntryDate,
+      Description: p.Description,
     }));
 
     const filename = `packages_${new Date().toISOString().slice(0, 10)}`;
@@ -375,38 +315,27 @@ export default function AdminPackagesPage() {
   };
 
   // Handle package view
-  const handleViewPackage = async (pkg: PackageRow) => {
+  const handleViewPackage = async (pkg: KcdPackageRecord) => {
     try {
-      // Fetch full package data including recipient information
       const res = await fetch(`/api/admin/packages/${pkg._id}`, {
         credentials: 'include'
       });
       if (res.ok) {
-        const fullPackageData = await res.json();
-        setPackageToView({
-          ...pkg,
-          ...fullPackageData,
-          receiverName: fullPackageData.receiverName || fullPackageData.recipient?.name || pkg.customerName,
-          receiverEmail: fullPackageData.receiverEmail || fullPackageData.recipient?.email || pkg.customerEmail,
-          receiverPhone: fullPackageData.receiverPhone || fullPackageData.recipient?.phone || pkg.customerPhone,
-          receiverAddress: fullPackageData.receiverAddress || fullPackageData.recipient?.address,
-          receiverCountry: fullPackageData.receiverCountry || fullPackageData.recipient?.country,
-        } as PackageRow & { recipient?: { address: string; country: string } });
+        const fullPackageData: KcdPackageRecord = await res.json();
+        logKcdPackageConsole('Admin Package Detail', fullPackageData);
+        setPackageToView(fullPackageData);
       } else {
-        // Fallback to list data if API fails
         setPackageToView(pkg);
       }
       setViewModalOpen(true);
     } catch (error) {
       console.error('Error fetching package details:', error);
-      // Fallback to list data
       setPackageToView(pkg);
       setViewModalOpen(true);
     }
   };
 
-  // Handle package delete
-  const handleDeletePackage = async (pkg: PackageRow) => {
+  const handleDeletePackage = async (pkg: KcdPackageRecord) => {
     setPackageToDelete(pkg);
     setDeleteModalOpen(true);
   };
@@ -440,22 +369,14 @@ export default function AdminPackagesPage() {
   };
 
   // Handle open payment update modal
-  const handleOpenPaymentModal = (pkg: PackageRow) => {
+  const handleOpenPaymentModal = (pkg: KcdPackageRecord) => {
     setPackageToUpdatePayment(pkg);
-
-    // Calculate proper total amount (itemValue + shippingCost)
-    const itemValue = pkg.itemValueUsd || 0;
-    const shippingCost = pkg.shippingCost || 0;
-    const calculatedTotal = itemValue > 0 ? itemValue + shippingCost : pkg.totalAmount || 0;
-
-    // Use existing amountPaid if available, otherwise use calculated total
-    const existingAmountPaid = pkg.amountPaid || 0;
-
+    const status = (pkg.paymentStatus as 'pending' | 'paid' | 'partially_paid') || 'pending';
     setPaymentFormData({
-      paymentStatus: pkg.paymentStatus || 'pending',
-      paymentMethod: pkg.paymentMethod || 'cash',
-      amountPaid: existingAmountPaid > 0 ? existingAmountPaid : (calculatedTotal || itemValue || 0),
-      paymentNote: ''
+      paymentStatus: status,
+      paymentMethod: (pkg.paymentMethod as 'cash' | 'card' | 'paypal' | 'bank_transfer') || 'cash',
+      amountPaid: pkg.amountPaid ?? pkg.totalAmount ?? pkg.itemValueUsd ?? 0,
+      paymentNote: '',
     });
     setPaymentModalOpen(true);
   };
@@ -629,7 +550,7 @@ export default function AdminPackagesPage() {
                 {selectedStatuses.length > 0 && (
                   <div className="flex items-center gap-2 rounded-lg bg-orange-100 px-3 py-1.5 text-sm">
                     <Filter className="h-4 w-4 text-orange-600" />
-                    <span className="font-medium text-orange-800">Status: {selectedStatuses.length === 1 ? humanStatus(selectedStatuses[0]) : `${selectedStatuses.length} selected`}</span>
+                    <span className="font-medium text-orange-800">Status: {selectedStatuses.length === 1 ? (STATUS_OPTIONS.find((o) => o.value === selectedStatuses[0])?.label || selectedStatuses[0]) : `${selectedStatuses.length} selected`}</span>
                     <button
                       onClick={() => setSelectedStatuses([])}
                       className="ml-1 text-orange-600 hover:text-orange-800"
@@ -753,38 +674,38 @@ export default function AdminPackagesPage() {
                               onClick={() => handleViewPackage(pkg)}
                               className="text-sm font-medium text-gray-900 font-mono hover:underline"
                             >
-                              {pkg.trackingNumber}
+                              {pkg.TrackingNumber}
                             </button>
                             <div className="text-xs text-gray-500">
                               {pkg.dateReceived ? new Date(pkg.dateReceived).toLocaleDateString() : ''}
                             </div>
                           </div>
                         </div>
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(pkg.status)}`}>
-                          {humanStatus(pkg.status)}
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(pkg)}`}>
+                          {humanStatus(pkg)}
                         </span>
                       </div>
                       
                       <div className="space-y-2 mb-3">
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Customer:</span>
-                          <span className="font-medium text-gray-900">{pkg.customerName || 'N/A'}</span>
+                          <span className="font-medium text-gray-900">{getCustomerDisplayName(pkg) || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Mailbox:</span>
-                          <span className="font-medium text-gray-900">{pkg.mailboxNumber || 'N/A'}</span>
+                          <span className="font-medium text-gray-900">{pkg.UserCode || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Shipper:</span>
-                          <span className="font-medium text-gray-900">{pkg.shipper || 'N/A'}</span>
+                          <span className="font-medium text-gray-900">{pkg.Shipper || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Weight:</span>
-                          <span className="font-medium text-gray-900">{Number(pkg.weightLbs || 0).toFixed(2)} lbs</span>
+                          <span className="font-medium text-gray-900">{Number(pkg.weightLbs ?? pkg.Weight ?? 0).toFixed(2)} lb</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Total Amount:</span>
-                          <span className="font-medium text-gray-900">{formatUsd(pkg.totalAmount || 0)}</span>
+                          <span className="font-medium text-gray-900">{formatPkgAmount(pkg, pkg.totalAmount || 0)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Days in storage:</span>
@@ -870,37 +791,37 @@ export default function AdminPackagesPage() {
                               onClick={() => handleViewPackage(pkg)}
                               className="text-sm font-medium text-gray-900 font-mono hover:underline"
                             >
-                              {pkg.trackingNumber}
+                              {pkg.TrackingNumber}
                             </button>
                             <div className="text-xs text-gray-500">
-                              {pkg.warehouseLocation}
+                              {pkg.Branch}
                             </div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">{pkg.customerName || 'N/A'}</div>
+                        <div className="text-sm text-gray-900">{getCustomerDisplayName(pkg) || 'N/A'}</div>
                         <div className="text-xs text-gray-500">{pkg.customerEmail || ''}</div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.mailboxNumber || 'N/A'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.shipper || 'N/A'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.UserCode || 'N/A'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.Shipper || 'N/A'}</td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center border px-2 py-1 text-xs font-semibold rounded-full ${getServiceBadge(pkg.serviceMode || '')}`}>
                           {String(pkg.serviceMode).toUpperCase()}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(pkg.status)}`}>
-                          {humanStatus(pkg.status)}
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(pkg)}`}>
+                          {humanStatus(pkg)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">
                         <span className="inline-flex items-center gap-1">
                           <Weight className="h-3 w-3" />
-                          {Number(pkg.weightLbs || 0).toFixed(2)}
+                          {Number(pkg.weightLbs ?? pkg.Weight ?? 0).toFixed(2)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatUsd(pkg.totalAmount || 0)}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatPkgAmount(pkg, pkg.totalAmount || 0)}</td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getInvoiceStatusBadge(pkg.invoiceStatus)}`}>
                           {getInvoiceStatusLabel(pkg.invoiceStatus)}
@@ -909,7 +830,7 @@ export default function AdminPackagesPage() {
                       <td className="px-6 py-4 text-sm text-gray-900">
                         {pkg.pricePaid && pkg.pricePaid > 0 ? (
                           <span className="font-medium text-green-700">
-                            {pkg.pricePaidCurrency} {pkg.pricePaid.toFixed(2)}
+                            {formatPkgAmount(pkg, pkg.pricePaid)}
                           </span>
                         ) : (
                           <span className="text-gray-400">-</span>
@@ -979,7 +900,7 @@ export default function AdminPackagesPage() {
           onConfirm={confirmDelete}
           title="Delete Package"
           message="Are you sure you want to delete this package? This action cannot be undone and will permanently remove all package data from the system."
-          itemName={packageToDelete?.trackingNumber}
+          itemName={packageToDelete?.TrackingNumber}
           loading={deleting}
         />
 
@@ -1000,78 +921,11 @@ export default function AdminPackagesPage() {
                 </div>
               </div>
               
-              <div className="p-6 space-y-6">
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
-                  <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <Package className="h-5 w-5 text-blue-600" />
-                    Package
-                  </h4>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Tracking:</span><span className="text-sm font-medium text-gray-900 font-mono">{packageToView.trackingNumber}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Status:</span><span className={`text-xs font-semibold px-2 py-1 rounded-full ${getStatusBadge(packageToView.status)}`}>{humanStatus(packageToView.status)}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Service:</span><span className={`text-xs font-semibold px-2 py-1 rounded-full border ${getServiceBadge(packageToView?.serviceMode || '')}`}>{String(packageToView?.serviceMode || '').toUpperCase()}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Mailbox:</span><span className="text-sm font-medium text-gray-900">{packageToView.mailboxNumber || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Customer:</span><span className="text-sm font-medium text-gray-900">{packageToView.customerName || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.customerPhone || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Weight:</span><span className="text-sm font-medium text-gray-900">{Number(packageToView.weightLbs || 0).toFixed(2)} lbs</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Total Amount:</span><span className="text-sm font-medium text-gray-900">{formatUsd(packageToView.totalAmount || 0)}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Amount Paid:</span><span className={`text-sm font-medium ${(packageToView.amountPaid || 0) > 0 ? 'text-green-600' : 'text-gray-900'}`}>{formatUsd(packageToView.amountPaid || 0)}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Date Received:</span><span className="text-sm font-medium text-gray-900">{packageToView.dateReceived ? new Date(packageToView.dateReceived).toLocaleDateString() : ''}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Days in Storage:</span><span className="text-sm font-medium text-gray-900">{packageToView.daysInStorage}</span></div>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-6">
-                  <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <User className="h-5 w-5 text-emerald-600" />
-                    Sender Information
-                  </h4>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Name:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderName || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderEmail || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderPhone || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderCountry || 'N/A'}</span></div>
-                    <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderAddress || 'N/A'}</span></div>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6">
-                  <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <User className="h-5 w-5 text-blue-600" />
-                    Recipient Information
-                  </h4>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Name:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverName || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverEmail || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverPhone || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverCountry || 'N/A'}</span></div>
-                    <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.receiverAddress || 'N/A'}</span></div>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-6">
-                  <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <Package className="h-5 w-5 text-purple-600" />
-                    Additional Details
-                  </h4>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Shipper:</span><span className="text-sm font-medium text-gray-900">{packageToView.shipper || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Warehouse:</span><span className="text-sm font-medium text-gray-900">{packageToView.warehouseLocation || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Required:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsRequired ? 'Yes' : 'No'}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Status:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsStatus || 'N/A'}</span></div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Payment Status:</span>
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${getPaymentStatusBadge(packageToView.paymentStatus)}`}>
-                        {getPaymentStatusLabel(packageToView.paymentStatus)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Payment Method:</span>
-                      <span className="text-sm font-medium text-gray-900 capitalize">{packageToView.paymentMethod || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between"><span className="text-sm text-gray-600">Entry Date:</span><span className="text-sm font-medium text-gray-900">{packageToView.dateReceived ? new Date(packageToView.dateReceived).toLocaleDateString() : 'N/A'}</span></div>
-                  </div>
-                </div>
+              <div className="p-6">
+                <PackageDetailsPanel
+                  pkg={packageToView}
+                  getStatusBadgeClass={getStatusBadge}
+                />
               </div>
 
               <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 space-y-3">
@@ -1121,7 +975,7 @@ export default function AdminPackagesPage() {
                   </button>
                 </div>
                 <p className="text-green-100 mt-1 text-xs">
-                  Tracking: <span className="font-mono font-medium">{packageToUpdatePayment.trackingNumber}</span>
+                  Tracking: <span className="font-mono font-medium">{packageToUpdatePayment.TrackingNumber}</span>
                 </p>
               </div>
 
@@ -1136,12 +990,12 @@ export default function AdminPackagesPage() {
                   </div>
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-xs text-gray-600">Total Amount:</span>
-                    <span className="text-sm font-medium text-gray-900">{formatUsd(packageToUpdatePayment.totalAmount || 0)}</span>
+                    <span className="text-sm font-medium text-gray-900">{formatPkgAmount(packageToUpdatePayment, packageToUpdatePayment.totalAmount || 0)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-600">Amount Paid:</span>
                     <span className={`text-sm font-medium ${(packageToUpdatePayment.amountPaid || 0) > 0 ? 'text-green-600' : 'text-gray-900'}`}>
-                      {formatUsd(packageToUpdatePayment.amountPaid || 0)}
+                      {formatPkgAmount(packageToUpdatePayment, packageToUpdatePayment.amountPaid || 0)}
                     </span>
                   </div>
                 </div>

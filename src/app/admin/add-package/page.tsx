@@ -5,6 +5,11 @@ import { Package, ArrowLeft, Save, Loader2, ChevronDown, AlertCircle, RefreshCw,
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Loading from "@/components/Loading";
+import { CurrencyService } from "@/lib/currency-service";
+import {
+  getCurrencySymbol,
+  packageStatusToFormStatus,
+} from "@/lib/package-format";
 
 interface Customer {
   _id: string;
@@ -47,13 +52,17 @@ interface FormState {
   senderCountry: string;
   itemValue: string;
   totalAmount: string;
+  paymentCurrency: string;
+  branch: string;
+  pieces: string;
   specialInstructions: string;
-  isFragile: boolean;
-  isHazardous: boolean;
-  requiresSignature: boolean;
-  customsRequired: boolean;
-  customsStatus: string;
 }
+
+type CurrencyOption = {
+  code: string;
+  name: string;
+  symbol: string;
+};
 
 const initialForm: FormState = {
   weight: "",
@@ -79,12 +88,10 @@ const initialForm: FormState = {
   senderCountry: "",
   itemValue: "",
   totalAmount: "",
+  paymentCurrency: "USD",
+  branch: "KCD Main Warehouse",
+  pieces: "1",
   specialInstructions: "",
-  isFragile: false,
-  isHazardous: false,
-  requiresSignature: false,
-  customsRequired: false,
-  customsStatus: "not_required",
 };
 
 function AdminAddPackagePageContent() {
@@ -105,6 +112,8 @@ function AdminAddPackagePageContent() {
 
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<FormState>(initialForm);
+  const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
+  const [showPaymentOptions, setShowPaymentOptions] = useState(true);
 
   // ─── Generate tracking number ─────────────────────────────────────────────
   function generateTrackingNumber() {
@@ -121,6 +130,40 @@ function AdminAddPackagePageContent() {
     setTrackingSuccess(true);
     setTimeout(() => setTrackingSuccess(false), 2000);
   }
+
+  async function loadCurrencies() {
+    try {
+      const res = await fetch("/api/currencies", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        const list: CurrencyOption[] = (data.currencies || []).map(
+          (c: { code: string; name: string; symbol: string }) => ({
+            code: c.code,
+            name: c.name,
+            symbol: c.symbol,
+          })
+        );
+        if (list.length > 0) {
+          setCurrencies(list);
+          return;
+        }
+      }
+    } catch {
+      /* fallback below */
+    }
+    setCurrencies(
+      CurrencyService.getAllCurrencies().map((c) => ({
+        code: c.code,
+        name: c.name,
+        symbol: c.symbol,
+      }))
+    );
+  }
+
+  const currencySymbol = getCurrencySymbol(form.paymentCurrency);
+  const selectedCurrencyName =
+    currencies.find((c) => c.code === form.paymentCurrency)?.name ||
+    form.paymentCurrency;
 
   // ─── Load customers ────────────────────────────────────────────────────────
   async function loadCustomers() {
@@ -167,6 +210,8 @@ function AdminAddPackagePageContent() {
   useEffect(() => {
     const run = async () => {
       try {
+        await loadCurrencies();
+
         if (editId) {
           // Load package for editing
           const res = await fetch(`/api/admin/packages/${editId}`, {
@@ -181,35 +226,57 @@ function AdminAddPackagePageContent() {
 
           const packageData = await res.json();
 
-          setTrackingNumber(packageData.trackingNumber || "");
+          setTrackingNumber(
+            packageData.TrackingNumber || packageData.trackingNumber || ""
+          );
 
           setForm({
-            weight: packageData.weight?.toString() || "",
-            shipper: packageData.shipper || "",
-            description: packageData.description || "",
+            weight: String(
+              packageData.weightLbs ??
+                packageData.Weight ??
+                packageData.weight ??
+                ""
+            ),
+            shipper: packageData.Shipper || packageData.shipper || "",
+            branch: packageData.Branch || packageData.branch || "KCD Main Warehouse",
+            pieces: String(packageData.Pieces ?? packageData.pieces ?? 1),
+            description:
+              packageData.Description ||
+              packageData.description ||
+              "",
             itemDescription: packageData.itemDescription || "",
             entryDate:
               packageData.entryDate?.split("T")[0] ||
+              packageData.EntryDate?.split("T")[0] ||
               packageData.dateReceived?.split("T")[0] ||
               new Date().toISOString().slice(0, 10),
-            status: packageData.status || "received",
+            status: packageStatusToFormStatus(
+              packageData.PackageStatus ?? 0,
+              packageData.status
+            ),
             serviceMode: packageData.serviceMode || "air",
             dimensions: {
-              length:
-                packageData.length?.toString() ||
-                packageData.dimensions?.length?.toString() ||
-                "",
-              width:
-                packageData.width?.toString() ||
-                packageData.dimensions?.width?.toString() ||
-                "",
-              height:
-                packageData.height?.toString() ||
-                packageData.dimensions?.height?.toString() ||
-                "",
+              length: String(
+                packageData.dimensions?.length ??
+                  packageData.Length ??
+                  packageData.length ??
+                  ""
+              ),
+              width: String(
+                packageData.dimensions?.width ??
+                  packageData.Width ??
+                  packageData.width ??
+                  ""
+              ),
+              height: String(
+                packageData.dimensions?.height ??
+                  packageData.Height ??
+                  packageData.height ??
+                  ""
+              ),
               unit:
-                packageData.dimensionUnit ||
                 packageData.dimensions?.unit ||
+                packageData.dimensionUnit ||
                 "cm",
             },
             senderName:
@@ -226,29 +293,36 @@ function AdminAddPackagePageContent() {
             senderCountry:
               packageData.senderCountry || packageData.sender?.country || "",
             itemValue:
+              packageData.itemValueUsd?.toString() ||
               packageData.itemValue?.toString() ||
               packageData.value?.toString() ||
               "",
             totalAmount:
-              packageData.totalAmount !== undefined
-                ? packageData.totalAmount.toString()
-                : packageData.itemValue?.toString() || "",
+              packageData.totalAmount !== undefined &&
+              packageData.totalAmount !== null
+                ? String(packageData.totalAmount)
+                : "",
+            paymentCurrency:
+              packageData.pricePaidCurrency ||
+              packageData.paymentCurrency ||
+              "USD",
             specialInstructions: packageData.specialInstructions || "",
-            isFragile: packageData.isFragile || false,
-            isHazardous: packageData.isHazardous || false,
-            requiresSignature:
-              packageData.requiresSignature ||
-              packageData.signatureRequired ||
-              false,
-            customsRequired: packageData.customsRequired || false,
-            customsStatus: packageData.customsStatus || "not_required",
           });
 
+          if (
+            packageData.totalAmount ||
+            packageData.itemValueUsd ||
+            packageData.itemValue
+          ) {
+            setShowPaymentOptions(true);
+          }
+
           // Load associated customer
-          if (packageData.userCode) {
+          const pkgUserCode = packageData.UserCode || packageData.userCode;
+          if (pkgUserCode) {
             try {
               const customerRes = await fetch(
-                `/api/admin/customers?userCode=${packageData.userCode}`,
+                `/api/admin/customers?userCode=${pkgUserCode}`,
                 { cache: "no-store", credentials: "include" }
               );
               if (customerRes.ok) {
@@ -321,7 +395,9 @@ function AdminAddPackagePageContent() {
       const payload = {
         trackingNumber: trackingNumber.trim(),
         ...(customerData && { userCode: customerData.userCode }),
-        weight: form.weight ? Number(form.weight) : undefined,
+        weightLbs: form.weight ? Number(form.weight) : undefined,
+        weightUnit: 'lb',
+        Weight: form.weight ? Number(form.weight) : undefined,
         shipper: form.shipper.trim() || undefined,
         description: form.description.trim() || undefined,
         itemDescription: form.itemDescription.trim() || undefined,
@@ -364,13 +440,15 @@ function AdminAddPackagePageContent() {
           country: form.senderCountry.trim() || undefined,
         },
         contents: form.description.trim() || undefined,
+        itemValueUSD: form.itemValue ? Number(form.itemValue) : undefined,
         value: form.itemValue ? Number(form.itemValue) : undefined,
         specialInstructions: form.specialInstructions.trim() || undefined,
-        isFragile: form.isFragile,
-        isHazardous: form.isHazardous,
-        requiresSignature: form.requiresSignature,
-        customsRequired: form.customsRequired,
-        customsStatus: form.customsStatus,
+        paymentCurrency: form.paymentCurrency,
+        amountPaidCurrency: form.paymentCurrency,
+        Branch: form.branch.trim() || "KCD Main Warehouse",
+        branch: form.branch.trim() || "KCD Main Warehouse",
+        Pieces: form.pieces ? Number(form.pieces) : 1,
+        pieces: form.pieces ? Number(form.pieces) : 1,
         // Legacy compatibility fields
         itemValue: form.itemValue ? Number(form.itemValue) : undefined,
         senderName: form.senderName.trim() || undefined,
@@ -672,6 +750,49 @@ function AdminAddPackagePageContent() {
                 </div>
               )}
 
+              {/* Weight (pounds) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Weight (lb) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
+                  className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  placeholder="e.g. 5.5"
+                  value={form.weight}
+                  onChange={(e) =>
+                    setForm({ ...form, weight: e.target.value })
+                  }
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Package weight in pounds (lb)
+                </p>
+              </div>
+
+              {/* Item value */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Item value
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  placeholder="0.00"
+                  value={form.itemValue}
+                  onChange={(e) =>
+                    setForm({ ...form, itemValue: e.target.value })
+                  }
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Declared value in selected payment currency
+                </p>
+              </div>
+
               {/* Shipper */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -685,6 +806,37 @@ function AdminAddPackagePageContent() {
                     setForm({ ...form, shipper: e.target.value })
                   }
                 />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Branch / Warehouse
+                  </label>
+                  <input
+                    type="text"
+                    className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    value={form.branch}
+                    onChange={(e) =>
+                      setForm({ ...form, branch: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Pieces
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    value={form.pieces}
+                    onChange={(e) =>
+                      setForm({ ...form, pieces: e.target.value })
+                    }
+                  />
+                </div>
               </div>
 
               {/* Service Mode */}
@@ -713,22 +865,62 @@ function AdminAddPackagePageContent() {
               {/* Total Amount */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Total Amount (USD)
+                  Total amount
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                  placeholder="0.00"
-                  value={form.totalAmount}
-                  onChange={(e) =>
-                    setForm({ ...form, totalAmount: e.target.value })
-                  }
-                />
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-500">
+                    {currencySymbol}
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="block w-full rounded-lg border-2 border-gray-300 pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    placeholder="0.00"
+                    value={form.totalAmount}
+                    onFocus={() => setShowPaymentOptions(true)}
+                    onChange={(e) => {
+                      setShowPaymentOptions(true);
+                      setForm({ ...form, totalAmount: e.target.value });
+                    }}
+                  />
+                </div>
                 <p className="text-xs text-gray-500 mt-1">
                   Total payment amount for this package
                 </p>
               </div>
+
+              {showPaymentOptions && (
+                <div className="rounded-xl border-2 border-blue-100 bg-blue-50/50 p-4 space-y-3">
+                  <h4 className="text-sm font-semibold text-gray-900">Payment currency</h4>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select currency
+                    </label>
+                    <div className="relative">
+                      <select
+                        className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none bg-white"
+                        value={form.paymentCurrency}
+                        onChange={(e) =>
+                          setForm({ ...form, paymentCurrency: e.target.value })
+                        }
+                      >
+                        {currencies.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.name} ({c.code}) — {c.symbol}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                        <ChevronDown className="h-5 w-5 text-gray-400" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Amounts use {selectedCurrencyName} ({form.paymentCurrency}) — symbol {currencySymbol}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Dimensions */}
               <div className="space-y-4">
@@ -871,58 +1063,6 @@ function AdminAddPackagePageContent() {
                     setForm({ ...form, specialInstructions: e.target.value })
                   }
                 />
-              </div>
-
-              {/* Package Options */}
-              <div>
-                <h4 className="text-md font-semibold text-gray-900 mb-3">
-                  Package Options
-                </h4>
-                <div className="space-y-3">
-                  {(
-                    [
-                      { field: "isFragile", label: "Fragile — Handle with care" },
-                      { field: "isHazardous", label: "Hazardous Material" },
-                      { field: "requiresSignature", label: "Signature Required" },
-                      { field: "customsRequired", label: "Customs Required" },
-                    ] as const
-                  ).map(({ field, label }) => (
-                    <label key={field} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3"
-                        checked={form[field] as boolean}
-                        onChange={(e) =>
-                          setForm({ ...form, [field]: e.target.checked })
-                        }
-                      />
-                      <span className="text-sm text-gray-700">{label}</span>
-                    </label>
-                  ))}
-
-                  {/* Customs Status */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Customs Status
-                    </label>
-                    <div className="relative">
-                      <select
-                        className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
-                        value={form.customsStatus}
-                        onChange={(e) =>
-                          setForm({ ...form, customsStatus: e.target.value })
-                        }
-                      >
-                        <option value="not_required">Not Required</option>
-                        <option value="pending">Pending</option>
-                        <option value="cleared">Cleared</option>
-                      </select>
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                        <ChevronDown className="h-5 w-5 text-gray-400" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
 
               {/* ─── FIX 9: Added missing "Sender Information" section header ─── */}

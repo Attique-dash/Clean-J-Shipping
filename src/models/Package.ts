@@ -1,296 +1,49 @@
-// src/models/Package.ts
+// src/models/Package.ts — KCD / Tasoko PascalCase package schema
 import { Schema, model, models, Document, Types } from "mongoose";
 
-export type PackageStatus =
-  | 'pending'
-  | 'At Warehouse'
-  | 'pre_alerted'
-  | 'received'
-  | 'in_storage'
-  | 'in_processing'
-  | 'ready_to_ship'
-  | 'shipped'
-  | 'in_transit'
-  | 'customs_pending'
-  | 'customs_cleared'
-  | 'ready_for_delivery'
-  | 'out_for_delivery'
-  | 'delivered'
-  | 'exception'
-  | 'returned'
-  | 'lost'
-  | 'damaged'
-  | 'unknown'
-  | 'At Warehouse'
-  | 'In Transit'
-  | 'At Local Port'
-  | 'Delivered'
-  | 'Unknown'
-  | 'Deleted';
-export type PackageType = 'document' | 'parcel' | 'freight' | 'pallet';
-export type ServiceType = 'standard' | 'express' | 'overnight' | 'same_day';
-export type ServiceMode = 'air' | 'ocean' | 'local';
-export type DeliveryType = 'pickup' | 'delivery' | 'door_to_door' | 'warehouse_pickup';
-export type PaymentStatus = 'pending' | 'paid' | 'partially_paid' | 'refunded' | 'cancelled';
-export type CustomsStatus = 'not_required' | 'pending' | 'cleared';
-
 export interface IPackage extends Document {
-  // Basic Information
-  trackingNumber: string;
-  referenceNumber?: string;
-  barcode?: string;
-  
-  // Customer Information
-  userId: Types.ObjectId;
-  customerNotes?: string;
-  
-  // Sender Information
-  senderType: string;
-  senderName: string;
-  senderCompany?: string;
-  senderPhone: string;
-  senderEmail?: string;
-  senderAddress: string;
-  senderCity: string;
-  senderState: string;
-  senderZipCode: string;
-  senderCountry: string;
-  
-  // Receiver Information
-  receiverName: string;
-  receiverCompany?: string;
-  receiverPhone: string;
-  receiverEmail?: string;
-  receiverAddress: string;
-  receiverCity: string;
-  receiverState: string;
-  receiverZipCode: string;
-  receiverCountry: string;
-  
-  // Package Details
-  weight: number;
-  volumetricWeight?: number;
-  length?: number;
-  width?: number;
-  height?: number;
-  dimensionUnit: string;
-  weightUnit: string;
-  itemDescription: string;
-  itemCategory?: string;
-  itemQuantity: number;
-  itemValue?: number;
-  hsCode?: string;
-  
-  // Service Details
-  packageType: PackageType;
-  serviceType: ServiceType;
-  deliveryType: DeliveryType;
-  shippingMethod?: string;
-  
-  // Consolidation
-  isConsolidated: boolean;
-  consolidationId?: string;
-  originalPackages?: string[];
-  
-  // Warehouse Details
-  warehouseLocation?: string;
-  dateReceived?: Date;
-  receivedBy?: string;
+  PackageID?: string;
+  CourierID?: string;
+  ManifestID?: string;
+  CollectionID?: string;
+  TrackingNumber: string;
+  ControlNumber?: string;
+  FirstName?: string;
+  LastName?: string;
+  UserCode?: string;
+  Weight?: number;
+  Shipper?: string;
+  EntryStaff?: string;
+  EntryDate?: Date;
+  EntryDateTime?: Date;
+  Branch?: string;
+  Claimed?: boolean;
+  APIToken?: string;
+  ShowControls?: boolean;
+  ManifestCode?: string;
+  CollectionCode?: string;
+  Description?: string;
+  HSCode?: string;
+  Unknown?: boolean;
+  AIProcessed?: boolean;
+  OriginalHouseNumber?: string;
+  Cubes?: number;
+  Length?: number;
+  Width?: number;
+  Height?: number;
+  Pieces?: number;
+  Discrepancy?: boolean;
+  DiscrepancyDescription?: string;
+  ServiceTypeID?: string;
+  HazmatCodeID?: string;
+  Coloaded?: boolean;
+  ColoadIndicator?: string;
+  PackageStatus?: number;
+  PackagePayments?: string;
 
-  mailboxNumber?: string;
-  serviceMode?: ServiceMode;
-  
-  // Customs Information
-  isInternational: boolean;
-  customsValue?: number;
-  dutiesAndTaxes?: number;
-  invoiceNumber?: string;
-
-  customsRequired?: boolean;
-  customsStatus?: CustomsStatus;
-  customsClearanceDate?: Date;
-  dutyAmount?: number;
-  customsDocuments?: Array<{
-    name?: string;
-    url?: string;
-    uploadedAt?: Date;
-  }>;
-  
-  // International Shipping Fields (NEW)
-  countryOfOrigin?: string; // Country where goods were manufactured
-  countryOfDestination?: string; // Auto-detected from receiverCountry
-  exportLicenseNumber?: string; // Required for certain goods
-  importLicenseNumber?: string; // Required for certain goods
-  certificateOfOrigin?: string; // Certificate of origin document URL
-  dangerousGoods?: boolean; // Whether package contains dangerous goods
-  dangerousGoodsClass?: string; // UN class for dangerous goods (e.g., "Class 3", "Class 8")
-  dangerousGoodsUnNumber?: string; // UN number for dangerous goods
-  exportDeclarationNumber?: string; // Export declaration number
-  importDeclarationNumber?: string; // Import declaration number
-  
-  // Payment & Pricing
-  shippingCost: number;
-  insurance: number;
-  tax: number;
-  discount: number;
-  totalAmount: number;
-  paymentMethod: string;
-  paymentStatus: PaymentStatus;
-  paymentDueDate?: Date;
-
-  amountPaid?: number;
-  deliveryFee?: number;
-  additionalFees?: Array<{
-    label?: string;
-    amount?: number;
-  }>;
-  
-  // Status & Tracking
-  status: PackageStatus;
-  statusReason?: string;
-  currentLocation?: string;
-  lastScan?: Date;
-  estimatedDelivery?: Date;
-  actualDelivery?: Date;
-  pickupDate?: Date;
-  
-  // Additional Information
-  specialInstructions?: string;
-  signatureRequired: boolean;
-  signatureImage?: string;
-  proofOfDelivery?: string;
-  damageNotes?: string;
-  returnReason?: string;
-
-  condition?: 'good' | 'damaged';
-  photos?: Array<{
-    url?: string;
-    caption?: string;
-    uploadedAt?: Date;
-    uploadedBy?: string;
-  }>;
-
-  internalNotes?: Array<{
-    text: string;
-    createdAt: Date;
-    createdBy?: string;
-  }>;
-  
-  // Flags
-  isFragile: boolean;
-  isHazardous: boolean;
-  requiresSignature: boolean;
-  isPriority: boolean;
-  
-  // Missing fields from errors
-  userCode?: string;
+  /** Internal relations — not part of KCD webhook payload */
+  userId?: Types.ObjectId;
   customer?: Types.ObjectId;
-  entryDate?: Date;
-  description?: string;
-  origin?: {
-    coordinates?: {
-      type: string;
-      coordinates: [number, number];
-    };
-    address?: string;
-  };
-  destination?: {
-    coordinates?: {
-      type: string;
-      coordinates: [number, number];
-    };
-    address?: string;
-  };
-  carrier?: string;
-  shipper?: string;
-  invoiceRecords?: Array<{
-    invoiceNumber?: string;
-    invoiceDate?: Date | string;
-    currency?: string;
-    totalValue?: number;
-    status?: string;
-    amountPaid?: number;
-    lastPaymentDate?: Date;
-    paymentMethod?: string;
-    paypalOrderId?: string;
-    paymentDate?: Date;
-  }>;
-  invoiceDocuments?: unknown[];
-  history?: Array<{
-    status: string;
-    at: Date;
-    note?: string;
-  }>;
-  recipient?: {
-    name: string;
-    email?: string;
-    shippingId?: string;
-    phone?: string;
-    address?: string;
-  };
-  sender?: {
-    name: string;
-    email?: string;
-    phone?: string;
-    address?: string;
-  };
-  dimensions?: {
-    length?: number;
-    width?: number;
-    height?: number;
-    unit?: string;
-    weight?: number;
-    weightUnit?: string;
-  };
-  contents?: string;
-  value?: number;
-  manifestId?: string;
-  branch?: string;
-  entryStaff?: string;
-  
-  // Invoice Upload Fields
-  invoiceUploaded?: boolean;
-  invoiceFiles?: {
-    url: string;
-    publicId: string;
-    filename: string;
-    size: number;
-    uploadedAt: Date;
-  }[];
-  pricePaid?: number;
-  pricePaidCurrency?: string;
-  invoiceSubmittedAt?: Date;
-  invoiceStatus?: 'pending' | 'submitted' | 'approved' | 'rejected' | 'billed';
-  invoiceReviewedAt?: Date;
-  invoiceReviewedBy?: string;
-  invoiceRejectionReason?: string;
-  
-  // Billing Fields
-  billId?: string;
-  billStatus?: 'pending' | 'paid' | 'refunded';
-  
-  // Cart Fields
-  cartStatus?: 'in-cart';
-  cartAddedAt?: Date;
-  
-  // Warehouse-specific fields
-  controlNumber?: string;
-  courierId?: string;
-  collectionId?: string;
-  serviceTypeId?: string;
-  hazmatCodeId?: string;
-  cubes?: number;
-  pieces?: number;
-  claimed?: boolean;
-  unknown?: boolean;
-  aiProcessed?: boolean;
-  discrepancy?: boolean;
-  discrepancyDescription?: string;
-  coloaded?: boolean;
-  coloadIndicator?: string;
-  packagePayments?: string;
-  
-  // Source tracking for KCD sync visibility
   source?: 'manual' | 'kcd_webhook' | 'api' | 'bulk_upload';
   sourceDetails?: {
     webhookId?: string;
@@ -299,307 +52,127 @@ export interface IPackage extends Document {
     syncStatus?: 'pending' | 'synced' | 'failed';
     lastSyncError?: string;
   };
-  
+
+  /** Legacy camelCase aliases (strict:false schema; used by admin/warehouse routes during migration) */
+  trackingNumber?: string;
+  userCode?: string;
+  weight?: number;
+  shipper?: string;
+  description?: string;
+  status?: PackageStatus | string;
+  length?: number;
+  width?: number;
+  height?: number;
+  branch?: string;
+  entryDate?: Date;
+  entryStaff?: string;
+  cubes?: number;
+  pieces?: number;
+  hsCode?: string;
+  manifestId?: string;
+  controlNumber?: string;
+  courierId?: string;
+  collectionId?: string;
+  claimed?: boolean;
+  unknown?: boolean;
+  aiProcessed?: boolean;
+  discrepancy?: boolean;
+  discrepancyDescription?: string;
+  coloaded?: boolean;
+  coloadIndicator?: string;
+  packagePayments?: string;
+  history?: Array<{ status: string; at: Date; note?: string }>;
+
   createdAt: Date;
   updatedAt: Date;
 }
 
+/** @deprecated Use numeric PackageStatus on KCD packages */
+export type PackageStatus =
+  | 'pending'
+  | 'received'
+  | 'in_transit'
+  | 'delivered'
+  | 'At Warehouse'
+  | 'At Local Port'
+  | 'In Transit'
+  | 'Delivered'
+  | 'Unknown';
+
 const PackageSchema = new Schema<IPackage>(
   {
-    // Basic Information
-    trackingNumber: {
+    PackageID: { type: String, trim: true },
+    CourierID: { type: String, trim: true },
+    ManifestID: { type: String, trim: true },
+    CollectionID: { type: String, trim: true },
+    TrackingNumber: {
       type: String,
       required: true,
       unique: true,
       trim: true,
       uppercase: true,
     },
-    referenceNumber: { type: String, trim: true },
-    barcode: { type: String, trim: true },
-    
-    // Customer Information
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    customerNotes: { type: String, trim: true },
-    
-    // Sender Information
-    senderType: { type: String, enum: ['customer', 'warehouse', 'third_party'], default: 'customer' },
-    senderName: { type: String, required: true, trim: true },
-    senderCompany: { type: String, trim: true },
-    senderPhone: { type: String, required: true, trim: true },
-    senderEmail: { type: String, trim: true, lowercase: true },
-    senderAddress: { type: String, required: true, trim: true },
-    senderCity: { type: String, required: true, trim: true },
-    senderState: { type: String, required: true, trim: true },
-    senderZipCode: { type: String, required: true, trim: true },
-    senderCountry: { type: String },
-    
-    // Receiver Information
-    receiverName: { type: String, required: true, trim: true },
-    receiverCompany: { type: String, trim: true },
-    receiverPhone: { type: String, required: true, trim: true },
-    receiverEmail: { type: String, trim: true, lowercase: true },
-    receiverAddress: { type: String, required: true, trim: true },
-    receiverCity: { type: String, required: true, trim: true },
-    receiverState: { type: String, required: true, trim: true },
-    receiverZipCode: { type: String, required: true, trim: true },
-    receiverCountry: { type: String },
-    
-    // Package Details
-    weight: { type: Number, required: true, min: 0 },
-    volumetricWeight: { type: Number, min: 0 },
-    length: { type: Number, min: 0 },
-    width: { type: Number, min: 0 },
-    height: { type: Number, min: 0 },
-    dimensionUnit: { type: String, enum: ['cm', 'in'], default: 'cm' },
-    weightUnit: { type: String, enum: ['kg', 'lb'], default: 'kg' },
-    itemDescription: { type: String, required: true, trim: true },
-    itemCategory: { type: String, trim: true },
-    itemQuantity: { type: Number, default: 1, min: 1 },
-    itemValue: { type: Number, min: 0 },
-    hsCode: { type: String, trim: true },
-    
-    // Service Details
-    packageType: { type: String, enum: ['document', 'parcel', 'freight', 'pallet'], default: 'parcel' },
-    serviceType: { type: String, enum: ['standard', 'express', 'overnight', 'same_day'], default: 'standard' },
-    deliveryType: { type: String, enum: ['pickup', 'delivery', 'door_to_door', 'warehouse_pickup'], default: 'door_to_door' },
-    shippingMethod: { type: String, trim: true },
-    
-    // Consolidation
-    isConsolidated: { type: Boolean, default: false },
-    consolidationId: { type: Schema.Types.ObjectId, ref: 'Package' },
-    originalPackages: [{ type: Schema.Types.ObjectId, ref: 'Package' }],
-    
-    // Warehouse Details
-    warehouseLocation: { type: String, trim: true },
-    dateReceived: { type: Date },
-    receivedBy: { type: String, trim: true },
+    ControlNumber: { type: String, trim: true },
+    FirstName: { type: String, trim: true },
+    LastName: { type: String, trim: true },
+    UserCode: { type: String, trim: true, index: true },
+    Weight: { type: Number, min: 0, default: 0 },
+    Shipper: { type: String, trim: true },
+    EntryStaff: { type: String, trim: true },
+    EntryDate: { type: Date },
+    EntryDateTime: { type: Date },
+    Branch: { type: String, trim: true },
+    Claimed: { type: Boolean, default: false },
+    APIToken: { type: String, trim: true },
+    ShowControls: { type: Boolean, default: false },
+    ManifestCode: { type: String, trim: true },
+    CollectionCode: { type: String, trim: true },
+    Description: { type: String, trim: true },
+    HSCode: { type: String, trim: true },
+    Unknown: { type: Boolean, default: false },
+    AIProcessed: { type: Boolean, default: false },
+    OriginalHouseNumber: { type: String, trim: true },
+    Cubes: { type: Number, min: 0, default: 0 },
+    Length: { type: Number, min: 0, default: 0 },
+    Width: { type: Number, min: 0, default: 0 },
+    Height: { type: Number, min: 0, default: 0 },
+    Pieces: { type: Number, min: 0, default: 1 },
+    Discrepancy: { type: Boolean, default: false },
+    DiscrepancyDescription: { type: String, trim: true },
+    ServiceTypeID: { type: String, trim: true },
+    HazmatCodeID: { type: String, trim: true },
+    Coloaded: { type: Boolean, default: false },
+    ColoadIndicator: { type: String, trim: true },
+    PackageStatus: { type: Number, default: 0 },
+    PackagePayments: { type: String, trim: true, default: '' },
 
-    mailboxNumber: { type: String, trim: true },
-    serviceMode: { type: String, enum: ['air', 'ocean', 'local'], default: 'air' },
-    
-    // Customs Information
-    isInternational: { type: Boolean, default: false },
-    customsValue: { type: Number, min: 0 },
-    dutiesAndTaxes: { type: Number, min: 0 },
-    invoiceNumber: { type: String, trim: true },
-
-    customsRequired: { type: Boolean, default: false },
-    customsStatus: { type: String, enum: ['not_required', 'pending', 'cleared'], default: 'not_required' },
-    customsClearanceDate: { type: Date },
-    dutyAmount: { type: Number, min: 0 },
-    customsDocuments: [{
-      name: { type: String, trim: true },
-      url: { type: String, trim: true },
-      uploadedAt: { type: Date },
-    }],
-    
-    // International Shipping Fields (NEW)
-    countryOfOrigin: { type: String, trim: true },
-    countryOfDestination: { type: String, trim: true },
-    exportLicenseNumber: { type: String, trim: true },
-    importLicenseNumber: { type: String, trim: true },
-    certificateOfOrigin: { type: String, trim: true },
-    dangerousGoods: { type: Boolean, default: false },
-    dangerousGoodsClass: { type: String, trim: true },
-    dangerousGoodsUnNumber: { type: String, trim: true },
-    exportDeclarationNumber: { type: String, trim: true },
-    importDeclarationNumber: { type: String, trim: true },
-    
-    // Payment & Pricing
-    shippingCost: { type: Number, required: true, min: 0 },
-    insurance: { type: Number, default: 0, min: 0 },
-    tax: { type: Number, default: 0, min: 0 },
-    discount: { type: Number, default: 0, min: 0 },
-    totalAmount: { type: Number, required: true, min: 0 },
-    paymentMethod: { type: String, required: true, trim: true },
-    paymentStatus: { type: String, enum: ['pending', 'paid', 'partially_paid', 'refunded', 'cancelled'], default: 'pending' },
-    paymentDueDate: { type: Date },
-
-    amountPaid: { type: Number, default: 0, min: 0 },
-    deliveryFee: { type: Number, default: 0, min: 0 },
-    additionalFees: [{
-      label: { type: String, trim: true },
-      amount: { type: Number, min: 0 },
-    }],
-    
-    // Status & Tracking
-    status: { 
-      type: String, 
-      enum: [
-        'pending',
-        'At Warehouse',
-        'pre_alerted',
-        'received',
-        'in_storage',
-        'in_processing',
-        'ready_to_ship',
-        'shipped',
-        'in_transit',
-        'customs_pending',
-        'customs_cleared',
-        'ready_for_delivery',
-        'out_for_delivery',
-        'delivered',
-        'exception',
-        'returned',
-        'lost',
-        'damaged',
-        'unknown',
-        'At Warehouse',
-        'In Transit',
-        'At Local Port',
-        'Delivered',
-        'Unknown',
-        'Deleted',
-      ],
-      default: 'received',
-      required: true 
-    },
-    statusReason: { type: String, trim: true },
-    currentLocation: { type: String, trim: true },
-    lastScan: { type: Date },
-    estimatedDelivery: { type: Date },
-    actualDelivery: { type: Date },
-    pickupDate: { type: Date },
-    
-    // Additional Information
-    specialInstructions: { type: String, trim: true },
-    signatureRequired: { type: Boolean, default: false },
-    signatureImage: { type: String, trim: true },
-    proofOfDelivery: { type: String, trim: true },
-    damageNotes: { type: String, trim: true },
-    returnReason: { type: String, trim: true },
-
-    condition: { type: String, enum: ['good', 'damaged'], default: 'good' },
-    photos: [{
-      url: { type: String, trim: true },
-      caption: { type: String, trim: true },
-      uploadedAt: { type: Date },
-      uploadedBy: { type: String, trim: true },
-    }],
-    internalNotes: [{
-      text: { type: String, required: true, trim: true },
-      createdAt: { type: Date, required: true },
-      createdBy: { type: String, trim: true },
-    }],
-    
-    // Flags
-    isFragile: { type: Boolean, default: false },
-    isHazardous: { type: Boolean, default: false },
-    requiresSignature: { type: Boolean, default: false },
-    isPriority: { type: Boolean, default: false },
-    
-    // Additional fields for warehouse form
-    userCode: { type: String, trim: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
     customer: { type: Schema.Types.ObjectId, ref: 'User' },
-    entryDate: { type: Date },
-    description: { type: String, trim: true },
-    shipper: { type: String, trim: true },
-    history: [{
-      status: { type: String, required: true },
-      at: { type: Date, required: true },
-      note: { type: String, trim: true }
-    }],
-    recipient: {
-      name: { type: String, trim: true },
-      email: { type: String, trim: true, lowercase: true },
-      shippingId: { type: String, trim: true },
-      phone: { type: String, trim: true },
-      address: { type: String, trim: true }
-    },
-    sender: {
-      name: { type: String, trim: true },
-      email: { type: String, trim: true, lowercase: true },
-      phone: { type: String, trim: true },
-      address: { type: String, trim: true }
-    },
-    dimensions: {
-      length: { type: Number, min: 0 },
-      width: { type: Number, min: 0 },
-      height: { type: Number, min: 0 },
-      unit: { type: String, enum: ['cm', 'in'], default: 'cm' },
-      weight: { type: Number, min: 0 },
-      weightUnit: { type: String, enum: ['kg', 'lb'], default: 'kg' }
-    },
-    contents: { type: String, trim: true },
-    value: { type: Number, min: 0 },
-    manifestId: { type: Schema.Types.ObjectId, ref: 'Manifest' },
-    branch: { type: String, trim: true },
-    entryStaff: { type: String, trim: true },
-    
-    // Invoice Upload Fields
-    invoiceUploaded: { type: Boolean, default: false },
-    invoiceFiles: [{
-      url: { type: String, required: true, trim: true },
-      publicId: { type: String, required: true, trim: true },
-      filename: { type: String, required: true, trim: true },
-      size: { type: Number, required: true, min: 0 },
-      uploadedAt: { type: Date, default: Date.now }
-    }],
-    pricePaid: { type: Number, min: 0, default: 0 },
-    pricePaidCurrency: { type: String, trim: true, default: 'USD' },
-    invoiceSubmittedAt: { type: Date },
-    invoiceStatus: { 
-      type: String, 
-      enum: ['pending', 'submitted', 'approved', 'rejected', 'billed'], 
-      default: 'pending' 
-    },
-    invoiceReviewedAt: { type: Date },
-    invoiceReviewedBy: { type: String, trim: true },
-    invoiceRejectionReason: { type: String, trim: true },
-    
-    // Billing Fields
-    billId: { type: String, trim: true },
-    billStatus: { type: String, enum: ['pending', 'paid', 'refunded'], trim: true },
-    
-    // Cart Fields
-    cartStatus: { type: String, enum: ['in-cart'], trim: true },
-    cartAddedAt: { type: Date },
-    
-    // Warehouse-specific fields
-    controlNumber: { type: String, trim: true },
-    courierId: { type: String, trim: true },
-    collectionId: { type: String, trim: true },
-    serviceTypeId: { type: String, trim: true },
-    hazmatCodeId: { type: String, trim: true },
-    cubes: { type: Number, min: 0 },
-    pieces: { type: Number, min: 0, default: 1 },
-    claimed: { type: Boolean, default: false },
-    unknown: { type: Boolean, default: false },
-    aiProcessed: { type: Boolean, default: false },
-    discrepancy: { type: Boolean, default: false },
-    discrepancyDescription: { type: String, trim: true },
-    coloaded: { type: Boolean, default: false },
-    coloadIndicator: { type: String, trim: true },
-    packagePayments: { type: String, trim: true },
-    
-    // Source tracking for KCD sync visibility
-    source: { 
-      type: String, 
-      enum: ['manual', 'kcd_webhook', 'api', 'bulk_upload'], 
+    source: {
+      type: String,
+      enum: ['manual', 'kcd_webhook', 'api', 'bulk_upload'],
       default: 'manual',
-      trim: true 
+      trim: true,
     },
     sourceDetails: {
       webhookId: { type: String, trim: true },
       apiEndpoint: { type: String, trim: true },
       syncedAt: { type: Date },
-      syncStatus: { 
-        type: String, 
-        enum: ['pending', 'synced', 'failed'], 
-        default: 'synced' 
+      syncStatus: {
+        type: String,
+        enum: ['pending', 'synced', 'failed'],
+        default: 'synced',
       },
-      lastSyncError: { type: String, trim: true }
+      lastSyncError: { type: String, trim: true },
     },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 );
 
-// Add indexes (remove duplicates - unique trackingNumber is already defined in schema)
 PackageSchema.index({ userId: 1 });
-PackageSchema.index({ status: 1 });
+PackageSchema.index({ PackageStatus: 1 });
 PackageSchema.index({ createdAt: -1 });
-PackageSchema.index({ currentLocation: 1 });
+PackageSchema.index({ Branch: 1 });
 
 const PackageModel =
   (models && models.Package) ||

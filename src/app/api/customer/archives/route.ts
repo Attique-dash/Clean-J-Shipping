@@ -80,7 +80,7 @@ export async function GET(req: Request) {
       const payment_status: Bill["payment_status"] = docs.length > 0 ? "submitted" : "none";
       return [
         {
-          tracking_number: pkg.trackingNumber,
+          tracking_number: pkg.trackingNumber || pkg.TrackingNumber || '',
           description: (pkg as any).description,
           amount_due: 0,
           payment_status,
@@ -91,7 +91,7 @@ export async function GET(req: Request) {
     const latest = recs[recs.length - 1];
     return [
       {
-        tracking_number: pkg.trackingNumber,
+        tracking_number: pkg.trackingNumber || pkg.TrackingNumber || '',
         description: (pkg as any).description,
         invoice_number: latest.invoiceNumber,
         invoice_date: latest.invoiceDate ? new Date(latest.invoiceDate).toISOString() : undefined,

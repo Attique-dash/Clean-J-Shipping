@@ -6,6 +6,13 @@ import { User } from "@/models/User";
 import Invoice from "@/models/Invoice";
 import { InventoryService } from "@/lib/inventory-service";
 import { CurrencyService } from "@/lib/currency-service";
+import { buildBillingInvoicePayload } from "@/lib/package-billing";
+import {
+  toKcdPackageArray,
+  packageTextSearchOr,
+  buildKcdPackageDocument,
+  getDocTrackingNumber,
+} from "@/lib/package-format";
 
 function asString(value: unknown): string {
   if (typeof value === 'string') return value;
@@ -95,90 +102,28 @@ function calculateTotalAmount(itemValueUSD: number, weightKg: number, targetCurr
   };
 }
 
-async function createBillingInvoice(packageData: any, user: any, trackingNumber: string) {
+async function createBillingInvoice(
+  packageData: Record<string, unknown>,
+  user: {
+    _id: unknown;
+    userCode?: string;
+    firstName?: string;
+    lastName?: string;
+    email: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    country?: string;
+  },
+  trackingNumber: string
+) {
   try {
-    const itemValueUSD = asNumber(packageData.value) || 0;
-    const weightKg = asNumber(packageData.weight) || 0;
-    
-    // Use standardized currency service for calculations
-    const costBreakdown = CurrencyService.calculateTotalPackageCost(itemValueUSD, weightKg, 'JMD');
-    
-    // Create invoice items
-    const invoiceItems = [];
-    
-    // Item value
-    if (costBreakdown.itemValueJMD > 0) {
-      invoiceItems.push({
-        description: `Item value (${packageData.itemDescription || 'Package contents'})`,
-        quantity: 1,
-        unitPrice: costBreakdown.itemValueJMD,
-        taxRate: 0,
-        amount: costBreakdown.itemValueJMD,
-        taxAmount: 0,
-        total: costBreakdown.itemValueJMD
-      });
-    }
-    
-    // Shipping charges
-    if (costBreakdown.shippingCostJMD > 0) {
-      const weightLbs = weightKg * 2.20462;
-      invoiceItems.push({
-        description: `Shipping charges (${weightLbs.toFixed(1)} lbs)`,
-        quantity: 1,
-        unitPrice: costBreakdown.shippingCostJMD,
-        taxRate: 0,
-        amount: costBreakdown.shippingCostJMD,
-        taxAmount: 0,
-        total: costBreakdown.shippingCostJMD
-      });
-    }
-    
-    // Customs duty
-    if (costBreakdown.customsDutyJMD > 0) {
-      invoiceItems.push({
-        description: `Customs duty (${itemValueUSD > 100 ? '15%' : '0%'} of item value)`,
-        quantity: 1,
-        unitPrice: costBreakdown.customsDutyJMD,
-        taxRate: 0,
-        amount: costBreakdown.customsDutyJMD,
-        taxAmount: 0,
-        total: costBreakdown.customsDutyJMD
-      });
-    }
-    
-    // Create billing invoice
-    const invoiceData = {
-      userId: user._id,
-      customer: {
-        id: user._id.toString(),
-        name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
-        email: user.email,
-        phone: user.phone,
-        address: user.address,
-        city: user.city,
-        country: user.country,
-      },
-      package: {
-        trackingNumber: trackingNumber,
-        userCode: user.userCode,
-      },
-      invoiceType: "billing",
-      currency: "JMD", // Always store in JMD as base currency
-      subtotal: costBreakdown.itemValueJMD,
-      taxTotal: 0, // No tax for now
-      discountAmount: 0,
-      total: costBreakdown.totalJMD,
-      amountPaid: 0,
-      balanceDue: costBreakdown.totalJMD,
-      items: invoiceItems,
-      notes: `Auto-generated invoice for package ${trackingNumber}`,
-      issueDate: new Date().toISOString(),
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
-    };
-    
+    const invoiceData = buildBillingInvoicePayload(packageData, user, trackingNumber);
+    if (!invoiceData) return null;
+
     const invoice = new Invoice(invoiceData);
     await invoice.save();
-    
+
     console.log(`Created billing invoice ${invoice.invoiceNumber} for package ${trackingNumber}`);
     return invoice;
   } catch (error) {
@@ -223,56 +168,40 @@ export async function GET(req: Request) {
     
     if (q) {
       const regex = new RegExp(escapeRegex(q), "i");
+      filter.$or = packageTextSearchOr(regex);
+    }
+
+    const statusToPackageStatus: Record<string, number> = {
+      received: 0,
+      in_processing: 0,
+      ready_to_ship: 1,
+      shipped: 2,
+      in_transit: 2,
+      delivered: 4,
+    };
+
+    if (statuses) {
+      const list = statuses.split(',').map((s) => s.trim()).filter(Boolean);
+      const numericStatuses = list
+        .map((s) => statusToPackageStatus[s])
+        .filter((n) => n !== undefined);
+      if (list.length > 0) {
+        filter.$or = [
+          ...(Array.isArray(filter.$or) ? (filter.$or as unknown[]) : []),
+          { PackageStatus: { $in: numericStatuses } },
+          { status: { $in: list } },
+        ];
+      }
+    } else if (status) {
+      const num = statusToPackageStatus[status];
       filter.$or = [
-        { trackingNumber: regex },
-        { description: regex },
-        { shipper: regex },
-        { controlNumber: regex },
-        { userCode: regex },
-        { mailboxNumber: regex },
-        { receiverName: regex },
-        { receiverPhone: regex },
+        ...(Array.isArray(filter.$or) ? (filter.$or as unknown[]) : []),
+        ...(num !== undefined ? [{ PackageStatus: num }, { status }] : [{ status }]),
       ];
     }
 
-    // status: single status for backward compatibility
-    // statuses: comma-separated list (multi-select)
-    if (statuses) {
-      const list = statuses
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-      if (list.length > 0) {
-        filter.status = { $in: list, $ne: "returned" };
-      }
-    } else if (status) {
-      filter.status = status;
-    } else {
-      // Ensure we always exclude returned packages unless explicitly requested
-      if (!filter.status || (typeof filter.status === 'object' && !('$ne' in filter.status))) {
-        filter.status = { $ne: "returned" };
-      }
-    }
-
-    if (serviceMode) {
-      filter.serviceMode = serviceMode;
-    }
-
     if (warehouseLocation) {
-      filter.warehouseLocation = warehouseLocation;
-    }
-
-    if (customsStatus) {
-      filter.customsStatus = customsStatus;
-    }
-
-    if (customsRequired) {
-      if (customsRequired === 'yes') filter.customsRequired = true;
-      if (customsRequired === 'no') filter.customsRequired = false;
-    }
-
-    if (paymentStatus) {
-      filter.paymentStatus = paymentStatus;
+      filter.Branch = warehouseLocation;
     }
 
     if (from || to) {
@@ -321,86 +250,22 @@ export async function GET(req: Request) {
     const [packages, total_count, status_counts] = await Promise.all([
       packageQuery.lean(),
       Package.countDocuments(filter),
-      Package.aggregate([{ $match: filter }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
+      Package.aggregate([
+        { $match: filter },
+        { $group: { _id: '$PackageStatus', count: { $sum: 1 } } },
+      ]),
     ]);
 
     const statusCountsMap = status_counts.reduce((acc, curr) => {
-      acc[curr._id] = curr.count;
+      acc[String(curr._id ?? 0)] = curr.count;
       return acc;
     }, {} as Record<string, number>);
 
-    const packagesWithComputed = (packages as Array<Record<string, unknown>>).map((p) => {
-      const trackingNumber = asString(p.trackingNumber);
-      const statusValue = asString(p.status);
-
-      // Prefer populated userId fields if available
-      const populatedUser = (p.userId && typeof p.userId === 'object') ? (p.userId as Record<string, unknown>) : null;
-      const customerName = populatedUser ? 
-        `${asString(populatedUser.firstName || '')} ${asString(populatedUser.lastName || '')}`.trim() : 
-        `${asString(p.receiverName) || ''}`.trim() || 'N/A';
-      const customerEmail = populatedUser ? asString(populatedUser.email) : asString(p.receiverEmail);
-      const customerPhone = populatedUser ? asString(populatedUser.phone) : asString(p.receiverPhone);
-      const mailboxNumber = asString(p.mailboxNumber) || asString(p.userCode) || (populatedUser ? asString(populatedUser.userCode) : '');
-
-      const weight = asNumber(p.weight);
-      const weightUnit = asString(p.weightUnit) || asString((p.dimensions as Record<string, unknown> | undefined)?.weightUnit) || 'kg';
-      const weightLbs = weightUnit === 'lb' ? weight : weight * 2.20462;
-
-      const itemValueUsd = asNumber(p.itemValue) || asNumber(p.value);
-
-      const dateReceived = p.dateReceived || p.entryDate;
-      const createdAt = p.createdAt;
-      const daysInStorage = calcDaysInStorage(dateReceived, createdAt);
-
-      const shippingCostJmd = calcShippingCostJmd(weightLbs);
-      const storageFeeJmd = calcStorageFeeJmd(daysInStorage);
-
-      const deliveryFeeJmd = asNumber(p.deliveryFee);
-      const additionalFees = Array.isArray(p.additionalFees) ? (p.additionalFees as Array<Record<string, unknown>>) : [];
-      const additionalFeesTotalJmd = additionalFees.reduce((sum, f) => sum + asNumber(f.amount), 0);
-
-      const totalCostJmd = shippingCostJmd + storageFeeJmd + deliveryFeeJmd + additionalFeesTotalJmd;
-      const amountPaidJmd = asNumber(p.amountPaid);
-
-      return {
-        _id: String(p._id || ''),
-        trackingNumber,
-        customerName,
-        customerEmail,
-        customerPhone,
-        mailboxNumber,
-        serviceMode: asString(p.serviceMode) || 'air',
-        status: statusValue,
-        warehouseLocation: asString(p.warehouseLocation) || asString(p.branch) || '',
-        customsRequired: Boolean(p.customsRequired),
-        customsStatus: asString(p.customsStatus) || 'not_required',
-        paymentStatus: asString(p.paymentStatus) || 'pending',
-        weight,
-        weightUnit,
-        weightLbs,
-        totalAmount: asNumber(p.totalAmount),
-        dateReceived: dateReceived ? new Date(String(dateReceived)).toISOString() : null,
-        daysInStorage,
-        // Invoice fields
-        invoiceStatus: asString(p.invoiceStatus) || 'pending',
-        invoiceUploaded: Boolean(p.invoiceUploaded),
-        pricePaid: asNumber(p.pricePaid),
-        pricePaidCurrency: asString(p.pricePaidCurrency) || 'USD',
-        // Sender information
-        senderName: asString(p.senderName) || asString((p.sender as SenderInfo)?.name) || '',
-        senderEmail: asString(p.senderEmail) || asString((p.sender as SenderInfo)?.email) || '',
-        senderPhone: asString(p.senderPhone) || asString((p.sender as SenderInfo)?.phone) || '',
-        senderAddress: asString(p.senderAddress) || asString((p.sender as SenderInfo)?.address) || '',
-        senderCountry: asString(p.senderCountry) || asString((p.sender as SenderInfo)?.country) || '',
-        // Additional details
-        shipper: asString(p.shipper) || '',
-        createdAt: createdAt ? new Date(String(createdAt)).toISOString() : null,
-        updatedAt: p.updatedAt ? new Date(String(p.updatedAt)).toISOString() : null,
-      };
-    });
+    const kcdPackages = toKcdPackageArray(packages as Array<Record<string, unknown>>);
+    console.log('[Admin Packages API] KCD format response:', JSON.stringify(kcdPackages, null, 2));
 
     return NextResponse.json({
-      packages: packagesWithComputed,
+      packages: kcdPackages,
       total_count,
       status_counts: statusCountsMap,
       page,
@@ -455,148 +320,64 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
-    const { 
-      trackingNumber, 
-      userCode, 
-      weight, 
-      shipper,
-      description, 
-      entryDate,
-      status,
-      serviceMode,
-      dimensions,
-      recipient,
-      sender,
-      contents,
-      value,
-      totalAmount,
-      specialInstructions,
-      branch,
-      customsRequired,
-      customsStatus,
-      // International Shipping Fields
-      isInternational,
-      countryOfOrigin,
-      countryOfDestination,
-      exportLicenseNumber,
-      importLicenseNumber,
-      certificateOfOrigin,
-      dangerousGoods,
-      dangerousGoodsClass,
-      dangerousGoodsUnNumber,
-      exportDeclarationNumber,
-      importDeclarationNumber,
-      hsCode
-    } = body;
+    const trackingNumber = body.TrackingNumber || body.trackingNumber;
+    const userCode = body.UserCode || body.userCode;
+    const weightLbs = body.weightLbs ?? body.weightLb ?? body.Weight ?? body.weight;
+    const shipper = body.Shipper || body.shipper;
+    const description = body.Description || body.description;
+    const entryDate = body.EntryDate || body.entryDate;
+    const branch = body.Branch || body.branch;
+    const dimensions = body.dimensions as Record<string, unknown> | undefined;
+    const recipient = body.recipient as RecipientInfo | undefined;
+    const status = body.status;
 
     if (!trackingNumber || !userCode) {
       return NextResponse.json(
-        { error: "trackingNumber and userCode are required" }, 
+        { error: "TrackingNumber and UserCode are required" },
         { status: 400 }
       );
     }
 
-    // Find user by userCode
-    const user = await User.findOne({ userCode: userCode });
-    
+    const user = await User.findOne({ userCode: asString(userCode) });
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const existing = await Package.findOne({ trackingNumber: trackingNumber });
+    const tn = asString(trackingNumber).toUpperCase();
+    const existing = await Package.findOne({
+      $or: [{ TrackingNumber: tn }, { trackingNumber: tn }],
+    });
     if (existing) {
       return NextResponse.json(
-        { error: "Tracking number already exists" }, 
+        { error: "Tracking number already exists" },
         { status: 409 }
       );
     }
 
-    // Create package with extended information
-    const packageData: Record<string, unknown> = {
-      trackingNumber: trackingNumber,
-      userId: user._id,
-      userCode: userCode,
-      weight: weight || 0,
-      shipper: shipper || "Unknown Shipper",
-      description: description || "Package description",
-      entryDate: entryDate || new Date(),
-      status: status || "received",
-      serviceMode: serviceMode || "air",
-      dimensions: dimensions || {
-        length: 0,
-        width: 0,
-        height: 0,
-        unit: "cm"
+    const packageData = buildKcdPackageDocument(
+      {
+        ...body,
+        TrackingNumber: tn,
+        UserCode: userCode,
+        weightLbs,
+        weightUnit: 'lb',
+        Weight: weightLbs,
+        itemValueUSD: body.itemValueUSD ?? body.itemValue ?? body.value,
+        totalAmount: body.totalAmount,
+        Shipper: shipper,
+        Description: description,
+        EntryDate: entryDate || new Date(),
+        EntryDateTime: entryDate || new Date(),
+        Branch: branch || "Main Warehouse",
+        Length: dimensions?.length,
+        Width: dimensions?.width,
+        Height: dimensions?.height,
+        PackageStatus: 0,
+        EntryStaff: body.EntryStaff || body.entryStaff || "Admin",
       },
-      // Required sender fields
-      senderName: (sender as SenderInfo)?.name || "Warehouse",
-      senderPhone: (sender as SenderInfo)?.phone || "0000000000",
-      senderEmail: (sender as SenderInfo)?.email || "warehouse@shipping.com",
-      senderAddress: (sender as SenderInfo)?.address || branch || "Main Warehouse",
-      senderCity: (sender as SenderInfo)?.city || "Kingston",
-      senderState: (sender as SenderInfo)?.state || "St. Andrew",
-      senderZipCode: (sender as SenderInfo)?.zipCode || "00000",
-      senderCountry: (sender as SenderInfo)?.country || "Jamaica",
-      // Required receiver fields
-      receiverName: (recipient as RecipientInfo)?.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Customer",
-      receiverPhone: (recipient as RecipientInfo)?.phone || user.phone || "0000000000",
-      receiverEmail: (recipient as RecipientInfo)?.email || user.email || "",
-      receiverAddress: (recipient as RecipientInfo)?.address || user.address?.street || "No Address",
-      receiverCity: (recipient as RecipientInfo)?.city || user.address?.city || "Kingston",
-      receiverState: (recipient as RecipientInfo)?.state || user.address?.state || "St. Andrew",
-      receiverZipCode: (recipient as RecipientInfo)?.zipCode || user.address?.zipCode || "00000",
-      receiverCountry: (recipient as RecipientInfo)?.country || user.address?.country || "Jamaica",
-      
-      // Determine if international based on countries
-      senderCountryValue: (sender as SenderInfo)?.country || "Jamaica",
-      receiverCountryValue: (recipient as RecipientInfo)?.country || user.address?.country || "Jamaica",
-      // Additional fields
-      recipient: {
-        name: (recipient as RecipientInfo)?.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Customer",
-        email: (recipient as RecipientInfo)?.email || user.email,
-        shippingId: (recipient as RecipientInfo)?.shippingId || user.userCode,
-        phone: (recipient as RecipientInfo)?.phone || user.phone || "",
-        address: (recipient as RecipientInfo)?.address || user.address?.street || ""
-      },
-      sender: sender || {
-        name: "Warehouse",
-        email: "warehouse@shipping.com",
-        phone: "0000000000",
-        address: branch || "Main Warehouse"
-      },
-      contents: contents || "",
-      value: value || 0,
-      specialInstructions: specialInstructions || "",
-      branch: branch || "Main Warehouse",
-      // Required fields with defaults
-      shippingCost: 0,
-      totalAmount: asNumber(totalAmount) || calculateTotalAmount(asNumber(value), asNumber(weight)).totalInTargetCurrency,
-      paymentMethod: "cash",
-      // Legacy fields for compatibility
-      itemDescription: description || "Package description",
-      itemValue: asNumber(value) || 0,
-      currentLocation: branch || "Main Warehouse",
-      packageType: "parcel",
-      serviceType: "standard",
-      deliveryType: "door_to_door",
-      receivedAt: new Date(),
-      // Customs fields
-      customsRequired: customsRequired !== undefined ? Boolean(customsRequired) : false,
-      customsStatus: customsStatus || "not_required",
-      // International Shipping Fields
-      isInternational: isInternational !== undefined ? Boolean(isInternational) : ((sender as SenderInfo)?.country && (sender as SenderInfo)?.country !== (user.address?.country || "Jamaica")),
-      countryOfOrigin: countryOfOrigin || undefined,
-      countryOfDestination: countryOfDestination || (recipient as RecipientInfo)?.country || user.address?.country || (sender as SenderInfo)?.country || "Jamaica",
-      exportLicenseNumber: exportLicenseNumber || undefined,
-      importLicenseNumber: importLicenseNumber || undefined,
-      certificateOfOrigin: certificateOfOrigin || undefined,
-      dangerousGoods: dangerousGoods !== undefined ? Boolean(dangerousGoods) : false,
-      dangerousGoodsClass: dangerousGoodsClass || undefined,
-      dangerousGoodsUnNumber: dangerousGoodsUnNumber || undefined,
-      exportDeclarationNumber: exportDeclarationNumber || undefined,
-      importDeclarationNumber: importDeclarationNumber || undefined,
-      hsCode: hsCode || undefined
-    };
+      user,
+      { source: 'manual' }
+    );
 
     const created = await Package.create(packageData);
 
@@ -671,7 +452,7 @@ export async function POST(req: Request) {
         firstName: user.firstName || 'Customer',
         trackingNumber: asString(trackingNumber),
         status: (status && typeof status === 'string') ? status : 'received',
-        weight: asNumber(weight),
+        weight: asNumber(weightLbs),
         shipper: asString(shipper),
         warehouse: asString(branch) || 'Main Warehouse',
         receivedBy: payload?.name || 'Admin',
@@ -698,7 +479,7 @@ export async function POST(req: Request) {
           recipientName,
           trackingNumber: asString(trackingNumber),
           shipper: asString(shipper),
-          weight: asNumber(weight),
+          weight: asNumber(weightLbs),
           warehouse: asString(branch) || 'Main Warehouse',
           receivedDate: new Date(),
           customerName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
@@ -743,13 +524,15 @@ export async function POST(req: Request) {
       // Don't fail package creation if inventory deduction fails
     }
 
-    return NextResponse.json({ 
-      ok: true, 
-      id: created._id, 
-      trackingNumber: created.trackingNumber,
-      userCode: created.userCode,
-      package: created,
-      message: "Package, billing invoice, and inventory deduction completed successfully"
+    const { toKcdPackage } = await import('@/lib/package-format');
+    const kcdCreated = toKcdPackage(created.toObject());
+
+    return NextResponse.json({
+      ok: true,
+      id: created._id,
+      package: kcdCreated,
+      packages: [kcdCreated],
+      message: "Package, billing invoice, and inventory deduction completed successfully",
     });
   } catch (error) {
     console.error("Error creating package:", error);

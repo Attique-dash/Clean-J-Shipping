@@ -29,12 +29,26 @@ export const addPackageValidation = [
     .isLength({ min: 3, max: 50 })
     .withMessage('Tracking number must be 3-50 characters'),
   
-  // Support both userCode (camelCase) and UserCode (PDF PascalCase)
-  body(['userCode', 'UserCode'])
-    .notEmpty()
-    .withMessage('Customer code is required')
-    .matches(/^[A-Z]{2,6}-\d{2,5}$/)
-    .withMessage('Customer code must be in format CLEAN-XXXX (2-5 digits)'),
+  // Single check for userCode / UserCode / customerMailbox (avoid duplicate field errors)
+  body().custom((_, { req }) => {
+    const b = req.body || {};
+    const raw =
+      b.userCode ?? b.UserCode ?? b.customerMailbox ?? b.customerCode;
+    if (!raw || !String(raw).trim()) {
+      throw new Error(
+        'Customer code is required (userCode, UserCode, customerMailbox, or customerCode)'
+      );
+    }
+    const normalized = String(raw).trim().toUpperCase();
+    if (!/^[A-Z]{2,6}-\d{2,6}$/.test(normalized)) {
+      throw new Error(
+        'Customer code must be in format PREFIX-NNNN (2-6 digits, e.g. CLEAN-001322)'
+      );
+    }
+    req.body.userCode = normalized;
+    req.body.UserCode = normalized;
+    return true;
+  }),
   
   // Support both weight (camelCase) and Weight (PDF PascalCase) - optional
   body(['weight', 'Weight'])
@@ -180,10 +194,20 @@ export const updatePackageValidation = [
     .isLength({ min: 3, max: 50 })
     .withMessage('Tracking number must be 3-50 characters'),
   
-  body('userCode')
-    .optional()
-    .matches(/^[A-Z]{2,6}-\d{3,5}$/)
-    .withMessage('Customer code must be in format CLEAN-XXXX (3-5 digits)'),
+  body().custom((_, { req }) => {
+    const b = req.body || {};
+    const raw = b.userCode ?? b.UserCode;
+    if (raw === undefined || raw === null || raw === '') return true;
+    const normalized = String(raw).trim().toUpperCase();
+    if (!/^[A-Z]{2,6}-\d{2,6}$/.test(normalized)) {
+      throw new Error(
+        'Customer code must be in format PREFIX-NNNN (2-6 digits, e.g. CLEAN-001322)'
+      );
+    }
+    req.body.userCode = normalized;
+    req.body.UserCode = normalized;
+    return true;
+  }),
   
   body('weight')
     .optional()
@@ -352,9 +376,9 @@ export const handleValidationErrors = (req: any, res: any, next: any) => {
       success: false,
       message: 'Validation failed',
       errors: errors.array().map((err: any) => ({
-        field: err.path || err.param,
+        field: err.path || err.param || 'body',
         message: err.msg,
-        value: err.value
+        ...(err.value !== undefined && err.value !== '' ? { value: err.value } : {}),
       }))
     });
   }

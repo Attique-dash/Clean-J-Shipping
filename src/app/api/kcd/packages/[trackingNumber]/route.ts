@@ -6,6 +6,11 @@ import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
 import { User } from "@/models/User";
 import { validateApiKey } from "@/lib/api-key-validation";
+import {
+  normalizeKcdBody,
+  validateUserCode,
+  validationFailedResponse,
+} from "@/lib/kcd-package-validation";
 import crypto from "crypto";
 
 export const dynamic = 'force-dynamic';
@@ -57,9 +62,22 @@ export async function POST(
       });
     } catch {
       return NextResponse.json(
-        { error: "Invalid JSON body" },
+        {
+          success: false,
+          message: 'Invalid JSON body',
+          errors: [{ field: 'body', message: 'Request body must be valid JSON' }],
+        },
         { status: 400 }
       );
+    }
+
+    body = normalizeKcdBody(body);
+    const userCodeErr = validateUserCode(
+      typeof body.userCode === 'string' ? body.userCode : '',
+      { required: false }
+    );
+    if (userCodeErr) {
+      return validationFailedResponse([userCodeErr]);
     }
     
     // Verify API Key using header or body token

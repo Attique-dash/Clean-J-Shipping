@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { getAuthFromRequest } from "@/lib/rbac";
+import {
+  parsePackagePayments,
+  serializePackagePayments,
+  toKcdPackage,
+} from "@/lib/package-format";
 
-// POST /api/admin/packages/[packageId]/payment
-// Update package payment status (for cash payments)
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ packageId: string }> | { packageId: string } }
@@ -11,17 +14,12 @@ export async function POST(
   try {
     await dbConnect();
 
-    // Check authentication and admin role
     const auth = await getAuthFromRequest(req);
-    if (!auth || !auth.id) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
+    if (!auth?.id) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user is admin
-    if (auth.role !== "admin" && auth.role !== "staff") {
+    if (!['admin', 'staff', 'warehouse_staff', 'customer_support'].includes(auth.role)) {
       return NextResponse.json(
         { success: false, error: "Forbidden - Admin access required" },
         { status: 403 }
@@ -30,10 +28,8 @@ export async function POST(
 
     const { packageId } = await params;
     const body = await req.json();
-
     const { paymentStatus, paymentMethod, amountPaid, paymentNote } = body;
 
-    // Validate required fields
     if (!paymentStatus) {
       return NextResponse.json(
         { success: false, error: "paymentStatus is required" },
@@ -41,94 +37,125 @@ export async function POST(
       );
     }
 
-    // Validate payment status enum
     const validStatuses = ["pending", "paid", "partially_paid"];
     if (!validStatuses.includes(paymentStatus)) {
       return NextResponse.json(
-        { success: false, error: `Invalid payment status. Must be one of: ${validStatuses.join(", ")}` },
+        {
+          success: false,
+          error: `Invalid payment status. Must be one of: ${validStatuses.join(", ")}`,
+        },
         { status: 400 }
       );
     }
 
-    // Import Package model dynamically
     const { Package } = await import("@/models/Package");
-
-    // Find the package
     const packageItem = await Package.findById(packageId);
     if (!packageItem) {
-      return NextResponse.json(
-        { success: false, error: "Package not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Package not found" }, { status: 404 });
     }
 
-    // Calculate proper total amount if missing
-    const itemValue = packageItem.itemValue || packageItem.value || 0;
-    const weight = packageItem.weight || packageItem.dimensions?.weight || 0;
-    const shippingCost = packageItem.shippingCost || 0;
+    const doc = packageItem.toObject() as Record<string, unknown>;
+    const current = parsePackagePayments(
+      String(doc.PackagePayments || doc.packagePayments || ''),
+      doc
+    );
 
-    // If totalAmount is 0, calculate it from itemValue + shippingCost
-    let totalAmount = packageItem.totalAmount || 0;
-    if (totalAmount === 0 && itemValue > 0) {
-      totalAmount = itemValue + shippingCost;
+    let totalAmountUsd = current.totalAmountUsd;
+    if (totalAmountUsd <= 0) {
+      totalAmountUsd = current.itemValueUsd + current.shippingCostUsd;
     }
 
-    // Build update data
-    const updateData: any = {
-      paymentStatus: paymentStatus,
-      paymentMethod: paymentMethod || "cash"
+    const paidAmount =
+      paymentStatus === "paid"
+        ? amountPaid ?? totalAmountUsd
+        : paymentStatus === "partially_paid"
+          ? amountPaid ?? current.amountPaidUsd
+          : current.amountPaidUsd;
+
+    const paymentMeta = {
+      ...current,
+      paymentStatus,
+      paymentMethod: paymentMethod || "cash",
+      totalAmountUsd,
+      amountPaidUsd: paidAmount,
+      currency: current.currency || "USD",
     };
 
-    // Update totalAmount if it was calculated
-    if (totalAmount > 0 && packageItem.totalAmount === 0) {
-      updateData.totalAmount = totalAmount;
-    }
+    const updateData: Record<string, unknown> = {
+      paymentStatus,
+      paymentMethod: paymentMethod || "cash",
+      totalAmount: totalAmountUsd,
+      amountPaid: paidAmount,
+      amountPaidCurrency: current.currency || "USD",
+      paymentCurrency: current.currency || "USD",
+      itemValueUSD: current.itemValueUsd,
+      PackagePayments: serializePackagePayments(paymentMeta),
+    };
 
-    // Update amountPaid for any payment status change (paid or partially_paid)
-    if (paymentStatus === "paid" || paymentStatus === "partially_paid") {
-      updateData.amountPaid = amountPaid || totalAmount || itemValue || 0;
-    }
-
-    // If marking as paid, update additional related fields
     if (paymentStatus === "paid") {
       updateData.paidAt = new Date();
       updateData.paidBy = auth.email || "admin";
     }
 
-    // Add payment history entry
     const paymentHistoryEntry = {
       timestamp: new Date(),
       status: paymentStatus,
-      amountPaid: amountPaid || totalAmount || itemValue || 0,
+      amountPaid: paidAmount,
       paymentMethod: paymentMethod || "cash",
       note: paymentNote || `Payment status updated to ${paymentStatus} by admin`,
-      updatedBy: auth.email || "admin"
+      updatedBy: auth.email || "admin",
     };
 
-    // Update package
     const updatedPackage = await Package.findByIdAndUpdate(
       packageId,
       {
         $set: updateData,
-        $push: { paymentHistory: paymentHistoryEntry }
+        $push: { paymentHistory: paymentHistoryEntry },
       },
       { new: true, runValidators: true }
     );
 
+    const updatedDoc = updatedPackage!.toObject() as Record<string, unknown>;
+    const billingInvoiceId = updatedDoc.billingInvoiceId;
+    if (billingInvoiceId) {
+      try {
+        const Invoice = (await import('@/models/Invoice')).default;
+        const invoiceTotal = totalAmountUsd;
+        const balanceDue = Math.max(0, invoiceTotal - paidAmount);
+        const invoiceStatus =
+          balanceDue <= 0 ? 'paid' : paidAmount > 0 ? 'partially_paid' : 'unpaid';
+        await Invoice.findByIdAndUpdate(billingInvoiceId, {
+          $set: {
+            amountPaid: paidAmount,
+            balanceDue,
+            status: invoiceStatus,
+            updatedAt: new Date(),
+          },
+          $push: {
+            paymentHistory: {
+              amount: paidAmount,
+              date: new Date(),
+              method: paymentMethod || 'cash',
+              reference: paymentNote || undefined,
+            },
+          },
+        });
+      } catch (invoiceErr) {
+        console.error('Failed to update billing invoice on payment:', invoiceErr);
+      }
+    }
+
+    const kcd = toKcdPackage(updatedDoc);
+
     return NextResponse.json({
       success: true,
       message: `Package payment status updated to ${paymentStatus}`,
-      data: {
-        package: updatedPackage,
-        paymentUpdate: paymentHistoryEntry
-      }
+      package: kcd,
+      paymentUpdate: paymentHistoryEntry,
     });
-
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to update payment status";
     console.error("Error updating package payment status:", error);
-    return NextResponse.json(
-      { success: false, error: error.message || "Failed to update payment status" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

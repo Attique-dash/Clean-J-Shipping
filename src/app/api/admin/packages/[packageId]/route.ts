@@ -3,6 +3,32 @@ import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth';
+import { User } from '@/models/User';
+import { syncBillingInvoiceForPackage } from '@/lib/package-billing';
+import {
+  toKcdPackage,
+  formStatusToPackageStatus,
+  packageStatusToFormStatus,
+  parsePackagePayments,
+  serializePackagePayments,
+  getPackagePaymentCurrency,
+  calcShippingCostUsd,
+} from '@/lib/package-format';
+
+function asString(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  return '';
+}
+
+function asNumber(value: unknown, fallback = 0): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  }
+  return fallback;
+}
 
 export async function GET(
   req: Request,
@@ -25,28 +51,51 @@ export async function GET(
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
     }
 
-    // Format package data with recipient information
-    const pkg = packageData as any;
-    const formattedData = {
-      ...pkg,
-      recipient: {
-        name: pkg.receiverName || pkg.recipient?.name || (pkg.userId?.firstName && pkg.userId?.lastName ? `${pkg.userId.firstName} ${pkg.userId.lastName}` : null) || null,
-        email: pkg.receiverEmail || pkg.recipient?.email || pkg.userId?.email || null,
-        phone: pkg.receiverPhone || pkg.recipient?.phone || pkg.userId?.phone || null,
-        address: pkg.receiverAddress || pkg.recipient?.address || null,
-        country: pkg.receiverCountry || pkg.recipient?.country || null,
-        city: pkg.receiverCity || pkg.recipient?.city || null,
-        state: pkg.receiverState || pkg.recipient?.state || null,
-        zipCode: pkg.receiverZipCode || pkg.recipient?.zipCode || null,
+    const doc = packageData as Record<string, unknown>;
+    const kcd = toKcdPackage(doc);
+    const payment = parsePackagePayments(kcd.PackagePayments, doc);
+
+    const formPayload = {
+      ...kcd,
+      trackingNumber: kcd.TrackingNumber,
+      userCode: kcd.UserCode,
+      weight: kcd.weightLbs ?? kcd.Weight,
+      weightLbs: kcd.weightLbs ?? kcd.Weight,
+      description: kcd.Description,
+      itemDescription: asString(doc.itemDescription),
+      entryDate: kcd.EntryDate,
+      status: packageStatusToFormStatus(kcd.PackageStatus ?? 0, asString(doc.status)),
+      serviceMode: asString(doc.serviceMode) || 'air',
+      shipper: kcd.Shipper,
+      senderName: asString(doc.senderName) || asString((doc.sender as Record<string, unknown>)?.name),
+      senderEmail: asString(doc.senderEmail) || asString((doc.sender as Record<string, unknown>)?.email),
+      senderPhone: asString(doc.senderPhone) || asString((doc.sender as Record<string, unknown>)?.phone),
+      senderAddress: asString(doc.senderAddress) || asString((doc.sender as Record<string, unknown>)?.address),
+      senderCity: asString(doc.senderCity) || 'Kingston',
+      senderState: asString(doc.senderState) || 'St. Andrew',
+      senderZipCode: asString(doc.senderZipCode) || '00000',
+      senderCountry: asString(doc.senderCountry) || asString((doc.sender as Record<string, unknown>)?.country),
+      itemValue: payment.itemValueUsd,
+      itemValueUsd: payment.itemValueUsd,
+      totalAmount: payment.totalAmountUsd,
+      paymentCurrency: payment.currency,
+      pricePaidCurrency: payment.currency,
+      specialInstructions: asString(doc.specialInstructions),
+      branch: asString(doc.Branch || doc.branch),
+      pieces: doc.Pieces ?? doc.pieces ?? 1,
+      dimensions: {
+        length: kcd.Length ?? doc.length,
+        width: kcd.Width ?? doc.width,
+        height: kcd.Height ?? doc.height,
+        unit:
+          asString(doc.dimensionUnit) ||
+          asString((doc.dimensions as Record<string, unknown> | undefined)?.unit) ||
+          'cm',
       },
-      receiverName: pkg.receiverName || pkg.recipient?.name || (pkg.userId?.firstName && pkg.userId?.lastName ? `${pkg.userId.firstName} ${pkg.userId.lastName}` : null),
-      receiverEmail: pkg.receiverEmail || pkg.recipient?.email || pkg.userId?.email || null,
-      receiverPhone: pkg.receiverPhone || pkg.recipient?.phone || pkg.userId?.phone || null,
-      receiverAddress: pkg.receiverAddress || pkg.recipient?.address || null,
-      receiverCountry: pkg.receiverCountry || pkg.recipient?.country || null,
     };
 
-    return NextResponse.json(formattedData);
+    console.log('[Admin Package Detail API] KCD format:', JSON.stringify(formPayload, null, 2));
+    return NextResponse.json(formPayload);
   } catch (error) {
     console.error("Error fetching package:", error);
     return NextResponse.json({ error: "Failed to fetch package" }, { status: 500 });
@@ -68,87 +117,163 @@ export async function PUT(
     
     const body = await req.json();
     
-    // Get existing package to preserve required fields that aren't in the form
     const existingPackage = await Package.findById(packageId);
     if (!existingPackage) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
     }
-    
-    // Create update object with proper field mapping
-    const updateData: Record<string, unknown> = {
-      updatedAt: new Date(),
-      // Basic fields - only update if provided
-      ...(body.trackingNumber && { trackingNumber: body.trackingNumber }),
-      ...(body.userCode && { userCode: body.userCode }),
-      ...(body.weight && { weight: typeof body.weight === "number" ? body.weight : Number(body.weight) || existingPackage.weight }),
-      ...(body.shipper && { shipper: body.shipper }),
-      ...(body.description && { description: body.description }),
-      ...(body.itemDescription && { itemDescription: body.itemDescription }),
-      ...(body.entryDate && { entryDate: body.entryDate }),
-      ...(body.status && { status: body.status }),
-      ...(body.serviceMode && { serviceMode: body.serviceMode }),
-      
-      // Map dimensions to flat fields
-      ...(body.dimensions?.length !== undefined && { length: Number(body.dimensions.length) || existingPackage.length }),
-      ...(body.dimensions?.width !== undefined && { width: Number(body.dimensions.width) || existingPackage.width }),
-      ...(body.dimensions?.height !== undefined && { height: Number(body.dimensions.height) || existingPackage.height }),
-      ...(body.dimensions?.unit && { dimensionUnit: body.dimensions.unit }),
-      
-      // Map recipient object to flat fields
-      ...(body.recipient?.name && { receiverName: body.recipient.name }),
-      ...(body.recipient?.email && { receiverEmail: body.recipient.email }),
-      ...(body.recipient?.phone && { receiverPhone: body.recipient.phone }),
-      ...(body.recipient?.address && { receiverAddress: body.recipient.address }),
-      ...(body.recipient?.country && { receiverCountry: body.recipient.country }),
-      
-      // Map sender object to flat fields
-      ...(body.sender?.name && { senderName: body.sender.name }),
-      ...(body.sender?.email && { senderEmail: body.sender.email }),
-      ...(body.sender?.phone && { senderPhone: body.sender.phone }),
-      ...(body.sender?.address && { senderAddress: body.sender.address }),
-      ...(body.sender?.country && { senderCountry: body.sender.country }),
-      
-      // Additional fields
-      ...(body.contents !== undefined && { contents: body.contents }),
-      ...(body.value !== undefined && { value: typeof body.value === "number" ? body.value : Number(body.value) || existingPackage.value }),
-      ...(body.itemValue !== undefined && { 
-        value: typeof body.itemValue === "number" ? body.itemValue : Number(body.itemValue) || existingPackage.value,
-        itemValue: typeof body.itemValue === "number" ? body.itemValue : Number(body.itemValue) || existingPackage.itemValue 
-      }),
-      ...(body.totalAmount !== undefined && { 
-        totalAmount: typeof body.totalAmount === "number" ? body.totalAmount : Number(body.totalAmount) || existingPackage.totalAmount 
-      }),
-      ...(body.specialInstructions !== undefined && { specialInstructions: body.specialInstructions }),
-      ...(body.entryStaff && { entryStaff: body.entryStaff }),
-      ...(body.branch && { branch: body.branch }),
-      ...(body.customsRequired !== undefined && { customsRequired: body.customsRequired }),
-      ...(body.customsStatus && { customsStatus: body.customsStatus }),
+
+    const existingDoc = existingPackage.toObject() as Record<string, unknown>;
+    const weightLbs = asNumber(
+      body.weightLbs ?? body.Weight ?? body.weight ?? existingDoc.Weight ?? existingDoc.weightLbs
+    );
+    const itemValueUsd = asNumber(
+      body.itemValueUSD ?? body.itemValue ?? body.value ?? existingDoc.itemValueUSD ?? existingDoc.itemValue
+    );
+    const totalAmount = body.totalAmount !== undefined && body.totalAmount !== ''
+      ? asNumber(body.totalAmount)
+      : asNumber(existingDoc.totalAmount) || itemValueUsd;
+    const paymentCurrency = getPackagePaymentCurrency(body, parsePackagePayments(
+      asString(existingDoc.PackagePayments),
+      existingDoc
+    ));
+
+    const existingPayment = parsePackagePayments(
+      asString(existingDoc.PackagePayments),
+      existingDoc
+    );
+    const paymentMeta = {
+      ...existingPayment,
+      itemValueUsd,
+      shippingCostUsd: calcShippingCostUsd(weightLbs),
+      totalAmountUsd: totalAmount,
+      currency: paymentCurrency,
+      paymentMethod: asString(body.paymentMethod) || existingPayment.paymentMethod,
+      paymentStatus: asString(body.paymentStatus) || existingPayment.paymentStatus,
     };
 
-    // Add to history if status changed
-    if (body.status && body.status !== existingPackage.status) {
+    const statusStr = asString(body.status);
+    const packageStatus = statusStr
+      ? formStatusToPackageStatus(statusStr)
+      : asNumber(existingDoc.PackageStatus, 0);
+
+    const dimensions = body.dimensions as Record<string, unknown> | undefined;
+    const sender = body.sender as Record<string, unknown> | undefined;
+
+    const updateData: Record<string, unknown> = {
+      updatedAt: new Date(),
+      TrackingNumber: asString(body.trackingNumber || existingDoc.TrackingNumber).toUpperCase(),
+      trackingNumber: asString(body.trackingNumber || existingDoc.trackingNumber).toUpperCase(),
+      UserCode: asString(body.userCode || existingDoc.UserCode || existingDoc.userCode),
+      userCode: asString(body.userCode || existingDoc.UserCode || existingDoc.userCode),
+      Weight: weightLbs,
+      weightLbs: weightLbs,
+      weight: weightLbs,
+      WeightUnit: 'lb',
+      Shipper: asString(body.shipper ?? existingDoc.Shipper ?? existingDoc.shipper),
+      shipper: asString(body.shipper ?? existingDoc.Shipper ?? existingDoc.shipper),
+      Description: asString(body.description ?? body.contents ?? existingDoc.Description ?? existingDoc.description),
+      description: asString(body.description ?? body.contents ?? existingDoc.Description ?? existingDoc.description),
+      itemDescription: asString(body.itemDescription ?? existingDoc.itemDescription),
+      EntryDate: body.entryDate ? new Date(asString(body.entryDate)) : existingDoc.EntryDate,
+      entryDate: body.entryDate ? new Date(asString(body.entryDate)) : existingDoc.entryDate,
+      PackageStatus: packageStatus,
+      status: statusStr || existingDoc.status,
+      serviceMode: asString(body.serviceMode ?? existingDoc.serviceMode),
+      Length: dimensions?.length !== undefined ? asNumber(dimensions.length) : existingDoc.Length ?? existingDoc.length,
+      Width: dimensions?.width !== undefined ? asNumber(dimensions.width) : existingDoc.Width ?? existingDoc.width,
+      Height: dimensions?.height !== undefined ? asNumber(dimensions.height) : existingDoc.Height ?? existingDoc.height,
+      length: dimensions?.length !== undefined ? asNumber(dimensions.length) : existingDoc.length,
+      width: dimensions?.width !== undefined ? asNumber(dimensions.width) : existingDoc.width,
+      height: dimensions?.height !== undefined ? asNumber(dimensions.height) : existingDoc.height,
+      dimensionUnit: asString(dimensions?.unit ?? existingDoc.dimensionUnit) || 'cm',
+      senderName: asString(sender?.name ?? body.senderName ?? existingDoc.senderName),
+      senderEmail: asString(sender?.email ?? body.senderEmail ?? existingDoc.senderEmail),
+      senderPhone: asString(sender?.phone ?? body.senderPhone ?? existingDoc.senderPhone),
+      senderAddress: asString(sender?.address ?? body.senderAddress ?? existingDoc.senderAddress),
+      senderCity: asString(sender?.city ?? body.senderCity ?? existingDoc.senderCity),
+      senderState: asString(sender?.state ?? body.senderState ?? existingDoc.senderState),
+      senderZipCode: asString(sender?.zipCode ?? body.senderZipCode ?? existingDoc.senderZipCode),
+      senderCountry: asString(sender?.country ?? body.senderCountry ?? existingDoc.senderCountry),
+      sender: sender ?? existingDoc.sender,
+      itemValueUSD: itemValueUsd,
+      itemValue: itemValueUsd,
+      value: itemValueUsd,
+      totalAmount,
+      amountPaidCurrency: paymentCurrency,
+      paymentCurrency,
+      Branch: asString(body.branch ?? body.Branch ?? existingDoc.Branch ?? existingDoc.branch),
+      branch: asString(body.branch ?? body.Branch ?? existingDoc.Branch ?? existingDoc.branch),
+      Pieces: body.pieces !== undefined ? asNumber(body.pieces) : asNumber(existingDoc.Pieces ?? existingDoc.pieces, 1),
+      pieces: body.pieces !== undefined ? asNumber(body.pieces) : asNumber(existingDoc.Pieces ?? existingDoc.pieces, 1),
+      PackagePayments: serializePackagePayments(paymentMeta),
+      paymentStatus: paymentMeta.paymentStatus,
+      paymentMethod: paymentMeta.paymentMethod,
+      specialInstructions: asString(body.specialInstructions ?? existingDoc.specialInstructions),
+    };
+
+    if (body.recipient) {
+      const recipient = body.recipient as Record<string, unknown>;
+      updateData.receiverName = asString(recipient.name);
+      updateData.receiverEmail = asString(recipient.email);
+      updateData.receiverPhone = asString(recipient.phone);
+      updateData.receiverAddress = asString(recipient.address);
+      updateData.receiverCountry = asString(recipient.country);
+    }
+
+    if (body.status && body.status !== existingDoc.status) {
       updateData.$push = {
         history: {
           status: body.status,
           at: new Date(),
-          note: `Status updated by admin staff`
-        }
+          note: `Status updated by admin staff`,
+        },
       };
     }
 
     const packageData = await Package.findByIdAndUpdate(
       packageId,
       updateData,
-      { new: true, runValidators: false } // Disable validators for partial updates
+      { new: true, runValidators: false }
     );
 
     if (!packageData) {
       return NextResponse.json({ error: "Failed to update package" }, { status: 500 });
     }
 
+    const updatedDoc = packageData.toObject() as Record<string, unknown>;
+    const tracking = asString(updatedDoc.TrackingNumber || updatedDoc.trackingNumber);
+    const userId = updatedDoc.userId || updatedDoc.customer;
+
+    if (userId && updatedDoc.billingInvoiceId) {
+      try {
+        const user = await User.findById(userId).lean();
+        if (user) {
+          await syncBillingInvoiceForPackage(
+            updatedDoc,
+            user as unknown as {
+              _id: unknown;
+              userCode?: string;
+              firstName?: string;
+              lastName?: string;
+              email: string;
+              phone?: string;
+              address?: string;
+              city?: string;
+              country?: string;
+            },
+            tracking
+          );
+        }
+      } catch (invoiceErr) {
+        console.error('Failed to sync billing invoice on package update:', invoiceErr);
+      }
+    }
+
+    const kcd = toKcdPackage(updatedDoc);
+
     return NextResponse.json({ 
       message: "Package updated successfully",
-      package: packageData 
+      package: kcd,
     });
   } catch (error) {
     console.error("Error updating package:", error);

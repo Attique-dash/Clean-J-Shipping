@@ -335,7 +335,9 @@ export default function AdminDashboard() {
   // Helper functions to calculate stats from raw data
   const calculatePackageStatuses = (packages: any[]) => {
     const statusCounts = packages.reduce((acc, pkg) => {
-      const status = pkg.status || 'unknown';
+      const status =
+        pkg.status ??
+        (pkg.PackageStatus !== undefined ? String(pkg.PackageStatus) : 'unknown');
       acc[status] = (acc[status] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
@@ -400,7 +402,7 @@ export default function AdminDashboard() {
 
   const calculatePackagesByBranch = (packages: any[]) => {
     const branchCounts = packages.reduce((acc, pkg) => {
-      const branch = pkg.branch || 'Unknown';
+      const branch = pkg.Branch || pkg.branch || 'Unknown';
       acc[branch] = (acc[branch] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { getAuthFromRequest } from "@/lib/rbac";
 import { addPackageSchema } from "@/lib/validators";
-import { Package, type IPackage } from "@/models/Package";
+import { Package } from "@/models/Package";
 import { User } from "@/models/User";
 import { sendNewPackageEmail } from "@/lib/email";
 
@@ -39,29 +39,17 @@ export async function POST(req: Request) {
     now = new Date(`${entryDate}T00:00:00.000Z`);
   }
 
-  const initial: Partial<IPackage> = {
-    trackingNumber,
-    userCode: customer.userCode,
-    userId: customer._id,
-    customer: customer._id,
-    weight,
-    shipper,
-    description,
-    status: "At Warehouse",
-    length,
-    width,
-    height,
-    entryStaff: receivedBy,
-    branch: warehouse,
-  };
+  const tn = trackingNumber.toUpperCase();
 
   await Package.findOneAndUpdate(
-    { trackingNumber },
+    { $or: [{ TrackingNumber: tn }, { trackingNumber: tn }] },
     {
       $setOnInsert: {
-        userCode: initial.userCode,
-        userId: initial.userId,
-        customer: initial.customer,
+        TrackingNumber: tn,
+        UserCode: customer.userCode,
+        userCode: customer.userCode,
+        userId: customer._id,
+        customer: customer._id,
         createdAt: now,
       },
       $set: {

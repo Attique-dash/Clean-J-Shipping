@@ -218,7 +218,7 @@ export async function GET(req: Request) {
         // Get invoice number from pre-fetched map or use package tracking number
         let invoiceNumber = null;
         if (packageAmount > 0) {
-          const linkedInvoiceNumber = invoiceNumberMap.get(pkg.trackingNumber);
+          const linkedInvoiceNumber = invoiceNumberMap.get(pkg.trackingNumber || pkg.TrackingNumber || '');
           if (linkedInvoiceNumber) {
             invoiceNumber = linkedInvoiceNumber;
           } else {
@@ -229,7 +229,7 @@ export async function GET(req: Request) {
         
       return [
         {
-          tracking_number: pkg.trackingNumber,
+          tracking_number: pkg.trackingNumber || pkg.TrackingNumber || '',
           description,
           invoice_number: invoiceNumber || undefined,
           invoice_date: pkg.createdAt ? new Date(pkg.createdAt).toISOString() : undefined,
@@ -265,11 +265,11 @@ export async function GET(req: Request) {
       }
       
       // Get actual invoice number from Invoice model if available
-      const actualInvoiceNumber = invoiceNumberMap.get(pkg.trackingNumber) || latest.invoiceNumber || null;
+      const actualInvoiceNumber = invoiceNumberMap.get(pkg.trackingNumber || pkg.TrackingNumber || '') || latest.invoiceNumber || null;
       
       return [
         {
-          tracking_number: pkg.trackingNumber,
+          tracking_number: pkg.trackingNumber || pkg.TrackingNumber || '',
           description: pkg.itemDescription || pkg.description,
           invoice_number: actualInvoiceNumber || undefined, // Only show real invoice numbers
           invoice_date: latest.invoiceDate ? new Date(latest.invoiceDate).toISOString() : 

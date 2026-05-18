@@ -10,6 +10,15 @@ import { InventoryService } from "@/lib/inventory-service";
 import { CurrencyService } from "@/lib/currency-service";
 import { sendNewPackageEmail } from "@/lib/email";
 import { validateApiKey } from "@/lib/api-key-validation";
+import {
+  buildKcdPackageDocument,
+  toKcdPackage,
+  getDocTrackingNumber,
+} from "@/lib/package-format";
+import {
+  validateAddPackageBody,
+  validationFailedResponse,
+} from "@/lib/kcd-package-validation";
 import crypto from "crypto";
 
 // Simple in-memory request log for debugging (resets on deployment)
@@ -137,15 +146,31 @@ export async function POST(req: NextRequest) {
       };
       addLog(log);
       return NextResponse.json(
-        { error: "Invalid JSON body" },
+        { success: false, message: 'Invalid JSON body', errors: [{ field: 'body', message: 'Request body must be valid JSON' }] },
         { status: 400 }
       );
     }
+
+    const bodyValidation = validateAddPackageBody(body);
+    if (!bodyValidation.ok) {
+      console.error(`[KCD Webhook ${requestId}] Validation failed:`, bodyValidation.errors);
+      const log = {
+        timestamp,
+        method: 'POST',
+        headers,
+        body,
+        responseStatus: 400,
+        error: bodyValidation.errors.map((e) => e.message).join('; '),
+      };
+      addLog(log);
+      return validationFailedResponse(bodyValidation.errors);
+    }
+    body = bodyValidation.normalized;
     
     // Validate required fields - Support both old field names and Tasoko PDF field names (PascalCase)
     const trackingNumber = body.trackingNumber || body.TrackingNumber;
     const houseNumber = body.houseNumber || body.HouseNumber || body.ControlNumber;
-    const customerMailbox = body.customerMailbox || body.customerCode || body.UserCode;
+    const customerMailbox = body.userCode || body.customerMailbox || body.customerCode || body.UserCode;
     const weight = body.weight || body.Weight;
     const shipper = body.shipper || body.Shipper;
     const receivedAt = body.receivedAt || body.EntryDate || body.EntryDateTime;
@@ -174,6 +199,10 @@ export async function POST(req: NextRequest) {
     if (missingFields.length > 0) {
       console.error(`[KCD Webhook ${requestId}] Missing required fields:`, missingFields);
       console.error(`[KCD Webhook ${requestId}] Received body keys:`, Object.keys(body));
+      const errors = missingFields.map((field) => ({
+        field,
+        message: `Required field missing: ${field}`,
+      }));
       const log = {
         timestamp,
         method: 'POST',
@@ -183,10 +212,7 @@ export async function POST(req: NextRequest) {
         error: `Missing required fields: ${missingFields.join(', ')}`
       };
       addLog(log);
-      return NextResponse.json(
-        { error: "Missing required fields", missingFields, receivedFields: Object.keys(body) },
-        { status: 400 }
-      );
+      return validationFailedResponse(errors);
     }
     
     // Connect to database
@@ -220,8 +246,9 @@ export async function POST(req: NextRequest) {
     console.log(`[KCD Webhook ${requestId}] User found: ${user._id} (${user.email})`);
     
     // Check for duplicate tracking number
-    const existingPackage = await Package.findOne({ 
-      trackingNumber: asString(trackingNumber) 
+    const tn = asString(trackingNumber).toUpperCase();
+    const existingPackage = await Package.findOne({
+      $or: [{ TrackingNumber: tn }, { trackingNumber: tn }],
     });
     
     if (existingPackage) {
@@ -252,110 +279,42 @@ export async function POST(req: NextRequest) {
     
     const mailboxCode = formatMailboxCode(userCode);
     
-    const packageData = {
-      trackingNumber: asString(trackingNumber).toUpperCase(),
-      userId: user._id,
-      userCode: user.userCode,
-      customer: user._id,
-      
-      // Source tracking
-      source: 'kcd_webhook' as const,
-      sourceDetails: {
-        syncedAt: new Date(),
-        syncStatus: 'synced' as const,
-        apiEndpoint: '/api/kcd/packages/add',
-        kcdPackageId: packageId || undefined,
-        kcdCourierId: courierId || undefined
+    const packageData = buildKcdPackageDocument(
+      {
+        ...body,
+        PackageID: packageId,
+        CourierID: courierId,
+        ManifestID: manifestId,
+        CollectionID: collectionId,
+        TrackingNumber: trackingNumber,
+        ControlNumber: houseNumber,
+        FirstName: firstName,
+        LastName: lastName,
+        UserCode: userCode,
+        Weight: weightKg,
+        Shipper: shipper,
+        EntryStaff: entryStaff || 'KCD Webhook',
+        EntryDate: receivedDate,
+        EntryDateTime: receivedDate,
+        Branch: branch || 'KCD Main Warehouse',
+        Description: description,
+        Cubes: cubes,
+        Length: length,
+        Width: width,
+        Height: height,
+        Pieces: pieces,
+        PackageStatus: packageStatus,
       },
-      
-      // KCD specific fields from Tasoko PDF
-      controlNumber: houseNumber ? asString(houseNumber) : undefined,
-      mailboxNumber: mailboxCode,
-      
-      // Tasoko PDF additional fields
-      kcdPackageId: packageId ? asString(packageId) : undefined,
-      kcdCourierId: courierId ? asString(courierId) : undefined,
-      kcdManifestId: manifestId ? asString(manifestId) : undefined,
-      kcdCollectionId: collectionId ? asString(collectionId) : undefined,
-      entryStaff: entryStaff ? asString(entryStaff) : 'KCD Webhook',
-      branch: branch ? asString(branch) : 'KCD Main Warehouse',
-      pieces: pieces ? asNumber(pieces) : 1,
-      cubes: cubes ? asNumber(cubes) : 0,
-      
-      // Package details
-      weight: weightKg,
-      weightUnit: 'kg',
-      itemDescription: description || `Package from ${shipper || 'Unknown'}`,
-      description: description || `Package from ${shipper || 'Unknown'}`,
-      shipper: shipper ? asString(shipper) : 'Unknown Shipper',
-      
-      // Dates
-      dateReceived: receivedDate,
-      entryDate: receivedDate,
-      receivedAt: receivedDate,
-      
-      // Status - use PackageStatus from PDF if provided
-      status: packageStatus ? asString(packageStatus) : 'received',
-      paymentStatus: 'pending',
-      
-      // Service defaults
-      serviceMode: 'air',
-      packageType: 'parcel',
-      serviceType: 'standard',
-      deliveryType: 'door_to_door',
-      
-      // Sender info (KCD as sender)
-      senderType: 'warehouse',
-      senderName: shipper ? asString(shipper) : 'KCD Logistics',
-      senderCompany: 'KCD Logistics',
-      senderPhone: '0000000000',
-      senderEmail: 'warehouse@kcdlogistics.com',
-      senderAddress: 'KCD Warehouse',
-      senderCity: 'Kingston',
-      senderState: 'St. Andrew',
-      senderZipCode: '00000',
-      senderCountry: 'Jamaica',
-      
-      // Receiver info (customer)
-      receiverName: `${firstName || user.firstName || ''} ${lastName || user.lastName || ''}`.trim() || 'Customer',
-      receiverPhone: user.phone || '0000000000',
-      receiverEmail: user.email || '',
-      receiverAddress: user.address?.street || 'No Address',
-      receiverCity: user.address?.city || 'Kingston',
-      receiverState: user.address?.state || 'St. Andrew',
-      receiverZipCode: user.address?.zipCode || '00000',
-      receiverCountry: user.address?.country || 'Jamaica',
-      
-      // Pricing
-      shippingCost: 0,
-      insurance: 0,
-      tax: 0,
-      discount: 0,
-      totalAmount: 0,
-      paymentMethod: 'cash',
-      
-      // Flags
-      isInternational: false,
-      isFragile: false,
-      isHazardous: false,
-      requiresSignature: false,
-      isPriority: false,
-      signatureRequired: false,
-      
-      // Additional metadata
-      warehouseLocation: 'KCD Main Warehouse',
-      currentLocation: 'KCD Main Warehouse',
-      
-      // Dimensions from PDF if provided
-      dimensions: {
-        length: length ? asNumber(length) : 0,
-        width: width ? asNumber(width) : 0,
-        height: height ? asNumber(height) : 0,
-        unit: 'cm',
-        weight: weightKg,
-        weightUnit: 'kg'
+      user,
+      {
+        source: 'kcd_webhook',
+        sourceDetails: {
+          syncedAt: new Date(),
+          syncStatus: 'synced',
+          apiEndpoint: '/api/kcd/packages/add',
+        },
       }
-    };
+    );
     
     console.log(`[KCD Webhook ${requestId}] Creating package...`);
     const createdPackage = await Package.create(packageData);
@@ -463,16 +422,17 @@ export async function POST(req: NextRequest) {
     let emailSent = false;
     try {
       if (user.email) {
+        const kcdEmailPkg = toKcdPackage(createdPackage.toObject());
         await sendNewPackageEmail({
           to: user.email,
           firstName: user.firstName || "Customer",
-          trackingNumber: createdPackage.trackingNumber,
-          status: createdPackage.status,
-          weight: createdPackage.weight,
-          shipper: createdPackage.shipper || shipper || 'KCD Logistics',
-          warehouse: createdPackage.warehouseLocation || "KCD Main Warehouse",
-          receivedDate: createdPackage.dateReceived || new Date(),
-          description: createdPackage.itemDescription || `Package from ${shipper || 'KCD'}`,
+          trackingNumber: kcdEmailPkg.TrackingNumber,
+          status: String(kcdEmailPkg.PackageStatus ?? 0),
+          weight: kcdEmailPkg.Weight ?? 0,
+          shipper: kcdEmailPkg.Shipper || 'KCD Logistics',
+          warehouse: kcdEmailPkg.Branch || "KCD Main Warehouse",
+          receivedDate: kcdEmailPkg.EntryDate ? new Date(kcdEmailPkg.EntryDate) : new Date(),
+          description: kcdEmailPkg.Description || `Package from ${shipper || 'KCD'}`,
         });
         emailSent = true;
         console.log(`[KCD Webhook ${requestId}] Email sent to ${user.email}`);
@@ -493,17 +453,14 @@ export async function POST(req: NextRequest) {
     
     console.log(`[KCD Webhook ${requestId}] Success - Package created: ${createdPackage._id}`);
     
+    const kcdResponse = toKcdPackage(createdPackage.toObject());
+    console.log(`[KCD Webhook ${requestId}] Package KCD format:`, JSON.stringify([kcdResponse], null, 2));
+
     return NextResponse.json({
       success: true,
       message: "Package created successfully",
-      package: {
-        id: createdPackage._id,
-        trackingNumber: createdPackage.trackingNumber,
-        userCode: createdPackage.userCode,
-        mailboxCode: createdPackage.mailboxNumber,
-        status: createdPackage.status,
-        createdAt: createdPackage.createdAt
-      },
+      packages: [kcdResponse],
+      package: kcdResponse,
       notifications: {
         preAlertCreated,
         emailSent,
@@ -659,8 +616,9 @@ export async function GET(req: NextRequest) {
     }
     
     // Check for duplicate
-    const existingPackage = await Package.findOne({ 
-      trackingNumber: asString(trackingNumber) 
+    const tnGet = asString(trackingNumber).toUpperCase();
+    const existingPackage = await Package.findOne({
+      $or: [{ TrackingNumber: tnGet }, { trackingNumber: tnGet }],
     });
     
     if (existingPackage) {
@@ -673,74 +631,52 @@ export async function GET(req: NextRequest) {
       );
     }
     
-    // Create package
     const weightKg = asNumber(weight);
     const receivedDate = receivedAt ? new Date(asString(receivedAt)) : new Date();
-    const mailboxCode = formatMailboxCode(userCode);
-    
-    const packageData = {
-      trackingNumber: asString(trackingNumber).toUpperCase(),
-      userId: user._id,
-      userCode: user.userCode,
-      customer: user._id,
-      source: 'kcd_webhook' as const,
-      sourceDetails: {
-        syncedAt: new Date(),
-        syncStatus: 'synced' as const,
-        apiEndpoint: '/api/kcd/packages/add',
+
+    const packageData = buildKcdPackageDocument(
+      {
+        TrackingNumber: trackingNumber,
+        ControlNumber: houseNumber,
+        FirstName: firstName,
+        LastName: lastName,
+        UserCode: userCode,
+        Weight: weightKg,
+        Shipper: shipper,
+        EntryDate: receivedDate,
+        EntryDateTime: receivedDate,
+        Branch: 'KCD Main Warehouse',
+        Description: description,
+        EntryStaff: 'KCD Webhook',
       },
-      controlNumber: houseNumber ? asString(houseNumber) : undefined,
-      mailboxNumber: mailboxCode,
-      weight: weightKg,
-      weightUnit: 'kg',
-      itemDescription: description || `Package from ${shipper || 'Unknown'}`,
-      description: description || `Package from ${shipper || 'Unknown'}`,
-      shipper: shipper ? asString(shipper) : 'Unknown Shipper',
-      dateReceived: receivedDate,
-      entryDate: receivedDate,
-      receivedAt: receivedDate,
-      status: 'received',
-      paymentStatus: 'pending',
-      serviceMode: 'air',
-      packageType: 'parcel',
-      senderType: 'warehouse',
-      senderName: shipper ? asString(shipper) : 'KCD Logistics',
-      senderCompany: 'KCD Logistics',
-      receiverName: `${firstName || user.firstName || ''} ${lastName || user.lastName || ''}`.trim() || 'Customer',
-      receiverPhone: user.phone || '0000000000',
-      receiverEmail: user.email || '',
-      receiverAddress: user.address?.street || 'No Address',
-      receiverCity: user.address?.city || 'Kingston',
-      receiverState: user.address?.state || 'St. Andrew',
-      receiverZipCode: user.address?.zipCode || '00000',
-      receiverCountry: user.address?.country || 'Jamaica',
-      shippingCost: 0,
-      insurance: 0,
-      tax: 0,
-      discount: 0,
-      totalAmount: 0,
-      paymentMethod: 'cash',
-      warehouseLocation: 'KCD Main Warehouse',
-      currentLocation: 'KCD Main Warehouse',
-    };
+      user,
+      {
+        source: 'kcd_webhook',
+        sourceDetails: {
+          syncedAt: new Date(),
+          syncStatus: 'synced',
+          apiEndpoint: '/api/kcd/packages/add',
+        },
+      }
+    );
     
     const createdPackage = await Package.create(packageData);
     console.log(`[KCD Webhook ${requestId}] Package created: ${createdPackage._id}`);
     
-    // Send email notification
     let emailSent = false;
     try {
       if (user.email) {
+        const kcdGetPkg = toKcdPackage(createdPackage.toObject());
         await sendNewPackageEmail({
           to: user.email,
           firstName: user.firstName || "Customer",
-          trackingNumber: createdPackage.trackingNumber,
-          status: createdPackage.status,
-          weight: createdPackage.weight,
-          shipper: createdPackage.shipper || shipper || 'KCD Logistics',
-          warehouse: createdPackage.warehouseLocation || "KCD Main Warehouse",
-          receivedDate: createdPackage.dateReceived || new Date(),
-          description: createdPackage.itemDescription || `Package from ${shipper || 'KCD'}`,
+          trackingNumber: kcdGetPkg.TrackingNumber,
+          status: String(kcdGetPkg.PackageStatus ?? 0),
+          weight: kcdGetPkg.Weight ?? 0,
+          shipper: kcdGetPkg.Shipper || 'KCD Logistics',
+          warehouse: kcdGetPkg.Branch || "KCD Main Warehouse",
+          receivedDate: kcdGetPkg.EntryDate ? new Date(kcdGetPkg.EntryDate) : new Date(),
+          description: kcdGetPkg.Description || `Package from ${shipper || 'KCD'}`,
         });
         emailSent = true;
       }
@@ -748,20 +684,17 @@ export async function GET(req: NextRequest) {
       console.error(`[KCD Webhook ${requestId}] Failed to send email:`, emailError);
     }
     
+    const kcdGetResponse = toKcdPackage(createdPackage.toObject());
+    console.log(`[KCD Webhook ${requestId}] Package KCD format:`, JSON.stringify([kcdGetResponse], null, 2));
+
     log.responseStatus = 201;
     addLog(log);
     
     return NextResponse.json({
       success: true,
       message: "Package created successfully via GET",
-      package: {
-        id: createdPackage._id,
-        trackingNumber: createdPackage.trackingNumber,
-        userCode: createdPackage.userCode,
-        mailboxCode: createdPackage.mailboxNumber,
-        status: createdPackage.status,
-        createdAt: createdPackage.createdAt
-      },
+      packages: [kcdGetResponse],
+      package: kcdGetResponse,
       notifications: { emailSent }
     }, { status: 201 });
     

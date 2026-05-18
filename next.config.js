@@ -13,11 +13,9 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
   
-  // External packages for server components
-  serverExternalPackages: ['canvas', 'pdfkit', 'jspdf', '@prisma/client'],
-  
-  // Experimental features for Next.js 16
+  // Next.js 14: use experimental key (serverExternalPackages is Next.js 15+)
   experimental: {
+    serverComponentsExternalPackages: ['canvas', 'pdfkit', 'jspdf', '@prisma/client'],
     optimizePackageImports: ['lucide-react', 'react-icons'],
   },
   
@@ -62,7 +60,7 @@ const nextConfig = {
   },
 
   // Webpack configuration to fix canvas/pdfjs-dist issues and optimize memory
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
     // Fix for canvas module (used by pdfjs-dist/easyinvoice)
     if (!isServer) {
       config.resolve.fallback = {
@@ -77,44 +75,44 @@ const nextConfig = {
     // Mark canvas as external to prevent webpack from trying to bundle it
     config.externals = [...(config.externals || []), 'canvas'];
 
-    // Memory optimization settings
-    config.optimization = {
-      ...config.optimization,
-      splitChunks: {
-        chunks: 'all',
-        cacheGroups: {
-          vendor: {
-            test: /[\\/]node_modules[\\/]/,
-            name: 'vendors',
-            chunks: 'all',
-            priority: 10,
-          },
-          common: {
-            name: 'common',
-            minChunks: 2,
-            chunks: 'all',
-            enforce: true,
-            priority: 5,
-          },
-          pdf: {
-            test: /[\\/]node_modules[\\/](pdfkit|jspdf|@react-pdf)[\\/]/,
-            name: 'pdf',
-            chunks: 'all',
-            priority: 15,
-          },
-          charts: {
-            test: /[\\/]node_modules[\\/](chart\.js|recharts|react-chartjs)[\\/]/,
-            name: 'charts',
-            chunks: 'all',
-            priority: 15,
+    // Heavy splitChunks only for production builds (dev: faster compiles, less memory)
+    if (!dev) {
+      config.optimization = {
+        ...config.optimization,
+        splitChunks: {
+          chunks: 'all',
+          cacheGroups: {
+            vendor: {
+              test: /[\\/]node_modules[\\/]/,
+              name: 'vendors',
+              chunks: 'all',
+              priority: 10,
+            },
+            common: {
+              name: 'common',
+              minChunks: 2,
+              chunks: 'all',
+              enforce: true,
+              priority: 5,
+            },
+            pdf: {
+              test: /[\\/]node_modules[\\/](pdfkit|jspdf|@react-pdf)[\\/]/,
+              name: 'pdf',
+              chunks: 'all',
+              priority: 15,
+            },
+            charts: {
+              test: /[\\/]node_modules[\\/](chart\.js|recharts|react-chartjs)[\\/]/,
+              name: 'charts',
+              chunks: 'all',
+              priority: 15,
+            },
           },
         },
-      },
-      // parallelism option removed - not supported in webpack 5
-    };
+      };
+    }
 
-    // Reduce memory usage during compilation
-    if (isServer) {
+    if (isServer && !dev) {
       config.optimization.minimize = false;
     }
 

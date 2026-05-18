@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
 import { getAuthFromRequest } from "@/lib/rbac";
+import { toKcdPackage } from "@/lib/package-format";
 
 function asNumber(value: unknown): number {
   if (typeof value === 'number') return value;
@@ -50,7 +51,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
     }
 
-    return NextResponse.json(packageData);
+    const kcd = toKcdPackage(packageData.toObject());
+    console.log('[Warehouse Package Detail] KCD format:', JSON.stringify(kcd, null, 2));
+    return NextResponse.json(kcd);
   } catch (error) {
     console.error("Error fetching package:", error);
     return NextResponse.json({ error: "Failed to fetch package" }, { status: 500 });
