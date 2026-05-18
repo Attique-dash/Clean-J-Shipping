@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
-import { validateApiKey } from "@/lib/api-key-validation";
+import { validateKcdRequest } from "@/lib/kcd-auth";
 import {
   normalizeKcdBody,
   validateUserCode,
@@ -45,23 +45,18 @@ export async function POST(
 
   try {
     let body: Record<string, unknown>;
-    let bodyToken: string | null = null;
     try {
       const rawBody = await req.text();
-      body = JSON.parse(rawBody);
-      bodyToken = (body as { token?: string })?.token || null;
-      req = new NextRequest(req.url, {
-        method: req.method,
-        headers: req.headers,
-        body: rawBody,
-      });
+      const parsed = JSON.parse(rawBody);
+      body = normalizeKcdBody(
+        Array.isArray(parsed) ? (parsed[0] as Record<string, unknown>) : parsed
+      );
     } catch {
       return validationFailedResponse([
         { field: 'body', message: 'Request body must be valid JSON' },
       ]);
     }
 
-    body = normalizeKcdBody(body);
     const userCodeErr = validateUserCode(
       asString(body.UserCode),
       { required: false }
@@ -70,8 +65,7 @@ export async function POST(
       return validationFailedResponse([userCodeErr]);
     }
 
-    const headerApiKey = req.headers.get('x-api-key');
-    const validation = await validateApiKey(headerApiKey, bodyToken);
+    const validation = await validateKcdRequest(req, body);
     if (!validation.valid) {
       return kcdErrorResponse(`Unauthorized - ${validation.error}`, 401);
     }
@@ -201,8 +195,7 @@ export async function GET(
   const trackingParam = decodeURIComponent(params.trackingNumber || '').trim();
 
   try {
-    const apiKey = req.headers.get('x-api-key');
-    const validation = await validateApiKey(apiKey);
+    const validation = await validateKcdRequest(req);
     if (!validation.valid) {
       return kcdErrorResponse(`Unauthorized - ${validation.error}`, 401);
     }

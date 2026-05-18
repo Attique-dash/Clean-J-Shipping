@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
-import { validateApiKey } from "@/lib/api-key-validation";
+import { validateKcdRequest } from "@/lib/kcd-auth";
 import { toKcdCustomerArray } from "@/lib/kcd-customer-format";
 import { kcdErrorResponse } from "@/lib/kcd-api-response";
 import crypto from "crypto";
@@ -15,10 +15,7 @@ export async function GET(req: NextRequest) {
   const requestId = crypto.randomUUID();
 
   try {
-    const apiKey =
-      req.headers.get("x-api-key") || req.nextUrl.searchParams.get("apiKey");
-
-    const validation = await validateApiKey(apiKey, null);
+    const validation = await validateKcdRequest(req);
     if (!validation.valid) {
       return kcdErrorResponse(
         `Unauthorized - ${validation.error}`,

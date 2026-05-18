@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
 import Invoice from "@/models/Invoice";
-import { validateApiKey } from "@/lib/api-key-validation";
+import { validateKcdRequest } from "@/lib/kcd-auth";
 import { trackingNumberQuery } from "@/lib/kcd-package-validation";
 import { getDocTrackingNumber } from "@/lib/package-format";
 import { kcdPackageSuccessResponse, kcdErrorResponse } from "@/lib/kcd-api-response";
@@ -23,22 +23,15 @@ export async function POST(
   const trackingParam = decodeURIComponent(params.trackingNumber || '').trim();
 
   try {
-    let bodyToken: string | null = null;
+    let parsed: unknown = {};
     try {
       const rawBody = await req.text();
-      const body = JSON.parse(rawBody);
-      bodyToken = body?.token || null;
-      req = new NextRequest(req.url, {
-        method: req.method,
-        headers: req.headers,
-        body: rawBody,
-      });
+      if (rawBody) parsed = JSON.parse(rawBody);
     } catch {
       // empty body is fine
     }
 
-    const headerApiKey = req.headers.get('x-api-key');
-    const validation = await validateApiKey(headerApiKey, bodyToken);
+    const validation = await validateKcdRequest(req, parsed);
     if (!validation.valid) {
       return kcdErrorResponse(`Unauthorized - ${validation.error}`, 401);
     }
