@@ -22,6 +22,12 @@ export function isRealApiToken(value: unknown): value is string {
   return true;
 }
 
+export type KcdAuthResolution = {
+  token: string | null;
+  checked: string[];
+  usedEnvFallback: boolean;
+};
+
 /**
  * Extract API token per Tasoko/Askenish/KCD spec:
  * - GET: ?id=TOKEN
@@ -32,35 +38,25 @@ export function extractKcdToken(
   req: NextRequest,
   parsedBody?: unknown
 ): string | null {
-  const fromQuery =
-    req.nextUrl.searchParams.get('id') ||
-    req.nextUrl.searchParams.get('apiKey');
-  if (isRealApiToken(fromQuery)) return fromQuery.trim();
-
-  const xApiKey =
-    req.headers.get('x-api-key') || req.headers.get('x-kcd-api-key');
-  if (isRealApiToken(xApiKey)) return xApiKey.trim();
-
-  const auth = req.headers.get('authorization');
-  if (auth) {
-    const token = auth.replace(/^Bearer\s+/i, '').trim();
-    if (isRealApiToken(token)) return token;
-  }
-
-  if (parsedBody !== undefined && parsedBody !== null) {
-    const fromBody = extractTokenFromParsedBody(parsedBody);
-    if (fromBody) return fromBody;
-  }
-
-  return null;
+  return resolveKcdAuth(req, parsedBody).token;
 }
 
 function extractTokenFromParsedBody(parsed: unknown): string | null {
+  if (typeof parsed === 'string') {
+    try {
+      return extractTokenFromParsedBody(JSON.parse(parsed));
+    } catch {
+      return null;
+    }
+  }
+
   if (Array.isArray(parsed)) {
-    const first = parsed[0] as Record<string, unknown> | undefined;
-    if (first) {
-      const t = first.APIToken ?? first.apiToken ?? first.token;
-      if (isRealApiToken(t)) return String(t).trim();
+    for (const item of parsed) {
+      if (item && typeof item === 'object') {
+        const row = item as Record<string, unknown>;
+        const t = row.APIToken ?? row.apiToken ?? row.token;
+        if (isRealApiToken(t)) return String(t).trim();
+      }
     }
     return null;
   }
@@ -70,6 +66,7 @@ function extractTokenFromParsedBody(parsed: unknown): string | null {
 
   if (isRealApiToken(obj.token)) return String(obj.token).trim();
   if (isRealApiToken(obj.apiToken)) return String(obj.apiToken).trim();
+  if (isRealApiToken(obj.APIToken)) return String(obj.APIToken).trim();
 
   if (obj.content !== undefined) {
     if (isRealApiToken(obj.token)) return String(obj.token).trim();
@@ -88,6 +85,81 @@ function extractTokenFromParsedBody(parsed: unknown): string | null {
   if (isRealApiToken(t)) return String(t).trim();
 
   return null;
+}
+
+/** True when body looks like Tasoko/Askenish inbound package webhook */
+export function looksLikeKcdPackageInbound(parsed: unknown): boolean {
+  const { packages } = parseKcdInboundPackages(parsed);
+  if (packages.length === 0) return false;
+  return packages.some((p) => {
+    const tracking = p.TrackingNumber ?? p.trackingNumber;
+    const user =
+      p.UserCode ?? p.userCode ?? p.customerMailbox ?? p.customerCode;
+    return isPresent(tracking) && isPresent(user);
+  });
+}
+
+function isPresent(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'string' && value.trim() === '') return false;
+  return true;
+}
+
+/**
+ * Resolve auth token and record which methods were evaluated (for error messages).
+ */
+export function resolveKcdAuth(
+  req: NextRequest,
+  parsedBody?: unknown
+): KcdAuthResolution {
+  const checked: string[] = [];
+
+  const fromQuery =
+    req.nextUrl.searchParams.get('id') ||
+    req.nextUrl.searchParams.get('apiKey') ||
+    req.nextUrl.searchParams.get('apiToken');
+  checked.push('query.id', 'query.apiKey', 'query.apiToken');
+  if (isRealApiToken(fromQuery)) {
+    return { token: fromQuery!.trim(), checked, usedEnvFallback: false };
+  }
+
+  const headerNames = [
+    'x-api-key',
+    'x-kcd-api-key',
+    'authorization',
+    'token',
+    'api-token',
+  ] as const;
+  for (const name of headerNames) {
+    checked.push(`header.${name}`);
+    const value = req.headers.get(name);
+    if (name === 'authorization' && value) {
+      const token = value.replace(/^Bearer\s+/i, '').trim();
+      if (isRealApiToken(token)) {
+        return { token, checked, usedEnvFallback: false };
+      }
+    } else if (isRealApiToken(value)) {
+      return { token: value!.trim(), checked, usedEnvFallback: false };
+    }
+  }
+
+  checked.push('body.token', 'body.apiToken', 'body.APIToken', 'body.content');
+  const fromBody = extractTokenFromParsedBody(parsedBody);
+  if (fromBody) {
+    return { token: fromBody, checked, usedEnvFallback: false };
+  }
+
+  // Askenish TestCourierProvider forwards package JSON without auth headers on POST.
+  // GET customers works because proxy adds ?id= or apiToken in content string.
+  if (looksLikeKcdPackageInbound(parsedBody)) {
+    checked.push('env.KCD_API_KEY');
+    const envKey = process.env.KCD_API_KEY?.trim();
+    if (envKey && isRealApiToken(envKey)) {
+      return { token: envKey, checked, usedEnvFallback: true };
+    }
+  }
+
+  return { token: null, checked, usedEnvFallback: false };
 }
 
 /**
@@ -155,12 +227,31 @@ export function parseKcdInboundPackages(parsed: unknown): {
 export async function validateKcdRequest(
   req: NextRequest,
   parsedBody?: unknown
-): Promise<{ valid: boolean; error?: string; key?: unknown; token?: string }> {
-  const token = extractKcdToken(req, parsedBody);
+): Promise<{
+  valid: boolean;
+  error?: string;
+  key?: unknown;
+  token?: string;
+  authChecked?: string[];
+  usedEnvFallback?: boolean;
+}> {
+  const { token, checked, usedEnvFallback } = resolveKcdAuth(req, parsedBody);
+  if (!token) {
+    return {
+      valid: false,
+      error:
+        'Missing API token. Use ?id=TOKEN on URL, Authorization header, x-api-key, or APIToken in body.',
+      authChecked: checked,
+      usedEnvFallback: false,
+    };
+  }
+
   const validation = await validateApiKey(token, null);
   return {
     ...validation,
-    token: token || undefined,
+    token: validation.valid ? token : undefined,
+    authChecked: checked,
+    usedEnvFallback,
   };
 }
 
@@ -176,4 +267,26 @@ export function applyApiTokenToPackages(
     }
     return pkg;
   });
+}
+
+export function kcdUnauthorizedResponse(
+  validation: {
+    error?: string;
+    authChecked?: string[];
+  },
+  extra?: Record<string, unknown>
+) {
+  return {
+    success: false,
+    message: 'Unauthorized',
+    error: validation.error || 'Invalid API key',
+    errorCode: 'KCD_AUTH_FAILED',
+    authChecked: validation.authChecked,
+    hint:
+      'Askenish Play test: use a real UserCode from GET customers (e.g. CLEAN-0007). ' +
+      'Configure Add Package URL as https://cleanjshipping.vercel.app/api/kcd/packages/add?id=YOUR_API_KEY ' +
+      'or ensure the warehouse proxy sends Authorization / x-api-key on POST.',
+    data: [] as unknown[],
+    ...extra,
+  };
 }

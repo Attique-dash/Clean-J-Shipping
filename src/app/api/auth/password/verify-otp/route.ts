@@ -26,8 +26,8 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
+        { error: "Invalid or expired OTP" },
+        { status: 400 }
       );
     }
 

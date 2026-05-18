@@ -26,6 +26,7 @@ declare module 'next-auth' {
     role: string;
     isVerified?: boolean;
     userCode?: string;
+    rememberMe?: boolean;
   }
 }
 
@@ -35,6 +36,7 @@ declare module 'next-auth/jwt' {
     role: string;
     userCode?: string;
     updated?: number;
+    rememberMe?: boolean;
   }
 }
 
@@ -44,7 +46,8 @@ export const authOptions: NextAuthOptions = {
       name: 'Credentials',
       credentials: {
         email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' }
+        password: { label: 'Password', type: 'password' },
+        rememberMe: { label: 'Remember Me', type: 'text' },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -93,12 +96,15 @@ export const authOptions: NextAuthOptions = {
           user.lastLogin = new Date();
           await user.save();
 
+          const rememberMe = credentials.rememberMe === 'true';
+
           return {
             id: user._id.toString(),
             email: user.email,
             name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
             role: user.role,
             userCode: user.userCode,
+            rememberMe,
           };
         } catch (error) {
           console.error('[Auth] Error during authorization:', error);
@@ -119,7 +125,13 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = user.role;
         token.userCode = user.userCode;
+        token.rememberMe = user.rememberMe ?? false;
+        const maxAgeSeconds = token.rememberMe
+          ? 30 * 24 * 60 * 60
+          : 24 * 60 * 60;
+        token.exp = Math.floor(Date.now() / 1000) + maxAgeSeconds;
       }
+
       return token;
     },
     async session({ session, token }) {

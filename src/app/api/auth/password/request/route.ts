@@ -15,9 +15,14 @@ export async function POST(req: Request) {
     if (!parsed.success) return NextResponse.json({ error: "Email is required" }, { status: 400 });
     const { email } = parsed.data;
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: email.toLowerCase() });
     // Always respond success to avoid leaking user existence
     if (!user) return NextResponse.json({ message: "If the email exists, a reset OTP has been sent." });
+
+    await PasswordResetToken.updateMany(
+      { userId: user._id, used: { $ne: true } },
+      { used: true }
+    );
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();

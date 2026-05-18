@@ -17,10 +17,15 @@ export async function GET(req: NextRequest) {
   try {
     const validation = await validateKcdRequest(req);
     if (!validation.valid) {
-      return kcdErrorResponse(
-        `Unauthorized - ${validation.error}`,
-        401,
-        { error: validation.error }
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Unauthorized',
+          error: validation.error,
+          errorCode: 'KCD_AUTH_FAILED',
+          authChecked: validation.authChecked,
+        },
+        { status: 401 }
       );
     }
 

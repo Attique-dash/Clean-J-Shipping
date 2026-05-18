@@ -43,6 +43,14 @@ function LoginPageContent() {
 
   useEffect(() => {
     setMounted(true);
+    try {
+      const savedRemember = localStorage.getItem('cleanj_remember_me');
+      if (savedRemember === 'true') {
+        setForm((prev) => ({ ...prev, rememberMe: true }));
+      }
+    } catch {
+      // localStorage unavailable
+    }
   }, []);
 
   // Handle redirect if already authenticated
@@ -105,10 +113,20 @@ function LoginPageContent() {
     }
     
     try {
+      try {
+        localStorage.setItem(
+          'cleanj_remember_me',
+          form.rememberMe ? 'true' : 'false'
+        );
+      } catch {
+        // ignore
+      }
+
       const result = await signIn('credentials', {
         redirect: false,
         email: form.email.trim(),
         password: form.password,
+        rememberMe: form.rememberMe ? 'true' : 'false',
       });
       
       if (result?.error) {

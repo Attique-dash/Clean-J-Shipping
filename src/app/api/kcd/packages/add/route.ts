@@ -14,6 +14,7 @@ import {
   validateKcdRequest,
   parseKcdInboundPackages,
   applyApiTokenToPackages,
+  kcdUnauthorizedResponse,
 } from "@/lib/kcd-auth";
 import { processKcdPackageAdd } from "@/lib/kcd-add-package-handler";
 import {
@@ -28,7 +29,10 @@ import {
   extractTrackingNumber,
   normalizeKcdBody,
 } from "@/lib/kcd-package-validation";
-import { kcdPackageCreatedResponse, kcdErrorResponse } from "@/lib/kcd-api-response";
+import {
+  kcdPackageCreatedResponse,
+  kcdErrorResponse,
+} from "@/lib/kcd-api-response";
 import crypto from "crypto";
 
 // Simple in-memory request log for debugging (resets on deployment)
@@ -123,7 +127,8 @@ export async function POST(req: NextRequest) {
     if (!validation.valid || !validation.token) {
       console.error(
         `[KCD Webhook ${requestId}] Auth failed:`,
-        validation.error
+        validation.error,
+        validation.authChecked
       );
       addLog({
         timestamp,
@@ -133,21 +138,16 @@ export async function POST(req: NextRequest) {
         responseStatus: 401,
         error: validation.error || 'Invalid API key',
       });
-      return NextResponse.json(
-        {
-          success: false,
-          message: `Unauthorized - ${validation.error}`,
-          hint:
-            'Askenish sends token via Authorization header, ?id= query, or x-api-key. Sample APIToken "<API-TOKEN>" is replaced automatically when a real token is present.',
-          data: [],
-        },
-        { status: 401 }
-      );
+      return NextResponse.json(kcdUnauthorizedResponse(validation), {
+        status: 401,
+      });
     }
 
     const token = validation.token;
     console.log(
-      `[KCD Webhook ${requestId}] API key validated (${(validation.key as { name?: string })?.name || 'env'})`
+      `[KCD Webhook ${requestId}] API key validated (${(validation.key as { name?: string })?.name || 'env'})${
+        validation.usedEnvFallback ? ' [env fallback for Askenish POST webhook]' : ''
+      }`
     );
 
     let packagesToProcess = inboundPackages;
@@ -222,10 +222,11 @@ export async function POST(req: NextRequest) {
     };
     addLog(log);
     
-    return NextResponse.json(
-      { error: "Internal server error", requestId },
-      { status: 500 }
-    );
+    return kcdErrorResponse('Internal server error', 500, {
+      requestId,
+      errorCode: 'KCD_INTERNAL_ERROR',
+      error: errorMessage,
+    });
   }
 }
 
