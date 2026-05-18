@@ -1,16 +1,18 @@
 // src/app/api/kcd/packages/[trackingNumber]/route.ts
-// KCD Logistics endpoint for updating packages
+// KCD Logistics endpoint for get/update package by tracking number
 
 import { NextRequest, NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { Package } from "@/models/Package";
-import { User } from "@/models/User";
 import { validateApiKey } from "@/lib/api-key-validation";
 import {
   normalizeKcdBody,
   validateUserCode,
   validationFailedResponse,
+  trackingNumberQuery,
 } from "@/lib/kcd-package-validation";
+import { toPublicKcdPackage } from "@/lib/package-format";
+import { kcdPackageSuccessResponse, kcdErrorResponse } from "@/lib/kcd-api-response";
 import crypto from "crypto";
 
 export const dynamic = 'force-dynamic';
@@ -32,252 +34,196 @@ function asNumber(value: unknown): number {
 
 /**
  * POST /api/kcd/packages/{trackingNumber}
- * Update package by tracking number
+ * Update package by tracking number (KCD PascalCase body)
  */
 export async function POST(
   req: NextRequest,
   { params }: { params: { trackingNumber: string } }
 ) {
-  const timestamp = new Date().toISOString();
   const requestId = crypto.randomUUID();
-  const { trackingNumber } = params;
-
-  console.log(`[KCD Update ${requestId}] Received request for ${trackingNumber} at ${timestamp}`);
+  const trackingParam = decodeURIComponent(params.trackingNumber || '').trim();
 
   try {
-    // Parse body first to extract token (Askenish portal sends token in body)
     let body: Record<string, unknown>;
     let bodyToken: string | null = null;
     try {
       const rawBody = await req.text();
       body = JSON.parse(rawBody);
-      bodyToken = (body as any)?.token || null;
-      console.log(`[KCD Update ${requestId}] Token from body:`, bodyToken ? '[PRESENT]' : '[MISSING]');
-      
-      // Re-create request with body for later use
+      bodyToken = (body as { token?: string })?.token || null;
       req = new NextRequest(req.url, {
         method: req.method,
         headers: req.headers,
         body: rawBody,
       });
     } catch {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Invalid JSON body',
-          errors: [{ field: 'body', message: 'Request body must be valid JSON' }],
-        },
-        { status: 400 }
-      );
+      return validationFailedResponse([
+        { field: 'body', message: 'Request body must be valid JSON' },
+      ]);
     }
 
     body = normalizeKcdBody(body);
     const userCodeErr = validateUserCode(
-      typeof body.userCode === 'string' ? body.userCode : '',
+      asString(body.UserCode),
       { required: false }
     );
     if (userCodeErr) {
       return validationFailedResponse([userCodeErr]);
     }
-    
-    // Verify API Key using header or body token
+
     const headerApiKey = req.headers.get('x-api-key');
     const validation = await validateApiKey(headerApiKey, bodyToken);
     if (!validation.valid) {
-      return NextResponse.json(
-        { error: `Unauthorized - ${validation.error}` },
-        { status: 401 }
-      );
+      return kcdErrorResponse(`Unauthorized - ${validation.error}`, 401);
     }
-    
-    console.log(`[KCD Update ${requestId}] Body:`, JSON.stringify(body, null, 2));
 
     await dbConnect();
 
-    // Find package
-    const existingPackage = await Package.findOne({ 
-      trackingNumber: trackingNumber.toUpperCase() 
-    });
+    const existingPackage = await Package.findOne(
+      trackingNumberQuery(trackingParam)
+    );
 
     if (!existingPackage) {
-      return NextResponse.json(
-        { error: "Package not found", trackingNumber },
-        { status: 404 }
-      );
+      return kcdErrorResponse('Package not found', 404, {
+        TrackingNumber: trackingParam.toUpperCase(),
+      });
     }
 
-    // Build update data - Support both old field names and Tasoko PDF field names (PascalCase)
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };
 
-    // Update fields if provided (handle both camelCase and PascalCase)
-    const weight = body.weight !== undefined ? body.weight : body.Weight;
-    if (weight !== undefined) {
-      updateData.weight = asNumber(weight);
+    if (body.Weight !== undefined) {
+      updateData.Weight = asNumber(body.Weight);
+      updateData.weight = asNumber(body.Weight);
     }
-    
-    const shipper = body.shipper !== undefined ? body.shipper : body.Shipper;
-    if (shipper !== undefined) {
-      updateData.shipper = asString(shipper);
+    if (body.Shipper !== undefined) {
+      updateData.Shipper = asString(body.Shipper);
+      updateData.shipper = asString(body.Shipper);
     }
-    
-    const description = body.description !== undefined ? body.description : body.Description;
-    if (description !== undefined) {
-      updateData.description = asString(description);
-      updateData.itemDescription = asString(description);
+    if (body.Description !== undefined) {
+      updateData.Description = asString(body.Description);
+      updateData.description = asString(body.Description);
+      updateData.itemDescription = asString(body.Description);
     }
-    
-    // Support both status and PackageStatus
-    const status = body.status !== undefined ? body.status : body.PackageStatus;
-    if (status !== undefined) {
-      updateData.status = asString(status);
+    if (body.PackageStatus !== undefined || body.status !== undefined) {
+      const statusVal = body.PackageStatus ?? body.status;
+      updateData.PackageStatus = asNumber(statusVal);
+      updateData.status = asString(statusVal);
     }
-    
-    // Support receivedAt, EntryDate, or EntryDateTime
-    const receivedAt = body.receivedAt !== undefined ? body.receivedAt : (body.EntryDate !== undefined ? body.EntryDate : body.EntryDateTime);
+    const receivedAt = body.EntryDateTime ?? body.EntryDate;
     if (receivedAt !== undefined) {
       const receivedDate = new Date(asString(receivedAt));
+      updateData.EntryDate = receivedDate;
+      updateData.EntryDateTime = receivedDate;
       updateData.dateReceived = receivedDate;
-      updateData.entryDate = receivedDate;
       updateData.receivedAt = receivedDate;
     }
-    
-    // Support houseNumber or ControlNumber
-    const houseNumber = body.houseNumber !== undefined ? body.houseNumber : body.ControlNumber;
-    if (houseNumber !== undefined) {
-      updateData.controlNumber = asString(houseNumber);
+    if (body.ControlNumber !== undefined) {
+      updateData.ControlNumber = asString(body.ControlNumber);
+      updateData.controlNumber = asString(body.ControlNumber);
     }
-    
-    // Additional Tasoko PDF fields
-    if (body.PackageID !== undefined || body.packageId !== undefined) {
-      updateData.kcdPackageId = asString(body.PackageID || body.packageId);
+    if (body.PackageID !== undefined) {
+      updateData.PackageID = asString(body.PackageID);
+      updateData.kcdPackageId = asString(body.PackageID);
     }
-    if (body.CourierID !== undefined || body.courierId !== undefined) {
-      updateData.kcdCourierId = asString(body.CourierID || body.courierId);
+    if (body.CourierID !== undefined) {
+      updateData.CourierID = asString(body.CourierID);
+      updateData.kcdCourierId = asString(body.CourierID);
     }
-    if (body.ManifestID !== undefined || body.manifestId !== undefined) {
-      updateData.kcdManifestId = asString(body.ManifestID || body.manifestId);
+    if (body.ManifestID !== undefined) {
+      updateData.ManifestID = asString(body.ManifestID);
+      updateData.kcdManifestId = asString(body.ManifestID);
+      updateData.manifestId = asString(body.ManifestID);
     }
-    if (body.CollectionID !== undefined || body.collectionId !== undefined) {
-      updateData.kcdCollectionId = asString(body.CollectionID || body.collectionId);
+    if (body.CollectionID !== undefined) {
+      updateData.CollectionID = asString(body.CollectionID);
+      updateData.kcdCollectionId = asString(body.CollectionID);
     }
-    if (body.EntryStaff !== undefined || body.entryStaff !== undefined) {
-      updateData.entryStaff = asString(body.EntryStaff || body.entryStaff);
+    if (body.EntryStaff !== undefined) {
+      updateData.EntryStaff = asString(body.EntryStaff);
+      updateData.entryStaff = asString(body.EntryStaff);
     }
-    if (body.Branch !== undefined || body.branch !== undefined) {
-      updateData.branch = asString(body.Branch || body.branch);
+    if (body.Branch !== undefined) {
+      updateData.Branch = asString(body.Branch);
+      updateData.branch = asString(body.Branch);
     }
-    if (body.Pieces !== undefined || body.pieces !== undefined) {
-      updateData.pieces = asNumber(body.Pieces || body.pieces);
+    if (body.Pieces !== undefined) {
+      updateData.Pieces = asNumber(body.Pieces);
+      updateData.pieces = asNumber(body.Pieces);
     }
-    if (body.Cubes !== undefined || body.cubes !== undefined) {
-      updateData.cubes = asNumber(body.Cubes || body.cubes);
+    if (body.Cubes !== undefined) {
+      updateData.Cubes = asNumber(body.Cubes);
+      updateData.cubes = asNumber(body.Cubes);
     }
-    if (body.FirstName !== undefined || body.firstName !== undefined) {
-      updateData.receiverFirstName = asString(body.FirstName || body.firstName);
+    if (body.FirstName !== undefined) {
+      updateData.FirstName = asString(body.FirstName);
+      updateData.receiverFirstName = asString(body.FirstName);
     }
-    if (body.LastName !== undefined || body.lastName !== undefined) {
-      updateData.receiverLastName = asString(body.LastName || body.lastName);
+    if (body.LastName !== undefined) {
+      updateData.LastName = asString(body.LastName);
+      updateData.receiverLastName = asString(body.LastName);
     }
 
-    // Track source
     updateData.source = 'kcd_webhook';
     updateData.sourceDetails = {
       syncedAt: new Date(),
       syncStatus: 'updated',
-      apiEndpoint: '/api/kcd/packages/[trackingNumber]'
+      apiEndpoint: '/api/kcd/packages/[trackingNumber]',
     };
 
-    // Update package
     const updatedPackage = await Package.findByIdAndUpdate(
       existingPackage._id,
       { $set: updateData },
       { new: true }
     );
 
-    console.log(`[KCD Update ${requestId}] Package updated: ${updatedPackage._id}`);
+    const kcdPkg = toPublicKcdPackage(updatedPackage!.toObject());
 
-    return NextResponse.json({
-      success: true,
-      message: "Package updated successfully",
-      package: {
-        id: updatedPackage._id,
-        trackingNumber: updatedPackage.trackingNumber,
-        userCode: updatedPackage.userCode,
-        status: updatedPackage.status,
-        updatedAt: updatedPackage.updatedAt
-      }
-    }, { status: 200 });
-
+    return kcdPackageSuccessResponse(
+      [kcdPkg],
+      'Package updated successfully'
+    );
   } catch (error) {
     console.error(`[KCD Update ${requestId}] Error:`, error);
-    return NextResponse.json(
-      { error: "Internal server error", requestId },
-      { status: 500 }
-    );
+    return kcdErrorResponse('Internal server error', 500, { requestId });
   }
 }
 
 /**
  * GET /api/kcd/packages/{trackingNumber}
- * Get package by tracking number
+ * Get package by tracking number — returns KCD PascalCase array in `data`
  */
 export async function GET(
   req: NextRequest,
   { params }: { params: { trackingNumber: string } }
 ) {
   const requestId = crypto.randomUUID();
-  const { trackingNumber } = params;
-
-  console.log(`[KCD Get ${requestId}] Received request for ${trackingNumber}`);
+  const trackingParam = decodeURIComponent(params.trackingNumber || '').trim();
 
   try {
-    // Verify API Key
     const apiKey = req.headers.get('x-api-key');
     const validation = await validateApiKey(apiKey);
     if (!validation.valid) {
-      return NextResponse.json(
-        { error: `Unauthorized - ${validation.error}` },
-        { status: 401 }
-      );
+      return kcdErrorResponse(`Unauthorized - ${validation.error}`, 401);
     }
 
     await dbConnect();
 
-    const pkg = await Package.findOne({ 
-      trackingNumber: trackingNumber.toUpperCase() 
-    }).lean() as any;
+    const pkg = await Package.findOne(
+      trackingNumberQuery(trackingParam)
+    ).lean();
 
     if (!pkg) {
-      return NextResponse.json(
-        { error: "Package not found", trackingNumber },
-        { status: 404 }
-      );
+      return kcdErrorResponse('Package not found', 404, {
+        TrackingNumber: trackingParam.toUpperCase(),
+      });
     }
 
-    return NextResponse.json({
-      success: true,
-      package: {
-        id: pkg._id,
-        trackingNumber: pkg.trackingNumber,
-        userCode: pkg.userCode,
-        mailboxNumber: pkg.mailboxNumber,
-        status: pkg.status,
-        weight: pkg.weight,
-        shipper: pkg.shipper,
-        description: pkg.description,
-        dateReceived: pkg.dateReceived,
-        createdAt: pkg.createdAt,
-        updatedAt: pkg.updatedAt
-      }
-    }, { status: 200 });
+    const kcdPkg = toPublicKcdPackage(pkg as Record<string, unknown>);
 
+    return kcdPackageSuccessResponse([kcdPkg], 'Package found');
   } catch (error) {
     console.error(`[KCD Get ${requestId}] Error:`, error);
-    return NextResponse.json(
-      { error: "Internal server error", requestId },
-      { status: 500 }
-    );
+    return kcdErrorResponse('Internal server error', 500, { requestId });
   }
 }

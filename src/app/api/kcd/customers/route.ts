@@ -1,64 +1,49 @@
 // src/app/api/kcd/customers/route.ts
-// KCD Logistics endpoint to fetch customer list
+// KCD Logistics endpoint — returns PascalCase customer array (KCD/Tasoko format)
 
 import { NextRequest, NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
 import { validateApiKey } from "@/lib/api-key-validation";
+import { toKcdCustomerArray } from "@/lib/kcd-customer-format";
+import { kcdErrorResponse } from "@/lib/kcd-api-response";
 import crypto from "crypto";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const timestamp = new Date().toISOString();
   const requestId = crypto.randomUUID();
 
-  console.log(`[KCD Customers ${requestId}] Received GET request at ${timestamp}`);
-
   try {
-    const apiKey = req.headers.get("x-api-key") || req.nextUrl.searchParams.get("apiKey");
-    
-    // Validate API key using new validation function
-    // Note: For GET requests, body token is not applicable, so we pass null
+    const apiKey =
+      req.headers.get("x-api-key") || req.nextUrl.searchParams.get("apiKey");
+
     const validation = await validateApiKey(apiKey, null);
     if (!validation.valid) {
-      return NextResponse.json(
-        { error: `Unauthorized - ${validation.error}` },
-        { status: 401 }
+      return kcdErrorResponse(
+        `Unauthorized - ${validation.error}`,
+        401,
+        { error: validation.error }
       );
     }
 
     await dbConnect();
 
     const users = await User.find({
-      role: { $in: ["customer", "user"] }
-    }).select("firstName lastName email userCode phone address").lean();
+      role: { $in: ["customer", "user"] },
+    })
+      .select(
+        "firstName lastName email userCode phone address branch createdAt"
+      )
+      .lean();
 
-    const customers = users.map((user) => ({
-      id: user._id?.toString(),
-      name: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Customer",
-      email: user.email,
-      phone: user.phone || null,
-      mailboxCode: user.userCode?.startsWith("CLEAN-") 
-        ? user.userCode 
-        : `CLEAN-${user.userCode}`,
-      rawUserCode: user.userCode,
-      address: user.address || null,
-      createdAt: user.createdAt,
-    }));
+    const customers = toKcdCustomerArray(
+      users as Parameters<typeof toKcdCustomerArray>[0]
+    );
 
-    return NextResponse.json({
-      success: true,
-      count: customers.length,
-      customers,
-      timestamp,
-    }, { status: 200 });
-
+    return NextResponse.json(customers, { status: 200 });
   } catch (error) {
     console.error(`[KCD Customers ${requestId}] Error:`, error);
-    return NextResponse.json(
-      { error: "Internal server error", requestId },
-      { status: 500 }
-    );
+    return kcdErrorResponse("Internal server error", 500, { requestId });
   }
 }

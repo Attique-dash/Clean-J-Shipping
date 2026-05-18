@@ -230,6 +230,76 @@ export function toKcdPackageArray(
   return docs.map((doc) => toKcdPackage(doc, options));
 }
 
+/** KCD webhook/public API shape — PascalCase fields only, no Mongo metadata */
+export function toPublicKcdPackage(
+  doc: Record<string, unknown>,
+  options?: { apiToken?: string }
+): KcdPackage {
+  const full = toKcdPackage(doc, { ...options, includeMeta: false });
+  const {
+    _id: _omitId,
+    createdAt: _omitCreated,
+    updatedAt: _omitUpdated,
+    dateReceived: _omitReceived,
+    daysInStorage: _omitDays,
+    totalAmount: _omitTotal,
+    amountPaid: _omitPaid,
+    paymentStatus: _omitPayStatus,
+    paymentMethod: _omitPayMethod,
+    serviceMode: _omitMode,
+    customerEmail: _omitEmail,
+    customerPhone: _omitPhone,
+    invoiceStatus: _omitInv,
+    pricePaid: _omitPrice,
+    pricePaidCurrency: _omitPriceCur,
+    itemValueUsd: _omitVal,
+    weightLbs: _omitLbs,
+    itemDescription: _omitDesc,
+    specialInstructions: _omitSpec,
+    senderName: _omitSender,
+    senderEmail: _omitSenderEmail,
+    senderPhone: _omitSenderPhone,
+    senderAddress: _omitSenderAddr,
+    senderCity: _omitSenderCity,
+    senderState: _omitSenderState,
+    senderZipCode: _omitSenderZip,
+    senderCountry: _omitSenderCountry,
+    dimensionUnit: _omitDimUnit,
+    billingInvoiceId: _omitBill,
+    ...kcd
+  } = full;
+  void _omitId;
+  void _omitCreated;
+  void _omitUpdated;
+  void _omitReceived;
+  void _omitDays;
+  void _omitTotal;
+  void _omitPaid;
+  void _omitPayStatus;
+  void _omitPayMethod;
+  void _omitMode;
+  void _omitEmail;
+  void _omitPhone;
+  void _omitInv;
+  void _omitPrice;
+  void _omitPriceCur;
+  void _omitVal;
+  void _omitLbs;
+  void _omitDesc;
+  void _omitSpec;
+  void _omitSender;
+  void _omitSenderEmail;
+  void _omitSenderPhone;
+  void _omitSenderAddr;
+  void _omitSenderCity;
+  void _omitSenderState;
+  void _omitSenderZip;
+  void _omitSenderCountry;
+  void _omitDimUnit;
+  void _omitBill;
+  return kcd;
+}
+
 export function kgToLbs(kg: number): number {
   return kg * 2.20462;
 }

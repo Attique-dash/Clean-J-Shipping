@@ -12,13 +12,17 @@ import { sendNewPackageEmail } from "@/lib/email";
 import { validateApiKey } from "@/lib/api-key-validation";
 import {
   buildKcdPackageDocument,
-  toKcdPackage,
-  getDocTrackingNumber,
+  toPublicKcdPackage,
 } from "@/lib/package-format";
 import {
   validateAddPackageBody,
   validationFailedResponse,
+  trackingNumberQuery,
+  extractUserCode,
+  extractTrackingNumber,
+  normalizeKcdBody,
 } from "@/lib/kcd-package-validation";
+import { kcdPackageCreatedResponse, kcdErrorResponse } from "@/lib/kcd-api-response";
 import crypto from "crypto";
 
 // Simple in-memory request log for debugging (resets on deployment)
@@ -166,63 +170,35 @@ export async function POST(req: NextRequest) {
       return validationFailedResponse(bodyValidation.errors);
     }
     body = bodyValidation.normalized;
-    
-    // Validate required fields - Support both old field names and Tasoko PDF field names (PascalCase)
-    const trackingNumber = body.trackingNumber || body.TrackingNumber;
-    const houseNumber = body.houseNumber || body.HouseNumber || body.ControlNumber;
-    const customerMailbox = body.userCode || body.customerMailbox || body.customerCode || body.UserCode;
-    const weight = body.weight || body.Weight;
-    const shipper = body.shipper || body.Shipper;
-    const receivedAt = body.receivedAt || body.EntryDate || body.EntryDateTime;
-    const description = body.description || body.Description;
-    const firstName = body.firstName || body.FirstName;
-    const lastName = body.lastName || body.LastName;
-    
-    // Additional Tasoko PDF fields (optional)
-    const packageId = body.PackageID || body.packageId;
-    const courierId = body.CourierID || body.courierId;
-    const manifestId = body.ManifestID || body.manifestId;
-    const collectionId = body.CollectionID || body.collectionId;
-    const entryStaff = body.EntryStaff || body.entryStaff;
-    const branch = body.Branch || body.branch;
-    const pieces = body.Pieces || body.pieces || 1;
-    const cubes = body.Cubes || body.cubes;
-    const length = body.Length || body.length;
-    const width = body.Width || body.width;
-    const height = body.Height || body.height;
-    const packageStatus = body.PackageStatus || body.status;
-    
-    const missingFields: string[] = [];
-    if (!trackingNumber) missingFields.push('trackingNumber/TrackingNumber');
-    if (!customerMailbox) missingFields.push('customerMailbox/UserCode');
-    
-    if (missingFields.length > 0) {
-      console.error(`[KCD Webhook ${requestId}] Missing required fields:`, missingFields);
-      console.error(`[KCD Webhook ${requestId}] Received body keys:`, Object.keys(body));
-      const errors = missingFields.map((field) => ({
-        field,
-        message: `Required field missing: ${field}`,
-      }));
-      const log = {
-        timestamp,
-        method: 'POST',
-        headers,
-        body,
-        responseStatus: 400,
-        error: `Missing required fields: ${missingFields.join(', ')}`
-      };
-      addLog(log);
-      return validationFailedResponse(errors);
-    }
+
+    const trackingNumber = extractTrackingNumber(body);
+    const userCode = extractUserCode(body);
+    const houseNumber = body.ControlNumber;
+    const weight = body.Weight;
+    const shipper = body.Shipper;
+    const receivedAt = body.EntryDateTime || body.EntryDate;
+    const description = body.Description;
+    const firstName = body.FirstName;
+    const lastName = body.LastName;
+    const packageId = body.PackageID;
+    const courierId = body.CourierID;
+    const manifestId = body.ManifestID;
+    const collectionId = body.CollectionID;
+    const entryStaff = body.EntryStaff;
+    const branch = body.Branch;
+    const pieces = body.Pieces ?? 1;
+    const cubes = body.Cubes;
+    const length = body.Length;
+    const width = body.Width;
+    const height = body.Height;
+    const packageStatus = body.PackageStatus;
     
     // Connect to database
     console.log(`[KCD Webhook ${requestId}] Connecting to database...`);
     await dbConnect();
     console.log(`[KCD Webhook ${requestId}] Database connected`);
     
-    // Find user by customerMailbox/UserCode (this maps to userCode)
-    const userCode = asString(customerMailbox);
-    console.log(`[KCD Webhook ${requestId}] Looking up user with userCode: ${userCode}`);
+    console.log(`[KCD Webhook ${requestId}] Looking up user with UserCode: ${userCode}`);
     
     const user = await User.findOne({ userCode });
     
@@ -246,10 +222,9 @@ export async function POST(req: NextRequest) {
     console.log(`[KCD Webhook ${requestId}] User found: ${user._id} (${user.email})`);
     
     // Check for duplicate tracking number
-    const tn = asString(trackingNumber).toUpperCase();
-    const existingPackage = await Package.findOne({
-      $or: [{ TrackingNumber: tn }, { trackingNumber: tn }],
-    });
+    const existingPackage = await Package.findOne(
+      trackingNumberQuery(trackingNumber)
+    );
     
     if (existingPackage) {
       console.warn(`[KCD Webhook ${requestId}] Package with tracking number ${trackingNumber} already exists`);
@@ -422,7 +397,7 @@ export async function POST(req: NextRequest) {
     let emailSent = false;
     try {
       if (user.email) {
-        const kcdEmailPkg = toKcdPackage(createdPackage.toObject());
+        const kcdEmailPkg = toPublicKcdPackage(createdPackage.toObject());
         await sendNewPackageEmail({
           to: user.email,
           firstName: user.firstName || "Customer",
@@ -453,20 +428,16 @@ export async function POST(req: NextRequest) {
     
     console.log(`[KCD Webhook ${requestId}] Success - Package created: ${createdPackage._id}`);
     
-    const kcdResponse = toKcdPackage(createdPackage.toObject());
+    const kcdResponse = toPublicKcdPackage(createdPackage.toObject());
     console.log(`[KCD Webhook ${requestId}] Package KCD format:`, JSON.stringify([kcdResponse], null, 2));
 
-    return NextResponse.json({
-      success: true,
-      message: "Package created successfully",
-      packages: [kcdResponse],
-      package: kcdResponse,
+    return kcdPackageCreatedResponse([kcdResponse], {
       notifications: {
         preAlertCreated,
         emailSent,
-        invoiceCreated
-      }
-    }, { status: 201 });
+        invoiceCreated,
+      },
+    });
     
   } catch (error) {
     console.error(`[KCD Webhook ${requestId}] Unexpected error:`, error);
@@ -532,16 +503,23 @@ export async function GET(req: NextRequest) {
     // Get data from query parameters (KCD sends data in URL for GET requests)
     const { searchParams } = new URL(req.url);
     
-    // Support multiple field name variations
-    const trackingNumber = searchParams.get('trackingNumber') || searchParams.get('TrackingNumber');
-    const houseNumber = searchParams.get('houseNumber') || searchParams.get('HouseNumber') || searchParams.get('ControlNumber');
-    const customerMailbox = searchParams.get('customerMailbox') || searchParams.get('customerCode') || searchParams.get('UserCode');
-    const weight = searchParams.get('weight') || searchParams.get('Weight');
-    const shipper = searchParams.get('shipper') || searchParams.get('Shipper');
-    const receivedAt = searchParams.get('receivedAt') || searchParams.get('EntryDate') || searchParams.get('EntryDateTime');
-    const description = searchParams.get('description') || searchParams.get('Description');
-    const firstName = searchParams.get('firstName') || searchParams.get('FirstName');
-    const lastName = searchParams.get('lastName') || searchParams.get('LastName');
+    const queryBody = normalizeKcdBody(
+      Object.fromEntries(searchParams.entries()) as Record<string, unknown>
+    );
+    const getValidation = validateAddPackageBody(queryBody);
+    const trackingNumber = extractTrackingNumber(
+      getValidation.ok ? getValidation.normalized : queryBody
+    );
+    const userCodeFromQuery = extractUserCode(
+      getValidation.ok ? getValidation.normalized : queryBody
+    );
+    const houseNumber = queryBody.ControlNumber;
+    const weight = queryBody.Weight;
+    const shipper = queryBody.Shipper;
+    const receivedAt = queryBody.EntryDateTime || queryBody.EntryDate;
+    const description = queryBody.Description;
+    const firstName = queryBody.FirstName;
+    const lastName = queryBody.LastName;
     
     // Token can be in query param or header
     const tokenFromQuery = searchParams.get('token') || searchParams.get('apiKey') || searchParams.get('api_key');
@@ -550,7 +528,7 @@ export async function GET(req: NextRequest) {
     
     console.log(`[KCD Webhook ${requestId}] Query params:`, {
       trackingNumber,
-      customerMailbox,
+      UserCode: userCodeFromQuery,
       houseNumber,
       weight,
       shipper,
@@ -580,26 +558,17 @@ export async function GET(req: NextRequest) {
       );
     }
     
-    // Validate required fields
-    const missingFields: string[] = [];
-    if (!trackingNumber) missingFields.push('trackingNumber/TrackingNumber');
-    if (!customerMailbox) missingFields.push('customerMailbox/UserCode');
-    
-    if (missingFields.length > 0) {
-      console.error(`[KCD Webhook ${requestId}] Missing required fields:`, missingFields);
+    if (!getValidation.ok) {
       log.responseStatus = 400;
-      log.error = `Missing required fields: ${missingFields.join(', ')}`;
+      log.error = getValidation.errors.map((e) => e.message).join('; ');
       addLog(log);
-      return NextResponse.json(
-        { error: "Missing required fields", missingFields, receivedParams: Object.fromEntries(searchParams.entries()) },
-        { status: 400 }
-      );
+      return validationFailedResponse(getValidation.errors);
     }
-    
+
     // Connect to database and create package (same as POST)
     await dbConnect();
     
-    const userCode = asString(customerMailbox);
+    const userCode = userCodeFromQuery;
     console.log(`[KCD Webhook ${requestId}] Looking up user with userCode: ${userCode}`);
     
     const user = await User.findOne({ userCode });
@@ -616,10 +585,9 @@ export async function GET(req: NextRequest) {
     }
     
     // Check for duplicate
-    const tnGet = asString(trackingNumber).toUpperCase();
-    const existingPackage = await Package.findOne({
-      $or: [{ TrackingNumber: tnGet }, { trackingNumber: tnGet }],
-    });
+    const existingPackage = await Package.findOne(
+      trackingNumberQuery(trackingNumber)
+    );
     
     if (existingPackage) {
       log.responseStatus = 409;
@@ -666,7 +634,7 @@ export async function GET(req: NextRequest) {
     let emailSent = false;
     try {
       if (user.email) {
-        const kcdGetPkg = toKcdPackage(createdPackage.toObject());
+        const kcdGetPkg = toPublicKcdPackage(createdPackage.toObject());
         await sendNewPackageEmail({
           to: user.email,
           firstName: user.firstName || "Customer",
@@ -684,19 +652,16 @@ export async function GET(req: NextRequest) {
       console.error(`[KCD Webhook ${requestId}] Failed to send email:`, emailError);
     }
     
-    const kcdGetResponse = toKcdPackage(createdPackage.toObject());
+    const kcdGetResponse = toPublicKcdPackage(createdPackage.toObject());
     console.log(`[KCD Webhook ${requestId}] Package KCD format:`, JSON.stringify([kcdGetResponse], null, 2));
 
     log.responseStatus = 201;
     addLog(log);
     
-    return NextResponse.json({
-      success: true,
-      message: "Package created successfully via GET",
-      packages: [kcdGetResponse],
-      package: kcdGetResponse,
-      notifications: { emailSent }
-    }, { status: 201 });
+    return kcdPackageCreatedResponse([kcdGetResponse], {
+      message: 'Package created successfully via GET',
+      notifications: { emailSent },
+    });
     
   } catch (error) {
     console.error(`[KCD Webhook ${requestId}] Unexpected error:`, error);

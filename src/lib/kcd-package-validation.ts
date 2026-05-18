@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
-/** e.g. CLEAN-001322 (prefix 2–6 letters, 2–6 digits) */
-export const USER_CODE_REGEX = /^[A-Z]{2,6}-\d{2,6}$/;
+/** Internal mailbox codes (e.g. CLEAN-0033) or external KCD codes (e.g. EPXUUYE) */
+export const USER_CODE_REGEX = /^[A-Z0-9][A-Z0-9-]{1,29}$/;
 
 export interface KcdValidationError {
   field: string;
@@ -9,55 +9,113 @@ export interface KcdValidationError {
   value?: unknown;
 }
 
-const PASCAL_TO_CAMEL: Record<string, string> = {
-  PackageID: 'packageId',
-  TrackingNumber: 'trackingNumber',
-  ControlNumber: 'controlNumber',
-  HouseNumber: 'houseNumber',
-  FirstName: 'firstName',
-  LastName: 'lastName',
-  UserCode: 'userCode',
-  Weight: 'weight',
-  Shipper: 'shipper',
-  EntryDate: 'entryDate',
-  EntryDateTime: 'entryDateTime',
-  EntryStaff: 'entryStaff',
-  Branch: 'branch',
-  Description: 'description',
-  Pieces: 'pieces',
-  Cubes: 'cubes',
-  Length: 'length',
-  Width: 'width',
-  Height: 'height',
-  PackageStatus: 'status',
-  Status: 'status',
-  CourierID: 'courierId',
-  ManifestID: 'manifestId',
-  CollectionID: 'collectionId',
+/** Canonical KCD field → accepted request aliases (any casing / legacy names) */
+const KCD_FIELD_ALIASES: Record<string, string[]> = {
+  PackageID: ['PackageID', 'packageId'],
+  CourierID: ['CourierID', 'courierId'],
+  ManifestID: ['ManifestID', 'manifestId'],
+  CollectionID: ['CollectionID', 'collectionId'],
+  TrackingNumber: ['TrackingNumber', 'trackingNumber'],
+  ControlNumber: [
+    'ControlNumber',
+    'controlNumber',
+    'houseNumber',
+    'HouseNumber',
+  ],
+  FirstName: ['FirstName', 'firstName'],
+  LastName: ['LastName', 'lastName'],
+  UserCode: [
+    'UserCode',
+    'userCode',
+    'customerMailbox',
+    'customerCode',
+    'MailboxNumber',
+    'mailboxNumber',
+  ],
+  Weight: ['Weight', 'weight'],
+  Shipper: ['Shipper', 'shipper'],
+  EntryStaff: ['EntryStaff', 'entryStaff'],
+  EntryDate: ['EntryDate', 'entryDate', 'receivedAt'],
+  EntryDateTime: ['EntryDateTime', 'entryDateTime', 'receivedAt'],
+  Branch: ['Branch', 'branch'],
+  Description: ['Description', 'description'],
+  Pieces: ['Pieces', 'pieces'],
+  Cubes: ['Cubes', 'cubes'],
+  Length: ['Length', 'length'],
+  Width: ['Width', 'width'],
+  Height: ['Height', 'height'],
+  PackageStatus: ['PackageStatus', 'packageStatus', 'status', 'Status'],
+  Claimed: ['Claimed', 'claimed'],
+  APIToken: ['APIToken', 'apiToken', 'token'],
+  ShowControls: ['ShowControls', 'showControls'],
+  ManifestCode: ['ManifestCode', 'manifestCode'],
+  CollectionCode: ['CollectionCode', 'collectionCode'],
+  HSCode: ['HSCode', 'hsCode'],
+  Unknown: ['Unknown', 'unknown'],
+  AIProcessed: ['AIProcessed', 'aiProcessed'],
+  OriginalHouseNumber: ['OriginalHouseNumber', 'originalHouseNumber'],
+  Discrepancy: ['Discrepancy', 'discrepancy'],
+  DiscrepancyDescription: [
+    'DiscrepancyDescription',
+    'discrepancyDescription',
+  ],
+  ServiceTypeID: ['ServiceTypeID', 'serviceTypeId'],
+  HazmatCodeID: ['HazmatCodeID', 'hazmatCodeId'],
+  Coloaded: ['Coloaded', 'coloaded'],
+  ColoadIndicator: ['ColoadIndicator', 'coloadIndicator'],
+  PackagePayments: ['PackagePayments', 'packagePayments'],
 };
 
-export function normalizeKcdBody(body: Record<string, unknown>): Record<string, unknown> {
-  const out = { ...body };
-  for (const [pascal, camel] of Object.entries(PASCAL_TO_CAMEL)) {
-    if (out[pascal] !== undefined && out[camel] === undefined) {
-      out[camel] = out[pascal];
+function isPresent(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'string' && value.trim() === '') return false;
+  return true;
+}
+
+function pushError(errors: KcdValidationError[], error: KcdValidationError) {
+  if (errors.some((e) => e.field === error.field)) return;
+  errors.push(error);
+}
+
+/**
+ * Normalize any request body to canonical KCD PascalCase fields.
+ * Accepts camelCase, PascalCase, and legacy names (e.g. customerMailbox → UserCode).
+ */
+export function normalizeKcdBody(
+  body: Record<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...body };
+
+  for (const [canonical, aliases] of Object.entries(KCD_FIELD_ALIASES)) {
+    for (const alias of aliases) {
+      if (isPresent(out[alias])) {
+        if (!isPresent(out[canonical])) {
+          out[canonical] = out[alias];
+        }
+        break;
+      }
     }
   }
-  if (out.customerMailbox !== undefined && out.userCode === undefined) {
-    out.userCode = out.customerMailbox;
+
+  if (isPresent(out.UserCode)) {
+    out.UserCode = String(out.UserCode).trim().toUpperCase();
   }
-  if (out.customerCode !== undefined && out.userCode === undefined) {
-    out.userCode = out.customerCode;
+  if (isPresent(out.TrackingNumber)) {
+    out.TrackingNumber = String(out.TrackingNumber).trim().toUpperCase();
   }
+
   return out;
 }
 
 export function extractUserCode(body: Record<string, unknown>): string {
-  const raw =
-    body.userCode ??
-    body.UserCode ??
-    body.customerMailbox ??
-    body.customerCode;
+  const raw = body.UserCode;
+  return typeof raw === 'string' || typeof raw === 'number'
+    ? String(raw).trim().toUpperCase()
+    : '';
+}
+
+export function extractTrackingNumber(body: Record<string, unknown>): string {
+  const raw = body.TrackingNumber;
   return typeof raw === 'string' || typeof raw === 'number'
     ? String(raw).trim().toUpperCase()
     : '';
@@ -70,14 +128,16 @@ export function validateUserCode(
   if (!code) {
     if (options.required === false) return null;
     return {
-      field: 'userCode',
-      message: 'Customer code is required (userCode, UserCode, customerMailbox, or customerCode)',
+      field: 'UserCode',
+      message:
+        'UserCode is required. Send UserCode (or legacy: customerMailbox, customerCode, userCode).',
     };
   }
   if (!USER_CODE_REGEX.test(code)) {
     return {
-      field: 'userCode',
-      message: 'Customer code must be in format PREFIX-NNNN (2-6 digits, e.g. CLEAN-001322)',
+      field: 'UserCode',
+      message:
+        'UserCode must be 2–30 characters (letters, numbers, hyphens), e.g. CLEAN-0033 or EPXUUYE',
       value: code,
     };
   }
@@ -94,47 +154,46 @@ export function validateAddPackageBody(body: Record<string, unknown>): {
 
   const userCode = extractUserCode(normalized);
   const userCodeErr = validateUserCode(userCode, { required: true });
-  if (userCodeErr) errors.push(userCodeErr);
-  else {
-    normalized.userCode = userCode;
-    normalized.UserCode = userCode;
+  if (userCodeErr) pushError(errors, userCodeErr);
+
+  const tracking = extractTrackingNumber(normalized);
+  if (!tracking) {
+    pushError(errors, {
+      field: 'TrackingNumber',
+      message:
+        'TrackingNumber is required. Send TrackingNumber (or legacy: trackingNumber).',
+    });
+  } else if (tracking.length < 3 || tracking.length > 50) {
+    pushError(errors, {
+      field: 'TrackingNumber',
+      message: 'TrackingNumber must be 3–50 characters',
+      value: tracking,
+    });
   }
 
-  const tracking =
-    normalized.trackingNumber ?? normalized.TrackingNumber;
-  if (tracking !== undefined && tracking !== null && String(tracking).trim()) {
-    const tn = String(tracking).trim();
-    if (tn.length < 3 || tn.length > 50) {
-      errors.push({
-        field: 'trackingNumber',
-        message: 'Tracking number must be 3-50 characters',
-        value: tracking,
-      });
-    }
-  }
-
-  const weight = normalized.weight ?? normalized.Weight;
+  const weight = normalized.Weight;
   if (weight !== undefined && weight !== null && weight !== '') {
     const w = Number(weight);
     if (!Number.isFinite(w) || w < 0) {
-      errors.push({
-        field: 'weight',
-        message: 'Weight must be a positive number',
+      pushError(errors, {
+        field: 'Weight',
+        message: 'Weight must be a non-negative number',
         value: weight,
       });
     }
   }
 
-  const serviceMode = normalized.serviceMode ?? normalized.ServiceMode;
+  const serviceMode =
+    normalized.serviceMode ?? normalized.ServiceMode ?? normalized.ServiceTypeID;
   if (
     serviceMode !== undefined &&
     serviceMode !== null &&
     serviceMode !== '' &&
-    !['air', 'ocean', 'local'].includes(String(serviceMode))
+    !['air', 'ocean', 'local', 'sea'].includes(String(serviceMode).toLowerCase())
   ) {
-    errors.push({
-      field: 'serviceMode',
-      message: 'Service mode must be air, ocean, or local',
+    pushError(errors, {
+      field: 'ServiceTypeID',
+      message: 'Service mode must be air, ocean, sea, or local',
       value: serviceMode,
     });
   }
@@ -142,13 +201,27 @@ export function validateAddPackageBody(body: Record<string, unknown>): {
   return { ok: errors.length === 0, errors, normalized };
 }
 
-export function validationFailedResponse(errors: KcdValidationError[], status = 400) {
+export function validationFailedResponse(
+  errors: KcdValidationError[],
+  status = 400
+) {
   return NextResponse.json(
     {
       success: false,
       message: 'Validation failed',
       errors,
+      data: [],
     },
     { status }
   );
+}
+
+/** Mongo filter: match package by TrackingNumber (PascalCase or legacy camelCase) */
+export function trackingNumberQuery(tracking: string): {
+  $or: Array<{ TrackingNumber: string } | { trackingNumber: string }>;
+} {
+  const tn = tracking.trim().toUpperCase();
+  return {
+    $or: [{ TrackingNumber: tn }, { trackingNumber: tn }],
+  };
 }

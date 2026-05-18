@@ -82,7 +82,7 @@ export default function KcdTestPage() {
   }, []);
 
   const [trackingNumber, setTrackingNumber] = useState('TEST' + Date.now().toString().slice(-6));
-  const [customerMailbox, setCustomerMailbox] = useState('CLEAN-0007');
+  const [userCode, setUserCode] = useState('CLEAN-0033');
   const [weight, setWeight] = useState('2.5');
   const [shipper, setShipper] = useState('Amazon');
   const [serviceMode, setServiceMode] = useState('air');
@@ -110,7 +110,15 @@ export default function KcdTestPage() {
     const startTime = performance.now();
     const timestamp = new Date().toISOString();
     try {
-      const payload = { trackingNumber, customerMailbox, weight: parseFloat(weight), shipper, description, receivedAt: timestamp, serviceMode, packageDimensions, status: packageStatus };
+      const payload = {
+        TrackingNumber: trackingNumber,
+        UserCode: userCode,
+        Weight: parseFloat(weight),
+        Shipper: shipper,
+        Description: description,
+        EntryDateTime: timestamp,
+        Pieces: 1,
+      };
       const response = await fetch('/api/kcd/packages/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
@@ -150,12 +158,11 @@ export default function KcdTestPage() {
     const startTime = performance.now();
     const timestamp = new Date().toISOString();
     try {
-      const payload: Record<string, any> = {};
-      if (weight) payload.weight = parseFloat(weight);
-      if (shipper) payload.shipper = shipper;
-      if (description) payload.description = description;
-      if (packageStatus) payload.status = packageStatus;
-      if (serviceMode) payload.serviceMode = serviceMode;
+      const payload: Record<string, unknown> = {};
+      if (weight) payload.Weight = parseFloat(weight);
+      if (shipper) payload.Shipper = shipper;
+      if (description) payload.Description = description;
+      if (packageStatus) payload.PackageStatus = packageStatus;
       const response = await fetch(`/api/kcd/packages/${trackingNumber}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey }, body: JSON.stringify(payload) });
       const responseTime = Math.round(performance.now() - startTime);
       const data = await response.json().catch(() => null);
@@ -173,7 +180,10 @@ export default function KcdTestPage() {
     const startTime = performance.now();
     const timestamp = new Date().toISOString();
     try {
-      const payload: Record<string, any> = { manifestId, shipmentMode };
+      const payload: Record<string, unknown> = {
+        ManifestID: manifestId,
+        shipmentMode,
+      };
       if (flightNumber) payload.flightNumber = flightNumber;
       if (currentLocation) payload.currentLocation = currentLocation;
       const response = await fetch(`/api/kcd/packages/${trackingNumber}/manifest`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey }, body: JSON.stringify(payload) });
@@ -323,8 +333,8 @@ export default function KcdTestPage() {
               {activeTab === 'add' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Customer Mailbox <span className="text-red-500">*</span></label>
-                    <input value={customerMailbox} onChange={(e) => setCustomerMailbox(e.target.value.toUpperCase())} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-mono focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" placeholder="e.g., CLEAN-0007" />
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">UserCode <span className="text-red-500">*</span></label>
+                    <input value={userCode} onChange={(e) => setUserCode(e.target.value.toUpperCase())} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-mono focus:border-[#0f4d8a] focus:outline-none focus:ring-2 focus:ring-[#0f4d8a]/20" placeholder="e.g., CLEAN-0033" />
                     <p className="text-xs text-gray-500 mt-1">Maps to userCode in database</p>
                   </div>
                   <div>
