@@ -33,7 +33,6 @@
     "currency-codes": "^2.2.0",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
-    "easyinvoice": "^3.0.11",
     "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^8.2.1",
     "firebase-admin": "^10.3.0",
@@ -76,6 +75,9 @@
     "xlsx": "^0.18.5",
     "xss-clean": "^0.1.4",
     "zod": "^3.23.8"
+  },
+  "overrides": {
+    "tar": "^7.4.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

@@ -223,10 +223,18 @@ export async function GET(req: Request) {
     }
 
     if (userCode) {
-      // Existing codebase uses both userCode and shippingId in different places.
-      const user = (await User.findOne({ $or: [{ userCode }, { shippingId: userCode }] }).select('_id').lean()) as unknown as { _id?: unknown } | null;
+      const code = userCode.toUpperCase();
+      const user = (await User.findOne({
+        $or: [{ userCode: code }, { shippingId: code }],
+      })
+        .select('_id')
+        .lean()) as unknown as { _id?: unknown } | null;
       if (user?._id) {
-        filter.userId = user._id;
+        const userClause = {
+          $or: [{ userId: user._id }, { UserCode: code }, { userCode: code }],
+        };
+        if (!filter.$and) filter.$and = [];
+        (filter.$and as unknown[]).push(userClause);
       } else {
         return NextResponse.json({
           packages: [],
@@ -338,12 +346,19 @@ export async function POST(req: Request) {
       );
     }
 
-    const user = await User.findOne({ userCode: asString(userCode) });
+    const tn = asString(trackingNumber).toUpperCase();
+    if (tn.length < 3 || tn.length > 50) {
+      return NextResponse.json(
+        { error: "Tracking number must be between 3 and 50 characters" },
+        { status: 400 }
+      );
+    }
+
+    const user = await User.findOne({ userCode: asString(userCode).toUpperCase() });
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const tn = asString(trackingNumber).toUpperCase();
     const existing = await Package.findOne({
       $or: [{ TrackingNumber: tn }, { trackingNumber: tn }],
     });
@@ -379,7 +394,24 @@ export async function POST(req: Request) {
       { source: 'manual' }
     );
 
-    const created = await Package.create(packageData);
+    let created;
+    try {
+      created = await Package.create(packageData);
+    } catch (createErr) {
+      const msg =
+        createErr instanceof Error ? createErr.message : 'Database error';
+      console.error('Package.create failed:', createErr);
+      if (msg.includes('duplicate key') || msg.includes('E11000')) {
+        return NextResponse.json(
+          { error: 'Tracking number already exists' },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'Failed to create package', details: msg },
+        { status: 500 }
+      );
+    }
 
     // Create pre-alert automatically when package is added
     try {
@@ -536,7 +568,11 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("Error creating package:", error);
-    return NextResponse.json({ error: "Failed to create package" }, { status: 500 });
+    const details = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json(
+      { error: "Failed to create package", details },
+      { status: 500 }
+    );
   }
 }
 

@@ -287,9 +287,9 @@ function AdminAddPackagePageContent() {
               packageData.senderPhone || packageData.sender?.phone || "",
             senderAddress:
               packageData.senderAddress || packageData.sender?.address || "",
-            senderCity: packageData.senderCity || "Kingston",
-            senderState: packageData.senderState || "St. Andrew",
-            senderZipCode: packageData.senderZipCode || "00000",
+            senderCity: packageData.senderCity || "",
+            senderState: packageData.senderState || "",
+            senderZipCode: packageData.senderZipCode || "",
             senderCountry:
               packageData.senderCountry || packageData.sender?.country || "",
             itemValue:
@@ -434,9 +434,9 @@ function AdminAddPackagePageContent() {
           email: form.senderEmail.trim() || undefined,
           phone: form.senderPhone.trim() || undefined,
           address: form.senderAddress.trim() || undefined,
-          city: form.senderCity.trim() || "Kingston",
-          state: form.senderState.trim() || "St. Andrew",
-          zipCode: form.senderZipCode.trim() || "00000",
+          city: form.senderCity.trim() || undefined,
+          state: form.senderState.trim() || undefined,
+          zipCode: form.senderZipCode.trim() || undefined,
           country: form.senderCountry.trim() || undefined,
         },
         contents: form.description.trim() || undefined,

@@ -45,6 +45,29 @@ export function getCustomerDisplayName(pkg: KcdPackage): string {
   return name || 'N/A';
 }
 
+/** Format sender address without injecting default city/state/zip placeholders */
+export function formatSenderAddressLine(pkg: {
+  senderAddress?: string;
+  senderCity?: string;
+  senderState?: string;
+  senderZipCode?: string;
+}): string {
+  const street = asString(pkg.senderAddress).trim();
+  const city = asString(pkg.senderCity).trim();
+  const state = asString(pkg.senderState).trim();
+  const zip = asString(pkg.senderZipCode).trim();
+
+  const localityParts: string[] = [];
+  if (city) localityParts.push(city);
+  if (state && state !== city) localityParts.push(state);
+  if (zip && zip !== '00000') localityParts.push(zip);
+
+  if (street && localityParts.length > 0) {
+    return `${street}, ${localityParts.join(', ')}`;
+  }
+  return street || localityParts.join(', ') || '';
+}
+
 export function getPackageStatusLabel(pkg: KcdPackage): string {
   return getExternalStatusLabel(pkg.PackageStatus ?? 0);
 }
@@ -486,10 +509,10 @@ export function buildKcdPackageDocument(
     senderPhone: asString(body.senderPhone) || (sender ? asString(sender.phone) : ''),
     senderAddress:
       asString(body.senderAddress) || (sender ? asString(sender.address) : ''),
-    senderCity: asString(body.senderCity) || (sender ? asString(sender.city) : 'Kingston'),
-    senderState: asString(body.senderState) || (sender ? asString(sender.state) : 'St. Andrew'),
+    senderCity: asString(body.senderCity) || (sender ? asString(sender.city) : ''),
+    senderState: asString(body.senderState) || (sender ? asString(sender.state) : ''),
     senderZipCode:
-      asString(body.senderZipCode) || (sender ? asString(sender.zipCode) : '00000'),
+      asString(body.senderZipCode) || (sender ? asString(sender.zipCode) : ''),
     senderCountry:
       asString(body.senderCountry) || (sender ? asString(sender.country) : ''),
     sender: sender ?? {

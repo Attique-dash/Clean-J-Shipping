@@ -708,10 +708,6 @@ export default function AdminPackagesPage() {
                           <span className="font-medium text-gray-900">{formatPkgAmount(pkg, pkg.totalAmount || 0)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Days in storage:</span>
-                          <span className="font-medium text-gray-900">{pkg.daysInStorage}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Payment:</span>
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${getPaymentStatusBadge(pkg.paymentStatus)}`}>
                             {getPaymentStatusLabel(pkg.paymentStatus)}
@@ -767,10 +763,8 @@ export default function AdminPackagesPage() {
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Weight (lbs)</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Total Amount</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Invoice Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Invoice Value</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Payment Status</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date Received</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Days</th>
                     <th className="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -806,8 +800,8 @@ export default function AdminPackagesPage() {
                       <td className="px-6 py-4 text-sm text-gray-900">{pkg.UserCode || 'N/A'}</td>
                       <td className="px-6 py-4 text-sm text-gray-900">{pkg.Shipper || 'N/A'}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center border px-2 py-1 text-xs font-semibold rounded-full ${getServiceBadge(pkg.serviceMode || '')}`}>
-                          {String(pkg.serviceMode).toUpperCase()}
+                        <span className={`inline-flex items-center border px-2 py-1 text-xs font-semibold rounded-full ${getServiceBadge(pkg.serviceMode || 'air')}`}>
+                          {(pkg.serviceMode || 'air').toUpperCase()}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -827,22 +821,16 @@ export default function AdminPackagesPage() {
                           {getInvoiceStatusLabel(pkg.invoiceStatus)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {pkg.pricePaid && pkg.pricePaid > 0 ? (
-                          <span className="font-medium text-green-700">
-                            {formatPkgAmount(pkg, pkg.pricePaid)}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getPaymentStatusBadge(pkg.paymentStatus)}`}>
                           {getPaymentStatusLabel(pkg.paymentStatus)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.dateReceived ? new Date(pkg.dateReceived).toLocaleDateString() : ''}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{pkg.daysInStorage}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {pkg.EntryDate || pkg.dateReceived
+                          ? new Date(String(pkg.EntryDate || pkg.dateReceived)).toLocaleDateString()
+                          : '—'}
+                      </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">

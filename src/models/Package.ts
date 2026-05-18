@@ -146,7 +146,7 @@ const PackageSchema = new Schema<IPackage>(
     PackageStatus: { type: Number, default: 0 },
     PackagePayments: { type: String, trim: true, default: '' },
 
-    userId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'User' },
     customer: { type: Schema.Types.ObjectId, ref: 'User' },
     source: {
       type: String,

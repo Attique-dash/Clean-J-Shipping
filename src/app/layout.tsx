@@ -1,7 +1,6 @@
 // src/app/layout.tsx
 'use client';
 
-import { useEffect } from "react";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
@@ -16,27 +15,6 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  useEffect(() => {
-    // Safari detection and fix
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    
-    if (isSafari) {
-      console.log('Safari detected - applying fixes');
-      
-      // Force style recalculation
-      document.documentElement.style.display = 'none';
-      void document.documentElement.offsetHeight; // Trigger reflow
-      document.documentElement.style.display = '';
-      
-      // Force repaint after a short delay
-      setTimeout(() => {
-        document.body.style.display = 'none';
-        void document.body.offsetHeight;
-        document.body.style.display = '';
-      }, 100);
-    }
-  }, []);
-
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

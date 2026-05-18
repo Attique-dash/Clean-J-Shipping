@@ -4,6 +4,7 @@ import { Package, User, Truck } from 'lucide-react';
 import type { KcdPackageRecord } from '@/types/kcd-package';
 import {
   formatPackageAmount,
+  formatSenderAddressLine,
   getCustomerDisplayName,
   getPackageStatusLabel,
 } from '@/lib/package-format';
@@ -105,11 +106,7 @@ export default function PackageDetailsPanel({
             <DetailRow label="Country" value={pkg.senderCountry || 'N/A'} />
             <DetailRow
               label="Address"
-              value={
-                [pkg.senderAddress, pkg.senderCity, pkg.senderState, pkg.senderZipCode]
-                  .filter(Boolean)
-                  .join(', ') || 'N/A'
-              }
+              value={formatSenderAddressLine(pkg) || 'N/A'}
             />
           </div>
         </div>
