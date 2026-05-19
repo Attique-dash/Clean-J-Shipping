@@ -117,10 +117,31 @@ export function resolveKcdAuth(
   const fromQuery =
     req.nextUrl.searchParams.get('id') ||
     req.nextUrl.searchParams.get('apiKey') ||
-    req.nextUrl.searchParams.get('apiToken');
-  checked.push('query.id', 'query.apiKey', 'query.apiToken');
+    req.nextUrl.searchParams.get('api_key') ||
+    req.nextUrl.searchParams.get('apiToken') ||
+    req.nextUrl.searchParams.get('token');
+  checked.push(
+    'query.id',
+    'query.apiKey',
+    'query.apiToken',
+    'query.token',
+    'query.content'
+  );
   if (isRealApiToken(fromQuery)) {
     return { token: fromQuery!.trim(), checked, usedEnvFallback: false };
+  }
+
+  const contentParam = req.nextUrl.searchParams.get('content');
+  if (contentParam) {
+    try {
+      const parsed = JSON.parse(contentParam) as Record<string, unknown>;
+      const t = parsed.apiToken ?? parsed.APIToken ?? parsed.token;
+      if (isRealApiToken(t)) {
+        return { token: String(t).trim(), checked, usedEnvFallback: false };
+      }
+    } catch {
+      /* ignore */
+    }
   }
 
   const headerNames = [
@@ -149,12 +170,14 @@ export function resolveKcdAuth(
     return { token: fromBody, checked, usedEnvFallback: false };
   }
 
-  // Askenish TestCourierProvider forwards package JSON without auth headers on POST.
-  // GET customers works because proxy adds ?id= or apiToken in content string.
-  if (looksLikeKcdPackageInbound(parsedBody)) {
-    checked.push('env.KCD_API_KEY');
-    const envKey = process.env.KCD_API_KEY?.trim();
-    if (envKey && isRealApiToken(envKey)) {
+  // Askenish proxy often forwards without x-api-key; use server KCD_API_KEY when configured.
+  checked.push('env.KCD_API_KEY');
+  const envKey = process.env.KCD_API_KEY?.trim();
+  if (envKey && isRealApiToken(envKey)) {
+    const path = req.nextUrl.pathname.toLowerCase();
+    const isCustomers = path.includes('/kcd/customers');
+    const isPackageAdd = path.includes('/kcd/packages/add');
+    if (isCustomers || (isPackageAdd && looksLikeKcdPackageInbound(parsedBody))) {
       return { token: envKey, checked, usedEnvFallback: true };
     }
   }

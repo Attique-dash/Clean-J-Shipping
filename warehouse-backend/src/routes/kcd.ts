@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
 import { authKcdApiKey, AuthenticatedKcdRequest } from '../middleware/authKcd';
+import { prepareKcdRequest } from '../middleware/prepareKcdRequest';
 import { 
   addPackageValidation, 
   updatePackageValidation, 
@@ -12,6 +13,9 @@ import { User } from '../models/User';
 import { EmailService } from '../services/emailService';
 
 const router = Router();
+
+// Normalize array / Askenish proxy payloads before auth and validation
+router.use(prepareKcdRequest);
 
 // Middleware to normalize PascalCase (PDF format) fields to camelCase
 const normalizePdfFields = (req: Request, res: Response, next: NextFunction) => {

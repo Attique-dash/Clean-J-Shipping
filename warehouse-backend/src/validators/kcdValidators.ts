@@ -23,7 +23,24 @@ export const generateApiKeyValidation = [
 
 // Validation for adding package - supports both camelCase and PascalCase (PDF format)
 export const addPackageValidation = [
-  // Support both trackingNumber (camelCase) and TrackingNumber (PDF PascalCase)
+  body().custom((_, { req }) => {
+    const b = req.body || {};
+    const tracking =
+      b.trackingNumber ?? b.TrackingNumber ?? b.tracking_number;
+    if (!tracking || !String(tracking).trim()) {
+      throw new Error(
+        'TrackingNumber is required (trackingNumber or TrackingNumber)'
+      );
+    }
+    const tn = String(tracking).trim();
+    if (tn.length < 3 || tn.length > 50) {
+      throw new Error('TrackingNumber must be 3–50 characters');
+    }
+    req.body.trackingNumber = tn;
+    req.body.TrackingNumber = tn;
+    return true;
+  }),
+
   body(['trackingNumber', 'TrackingNumber'])
     .optional()
     .isLength({ min: 3, max: 50 })
@@ -40,9 +57,9 @@ export const addPackageValidation = [
       );
     }
     const normalized = String(raw).trim().toUpperCase();
-    if (!/^[A-Z]{2,6}-\d{2,6}$/.test(normalized)) {
+    if (!/^[A-Z0-9][A-Z0-9-]{1,29}$/.test(normalized)) {
       throw new Error(
-        'Customer code must be in format PREFIX-NNNN (2-6 digits, e.g. CLEAN-001322)'
+        'UserCode must be 2–30 characters (letters, numbers, hyphens), e.g. CLEAN-0033 or EPXUUYE'
       );
     }
     req.body.userCode = normalized;
@@ -199,9 +216,9 @@ export const updatePackageValidation = [
     const raw = b.userCode ?? b.UserCode;
     if (raw === undefined || raw === null || raw === '') return true;
     const normalized = String(raw).trim().toUpperCase();
-    if (!/^[A-Z]{2,6}-\d{2,6}$/.test(normalized)) {
+    if (!/^[A-Z0-9][A-Z0-9-]{1,29}$/.test(normalized)) {
       throw new Error(
-        'Customer code must be in format PREFIX-NNNN (2-6 digits, e.g. CLEAN-001322)'
+        'UserCode must be 2–30 characters (letters, numbers, hyphens), e.g. CLEAN-0033 or EPXUUYE'
       );
     }
     req.body.userCode = normalized;
@@ -372,14 +389,28 @@ export const getCustomersValidation = [
 export const handleValidationErrors = (req: any, res: any, next: any) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    const seen = new Set<string>();
+    const mapped = errors.array().map((err: any) => {
+      const field = err.path || err.param || 'body';
+      const message =
+        typeof err.msg === 'string' ? err.msg : String(err.msg ?? 'Invalid value');
+      return {
+        field,
+        message,
+        ...(err.value !== undefined && err.value !== '' ? { value: err.value } : {}),
+      };
+    }).filter((e) => {
+      const key = `${e.field}:${e.message}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
     return res.status(400).json({
       success: false,
       message: 'Validation failed',
-      errors: errors.array().map((err: any) => ({
-        field: err.path || err.param || 'body',
-        message: err.msg,
-        ...(err.value !== undefined && err.value !== '' ? { value: err.value } : {}),
-      }))
+      errorCode: 'KCD_VALIDATION_FAILED',
+      errors: mapped,
     });
   }
   next();

@@ -1,12 +1,30 @@
 import { Request, Response, NextFunction } from 'express';
 import { ApiKey } from '../models/ApiKey';
+import {
+  extractKcdToken,
+  hashApiKey,
+  isRealApiToken,
+} from '../lib/kcd-token';
 
 export interface AuthenticatedKcdRequest extends Request {
   kcdApiKey?: any;
   courierCode?: string;
+  kcdResolvedToken?: string;
 }
 
 // Generate API key — plain 48-char alphanumeric, NO prefix ever
+function injectResolvedTokenIntoBody(
+  req: AuthenticatedKcdRequest,
+  token: string
+): void {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return;
+  const body = req.body as Record<string, unknown>;
+  if (!isRealApiToken(body.APIToken) && !isRealApiToken(body.apiToken)) {
+    body.APIToken = token;
+    body.apiToken = token;
+  }
+}
+
 export const generateApiKey = (): string => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
@@ -16,59 +34,18 @@ export const generateApiKey = (): string => {
   return result;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// extractToken — pulls token from ALL 3 locations KCD uses per their API docs:
-//
-//   1. GET /customers  → query param:   ?id=TOKEN
-//   2. POST endpoints  → JSON body:     { "APIToken": "TOKEN", ... }
-//   3. Auth header     → raw, NO Bearer: Authorization: TOKEN
-// ─────────────────────────────────────────────────────────────────────────────
-const extractToken = (req: Request): string | null => {
-  // 1. Query param (?id=TOKEN) — used by Get Customers
-  if (req.query?.id && typeof req.query.id === 'string' && req.query.id.trim()) {
-    console.log('[KCD Auth] Token from query param ?id=');
-    return req.query.id.trim();
-  }
+async function findActiveApiKey(apiKey: string) {
+  const plain = await ApiKey.findOne({ key: apiKey, isActive: true });
+  if (plain) return plain;
 
-  // 2. Request body APIToken or token — used by Add/Update/Delete Package & Update Manifest
-  const body = req.body;
-  if (body) {
-    const item = Array.isArray(body) ? body[0] : body;
-    const bodyToken = item?.APIToken || item?.apiToken || item?.token;
-    if (bodyToken && typeof bodyToken === 'string' && bodyToken.trim()) {
-      console.log('[KCD Auth] Token from body (APIToken/apiToken/token)');
-      return bodyToken.trim();
-    }
-  }
-
-  // 3. Authorization header — KCD sends raw token WITHOUT "Bearer " prefix
-  const authHeader = req.headers.authorization;
-  if (authHeader && typeof authHeader === 'string' && authHeader.trim()) {
-    let token = authHeader.trim();
-    // Strip "Bearer " if accidentally added (e.g. Swagger)
-    token = token.replace(/^Bearer\s+/i, '').trim();
-    if (token.length > 0) {
-      console.log('[KCD Auth] Token from Authorization header');
-      return token;
-    }
-  }
-
-  // 4. X-KCD-API-Key header — primary header for KCD API
-  const xKcdApiKey = req.headers['x-kcd-api-key'];
-  if (xKcdApiKey && typeof xKcdApiKey === 'string' && xKcdApiKey.trim()) {
-    console.log('[KCD Auth] Token from X-KCD-API-Key header');
-    return xKcdApiKey.trim();
-  }
-
-  // 5. X-API-Key header fallback
-  const xApiKey = req.headers['x-api-key'];
-  if (xApiKey && typeof xApiKey === 'string' && xApiKey.trim()) {
-    console.log('[KCD Auth] Token from X-API-Key header');
-    return xApiKey.trim();
-  }
-
-  return null;
-};
+  const hashed = hashApiKey(apiKey);
+  return ApiKey.findOne({
+    $or: [
+      { key: hashed, isActive: true },
+      { key: hashed, active: true },
+    ],
+  });
+}
 
 export const authKcdApiKey = async (
   req: AuthenticatedKcdRequest,
@@ -78,71 +55,121 @@ export const authKcdApiKey = async (
   try {
     if (req.method === 'OPTIONS') return next();
 
-    // Debug: Log all headers
-    console.log('[KCD Auth] Request headers:', {
-      authorization: req.headers.authorization,
-      'x-kcd-api-key': req.headers['x-kcd-api-key'],
-      'x-api-key': req.headers['x-api-key'],
-      'content-type': req.headers['content-type']
-    });
+    const { token, candidates, rejectedPlaceholders, usedEnvFallback } =
+      extractKcdToken(req);
+    const authChecked = candidates.map((c) => c.source);
 
-    const apiKey = extractToken(req);
+    if (!token) {
+      const errors: Array<{ field: string; message: string }> = [];
+      if (rejectedPlaceholders.length > 0) {
+        errors.push({
+          field: 'APIToken',
+          message:
+            'APIToken in body is a placeholder, not a real key. Remove "<API-TOKEN>" and use your real token in APIToken, or send x-api-key / Authorization header.',
+        });
+      } else {
+        errors.push({
+          field: 'auth',
+          message:
+            'No API token provided. Use ?id=TOKEN (GET), x-api-key header, Authorization header, or APIToken in JSON body.',
+        });
+      }
 
-    // DEBUG: Log extracted token
-    console.log('[KCD Auth] Extracted token:', apiKey ? `${apiKey.substring(0, 10)}... (len=${apiKey.length})` : 'null');
-    console.log('[KCD Auth] KCD_API_KEY env var exists:', !!process.env.KCD_API_KEY);
-    console.log('[KCD Auth] KCD_API_KEY env var value:', process.env.KCD_API_KEY ? `${process.env.KCD_API_KEY.substring(0, 10)}...` : 'not set');
-
-    if (!apiKey) {
-      console.error('[KCD Auth] No token found in request');
       res.status(401).json({
         success: false,
         message: 'Unauthorized: No API token provided.',
-        hint: 'GET: use ?id=TOKEN | POST: include "APIToken" or "token" in body | or Authorization: TOKEN (no Bearer prefix)',
+        errorCode: 'KCD_AUTH_MISSING',
+        authChecked: [
+          'query.id',
+          'query.apiKey',
+          'query.apiToken',
+          'query.token',
+          'query.content',
+          'header.authorization',
+          'header.x-kcd-api-key',
+          'header.x-api-key',
+          'body.token',
+          'body.APIToken',
+          'body.apiToken',
+          'env.KCD_API_KEY',
+        ],
+        errors,
+        rejectedPlaceholders: rejectedPlaceholders.length
+          ? rejectedPlaceholders
+          : undefined,
+        hint:
+          'Postman: add header x-api-key with your real token, or replace APIToken in body with the same value (not <API-TOKEN>).',
       });
       return;
     }
 
-    // Check environment variable KCD_API_KEY first (for Askenish integration)
-    const envApiKey = process.env.KCD_API_KEY;
-    if (envApiKey && apiKey === envApiKey) {
-      console.log('[KCD Auth] ✅ Validated via KCD_API_KEY environment variable');
-      // Create a mock key object for compatibility
-      req.kcdApiKey = { 
-        _id: 'env-key', 
+    const tokenSource = candidates[0]?.source ?? 'unknown';
+    console.log(
+      `[KCD Auth] Token from ${tokenSource} (${token.substring(0, 8)}… len=${token.length})${
+        usedEnvFallback ? ' [KCD_API_KEY env fallback for Askenish proxy]' : ''
+      }`
+    );
+
+    const envApiKey = process.env.KCD_API_KEY?.trim();
+    if (envApiKey && token === envApiKey) {
+      console.log('[KCD Auth] Validated via KCD_API_KEY environment variable');
+      req.kcdApiKey = {
+        _id: 'env-key',
         name: 'KCD Environment Key',
         courierCode: 'CLEANJ',
-        isActive: true 
+        isActive: true,
       };
       req.courierCode = 'CLEANJ';
+      req.kcdResolvedToken = token;
+      injectResolvedTokenIntoBody(req, token);
       return next();
     }
 
-    // DEBUG: Log why validation failed
-    if (envApiKey) {
-      console.log('[KCD Auth] Token mismatch - extracted:', apiKey.substring(0, 10), 'env:', envApiKey.substring(0, 10));
-    } else {
-      console.log('[KCD Auth] KCD_API_KEY env var is NOT set');
-    }
-
-    const kcdKey = await ApiKey.findOne({
-      key: apiKey,
-      isActive: true
-    });
+    const kcdKey = await findActiveApiKey(token);
 
     if (!kcdKey) {
-      console.error('[KCD Auth] Token not in DB:', apiKey.substring(0, 8) + '...' + ' len=' + apiKey.length);
-      res.status(401).json({ success: false, message: 'Unauthorized: Invalid API token.' });
+      console.error(
+        '[KCD Auth] Token not in DB/env:',
+        token.substring(0, 8) + '…',
+        'len=' + token.length
+      );
+      res.status(401).json({
+        success: false,
+        message: 'Unauthorized: Invalid API token.',
+        errorCode: 'KCD_AUTH_INVALID',
+        authChecked,
+        tokenSource,
+        errors: [
+          {
+            field: 'auth',
+            message:
+              'The API token was found but does not match KCD_API_KEY or an active key in the database.',
+          },
+        ],
+        hint:
+          rejectedPlaceholders.length > 0
+            ? 'Body contained a placeholder APIToken; ensure x-api-key uses the same key as GET /customers.'
+            : 'Verify the token in the KCD portal matches KCD_API_KEY on the server or generate a new KCD API key.',
+      });
       return;
     }
 
     if (!kcdKey.isActive) {
-      res.status(401).json({ success: false, message: 'Unauthorized: API key is inactive.' });
+      res.status(401).json({
+        success: false,
+        message: 'Unauthorized: API key is inactive.',
+        errorCode: 'KCD_AUTH_INACTIVE',
+      });
       return;
     }
 
     if (kcdKey.expiresAt && kcdKey.expiresAt < new Date()) {
-      res.status(401).json({ success: false, message: 'Unauthorized: API key has expired.' });
+      res.status(401).json({
+        success: false,
+        message: 'Unauthorized: API key has expired.',
+        errorCode: 'KCD_AUTH_EXPIRED',
+        errors: [{ field: 'auth', message: `Key expired at ${kcdKey.expiresAt.toISOString()}` }],
+      });
       return;
     }
 
@@ -153,7 +180,9 @@ export const authKcdApiKey = async (
 
     req.kcdApiKey = kcdKey;
     req.courierCode = kcdKey.courierCode;
-    console.log('[KCD Auth] ✅ OK:', { courierCode: kcdKey.courierCode, path: req.path });
+    req.kcdResolvedToken = token;
+    injectResolvedTokenIntoBody(req, token);
+    console.log('[KCD Auth] OK:', { courierCode: kcdKey.courierCode, path: req.path });
     next();
   } catch (error) {
     console.error('[KCD Auth] Error:', error);
