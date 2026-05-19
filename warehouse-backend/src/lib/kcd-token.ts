@@ -94,28 +94,11 @@ function tokenFromBody(body: unknown): KcdTokenCandidate[] {
 
 /**
  * Collect API token from all KCD / Askenish-supported locations.
- * Headers and query params are checked before body so "<API-TOKEN>" placeholders
- * in package JSON do not override x-api-key or Authorization.
+ * Priority: headers first (Postman / direct integrations), then query (Tasoko ?id=),
+ * then body (proxy wrapper / APIToken). Body placeholders never override headers.
  */
 export function collectKcdTokenCandidates(req: Request): KcdTokenCandidate[] {
   const candidates: KcdTokenCandidate[] = [];
-
-  const queryParams: Array<[KcdTokenSource, unknown]> = [
-    ['query.id', req.query?.id],
-    ['query.apiKey', req.query?.apiKey ?? req.query?.api_key],
-    ['query.apiToken', req.query?.apiToken],
-    ['query.token', req.query?.token],
-  ];
-  for (const [source, raw] of queryParams) {
-    if (typeof raw === 'string' && isRealApiToken(raw)) {
-      candidates.push({ source, token: raw.trim() });
-    }
-  }
-
-  const fromContentQuery = extractApiTokenFromContentQuery(req.query?.content);
-  if (fromContentQuery) {
-    candidates.push({ source: 'query.content', token: fromContentQuery });
-  }
 
   const authHeader = req.headers.authorization;
   if (typeof authHeader === 'string' && authHeader.trim()) {
@@ -133,6 +116,23 @@ export function collectKcdTokenCandidates(req: Request): KcdTokenCandidate[] {
   const xApi = req.headers['x-api-key'];
   if (typeof xApi === 'string' && isRealApiToken(xApi)) {
     candidates.push({ source: 'header.x-api-key', token: xApi.trim() });
+  }
+
+  const queryParams: Array<[KcdTokenSource, unknown]> = [
+    ['query.id', req.query?.id],
+    ['query.apiKey', req.query?.apiKey ?? req.query?.api_key],
+    ['query.apiToken', req.query?.apiToken],
+    ['query.token', req.query?.token],
+  ];
+  for (const [source, raw] of queryParams) {
+    if (typeof raw === 'string' && isRealApiToken(raw)) {
+      candidates.push({ source, token: raw.trim() });
+    }
+  }
+
+  const fromContentQuery = extractApiTokenFromContentQuery(req.query?.content);
+  if (fromContentQuery) {
+    candidates.push({ source: 'query.content', token: fromContentQuery });
   }
 
   candidates.push(...tokenFromBody(req.body));

@@ -114,6 +114,28 @@ export function resolveKcdAuth(
 ): KcdAuthResolution {
   const checked: string[] = [];
 
+  // 1) Headers first — Postman and most clients send x-api-key here
+  const headerNames = [
+    'x-api-key',
+    'x-kcd-api-key',
+    'authorization',
+    'token',
+    'api-token',
+  ] as const;
+  for (const name of headerNames) {
+    checked.push(`header.${name}`);
+    const value = req.headers.get(name);
+    if (name === 'authorization' && value) {
+      const token = value.replace(/^Bearer\s+/i, '').trim();
+      if (isRealApiToken(token)) {
+        return { token, checked, usedEnvFallback: false };
+      }
+    } else if (isRealApiToken(value)) {
+      return { token: value!.trim(), checked, usedEnvFallback: false };
+    }
+  }
+
+  // 2) Query string (?id=, ?apiToken=, ?content={"apiToken":"..."})
   const fromQuery =
     req.nextUrl.searchParams.get('id') ||
     req.nextUrl.searchParams.get('apiKey') ||
@@ -141,26 +163,6 @@ export function resolveKcdAuth(
       }
     } catch {
       /* ignore */
-    }
-  }
-
-  const headerNames = [
-    'x-api-key',
-    'x-kcd-api-key',
-    'authorization',
-    'token',
-    'api-token',
-  ] as const;
-  for (const name of headerNames) {
-    checked.push(`header.${name}`);
-    const value = req.headers.get(name);
-    if (name === 'authorization' && value) {
-      const token = value.replace(/^Bearer\s+/i, '').trim();
-      if (isRealApiToken(token)) {
-        return { token, checked, usedEnvFallback: false };
-      }
-    } else if (isRealApiToken(value)) {
-      return { token: value!.trim(), checked, usedEnvFallback: false };
     }
   }
 

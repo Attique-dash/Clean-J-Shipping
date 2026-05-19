@@ -49,3 +49,59 @@ export async function GET(req: NextRequest) {
     return kcdErrorResponse("Internal server error", 500, { requestId });
   }
 }
+
+/** Tasoko/Askenish proxy may POST to the same URL as GET customers. */
+export async function POST(req: NextRequest) {
+  const requestId = crypto.randomUUID();
+
+  try {
+    let parsedBody: unknown;
+    try {
+      const text = await req.text();
+      parsedBody = text ? JSON.parse(text) : undefined;
+    } catch {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Bad Request',
+          error: 'Request body must be valid JSON when using POST',
+          errorCode: 'KCD_INVALID_JSON',
+        },
+        { status: 400 }
+      );
+    }
+
+    const validation = await validateKcdRequest(req, parsedBody);
+    if (!validation.valid) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Unauthorized',
+          error: validation.error,
+          errorCode: 'KCD_AUTH_FAILED',
+          authChecked: validation.authChecked,
+        },
+        { status: 401 }
+      );
+    }
+
+    await dbConnect();
+
+    const users = await User.find({
+      role: { $in: ["customer", "user"] },
+    })
+      .select(
+        "firstName lastName email userCode phone address branch createdAt"
+      )
+      .lean();
+
+    const customers = toKcdCustomerArray(
+      users as Parameters<typeof toKcdCustomerArray>[0]
+    );
+
+    return NextResponse.json(customers, { status: 200 });
+  } catch (error) {
+    console.error(`[KCD Customers POST ${requestId}] Error:`, error);
+    return kcdErrorResponse("Internal server error", 500, { requestId });
+  }
+}

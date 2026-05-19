@@ -61,35 +61,36 @@ const normalizePdfFields = (req: Request, res: Response, next: NextFunction) => 
 };
 
 // ─────────────────────────────────────────────────────────────
-// GET /api/kcd/customers
-// Get customers for the courier
+// GET /api/kcd/customers  +  POST /api/kcd/customers
+// Tasoko/Askenish proxy often uses POST for all outbound calls; support both.
 // ─────────────────────────────────────────────────────────────
-router.get('/customers', 
-  authKcdApiKey,
-  getCustomersValidation,
-  handleValidationErrors,
-  async (req: AuthenticatedKcdRequest, res: Response): Promise<void> => {
-    try {
-      const { courierCode, limit = 50, offset = 0 } = req.query as any;
-      const authenticatedCourierCode = req.courierCode;
+async function handleKcdCustomersList(
+  req: AuthenticatedKcdRequest,
+  res: Response
+): Promise<void> {
+  try {
+    const { courierCode, limit = 50, offset = 0 } = req.query as any;
 
-      // Build query
-      const query: any = { role: 'customer' };
-      
-      // Filter by courier code if provided
-      if (courierCode) {
-        query['shippingAddresses'] = { $elemMatch: { type: String(courierCode).toLowerCase() } };
-      }
+    const query: any = { role: 'customer' };
 
-      const customers = await User.find(query)
-        .select('userCode firstName lastName email phone address mailboxNumber branch shippingAddresses')
-        .limit(Number(limit))
-        .skip(Number(offset))
-        .sort({ createdAt: -1 });
+    if (courierCode) {
+      query['shippingAddresses'] = {
+        $elemMatch: { type: String(courierCode).toLowerCase() },
+      };
+    }
 
-      const total = await User.countDocuments(query);
+    const customers = await User.find(query)
+      .select(
+        'userCode firstName lastName email phone address mailboxNumber branch shippingAddresses'
+      )
+      .limit(Number(limit))
+      .skip(Number(offset))
+      .sort({ createdAt: -1 });
 
-      res.json(customers.map(customer => ({
+    await User.countDocuments(query);
+
+    res.json(
+      customers.map((customer) => ({
         UserCode: customer.userCode,
         FirstName: customer.firstName,
         LastName: customer.lastName,
@@ -97,17 +98,34 @@ router.get('/customers',
         Phone: customer.phone || '',
         Branch: customer.branch || 'Down Town',
         MailboxNumber: customer.mailboxNumber,
-        Address: customer.address
-      })));
-    } catch (error: any) {
-      console.error('Get customers error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to get customers',
-        error: error.message
-      });
-    }
+        Address: customer.address,
+      }))
+    );
+  } catch (error: any) {
+    console.error('Get customers error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get customers',
+      errorCode: 'KCD_CUSTOMERS_FAILED',
+      error: error.message,
+    });
   }
+}
+
+router.get(
+  '/customers',
+  authKcdApiKey,
+  getCustomersValidation,
+  handleValidationErrors,
+  handleKcdCustomersList
+);
+
+router.post(
+  '/customers',
+  authKcdApiKey,
+  getCustomersValidation,
+  handleValidationErrors,
+  handleKcdCustomersList
 );
 
 // ─────────────────────────────────────────────────────────────

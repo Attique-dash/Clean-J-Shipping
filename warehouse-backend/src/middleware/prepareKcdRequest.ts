@@ -12,47 +12,57 @@ export function prepareKcdRequest(
   _res: Response,
   next: NextFunction
 ): void {
-  let body = req.body;
+  try {
+    let body = req.body;
 
-  if (Array.isArray(body) && body.length > 0) {
-    body = body[0];
-  }
+    if (Array.isArray(body) && body.length > 0) {
+      body = body[0];
+    }
 
-  if (body && typeof body === 'object' && !Array.isArray(body)) {
-    const obj = body as Record<string, unknown>;
-    const hasProxyShape =
-      typeof obj.url === 'string' &&
-      (obj.method === 'GET' || obj.method === 'POST' || obj.method === 'PUT') &&
-      obj.content !== undefined;
+    if (body && typeof body === 'object' && !Array.isArray(body)) {
+      const obj = body as Record<string, unknown>;
+      const hasProxyShape =
+        typeof obj.url === 'string' &&
+        (obj.method === 'GET' || obj.method === 'POST' || obj.method === 'PUT') &&
+        obj.content !== undefined;
 
-    if (hasProxyShape) {
-      const proxyToken = isRealApiToken(obj.token) ? String(obj.token).trim() : null;
-      let content: unknown = obj.content;
-      if (typeof content === 'string') {
-        try {
-          content = JSON.parse(content);
-        } catch {
-          content = obj.content;
+      if (hasProxyShape) {
+        const proxyToken = isRealApiToken(obj.token)
+          ? String(obj.token).trim()
+          : null;
+        let content: unknown = obj.content;
+        if (typeof content === 'string') {
+          try {
+            content = JSON.parse(content);
+          } catch {
+            content = obj.content;
+          }
         }
-      }
 
-      const packages = extractPackagesFromUnknown(content);
-      if (packages.length > 0) {
-        body = { ...packages[0] };
-        if (proxyToken) {
-          (body as Record<string, unknown>).APIToken = proxyToken;
-          (body as Record<string, unknown>).apiToken = proxyToken;
-        }
-      } else if (content && typeof content === 'object' && !Array.isArray(content)) {
-        body = { ...(content as Record<string, unknown>) };
-        if (proxyToken) {
-          (body as Record<string, unknown>).APIToken = proxyToken;
-          (body as Record<string, unknown>).apiToken = proxyToken;
+        const packages = extractPackagesFromUnknown(content);
+        if (packages.length > 0) {
+          body = { ...packages[0] };
+          if (proxyToken) {
+            (body as Record<string, unknown>).APIToken = proxyToken;
+            (body as Record<string, unknown>).apiToken = proxyToken;
+          }
+        } else if (
+          content &&
+          typeof content === 'object' &&
+          !Array.isArray(content)
+        ) {
+          body = { ...(content as Record<string, unknown>) };
+          if (proxyToken) {
+            (body as Record<string, unknown>).APIToken = proxyToken;
+            (body as Record<string, unknown>).apiToken = proxyToken;
+          }
         }
       }
     }
-  }
 
-  req.body = body;
+    req.body = body;
+  } catch (e) {
+    console.error('[prepareKcdRequest] normalize failed:', e);
+  }
   next();
 }

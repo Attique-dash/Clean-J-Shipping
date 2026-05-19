@@ -64,6 +64,12 @@ The webhook already includes extensive logging. Look for these patterns in Verce
 | Wrong API Key | 401 Unauthorized | Verify key matches: `XoZedblJE0neONu5EvN3CE2xGkOw9ggwCSysjrGpjF2S2KqY` |
 | Key not configured | 401 Unauthorized | Set `KCD_API_KEY` in Vercel environment variables |
 
+### Askenish / Tasoko proxy (browser “Play” vs Postman)
+
+- The portal calls **`POST …/api/Courier/TestCourierProvider`** on the **Tasoko Azure API** first. That service forwards to your `cleanjshipping.vercel.app` URL. A **500** in DevTools is often thrown by **Azure** when the forward fails or throws, not by Vercel. Open the failing request → **Response** tab to see the JSON body from Azure or from your API.
+- Auth is resolved in this order: **`x-api-key` / `Authorization` headers**, then **`?id=` / `?apiToken=` / `?token=`** query params, then **`?content={"apiToken":"…"}`**, then **JSON body** (`token`, `APIToken`, `apiToken`), then optional **`KCD_API_KEY`** env fallback for customers and package webhooks when no token is present.
+- **Get customers** supports **`POST /api/kcd/customers`** with the same auth rules as GET (Tasoko proxies often use POST for every outbound call).
+
 ### CORS Issues (for browser-based requests)
 - **Symptom:** Browser console shows CORS errors
 - **Note:** CORS only affects browser requests, not server-to-server webhooks
