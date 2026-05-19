@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
-import { validateKcdRequest } from "@/lib/kcd-auth";
+import { validateKcdRequest, kcdUnauthorizedResponse } from "@/lib/kcd-auth";
 import { toKcdCustomerArray } from "@/lib/kcd-customer-format";
 import { kcdErrorResponse } from "@/lib/kcd-api-response";
 import crypto from "crypto";
@@ -17,16 +17,9 @@ export async function GET(req: NextRequest) {
   try {
     const validation = await validateKcdRequest(req);
     if (!validation.valid) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Unauthorized',
-          error: validation.error,
-          errorCode: 'KCD_AUTH_FAILED',
-          authChecked: validation.authChecked,
-        },
-        { status: 401 }
-      );
+      return NextResponse.json(kcdUnauthorizedResponse(validation), {
+        status: 401,
+      });
     }
 
     await dbConnect();
@@ -73,16 +66,9 @@ export async function POST(req: NextRequest) {
 
     const validation = await validateKcdRequest(req, parsedBody);
     if (!validation.valid) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Unauthorized',
-          error: validation.error,
-          errorCode: 'KCD_AUTH_FAILED',
-          authChecked: validation.authChecked,
-        },
-        { status: 401 }
-      );
+      return NextResponse.json(kcdUnauthorizedResponse(validation), {
+        status: 401,
+      });
     }
 
     await dbConnect();

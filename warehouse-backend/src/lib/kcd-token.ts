@@ -61,7 +61,6 @@ function tokenFromBody(body: unknown): KcdTokenCandidate[] {
   }
 
   for (const item of items) {
-    // Askenish proxy wrapper: prefer top-level token before package APIToken
     const pairs: Array<[KcdTokenSource, unknown]> = [
       ['body.token', item.token],
       ['body.APIToken', item.APIToken],
@@ -93,30 +92,12 @@ function tokenFromBody(body: unknown): KcdTokenCandidate[] {
 }
 
 /**
- * Collect API token from all KCD / Askenish-supported locations.
- * Priority: headers first (Postman / direct integrations), then query (Tasoko ?id=),
- * then body (proxy wrapper / APIToken). Body placeholders never override headers.
+ * Tasoko / Askenish often put the real key in ?id= or in JSON body while also
+ * sending a wrong or placeholder Authorization header. Order: query → body →
+ * standard API headers (so a bad Bearer does not block a good ?id=).
  */
 export function collectKcdTokenCandidates(req: Request): KcdTokenCandidate[] {
   const candidates: KcdTokenCandidate[] = [];
-
-  const authHeader = req.headers.authorization;
-  if (typeof authHeader === 'string' && authHeader.trim()) {
-    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-    if (isRealApiToken(token)) {
-      candidates.push({ source: 'header.authorization', token });
-    }
-  }
-
-  const xKcd = req.headers['x-kcd-api-key'];
-  if (typeof xKcd === 'string' && isRealApiToken(xKcd)) {
-    candidates.push({ source: 'header.x-kcd-api-key', token: xKcd.trim() });
-  }
-
-  const xApi = req.headers['x-api-key'];
-  if (typeof xApi === 'string' && isRealApiToken(xApi)) {
-    candidates.push({ source: 'header.x-api-key', token: xApi.trim() });
-  }
 
   const queryParams: Array<[KcdTokenSource, unknown]> = [
     ['query.id', req.query?.id],
@@ -137,34 +118,39 @@ export function collectKcdTokenCandidates(req: Request): KcdTokenCandidate[] {
 
   candidates.push(...tokenFromBody(req.body));
 
+  const xApi = req.headers['x-api-key'];
+  if (typeof xApi === 'string' && isRealApiToken(xApi)) {
+    candidates.push({ source: 'header.x-api-key', token: xApi.trim() });
+  }
+
+  const xKcd = req.headers['x-kcd-api-key'];
+  if (typeof xKcd === 'string' && isRealApiToken(xKcd)) {
+    candidates.push({ source: 'header.x-kcd-api-key', token: xKcd.trim() });
+  }
+
+  const authHeader = req.headers.authorization;
+  if (typeof authHeader === 'string' && authHeader.trim()) {
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (isRealApiToken(token)) {
+      candidates.push({ source: 'header.authorization', token });
+    }
+  }
+
   return candidates;
 }
 
-export function resolveEnvAuthFallback(req: Request): string | null {
-  const envKey = process.env.KCD_API_KEY?.trim();
-  if (!envKey || !isRealApiToken(envKey)) return null;
-
-  const path = (req.originalUrl || req.path || '').toLowerCase();
-  const isCustomers = path.includes('/kcd/customers');
-  const isPackageAdd = path.includes('/kcd/packages/add');
-
-  if (isCustomers) {
-    return envKey;
+export function dedupeCandidates(candidates: KcdTokenCandidate[]): KcdTokenCandidate[] {
+  const seen = new Set<string>();
+  const out: KcdTokenCandidate[] = [];
+  for (const c of candidates) {
+    if (seen.has(c.token)) continue;
+    seen.add(c.token);
+    out.push(c);
   }
-
-  if (isPackageAdd && looksLikeKcdPackageInbound(req.body)) {
-    return envKey;
-  }
-
-  return null;
+  return out;
 }
 
-export function extractKcdToken(req: Request): {
-  token: string | null;
-  candidates: KcdTokenCandidate[];
-  rejectedPlaceholders: string[];
-  usedEnvFallback: boolean;
-} {
+export function collectRejectedPlaceholders(req: Request): string[] {
   const rejectedPlaceholders: string[] = [];
   const body = req.body;
 
@@ -192,20 +178,43 @@ export function extractKcdToken(req: Request): {
     checkPlaceholder(row.token, 'body.token');
   }
 
-  const candidates = collectKcdTokenCandidates(req);
-  let token = candidates.length > 0 ? candidates[0].token : null;
-  let usedEnvFallback = false;
+  return rejectedPlaceholders;
+}
 
-  if (!token) {
-    const envFallback = resolveEnvAuthFallback(req);
-    if (envFallback) {
-      token = envFallback;
-      usedEnvFallback = true;
-      candidates.push({ source: 'env.KCD_API_KEY', token: envFallback });
-    }
+export function resolveEnvAuthFallback(req: Request): string | null {
+  const envKey = process.env.KCD_API_KEY?.trim();
+  if (!envKey || !isRealApiToken(envKey)) return null;
+
+  const path = (req.originalUrl || req.path || '').toLowerCase();
+  const isCustomers = path.includes('/kcd/customers');
+  const isPackageAdd = path.includes('/kcd/packages/add');
+
+  if (isCustomers) {
+    return envKey;
   }
 
-  return { token, candidates, rejectedPlaceholders, usedEnvFallback };
+  if (isPackageAdd && looksLikeKcdPackageInbound(req.body)) {
+    return envKey;
+  }
+
+  return null;
+}
+
+/**
+ * Ordered, de-duplicated list of credentials to try. When nothing is present,
+ * may fall back to KCD_API_KEY for /customers and package webhooks (Tasoko proxy).
+ */
+export function buildAuthCredentialAttempts(req: Request): {
+  attempts: KcdTokenCandidate[];
+  rejectedPlaceholders: string[];
+} {
+  const rejectedPlaceholders = collectRejectedPlaceholders(req);
+  let attempts = dedupeCandidates(collectKcdTokenCandidates(req));
+  if (attempts.length === 0) {
+    const env = resolveEnvAuthFallback(req);
+    if (env) attempts = [{ source: 'env.KCD_API_KEY', token: env }];
+  }
+  return { attempts, rejectedPlaceholders };
 }
 
 export function hashApiKey(key: string): string {

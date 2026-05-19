@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ApiKey } from '../models/ApiKey';
 import {
-  extractKcdToken,
+  buildAuthCredentialAttempts,
   hashApiKey,
   isRealApiToken,
 } from '../lib/kcd-token';
@@ -12,7 +12,6 @@ export interface AuthenticatedKcdRequest extends Request {
   kcdResolvedToken?: string;
 }
 
-// Generate API key — plain 48-char alphanumeric, NO prefix ever
 function injectResolvedTokenIntoBody(
   req: AuthenticatedKcdRequest,
   token: string
@@ -26,7 +25,8 @@ function injectResolvedTokenIntoBody(
 }
 
 export const generateApiKey = (): string => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const chars =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
   for (let i = 0; i < 48; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -55,137 +55,138 @@ export const authKcdApiKey = async (
   try {
     if (req.method === 'OPTIONS') return next();
 
-    const { token, candidates, rejectedPlaceholders, usedEnvFallback } =
-      extractKcdToken(req);
-    const authChecked = candidates.map((c) => c.source);
+    const { attempts, rejectedPlaceholders } = buildAuthCredentialAttempts(req);
+    const triedSources = attempts.map((a) => a.source);
 
-    if (!token) {
+    if (attempts.length === 0) {
       const errors: Array<{ field: string; message: string }> = [];
       if (rejectedPlaceholders.length > 0) {
         errors.push({
           field: 'APIToken',
           message:
-            'APIToken in body is a placeholder, not a real key. Remove "<API-TOKEN>" and use your real token in APIToken, or send x-api-key / Authorization header.',
+            'APIToken in body is a placeholder, not a real key. Remove "<API-TOKEN>" and use your real token in APIToken, or send x-api-key / ?id= with your key.',
         });
       } else {
         errors.push({
           field: 'auth',
           message:
-            'No API token provided. Use ?id=TOKEN (GET), x-api-key header, Authorization header, or APIToken in JSON body.',
+            'No API token provided. Use ?id=TOKEN, x-api-key header, Authorization header, or token / APIToken in JSON body.',
         });
       }
 
       res.status(401).json({
         success: false,
-        message: 'Unauthorized: No API token provided.',
+        message:
+          'Unauthorized: No API token provided. (Open Network → this response body for details; the Askenish UI may only show a generic message.)',
         errorCode: 'KCD_AUTH_MISSING',
-        authChecked: [
-          'query.id',
-          'query.apiKey',
-          'query.apiToken',
-          'query.token',
-          'query.content',
-          'header.authorization',
-          'header.x-kcd-api-key',
-          'header.x-api-key',
-          'body.token',
-          'body.APIToken',
-          'body.apiToken',
-          'env.KCD_API_KEY',
-        ],
+        triedSources: [],
         errors,
-        rejectedPlaceholders: rejectedPlaceholders.length
-          ? rejectedPlaceholders
-          : undefined,
+        rejectedPlaceholders:
+          rejectedPlaceholders.length > 0 ? rejectedPlaceholders : undefined,
         hint:
-          'Postman: add header x-api-key with your real token, or replace APIToken in body with the same value (not <API-TOKEN>).',
+          'Tasoko proxy: append ?id=YOUR_KEY to the Get Customers URL, or ensure the proxy forwards x-api-key.',
       });
       return;
     }
 
-    const tokenSource = candidates[0]?.source ?? 'unknown';
-    console.log(
-      `[KCD Auth] Token from ${tokenSource} (${token.substring(0, 8)}… len=${token.length})${
-        usedEnvFallback ? ' [KCD_API_KEY env fallback for Askenish proxy]' : ''
-      }`
-    );
-
     const envApiKey = process.env.KCD_API_KEY?.trim();
-    if (envApiKey && token === envApiKey) {
-      console.log('[KCD Auth] Validated via KCD_API_KEY environment variable');
-      req.kcdApiKey = {
-        _id: 'env-key',
-        name: 'KCD Environment Key',
-        courierCode: 'CLEANJ',
-        isActive: true,
-      };
-      req.courierCode = 'CLEANJ';
-      req.kcdResolvedToken = token;
-      injectResolvedTokenIntoBody(req, token);
+
+    for (const attempt of attempts) {
+      if (envApiKey && attempt.token === envApiKey) {
+        console.log(`[KCD Auth] OK via ${attempt.source} (KCD_API_KEY env)`);
+        req.kcdApiKey = {
+          _id: 'env-key',
+          name: 'KCD Environment Key',
+          courierCode: 'CLEANJ',
+          isActive: true,
+        };
+        req.courierCode = 'CLEANJ';
+        req.kcdResolvedToken = attempt.token;
+        injectResolvedTokenIntoBody(req, attempt.token);
+        return next();
+      }
+
+      const kcdKey = await findActiveApiKey(attempt.token);
+      if (!kcdKey) {
+        console.log(
+          `[KCD Auth] Rejected token from ${attempt.source} (${attempt.token.substring(0, 8)}…)`
+        );
+        continue;
+      }
+
+      if (!kcdKey.isActive) {
+        res.status(401).json({
+          success: false,
+          message: `Unauthorized: API key from ${attempt.source} is inactive.`,
+          errorCode: 'KCD_AUTH_INACTIVE',
+          tokenSource: attempt.source,
+          triedSources,
+        });
+        return;
+      }
+
+      if (kcdKey.expiresAt && kcdKey.expiresAt < new Date()) {
+        res.status(401).json({
+          success: false,
+          message: `Unauthorized: API key from ${attempt.source} has expired.`,
+          errorCode: 'KCD_AUTH_EXPIRED',
+          tokenSource: attempt.source,
+          triedSources,
+          errors: [
+            {
+              field: 'auth',
+              message: `Key expired at ${kcdKey.expiresAt.toISOString()}`,
+            },
+          ],
+        });
+        return;
+      }
+
+      await ApiKey.findByIdAndUpdate(kcdKey._id, {
+        $inc: { usageCount: 1 },
+        lastUsed: new Date(),
+      });
+
+      req.kcdApiKey = kcdKey;
+      req.courierCode = kcdKey.courierCode;
+      req.kcdResolvedToken = attempt.token;
+      injectResolvedTokenIntoBody(req, attempt.token);
+      console.log('[KCD Auth] OK:', {
+        courierCode: kcdKey.courierCode,
+        path: req.path,
+        source: attempt.source,
+      });
       return next();
     }
 
-    const kcdKey = await findActiveApiKey(token);
-
-    if (!kcdKey) {
-      console.error(
-        '[KCD Auth] Token not in DB/env:',
-        token.substring(0, 8) + '…',
-        'len=' + token.length
-      );
-      res.status(401).json({
-        success: false,
-        message: 'Unauthorized: Invalid API token.',
-        errorCode: 'KCD_AUTH_INVALID',
-        authChecked,
-        tokenSource,
-        errors: [
-          {
-            field: 'auth',
-            message:
-              'The API token was found but does not match KCD_API_KEY or an active key in the database.',
-          },
-        ],
-        hint:
-          rejectedPlaceholders.length > 0
-            ? 'Body contained a placeholder APIToken; ensure x-api-key uses the same key as GET /customers.'
-            : 'Verify the token in the KCD portal matches KCD_API_KEY on the server or generate a new KCD API key.',
-      });
-      return;
-    }
-
-    if (!kcdKey.isActive) {
-      res.status(401).json({
-        success: false,
-        message: 'Unauthorized: API key is inactive.',
-        errorCode: 'KCD_AUTH_INACTIVE',
-      });
-      return;
-    }
-
-    if (kcdKey.expiresAt && kcdKey.expiresAt < new Date()) {
-      res.status(401).json({
-        success: false,
-        message: 'Unauthorized: API key has expired.',
-        errorCode: 'KCD_AUTH_EXPIRED',
-        errors: [{ field: 'auth', message: `Key expired at ${kcdKey.expiresAt.toISOString()}` }],
-      });
-      return;
-    }
-
-    await ApiKey.findByIdAndUpdate(kcdKey._id, {
-      $inc: { usageCount: 1 },
-      lastUsed: new Date(),
+    console.error(
+      '[KCD Auth] No credential matched DB or KCD_API_KEY. tried:',
+      triedSources.join(', ')
+    );
+    res.status(401).json({
+      success: false,
+      message: `Unauthorized: tried ${attempts.length} credential(s) from [${triedSources.join(', ')}]; none matched an active key or KCD_API_KEY. (Askenish UI may hide this — use DevTools → Network → Response.)`,
+      errorCode: 'KCD_AUTH_INVALID',
+      triedSources,
+      errors: [
+        {
+          field: 'auth',
+          message:
+            'Each supplied token was rejected. Common causes: wrong key in portal, proxy stripping ?id= or headers, or key only in DB but not matching KCD_API_KEY.',
+        },
+      ],
+      rejectedPlaceholders:
+        rejectedPlaceholders.length > 0 ? rejectedPlaceholders : undefined,
+      hint:
+        'Append ?id=YOUR_API_KEY to both Get Customers and Add Package URLs in the portal, or fix the Tasoko proxy to forward x-api-key.',
     });
-
-    req.kcdApiKey = kcdKey;
-    req.courierCode = kcdKey.courierCode;
-    req.kcdResolvedToken = token;
-    injectResolvedTokenIntoBody(req, token);
-    console.log('[KCD Auth] OK:', { courierCode: kcdKey.courierCode, path: req.path });
-    next();
   } catch (error) {
     console.error('[KCD Auth] Error:', error);
-    res.status(500).json({ success: false, message: 'Authentication error.' });
+    res.status(500).json({
+      success: false,
+      message: 'Authentication error.',
+      errorCode: 'KCD_AUTH_EXCEPTION',
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 };
