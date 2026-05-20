@@ -16,8 +16,20 @@ import {
   toKcdPackagePayload,
   packageBelongsToCourier,
 } from '../lib/kcd-package-response';
+import {
+  parseKcdManifestBody,
+  buildPackageManifestUpdates,
+  linkPackagesToManifest,
+  removePackageFromManifest,
+} from '../lib/kcd-manifest-handler';
 
 const router = Router();
+
+function parseEntryDate(value: unknown): Date | undefined {
+  if (!value) return undefined;
+  const d = new Date(String(value));
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
 
 function packageStatusToWarehouseStatus(value: unknown): string | undefined {
   if (value === undefined || value === null || value === '') return undefined;
@@ -38,15 +50,21 @@ function packageStatusToWarehouseStatus(value: unknown): string | undefined {
 function buildKcdPackageUpdate(body: Record<string, unknown>): Record<string, unknown> {
   const updates: Record<string, unknown> = {};
 
+  const assign = (camel: string, pascal: string, value: unknown) => {
+    if (value === undefined || value === null) return;
+    updates[camel] = value;
+    updates[pascal] = value;
+  };
+
   const weight = body.weight ?? body.Weight;
-  if (weight !== undefined) updates.weight = Number(weight);
+  if (weight !== undefined) assign('weight', 'Weight', Number(weight));
 
   const shipper = body.shipper ?? body.Shipper;
-  if (shipper !== undefined) updates.shipper = String(shipper);
+  if (shipper !== undefined) assign('shipper', 'Shipper', String(shipper));
 
   const description = body.description ?? body.Description;
   if (description !== undefined) {
-    updates.description = String(description);
+    assign('description', 'Description', String(description));
     updates.itemDescription = String(description);
   }
 
@@ -55,20 +73,78 @@ function buildKcdPackageUpdate(body: Record<string, unknown>): Record<string, un
   );
   if (status) updates.status = status;
 
-  const entryDate = body.entryDate ?? body.EntryDate ?? body.EntryDateTime;
-  if (entryDate) updates.dateReceived = new Date(String(entryDate));
+  const packageStatus = body.PackageStatus ?? body.packageStatus;
+  if (packageStatus !== undefined) {
+    updates.packageStatus = Number(packageStatus);
+  }
+
+  const entryDate = parseEntryDate(
+    body.entryDate ?? body.EntryDate ?? body.EntryDateTime
+  );
+  if (entryDate) {
+    updates.dateReceived = entryDate;
+    updates.EntryDate = entryDate;
+    updates.EntryDateTime = entryDate;
+  }
 
   const branch = body.branch ?? body.Branch;
-  if (branch !== undefined) updates.branch = String(branch);
+  if (branch !== undefined) assign('branch', 'Branch', String(branch));
 
   const pieces = body.pieces ?? body.Pieces;
-  if (pieces !== undefined) updates.pieces = Number(pieces);
+  if (pieces !== undefined) assign('pieces', 'Pieces', Number(pieces));
+
+  const cubes = body.cubes ?? body.Cubes;
+  if (cubes !== undefined) assign('cubes', 'Cubes', Number(cubes));
+
+  const length = body.length ?? body.Length;
+  if (length !== undefined) assign('length', 'Length', Number(length));
+  const width = body.width ?? body.Width;
+  if (width !== undefined) assign('width', 'Width', Number(width));
+  const height = body.height ?? body.Height;
+  if (height !== undefined) assign('height', 'Height', Number(height));
 
   const manifestId = body.manifestId ?? body.ManifestID;
-  if (manifestId !== undefined) updates.ManifestID = String(manifestId);
+  if (manifestId !== undefined) assign('manifestId', 'ManifestID', String(manifestId));
 
   const controlNumber = body.controlNumber ?? body.ControlNumber;
-  if (controlNumber !== undefined) updates.ControlNumber = String(controlNumber);
+  if (controlNumber !== undefined) {
+    assign('controlNumber', 'ControlNumber', String(controlNumber));
+  }
+
+  const packageId = body.packageId ?? body.PackageID;
+  if (packageId !== undefined) assign('packageId', 'PackageID', String(packageId));
+
+  const courierId = body.courierId ?? body.CourierID;
+  if (courierId !== undefined) assign('courierId', 'CourierID', String(courierId));
+
+  const collectionId = body.collectionId ?? body.CollectionID;
+  if (collectionId !== undefined) {
+    assign('collectionId', 'CollectionID', String(collectionId));
+  }
+
+  const collectionCode = body.collectionCode ?? body.CollectionCode;
+  if (collectionCode !== undefined) {
+    assign('collectionCode', 'CollectionCode', String(collectionCode));
+  }
+
+  const manifestCode = body.manifestCode ?? body.ManifestCode;
+  if (manifestCode !== undefined) {
+    assign('manifestCode', 'ManifestCode', String(manifestCode));
+  }
+
+  const entryStaff = body.entryStaff ?? body.EntryStaff;
+  if (entryStaff !== undefined) assign('entryStaff', 'EntryStaff', String(entryStaff));
+
+  const hsCode = body.hsCode ?? body.HSCode;
+  if (hsCode !== undefined) assign('hsCode', 'HSCode', String(hsCode));
+
+  const firstName = body.firstName ?? body.FirstName;
+  if (firstName !== undefined) updates.FirstName = String(firstName);
+  const lastName = body.lastName ?? body.LastName;
+  if (lastName !== undefined) updates.LastName = String(lastName);
+
+  const userCode = body.userCode ?? body.UserCode;
+  if (userCode !== undefined) assign('userCode', 'UserCode', String(userCode));
 
   return updates;
 }
@@ -768,9 +844,10 @@ router.post('/packages/:trackingNumber/delete',
     try {
       const { trackingNumber } = req.params;
       const authenticatedCourierCode = req.courierCode;
+      const tn = String(trackingNumber || '').trim().toUpperCase();
 
       // Find the package
-      const packageDoc = await Package.findOne({ trackingNumber });
+      const packageDoc = await Package.findOne({ trackingNumber: tn });
       if (!packageDoc) {
         res.status(404).json({
           success: false,
@@ -922,22 +999,9 @@ router.post('/packages/:trackingNumber/manifest',
   authKcdApiKey,
   async (req: AuthenticatedKcdRequest, res: Response): Promise<void> => {
     try {
-      const { trackingNumber } = req.params;
-      const body = (req.body || {}) as Record<string, unknown>;
-      const items = body.items;
-      const totalValue = body.totalValue ?? body.TotalValue;
-      const currency = (body.currency as string) || 'USD';
-      const weight = body.weight ?? body.Weight;
-      const dimensions = body.dimensions ?? body.Dimensions;
-      const specialInstructions =
-        body.specialInstructions ?? body.SpecialInstructions;
-      const customsDeclaration = body.customsDeclaration;
-      const manifestIdFromBody = String(
-        body.ManifestID || body.manifestId || ''
-      ).trim();
-
+      const tn = String(req.params.trackingNumber || '').trim().toUpperCase();
+      const payload = parseKcdManifestBody(req.body);
       const authenticatedCourierCode = req.courierCode;
-      const tn = String(trackingNumber || '').trim().toUpperCase();
 
       const packageDoc = await Package.findOne({ trackingNumber: tn });
       if (!packageDoc) {
@@ -964,34 +1028,37 @@ router.post('/packages/:trackingNumber/manifest',
         return;
       }
 
-      const manifestObjectId = new Types.ObjectId();
-      const setUpdates: Record<string, unknown> = {
-        manifestId: manifestObjectId,
-        ManifestID: manifestIdFromBody || manifestObjectId.toString(),
-        ManifestCode: String(body.ManifestCode || body.manifestCode || ''),
-        notes: `Manifest updated: ${JSON.stringify({
-          items: items || [],
-          totalValue: totalValue || 0,
-          currency,
-          updatedAt: new Date(),
-          updatedBy: authenticatedCourierCode,
-        })}`,
-      };
+      if (payload.RemoveFromManifest === true) {
+        await removePackageFromManifest(tn);
+        res.json({
+          success: true,
+          message: 'Package removed from manifest successfully',
+          data: [{ TrackingNumber: tn, ManifestID: '', ManifestCode: '' }],
+          action: 'remove',
+        });
+        return;
+      }
 
-      if (weight !== undefined) setUpdates.weight = Number(weight);
-      if (dimensions) setUpdates.dimensions = dimensions;
-      if (specialInstructions) {
-        setUpdates.specialInstructions = String(specialInstructions);
+      const manifestId = String(payload.Manifest?.ManifestID || '').trim();
+      if (!manifestId) {
+        await removePackageFromManifest(tn);
+        res.json({
+          success: true,
+          message: 'Package removed from manifest successfully',
+          data: [{ TrackingNumber: tn, ManifestID: '', ManifestCode: '' }],
+          action: 'remove',
+        });
+        return;
       }
-      if (customsDeclaration) {
-        setUpdates.customsDeclaration = customsDeclaration;
-      }
+
+      const setUpdates = buildPackageManifestUpdates(payload, tn);
+      const linkResult = await linkPackagesToManifest(payload, tn);
 
       const historyEntry = {
         timestamp: new Date(),
         status: packageDoc.status,
         location: packageDoc.warehouseLocation || 'Warehouse',
-        description: 'Package manifest updated',
+        description: `Manifest ${manifestId} applied (${payload.Manifest?.ManifestCode || ''})`,
       };
 
       const updatedPackage = await Package.findByIdAndUpdate(
@@ -1012,21 +1079,23 @@ router.post('/packages/:trackingNumber/manifest',
         (updatedPackage?.toObject() || {}) as Record<string, unknown>,
         customer
       );
-      if (manifestIdFromBody) {
-        kcdPkg.ManifestID = manifestIdFromBody;
-      }
+      kcdPkg.ManifestID = manifestId;
+      kcdPkg.ManifestCode = payload.Manifest?.ManifestCode || '';
 
       res.json({
         success: true,
         message: 'Package manifest updated successfully',
         data: [kcdPkg],
+        action: 'add',
+        linkedPackages: linkResult,
       });
     } catch (error: any) {
       console.error('Update manifest error:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to update package manifest',
-        error: error.message
+        error: error.message,
+        data: [],
       });
     }
   }
