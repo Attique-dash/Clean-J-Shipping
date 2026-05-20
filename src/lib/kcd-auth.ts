@@ -118,9 +118,8 @@ export function collectRejectedPlaceholders(parsedBody?: unknown): string[] {
   const check = (raw: unknown, label: string) => {
     if (typeof raw !== 'string') return;
     const trimmed = raw.trim();
-    if (trimmed && !isRealApiToken(trimmed)) {
-      rejected.push(`${label} (${trimmed.slice(0, 24)}…)`);
-    }
+    if (!trimmed || isRealApiToken(trimmed)) return;
+    rejected.push(`${label} (${raw.trim().slice(0, 24)}…)`);
   };
 
   const walk = (data: unknown) => {
