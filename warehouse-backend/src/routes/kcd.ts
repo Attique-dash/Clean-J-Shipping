@@ -12,8 +12,66 @@ import { Package } from '../models/Package';
 import { User } from '../models/User';
 import { EmailService } from '../services/emailService';
 import { isValidKcdEmail } from '../lib/kcd-user-code';
+import {
+  toKcdPackagePayload,
+  packageBelongsToCourier,
+} from '../lib/kcd-package-response';
 
 const router = Router();
+
+function packageStatusToWarehouseStatus(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const n = Number(value);
+  if (Number.isFinite(n)) {
+    const map: Record<number, string> = {
+      0: 'received',
+      1: 'processing',
+      2: 'in_transit',
+      3: 'customs',
+      4: 'delivered',
+    };
+    return map[n] ?? 'received';
+  }
+  return String(value).toLowerCase();
+}
+
+function buildKcdPackageUpdate(body: Record<string, unknown>): Record<string, unknown> {
+  const updates: Record<string, unknown> = {};
+
+  const weight = body.weight ?? body.Weight;
+  if (weight !== undefined) updates.weight = Number(weight);
+
+  const shipper = body.shipper ?? body.Shipper;
+  if (shipper !== undefined) updates.shipper = String(shipper);
+
+  const description = body.description ?? body.Description;
+  if (description !== undefined) {
+    updates.description = String(description);
+    updates.itemDescription = String(description);
+  }
+
+  const status = packageStatusToWarehouseStatus(
+    body.status ?? body.PackageStatus ?? body.Status
+  );
+  if (status) updates.status = status;
+
+  const entryDate = body.entryDate ?? body.EntryDate ?? body.EntryDateTime;
+  if (entryDate) updates.dateReceived = new Date(String(entryDate));
+
+  const branch = body.branch ?? body.Branch;
+  if (branch !== undefined) updates.branch = String(branch);
+
+  const pieces = body.pieces ?? body.Pieces;
+  if (pieces !== undefined) updates.pieces = Number(pieces);
+
+  const manifestId = body.manifestId ?? body.ManifestID;
+  if (manifestId !== undefined) updates.ManifestID = String(manifestId);
+
+  const controlNumber = body.controlNumber ?? body.ControlNumber;
+  if (controlNumber !== undefined) updates.ControlNumber = String(controlNumber);
+
+  return updates;
+}
 
 function buildRecipientFromCustomer(
   customer: {
@@ -478,93 +536,115 @@ router.get('/packages',
 // ─────────────────────────────────────────────────────────────
 router.post('/packages/:trackingNumber',
   authKcdApiKey,
+  normalizePdfFields,
   updatePackageValidation,
   handleValidationErrors,
   async (req: AuthenticatedKcdRequest, res: Response): Promise<void> => {
     try {
-      const { trackingNumber } = req.params;
-      const updateData = req.body;
-      
+      const trackingNumber = String(req.params.trackingNumber || '')
+        .trim()
+        .toUpperCase();
+      const body = (req.body || {}) as Record<string, unknown>;
       const authenticatedCourierCode = req.courierCode;
 
-      // Find the package by tracking number
       const packageDoc = await Package.findOne({ trackingNumber });
       if (!packageDoc) {
         res.status(404).json({
           success: false,
-          message: 'Package not found'
+          message: 'Package not found',
+          TrackingNumber: trackingNumber,
+          data: [],
         });
         return;
       }
 
-      // Verify the package belongs to the authenticated courier or is admin package
-      if (packageDoc.courierCode && 
-          packageDoc.courierCode !== authenticatedCourierCode && 
-          packageDoc.courierCode !== 'ADMIN') {
+      if (
+        !packageBelongsToCourier(
+          packageDoc.courierCode,
+          authenticatedCourierCode
+        )
+      ) {
         res.status(403).json({
           success: false,
-          message: 'Access denied: Package does not belong to this courier'
+          message: 'Access denied: Package does not belong to this courier',
+          data: [],
         });
         return;
       }
 
-      // If no update data provided, just return current package
+      const updateData = buildKcdPackageUpdate(body);
+
       if (Object.keys(updateData).length === 0) {
-        await packageDoc.populate('userId', 'firstName lastName email phone mailboxNumber');
+        await packageDoc.populate('userId', 'firstName lastName email');
+        const customer = packageDoc.userId as {
+          firstName?: string;
+          lastName?: string;
+        } | null;
         res.json({
           success: true,
-          message: 'Current package data (no updates provided)',
-          data: {
-            package: packageDoc
-          }
+          message: 'Package found (no updates provided)',
+          data: [
+            toKcdPackagePayload(
+              packageDoc.toObject() as Record<string, unknown>,
+              customer
+            ),
+          ],
         });
         return;
       }
 
-      // Add tracking history entry if status changed
       if (updateData.status && updateData.status !== packageDoc.status) {
         const historyEntry = {
           timestamp: new Date(),
           status: updateData.status,
-          location: updateData.warehouseLocation || packageDoc.warehouseLocation || 'Warehouse',
-          description: `Status updated to ${updateData.status}`
+          location:
+            (updateData.warehouseLocation as string) ||
+            packageDoc.warehouseLocation ||
+            'Warehouse',
+          description: `Status updated to ${updateData.status}`,
         };
-
-        updateData.trackingHistory = packageDoc.trackingHistory || [];
-        updateData.trackingHistory.push(historyEntry);
+        await Package.findByIdAndUpdate(packageDoc._id, {
+          $push: { trackingHistory: historyEntry },
+        });
       }
 
-      // Apply updates
       const updatedPackage = await Package.findOneAndUpdate(
         { trackingNumber },
-        updateData,
+        { $set: updateData },
         { new: true, runValidators: true }
-      ).populate('userId', 'firstName lastName email phone mailboxNumber');
+      ).populate('userId', 'firstName lastName email');
 
       if (!updatedPackage) {
         res.status(500).json({
           success: false,
-          message: 'Failed to update package'
+          message: 'Failed to update package',
+          data: [],
         });
         return;
       }
 
+      const customer = updatedPackage.userId as {
+        firstName?: string;
+        lastName?: string;
+      } | null;
+
       res.json({
         success: true,
         message: 'Package updated successfully',
-        data: {
-          package: updatedPackage,
-          trackingNumber: updatedPackage.trackingNumber,
-          status: updatedPackage.status,
-          updatedAt: updatedPackage.updatedAt
-        }
+        data: [
+          toKcdPackagePayload(
+            updatedPackage.toObject() as Record<string, unknown>,
+            customer
+          ),
+        ],
       });
     } catch (error: any) {
       console.error('Update package error:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to update package',
-        error: error.message
+        error: error.message,
+        data: [],
       });
     }
   }
@@ -699,26 +779,40 @@ router.post('/packages/:trackingNumber/delete',
         return;
       }
 
-      // Verify the package belongs to the authenticated courier
-      if (packageDoc.courierCode !== authenticatedCourierCode &&
-          packageDoc.courierCode !== 'ADMIN') {
+      if (
+        !packageBelongsToCourier(
+          packageDoc.courierCode,
+          authenticatedCourierCode
+        )
+      ) {
         res.status(403).json({
           success: false,
-          message: 'Access denied: Package does not belong to this courier'
+          message: 'Access denied: Package does not belong to this courier',
+          data: [],
         });
         return;
       }
 
-      // Delete the package
+      await packageDoc.populate('userId', 'firstName lastName email');
+      const customer = packageDoc.userId as {
+        firstName?: string;
+        lastName?: string;
+      } | null;
+      const kcdSnapshot = toKcdPackagePayload(
+        packageDoc.toObject() as Record<string, unknown>,
+        customer
+      );
+
       await Package.findByIdAndDelete(packageDoc._id);
 
       res.json({
         success: true,
         message: 'Package deleted successfully',
-        data: {
-          trackingNumber,
-          deletedAt: new Date()
-        }
+        data: [kcdSnapshot],
+        deleted: {
+          TrackingNumber: trackingNumber,
+          deletedAt: new Date().toISOString(),
+        },
       });
     } catch (error: any) {
       console.error('Delete package error:', error);
@@ -829,80 +923,103 @@ router.post('/packages/:trackingNumber/manifest',
   async (req: AuthenticatedKcdRequest, res: Response): Promise<void> => {
     try {
       const { trackingNumber } = req.params;
-      const {
-        items,
-        totalValue,
-        currency = 'USD',
-        weight,
-        dimensions,
-        specialInstructions,
-        customsDeclaration
-      } = req.body;
-      
-      const authenticatedCourierCode = req.courierCode;
+      const body = (req.body || {}) as Record<string, unknown>;
+      const items = body.items;
+      const totalValue = body.totalValue ?? body.TotalValue;
+      const currency = (body.currency as string) || 'USD';
+      const weight = body.weight ?? body.Weight;
+      const dimensions = body.dimensions ?? body.Dimensions;
+      const specialInstructions =
+        body.specialInstructions ?? body.SpecialInstructions;
+      const customsDeclaration = body.customsDeclaration;
+      const manifestIdFromBody = String(
+        body.ManifestID || body.manifestId || ''
+      ).trim();
 
-      // Find the package
-      const packageDoc = await Package.findOne({ trackingNumber });
+      const authenticatedCourierCode = req.courierCode;
+      const tn = String(trackingNumber || '').trim().toUpperCase();
+
+      const packageDoc = await Package.findOne({ trackingNumber: tn });
       if (!packageDoc) {
         res.status(404).json({
           success: false,
-          message: 'Package not found'
+          message: 'Package not found',
+          TrackingNumber: tn,
+          data: [],
         });
         return;
       }
 
-      // Verify the package belongs to the authenticated courier
-      if (packageDoc.courierCode !== authenticatedCourierCode &&
-          packageDoc.courierCode !== 'ADMIN') {
+      if (
+        !packageBelongsToCourier(
+          packageDoc.courierCode,
+          authenticatedCourierCode
+        )
+      ) {
         res.status(403).json({
           success: false,
-          message: 'Access denied: Package does not belong to this courier'
+          message: 'Access denied: Package does not belong to this courier',
+          data: [],
         });
         return;
       }
 
-      // Update manifest information
-      const updates: any = {
-        manifestId: new Types.ObjectId(), // Generate new manifest ID
-        specialInstructions: specialInstructions || packageDoc.specialInstructions,
+      const manifestObjectId = new Types.ObjectId();
+      const setUpdates: Record<string, unknown> = {
+        manifestId: manifestObjectId,
+        ManifestID: manifestIdFromBody || manifestObjectId.toString(),
+        ManifestCode: String(body.ManifestCode || body.manifestCode || ''),
         notes: `Manifest updated: ${JSON.stringify({
           items: items || [],
           totalValue: totalValue || 0,
           currency,
           updatedAt: new Date(),
-          updatedBy: authenticatedCourierCode
-        })}`
+          updatedBy: authenticatedCourierCode,
+        })}`,
       };
 
-      if (weight) updates.weight = weight;
-      if (dimensions) updates.dimensions = dimensions;
-      if (specialInstructions) updates.specialInstructions = specialInstructions;
-      if (customsDeclaration) updates.customsDeclaration = customsDeclaration;
+      if (weight !== undefined) setUpdates.weight = Number(weight);
+      if (dimensions) setUpdates.dimensions = dimensions;
+      if (specialInstructions) {
+        setUpdates.specialInstructions = String(specialInstructions);
+      }
+      if (customsDeclaration) {
+        setUpdates.customsDeclaration = customsDeclaration;
+      }
 
-      // Add tracking history entry
       const historyEntry = {
         timestamp: new Date(),
         status: packageDoc.status,
-        location: packageDoc.warehouseLocation || 'Unknown',
-        description: 'Package manifest updated'
+        location: packageDoc.warehouseLocation || 'Warehouse',
+        description: 'Package manifest updated',
       };
-
-      updates.$push = { trackingHistory: historyEntry };
 
       const updatedPackage = await Package.findByIdAndUpdate(
         packageDoc._id,
-        updates,
-        { new: true }
+        {
+          $set: setUpdates,
+          $push: { trackingHistory: historyEntry },
+        },
+        { new: true, runValidators: true }
+      ).populate('userId', 'firstName lastName email');
+
+      const customer = updatedPackage?.userId as {
+        firstName?: string;
+        lastName?: string;
+      } | null;
+
+      const kcdPkg = toKcdPackagePayload(
+        (updatedPackage?.toObject() || {}) as Record<string, unknown>,
+        customer
       );
+      if (manifestIdFromBody) {
+        kcdPkg.ManifestID = manifestIdFromBody;
+      }
 
       res.json({
         success: true,
         message: 'Package manifest updated successfully',
-        data: {
-          trackingNumber: updatedPackage?.trackingNumber,
-          manifestId: updatedPackage?.manifestId,
-          updatedAt: updatedPackage?.updatedAt
-        }
+        data: [kcdPkg],
       });
     } catch (error: any) {
       console.error('Update manifest error:', error);
