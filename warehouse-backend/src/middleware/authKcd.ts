@@ -4,7 +4,9 @@ import {
   buildAuthCredentialAttempts,
   hashApiKey,
   isRealApiToken,
+  resolveEnvAuthFallback,
 } from '../lib/kcd-token';
+import { looksLikeKcdPackageInbound } from '../lib/kcd-inbound';
 
 export interface AuthenticatedKcdRequest extends Request {
   kcdApiKey?: any;
@@ -156,6 +158,26 @@ export const authKcdApiKey = async (
         path: req.path,
         source: attempt.source,
       });
+      return next();
+    }
+
+    const path = (req.originalUrl || req.path || '').toLowerCase();
+    const envFallback = resolveEnvAuthFallback(req);
+    if (
+      envFallback &&
+      (path.includes('/kcd/packages/add') || path.includes('/kcd/customers')) &&
+      (path.includes('/customers') || looksLikeKcdPackageInbound(req.body))
+    ) {
+      console.log('[KCD Auth] OK via env.KCD_API_KEY (after rejected portal tokens)');
+      req.kcdApiKey = {
+        _id: 'env-key',
+        name: 'KCD Environment Key',
+        courierCode: 'CLEANJ',
+        isActive: true,
+      };
+      req.courierCode = 'CLEANJ';
+      req.kcdResolvedToken = envFallback;
+      injectResolvedTokenIntoBody(req, envFallback);
       return next();
     }
 

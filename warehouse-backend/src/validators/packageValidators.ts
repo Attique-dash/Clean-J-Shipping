@@ -44,8 +44,8 @@ export const validateAddPackage = [
   body('UserCode')
     .isString()
     .trim()
-    .matches(/^[A-Z]{2,6}-\d{2,6}$/)
-    .withMessage('UserCode must be in format PREFIX-NNNN (2-6 digits)'),
+    .matches(/^[A-Z0-9][A-Z0-9-]{1,29}$/)
+    .withMessage('UserCode must be 2–30 characters (e.g. CLEAN-0033 or EPXUUYE)'),
   
   body('Weight')
     .isFloat({ min: 0 })
@@ -211,8 +211,8 @@ export const validateAddPackage = [
     .optional()
     .isString()
     .trim()
-    .matches(/^[A-Z]{2,6}-\d{2,6}$/)
-    .withMessage('User code must be in format PREFIX-NNNN (2-6 digits)'),
+    .matches(/^[A-Z0-9][A-Z0-9-]{1,29}$/)
+    .withMessage('User code must be 2–30 characters (e.g. CLEAN-0033 or EPXUUYE)'),
   
   body('serviceMode')
     .optional()

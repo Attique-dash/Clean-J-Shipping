@@ -18,6 +18,9 @@ const publicRoutes = [
   '/',
   '/api/auth/',
   '/api/warehouse/',
+  '/api/kcd/',
+  '/api/webhooks/',
+  '/api/tasoko/',
   '/_next',
   '/images',
   '/fonts'

@@ -112,6 +112,51 @@ export type NextAuthAttempt = { source: string; token: string };
  * Tasoko / Askenish: real key is often in ?id= or JSON body while Authorization is wrong.
  * Collect all plausible tokens (deduped); validateKcdRequest tries each until one works.
  */
+/** Placeholder tokens seen in Askenish test payloads (for error detail) */
+export function collectRejectedPlaceholders(parsedBody?: unknown): string[] {
+  const rejected: string[] = [];
+  const check = (raw: unknown, label: string) => {
+    if (typeof raw !== 'string') return;
+    const trimmed = raw.trim();
+    if (trimmed && !isRealApiToken(trimmed)) {
+      rejected.push(`${label} (${trimmed.slice(0, 24)}…)`);
+    }
+  };
+
+  const walk = (data: unknown) => {
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        if (item && typeof item === 'object') {
+          const row = item as Record<string, unknown>;
+          check(row.APIToken, 'body.APIToken');
+          check(row.apiToken, 'body.apiToken');
+          check(row.token, 'body.token');
+        }
+      }
+      return;
+    }
+    if (!data || typeof data !== 'object') return;
+    const obj = data as Record<string, unknown>;
+    check(obj.APIToken, 'body.APIToken');
+    check(obj.apiToken, 'body.apiToken');
+    check(obj.token, 'body.token');
+    if (obj.content !== undefined) {
+      let content: unknown = obj.content;
+      if (typeof content === 'string') {
+        try {
+          content = JSON.parse(content);
+        } catch {
+          return;
+        }
+      }
+      walk(content);
+    }
+  };
+
+  walk(parsedBody);
+  return rejected;
+}
+
 export function buildNextAuthAttempts(
   req: NextRequest,
   parsedBody?: unknown
@@ -119,9 +164,11 @@ export function buildNextAuthAttempts(
   attempts: NextAuthAttempt[];
   checked: string[];
   usedEnvFallback: boolean;
+  rejectedPlaceholders: string[];
 } {
   const checked: string[] = [];
   const raw: NextAuthAttempt[] = [];
+  const rejectedPlaceholders = collectRejectedPlaceholders(parsedBody);
 
   const fromQuery =
     req.nextUrl.searchParams.get('id') ||
@@ -159,14 +206,8 @@ export function buildNextAuthAttempts(
     raw.push({ source: 'body', token: fromBody });
   }
 
-  const headerNames = [
-    'x-api-key',
-    'x-kcd-api-key',
-    'authorization',
-    'token',
-    'api-token',
-  ] as const;
-  for (const name of headerNames) {
+  const headerOrder = ['x-api-key', 'x-kcd-api-key', 'authorization', 'token', 'api-token'] as const;
+  for (const name of headerOrder) {
     checked.push(`header.${name}`);
     const value = req.headers.get(name);
     if (name === 'authorization' && value) {
@@ -185,21 +226,22 @@ export function buildNextAuthAttempts(
   });
 
   let usedEnvFallback = false;
-  if (attempts.length === 0) {
+  const path = req.nextUrl.pathname.toLowerCase();
+  const isCustomers = path.includes('/kcd/customers');
+  const isPackageAdd = path.includes('/kcd/packages/add');
+  const allowEnv =
+    isCustomers || (isPackageAdd && looksLikeKcdPackageInbound(parsedBody));
+
+  if (attempts.length === 0 && allowEnv) {
     checked.push('env.KCD_API_KEY');
     const envKey = process.env.KCD_API_KEY?.trim();
     if (envKey && isRealApiToken(envKey)) {
-      const path = req.nextUrl.pathname.toLowerCase();
-      const isCustomers = path.includes('/kcd/customers');
-      const isPackageAdd = path.includes('/kcd/packages/add');
-      if (isCustomers || (isPackageAdd && looksLikeKcdPackageInbound(parsedBody))) {
-        attempts = [{ source: 'env.KCD_API_KEY', token: envKey }];
-        usedEnvFallback = true;
-      }
+      attempts = [{ source: 'env.KCD_API_KEY', token: envKey }];
+      usedEnvFallback = true;
     }
   }
 
-  return { attempts, checked, usedEnvFallback };
+  return { attempts, checked, usedEnvFallback, rejectedPlaceholders };
 }
 
 /** @deprecated Prefer buildNextAuthAttempts */
@@ -288,21 +330,42 @@ export async function validateKcdRequest(
   authChecked?: string[];
   usedEnvFallback?: boolean;
   triedSources?: string[];
+  rejectedPlaceholders?: string[];
+  errors?: Array<{ field: string; message: string }>;
 }> {
-  const { attempts, checked, usedEnvFallback } = buildNextAuthAttempts(
-    req,
-    parsedBody
-  );
+  const { attempts, checked, usedEnvFallback, rejectedPlaceholders } =
+    buildNextAuthAttempts(req, parsedBody);
   const triedSources = attempts.map((a) => a.source);
+  const path = req.nextUrl.pathname.toLowerCase();
+  const allowEnvFallback =
+    path.includes('/kcd/customers') ||
+    (path.includes('/kcd/packages/add') &&
+      looksLikeKcdPackageInbound(parsedBody));
 
   if (attempts.length === 0) {
+    const errors: Array<{ field: string; message: string }> = [];
+    if (rejectedPlaceholders.length > 0) {
+      errors.push({
+        field: 'APIToken',
+        message:
+          'APIToken in body is a placeholder (<API-TOKEN>), not your real key. Use ?id=YOUR_KEY on the URL or ensure the proxy forwards the token field.',
+      });
+    } else {
+      errors.push({
+        field: 'auth',
+        message:
+          'No API token provided. Use ?id=TOKEN, x-api-key header, body.token (Askenish proxy), or APIToken in JSON.',
+      });
+    }
     return {
       valid: false,
       error:
-        'Missing API token. Use ?id=TOKEN on URL, Authorization header, x-api-key, or APIToken in body.',
+        'Unauthorized: No API token provided. (Open Network → Response for details; Askenish UI may only show a generic message.)',
       authChecked: checked,
       usedEnvFallback: false,
       triedSources: [],
+      rejectedPlaceholders,
+      errors,
     };
   }
 
@@ -315,16 +378,42 @@ export async function validateKcdRequest(
         authChecked: checked,
         usedEnvFallback,
         triedSources,
+        rejectedPlaceholders,
       };
+    }
+  }
+
+  if (allowEnvFallback) {
+    const envKey = process.env.KCD_API_KEY?.trim();
+    if (envKey && isRealApiToken(envKey)) {
+      const envValidation = await validateApiKey(envKey, null);
+      if (envValidation.valid) {
+        return {
+          ...envValidation,
+          token: envKey,
+          authChecked: [...checked, 'env.KCD_API_KEY (fallback after rejected tokens)'],
+          usedEnvFallback: true,
+          triedSources: [...triedSources, 'env.KCD_API_KEY'],
+          rejectedPlaceholders,
+        };
+      }
     }
   }
 
   return {
     valid: false,
-    error: `Invalid API key: tried ${attempts.length} credential(s) from [${triedSources.join(', ')}]; none matched KCD_API_KEY or an active database key. Open Network → Response on cleanjshipping.vercel.app for this JSON (Askenish UI may only show a generic Unauthorized).`,
+    error: `Unauthorized: tried ${attempts.length} credential(s) from [${triedSources.join(', ')}]; none matched KCD_API_KEY or an active database key.`,
     authChecked: checked,
     usedEnvFallback,
     triedSources,
+    rejectedPlaceholders,
+    errors: [
+      {
+        field: 'auth',
+        message:
+          'Each supplied token was rejected. Common causes: wrong key in portal, proxy sending placeholder Authorization, or only APIToken=<API-TOKEN> in package JSON.',
+      },
+    ],
   };
 }
 
@@ -347,23 +436,32 @@ export function kcdUnauthorizedResponse(
     error?: string;
     authChecked?: string[];
     triedSources?: string[];
+    rejectedPlaceholders?: string[];
+    errors?: Array<{ field: string; message: string }>;
   },
   extra?: Record<string, unknown>
 ) {
+  const tried = validation.triedSources?.length
+    ? validation.triedSources
+    : [];
   return {
     success: false,
     message:
       validation.error ||
       'Unauthorized: invalid or missing API key (see error and triedSources).',
     error: validation.error || 'Invalid API key',
-    errorCode: 'KCD_AUTH_FAILED',
+    errorCode: tried.length === 0 ? 'KCD_AUTH_MISSING' : 'KCD_AUTH_INVALID',
     authChecked: validation.authChecked,
     triedSources: validation.triedSources,
+    rejectedPlaceholders:
+      validation.rejectedPlaceholders?.length
+        ? validation.rejectedPlaceholders
+        : undefined,
+    errors: validation.errors,
     hint:
-      'Askenish Play test: use a real UserCode from GET customers (e.g. CLEAN-0007). ' +
-      'Configure Add Package URL as https://cleanjshipping.vercel.app/api/kcd/packages/add?id=YOUR_API_KEY ' +
-      'or ensure the warehouse proxy sends Authorization / x-api-key on POST. ' +
-      'If the portal only shows a generic message, open DevTools → Network → select the failing request → Response.',
+      'Askenish: append ?id=YOUR_API_KEY to Add Package URL: https://cleanjshipping.vercel.app/api/kcd/packages/add?id=YOUR_KEY. ' +
+      'Use UserCode from GET customers (e.g. CLEAN-0007 or EPXUUYE). ' +
+      'If the portal only shows "Unauthorized", open DevTools → Network → Response on cleanjshipping.vercel.app.',
     data: [] as unknown[],
     ...extra,
   };

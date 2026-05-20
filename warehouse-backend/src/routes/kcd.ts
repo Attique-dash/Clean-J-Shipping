@@ -11,8 +11,41 @@ import {
 import { Package } from '../models/Package';
 import { User } from '../models/User';
 import { EmailService } from '../services/emailService';
+import { isValidKcdEmail } from '../lib/kcd-user-code';
 
 const router = Router();
+
+function buildRecipientFromCustomer(
+  customer: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    userCode?: string;
+    address?: { street?: string };
+  },
+  incoming?: Record<string, unknown>
+) {
+  if (incoming && typeof incoming === 'object') {
+    const row = { ...incoming } as Record<string, unknown>;
+    const email = row.email;
+    if (!isValidKcdEmail(email)) {
+      delete row.email;
+    }
+    return row;
+  }
+
+  const recipient: Record<string, unknown> = {
+    name: `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Customer',
+    phone: customer.phone || '',
+    shippingId: customer.userCode,
+    address: customer.address?.street || '',
+  };
+  if (isValidKcdEmail(customer.email)) {
+    recipient.email = customer.email;
+  }
+  return recipient;
+}
 
 // Normalize array / Askenish proxy payloads before auth and validation
 router.use(prepareKcdRequest);
@@ -227,13 +260,10 @@ router.post('/packages/add',
         senderPhone: senderPhone || '',
         senderAddress: senderAddress || '',
         senderCountry: senderCountry || '',
-        recipient: recipient || {
-          name: `${customer.firstName} ${customer.lastName}`,
-          email: customer.email,
-          phone: customer.phone || '',
-          shippingId: customer.userCode,
-          address: customer.address?.street || ''
-        },
+        recipient: buildRecipientFromCustomer(
+          customer,
+          recipient as Record<string, unknown> | undefined
+        ),
         totalAmount: itemValue || 0,
         specialInstructions: specialInstructions || '',
         isFragile: isFragile || false,
@@ -331,10 +361,22 @@ router.post('/packages/add',
       });
     } catch (error: any) {
       console.error('Add package error:', error);
-      res.status(500).json({
+      const isValidation =
+        error?.name === 'ValidationError' || error?.message?.includes('validation failed');
+      res.status(isValidation ? 400 : 500).json({
         success: false,
-        message: 'Failed to add package',
-        error: error.message
+        message: isValidation ? 'Package validation failed' : 'Failed to add package',
+        error: error.message,
+        errorCode: isValidation ? 'KCD_PACKAGE_VALIDATION' : 'KCD_PACKAGE_FAILED',
+        errors: error?.errors
+          ? Object.entries(error.errors).map(([field, err]: [string, any]) => ({
+              field,
+              message: err?.message || String(err),
+            }))
+          : undefined,
+        hint: isValidation
+          ? 'Ensure UserCode exists in GET /api/kcd/customers and customer email is valid if recipient.email is set.'
+          : undefined,
       });
     }
   }

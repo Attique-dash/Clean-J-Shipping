@@ -473,7 +473,8 @@ export function buildKcdPackageDocument(
     body.receivedAt ||
     body.entryDate;
 
-  const entryDate = receivedAt ? new Date(asString(receivedAt)) : new Date();
+  const parsedEntry = receivedAt ? new Date(asString(receivedAt)) : new Date();
+  const entryDate = Number.isNaN(parsedEntry.getTime()) ? new Date() : parsedEntry;
   const weightUnit = asString(body.weightUnit || body.WeightUnit).toLowerCase() || 'lb';
   const weightLbs = asNumber(
     body.weightLbs ?? body.weightLb ?? (weightUnit === 'lb' ? body.Weight ?? body.weight : 0)

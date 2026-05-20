@@ -1,1 +1,0 @@
-self.__REACT_LOADABLE_MANIFEST="{\"app/customer/dashboard/page.tsx -> @/components/tracking/PackageTracker\":{\"id\":\"app/customer/dashboard/page.tsx -> @/components/tracking/PackageTracker\",\"files\":[\"static/css/vendors.css\",\"static/chunks/vendors.js\",\"static/chunks/common.js\",\"static/chunks/_app-pages-browser_src_components_tracking_PackageTracker_tsx.js\"]}}"

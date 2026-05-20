@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { KCD_USER_CODE_REGEX, KCD_USER_CODE_MESSAGE } from '../lib/kcd-user-code';
 import bcrypt from 'bcryptjs';
 import { USER_ROLES } from '../utils/constants';
 
@@ -71,7 +72,7 @@ const userSchema = new Schema<IUser>({
     unique: true,
     uppercase: true,
     trim: true,
-    match: [/^[A-Z]{2,6}-\d{2,6}$/, 'User code must be in format PREFIX-NNNN (2-6 digits)']
+    match: [KCD_USER_CODE_REGEX, KCD_USER_CODE_MESSAGE]
   },
   firstName: {
     type: String,

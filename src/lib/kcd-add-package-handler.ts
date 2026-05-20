@@ -128,7 +128,35 @@ export async function processKcdPackageAdd(
     }
   );
 
-  const createdPackage = await Package.create(packageData);
+  let createdPackage;
+  try {
+    createdPackage = await Package.create(packageData);
+  } catch (createError: unknown) {
+    const err = createError as { name?: string; message?: string; errors?: Record<string, { message?: string }> };
+    if (err?.name === 'ValidationError') {
+      const details = err.errors
+        ? Object.entries(err.errors).map(([field, e]) => ({
+            field,
+            message: e?.message || 'Invalid value',
+          }))
+        : [];
+      return {
+        ok: false,
+        status: 400,
+        body: {
+          success: false,
+          message: 'Package validation failed',
+          error: err.message || 'Validation failed',
+          errorCode: 'KCD_PACKAGE_VALIDATION',
+          errors: details,
+          UserCode: userCode,
+          TrackingNumber: trackingNumber,
+          data: [],
+        },
+      };
+    }
+    throw createError;
+  }
   const weightKg = asNumber(weight);
 
   let invoiceCreated = false;

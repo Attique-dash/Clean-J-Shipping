@@ -1,5 +1,10 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import { PACKAGE_STATUSES } from '../utils/constants';
+import {
+  KCD_USER_CODE_REGEX,
+  KCD_USER_CODE_MESSAGE,
+  isValidKcdEmail,
+} from '../lib/kcd-user-code';
 
 export interface IDimensions {
   length: number;
@@ -267,7 +272,7 @@ const packageSchema = new Schema<IPackage>({
     required: [true, 'User code is required'],
     trim: true,
     uppercase: true,
-    match: [/^[A-Z]{2,6}-\d{2,6}$/, 'User code must be in format PREFIX-NNNN (2-6 digits)']
+    match: [KCD_USER_CODE_REGEX, KCD_USER_CODE_MESSAGE],
   },
   userId: {
     type: Schema.Types.ObjectId,
@@ -415,7 +420,10 @@ const packageSchema = new Schema<IPackage>({
       type: String,
       trim: true,
       lowercase: true,
-      match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
+      validate: {
+        validator: (v: string) => !v || isValidKcdEmail(v),
+        message: 'Please enter a valid email',
+      },
     },
     shippingId: {
       type: String,
