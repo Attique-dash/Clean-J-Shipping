@@ -1,10 +1,11 @@
 # Vercel Environment Variables Example
-# Copy these to your Vercel project environment variables
+# Copy ALL required vars to Vercel → Settings → Environment Variables
+# Enable: Production, Preview, AND Development — then Redeploy
 
 # Database (REQUIRED)
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/warehouse?retryWrites=true&w=majority
 
-# JWT (REQUIRED)
+# JWT (REQUIRED — app will crash without this even if MONGODB_URI is set)
 JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
 
 # Server Configuration (REQUIRED)

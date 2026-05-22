@@ -1,14 +1,28 @@
 import * as dotenv from 'dotenv';
+import * as path from 'path';
 
-dotenv.config();
-
-// Validate required environment variables
-if (!process.env.MONGODB_URI) {
-  throw new Error('MONGODB_URI is required');
+// Vercel injects env vars at runtime — skip dotenv (wrong cwd can hide platform vars)
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
+if (!isVercel) {
+  dotenv.config({
+    path: path.resolve(__dirname, '../../.env'),
+    override: false,
+  });
 }
 
-if (!process.env.JWT_SECRET) {
-  throw new Error('JWT_SECRET is required');
+const REQUIRED_ENV_KEYS = ['MONGODB_URI', 'JWT_SECRET'] as const;
+
+function getEnv(key: string): string | undefined {
+  const value = process.env[key];
+  return typeof value === 'string' ? value.trim() : value;
+}
+
+const missingRequired = REQUIRED_ENV_KEYS.filter((key) => !getEnv(key));
+if (missingRequired.length > 0) {
+  const hint = isVercel
+    ? 'Add them in Vercel → Settings → Environment Variables (enable Production, Preview, and Development), then Redeploy the latest deployment.'
+    : 'Copy warehouse-env.example to .env in the warehouse-backend folder and set the values.';
+  throw new Error(`Missing required environment variable(s): ${missingRequired.join(', ')}. ${hint}`);
 }
 
 interface EnvConfig {
@@ -33,9 +47,9 @@ interface EnvConfig {
 export const config: EnvConfig = {
   port: parseInt(process.env.PORT || '5000', 10), // FIXED: Changed from 3001 to 5000
   nodeEnv: process.env.NODE_ENV || 'development',
-  MONGODB_URI: process.env.MONGODB_URI!,
+  MONGODB_URI: getEnv('MONGODB_URI')!,
   MONGODB_TEST_URI: process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/warehouse-backend-test',
-  jwtSecret: process.env.JWT_SECRET!,
+  jwtSecret: getEnv('JWT_SECRET')!,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   SMTP_HOST: process.env.SMTP_HOST || 'smtp.gmail.com',
   SMTP_PORT: parseInt(process.env.SMTP_PORT || '587', 10),
