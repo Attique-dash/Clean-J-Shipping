@@ -102,8 +102,9 @@ export async function processKcdPackageAdd(
     };
   }
 
-  const weight = body.Weight;
-  const shipper = body.Shipper;
+  // Fix: Convert shipper and weight to proper types
+  const weight = asNumber(body.Weight);
+  const shipper = asString(body.Shipper);
   const receivedAt = body.EntryDateTime || body.EntryDate;
   const receivedDate = receivedAt ? new Date(asString(receivedAt)) : new Date();
 
@@ -157,7 +158,7 @@ export async function processKcdPackageAdd(
     }
     throw createError;
   }
-  const weightKg = asNumber(weight);
+  const weightKg = weight; // Now weight is already a number
 
   let invoiceCreated = false;
   let billingInvoiceId: string | undefined;
@@ -192,7 +193,7 @@ export async function processKcdPackageAdd(
         userCode: user.userCode,
         customer: user._id,
         trackingNumber,
-        carrier: shipper ? asString(shipper) : 'Unknown Carrier',
+        carrier: shipper || 'Unknown Carrier',
         origin: 'KCD Warehouse',
         expectedDate: receivedDate,
         status: 'approved',
@@ -265,7 +266,7 @@ export async function processKcdPackageAdd(
         trackingNumber: emailPackage.TrackingNumber,
         status: 'AT WAREHOUSE',
         weight: emailPackage.Weight ?? weightKg,
-        shipper: emailPackage.Shipper || shipper || 'KCD Logistics',
+        shipper: emailPackage.Shipper || shipper || 'KCD Logistics', // Now shipper is properly typed as string
         warehouse: emailPackage.Branch || 'KCD Main Warehouse',
         receivedDate: emailPackage.EntryDateTime
           ? new Date(asString(emailPackage.EntryDateTime))
