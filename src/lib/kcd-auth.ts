@@ -226,10 +226,12 @@ export function buildNextAuthAttempts(
 
   let usedEnvFallback = false;
   const path = req.nextUrl.pathname.toLowerCase();
-  const isCustomers = path.includes('/kcd/customers');
-  const isPackageAdd = path.includes('/kcd/packages/add');
-  const allowEnv =
-    isCustomers || (isPackageAdd && looksLikeKcdPackageInbound(parsedBody));
+  const isCustomers =
+    path.includes('/kcd/customers') || path.includes('/v1/get-customers');
+  const isPackageAdd =
+    path.includes('/kcd/packages/add') || path.includes('/v1/add-package');
+  // Askenish co-load often POSTs package webhooks without any token; trust KCD_API_KEY on server.
+  const allowEnv = isCustomers || isPackageAdd;
 
   if (attempts.length === 0 && allowEnv) {
     checked.push('env.KCD_API_KEY');
@@ -338,8 +340,9 @@ export async function validateKcdRequest(
   const path = req.nextUrl.pathname.toLowerCase();
   const allowEnvFallback =
     path.includes('/kcd/customers') ||
-    (path.includes('/kcd/packages/add') &&
-      looksLikeKcdPackageInbound(parsedBody));
+    path.includes('/v1/get-customers') ||
+    path.includes('/kcd/packages/add') ||
+    path.includes('/v1/add-package');
 
   if (attempts.length === 0) {
     const errors: Array<{ field: string; message: string }> = [];
