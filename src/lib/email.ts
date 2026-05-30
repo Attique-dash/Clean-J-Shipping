@@ -61,10 +61,10 @@ export async function sendPaymentReceiptEmail(opts: {
       <tbody>
         <tr><td style="padding:4px 8px;color:#374151">Amount</td><td style="padding:4px 8px"><strong>${amountFmt}</strong></td></tr>
         <tr><td style="padding:4px 8px;color:#374151">Currency</td><td style="padding:4px 8px">${(currency || "USD").toUpperCase()}</td></tr>
-        ${method ? `<tr><td style="padding:4px 8px;color:#374151">Method</td><td style=\"padding:4px 8px\">${method}</td></tr>` : ""}
-        ${trackingNumber ? `<tr><td style="padding:4px 8px;color:#374151">Tracking</td><td style=\"padding:4px 8px\">${trackingNumber}</td></tr>` : ""}
-        ${reference ? `<tr><td style="padding:4px 8px;color:#374151">Reference</td><td style=\"padding:4px 8px\">${reference}</td></tr>` : ""}
-        ${receiptNumber ? `<tr><td style="padding:4px 8px;color:#374151">Receipt #</td><td style=\"padding:4px 8px\">${receiptNumber}</td></tr>` : ""}
+        ${method ? `<tr><td style="padding:4px 8px;color:#374151">Method</td><td style="padding:4px 8px">${method}</td></tr>` : ""}
+        ${trackingNumber ? `<tr><td style="padding:4px 8px;color:#374151">Tracking</td><td style="padding:4px 8px">${trackingNumber}</td></tr>` : ""}
+        ${reference ? `<tr><td style="padding:4px 8px;color:#374151">Reference</td><td style="padding:4px 8px">${reference}</td></tr>` : ""}
+        ${receiptNumber ? `<tr><td style="padding:4px 8px;color:#374151">Receipt #</td><td style="padding:4px 8px">${receiptNumber}</td></tr>` : ""}
         <tr><td style="padding:4px 8px;color:#374151">Paid at</td><td style="padding:4px 8px">${paidDate}</td></tr>
       </tbody>
     </table>
@@ -194,10 +194,15 @@ function buildPackageInfoTableRows(opts: {
   kcdPackage?: Partial<KcdPackage>;
 }): string {
   const pkg = opts.kcdPackage;
-  const statusLabel =
-    pkg?.PackageStatus !== undefined && pkg.PackageStatus !== null
-      ? PACKAGE_STATUS_MAP[String(pkg.PackageStatus)] || opts.status
-      : opts.status;
+  // Fixed: Safely access PACKAGE_STATUS_MAP with type checking
+  let statusLabel = opts.status;
+  if (pkg?.PackageStatus !== undefined && pkg.PackageStatus !== null) {
+    const statusKey = String(pkg.PackageStatus);
+    // Check if the key exists in PACKAGE_STATUS_MAP
+    if (statusKey in PACKAGE_STATUS_MAP) {
+      statusLabel = PACKAGE_STATUS_MAP[statusKey as keyof typeof PACKAGE_STATUS_MAP] || opts.status;
+    }
+  }
 
   const weightVal = pkg?.Weight ?? opts.weight;
   const weightDisplay =
