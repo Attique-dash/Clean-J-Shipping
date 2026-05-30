@@ -212,6 +212,35 @@ export async function POST(req: NextRequest) {
     console.error(`[KCD Webhook ${requestId}] Unexpected error:`, error);
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Check for MongoDB duplicate key error
+    if (errorMessage.includes('E11000') || errorMessage.includes('duplicate key')) {
+      let duplicateField = 'unknown field';
+      if (errorMessage.includes('trackingNumber')) {
+        duplicateField = 'tracking number';
+      } else if (errorMessage.includes('UserCode')) {
+        duplicateField = 'user code';
+      }
+      
+      const log = {
+        timestamp,
+        method: 'POST',
+        headers: {},
+        body: null,
+        responseStatus: 409,
+        error: `Duplicate ${duplicateField}`
+      };
+      addLog(log);
+      
+      return NextResponse.json({
+        success: false,
+        message: `A package with this ${duplicateField} already exists`,
+        error: `Duplicate ${duplicateField}`,
+        errorCode: 'DUPLICATE_KEY',
+        data: []
+      }, { status: 409 });
+    }
+    
     const log = {
       timestamp,
       method: 'POST',

@@ -133,7 +133,32 @@ export async function processKcdPackageAdd(
   try {
     createdPackage = await Package.create(packageData);
   } catch (createError: unknown) {
-    const err = createError as { name?: string; message?: string; errors?: Record<string, { message?: string }> };
+    const err = createError as { name?: string; message?: string; errors?: Record<string, { message?: string }>; code?: number };
+    
+    // Check for MongoDB duplicate key error
+    if (err?.message?.includes('E11000') || err?.message?.includes('duplicate key')) {
+      let duplicateField = 'unknown field';
+      if (err.message.includes('trackingNumber')) {
+        duplicateField = 'tracking number';
+      } else if (err.message.includes('UserCode')) {
+        duplicateField = 'user code';
+      }
+      
+      return {
+        ok: false,
+        status: 409,
+        body: {
+          success: false,
+          message: `A package with this ${duplicateField} already exists`,
+          error: `Duplicate ${duplicateField}`,
+          errorCode: 'DUPLICATE_KEY',
+          UserCode: userCode,
+          TrackingNumber: trackingNumber,
+          data: [],
+        },
+      };
+    }
+    
     if (err?.name === 'ValidationError') {
       const details = err.errors
         ? Object.entries(err.errors).map(([field, e]) => ({
