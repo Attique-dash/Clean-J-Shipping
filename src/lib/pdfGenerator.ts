@@ -5,7 +5,7 @@ import { existsSync, createWriteStream } from 'fs';
 import { format } from 'date-fns';
 import { IInvoice } from '@/models/Invoice';
 
-const UPLOAD_DIR = join(process.cwd(), 'public/invoices');
+const UPLOAD_DIR = '/tmp/invoices';
 
 interface GeneratePdfOptions {
   invoice: IInvoice;
@@ -90,14 +90,16 @@ export async function generateInvoicePdf(options: GeneratePdfOptions): Promise<{
   };
 }
 
-// Helper function to generate an invoice and return the URL
+// Helper function to generate an invoice and return the file path
+// Note: In serverless environments like Vercel, PDFs are stored in /tmp and cannot be served via URL
+// Use the filePath directly for email attachments or other purposes
 export async function generateInvoicePdfUrl(invoice: IInvoice, company: GeneratePdfOptions['company'], signatureUrl?: string): Promise<string> {
   const result = await generateInvoicePdf({
     invoice,
     company,
     signatureUrl
   });
-  return `/invoices/${result.fileName}`;
+  return result.filePath;
 }
 
 // Helper function to send invoice email
