@@ -6,7 +6,7 @@ import { User } from "@/models/User";
 import Invoice from "@/models/Invoice";
 import { InventoryService } from "@/lib/inventory-service";
 import { CurrencyService } from "@/lib/currency-service";
-import { buildBillingInvoicePayload } from "@/lib/package-billing";
+import { createBillingInvoiceForPackage } from "@/lib/package-billing";
 import {
   toKcdPackageArray,
   packageTextSearchOr,
@@ -103,7 +103,7 @@ function calculateTotalAmount(itemValueUSD: number, weightKg: number, targetCurr
 }
 
 async function createBillingInvoice(
-  packageData: Record<string, unknown>,
+  packageData: Record<string, unknown> & { _id?: unknown },
   user: {
     _id: unknown;
     userCode?: string;
@@ -117,19 +117,17 @@ async function createBillingInvoice(
   },
   trackingNumber: string
 ) {
-  try {
-    const invoiceData = buildBillingInvoicePayload(packageData, user, trackingNumber);
-    if (!invoiceData) return null;
-
-    const invoice = new Invoice(invoiceData);
-    await invoice.save();
-
+  if (!packageData._id) return null;
+  const invoice = await createBillingInvoiceForPackage(
+    packageData as Record<string, unknown> & { _id: unknown },
+    user,
+    trackingNumber
+  );
+  if (invoice) {
     console.log(`Created billing invoice ${invoice.invoiceNumber} for package ${trackingNumber}`);
     return invoice;
-  } catch (error) {
-    console.error('Error creating billing invoice:', error);
-    return null;
   }
+  return null;
 }
 
 export async function GET(req: Request) {
@@ -439,7 +437,11 @@ export async function POST(req: Request) {
     // FIXED: Create proper billing invoice automatically
     let billingInvoice: { _id: any } | null = null;
     try {
-      billingInvoice = await createBillingInvoice(packageData, user, asString(trackingNumber));
+      billingInvoice = await createBillingInvoice(
+        created.toObject() as Record<string, unknown> & { _id: unknown },
+        user,
+        asString(trackingNumber)
+      );
       if (billingInvoice) {
         // Link invoice to package - keep invoiceStatus as pending so customer can upload their purchase invoice
         await Package.findByIdAndUpdate(created._id, {

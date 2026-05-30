@@ -161,56 +161,22 @@ export async function processKcdPackageAdd(
 
   let invoiceCreated = false;
   try {
-    const { CurrencyService } = await import('@/lib/currency-service');
-    const Invoice = (await import('@/models/Invoice')).default;
-    const weightLbs = weightKg * 2.20462;
-    const costBreakdown = CurrencyService.calculateTotalPackageCost(0, weightKg, 'JMD');
-    const invoiceItems = [];
-    if (costBreakdown.shippingCostJMD > 0) {
-      invoiceItems.push({
-        description: `Shipping charges (${weightLbs.toFixed(1)} lbs)`,
-        quantity: 1,
-        unitPrice: costBreakdown.shippingCostJMD,
-        taxRate: 0,
-        amount: costBreakdown.shippingCostJMD,
-        taxAmount: 0,
-        total: costBreakdown.shippingCostJMD,
+    const { createBillingInvoiceForPackage } = await import('@/lib/package-billing');
+    const billingInvoice = await createBillingInvoiceForPackage(
+      createdPackage.toObject() as Record<string, unknown> & { _id: unknown },
+      user,
+      trackingNumber
+    );
+    if (billingInvoice) {
+      invoiceCreated = true;
+      await Package.findByIdAndUpdate(createdPackage._id, {
+        $set: {
+          billingInvoiceId: billingInvoice._id,
+          invoiceStatus: 'pending',
+          invoiceUploaded: false,
+        },
       });
     }
-    const billingInvoice = await Invoice.create({
-      userId: user._id,
-      customer: {
-        id: user._id.toString(),
-        name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
-        email: user.email,
-        phone: user.phone,
-        address: user.address,
-      },
-      package: {
-        trackingNumber,
-        userCode: user.userCode,
-      },
-      invoiceType: 'billing',
-      currency: 'JMD',
-      subtotal: costBreakdown.itemValueJMD,
-      taxTotal: 0,
-      discountAmount: 0,
-      total: costBreakdown.totalJMD,
-      amountPaid: 0,
-      balanceDue: costBreakdown.totalJMD,
-      items: invoiceItems,
-      notes: `Auto-generated invoice for KCD package ${trackingNumber}`,
-      issueDate: new Date().toISOString(),
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    });
-    invoiceCreated = true;
-    await Package.findByIdAndUpdate(createdPackage._id, {
-      $set: {
-        billingInvoiceId: billingInvoice._id,
-        invoiceStatus: 'pending',
-        invoiceUploaded: false,
-      },
-    });
   } catch (invoiceError) {
     console.error(`[KCD Add ${requestId}] Invoice error:`, invoiceError);
   }

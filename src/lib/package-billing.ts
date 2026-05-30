@@ -31,8 +31,8 @@ export type BillingInvoicePayload = {
     city?: string;
     country?: string;
   };
-  package: { trackingNumber: string; userCode?: string };
   invoiceType: 'billing';
+  tracking_number: string;
   currency: string;
   subtotal: number;
   taxTotal: number;
@@ -186,11 +186,8 @@ export function buildBillingInvoicePayload(
         city: user.city,
         country: user.country,
       },
-      package: {
-        trackingNumber,
-        userCode: user.userCode,
-      },
       invoiceType: 'billing',
+      tracking_number: trackingNumber,
       currency: invoiceCurrency,
       subtotal: subtotal || invoiceTotal,
       taxTotal: 0,
@@ -215,6 +212,49 @@ export function buildBillingInvoicePayload(
     };
   } catch (error) {
     console.error('buildBillingInvoicePayload error:', error);
+    return null;
+  }
+}
+
+type BillingInvoiceUser = Parameters<typeof buildBillingInvoicePayload>[1];
+
+/**
+ * Create a billing invoice linked to a Package document (MongoDB ObjectId ref).
+ * Uses .save() so pre-save generates invoiceNumber and totals.
+ */
+export async function createBillingInvoiceForPackage(
+  packageDoc: Record<string, unknown> & { _id: unknown },
+  user: BillingInvoiceUser,
+  trackingNumber: string
+): Promise<{ _id: unknown; invoiceNumber: string } | null> {
+  const payload = buildBillingInvoicePayload(packageDoc, user, trackingNumber);
+  if (!payload) return null;
+
+  try {
+    const Invoice = (await import('@/models/Invoice')).default;
+    const invoice = new Invoice({
+      userId: payload.userId,
+      customer: payload.customer,
+      package: packageDoc._id,
+      tracking_number: payload.tracking_number,
+      invoiceType: payload.invoiceType,
+      currency: payload.currency,
+      subtotal: payload.subtotal,
+      taxTotal: payload.taxTotal,
+      discountAmount: payload.discountAmount,
+      total: payload.total,
+      amountPaid: payload.amountPaid,
+      balanceDue: payload.balanceDue,
+      items: payload.items,
+      notes: payload.notes,
+      issueDate: new Date(payload.issueDate),
+      dueDate: new Date(payload.dueDate),
+      status: 'sent',
+    });
+    await invoice.save();
+    return { _id: invoice._id, invoiceNumber: invoice.invoiceNumber };
+  } catch (error) {
+    console.error('createBillingInvoiceForPackage error:', error);
     return null;
   }
 }
