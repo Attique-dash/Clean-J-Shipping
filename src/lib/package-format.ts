@@ -464,9 +464,14 @@ export function buildKcdPackageDocument(
   user: { _id: unknown; userCode?: string; firstName?: string; lastName?: string },
   overrides?: Partial<KcdPackageInput>
 ): Record<string, unknown> {
-  const tracking = asString(
+  const trackingRaw = asString(
     body.TrackingNumber || body.trackingNumber
-  ).toUpperCase();
+  );
+  const tracking = trackingRaw ? trackingRaw.toUpperCase() : '';
+  
+  if (!tracking) {
+    throw new Error('TrackingNumber is required and cannot be empty');
+  }
   const receivedAt =
     body.EntryDateTime ||
     body.EntryDate ||
