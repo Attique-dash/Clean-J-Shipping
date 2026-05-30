@@ -221,31 +221,42 @@ InvoiceSchema.methods.calculateTotals = function() {
   this.balanceDue = this.total - this.amountPaid;
 };
 
-// Pre-save hook to generate invoice number and calculate totals
-InvoiceSchema.pre('save', async function(next) {
-  if (this.isNew && !this.invoiceNumber) {
-    const year = new Date().getFullYear();
-    const InvoiceModel = this.constructor as Model<IInvoice>;
-    
-    // Find the last invoice number for this year
-    const lastInvoice = await InvoiceModel.findOne({
-      invoiceNumber: new RegExp(`^INV-${year}-`)
-    }).sort({ invoiceNumber: -1 }).limit(1);
+async function assignNextInvoiceNumber(doc: IInvoice): Promise<void> {
+  if (doc.invoiceNumber) return;
+  const year = new Date().getFullYear();
+  const InvoiceModel = doc.constructor as Model<IInvoice>;
+  const lastInvoice = await InvoiceModel.findOne({
+    invoiceNumber: new RegExp(`^INV-${year}-`),
+  })
+    .sort({ invoiceNumber: -1 })
+    .limit(1);
 
-    let nextNumber = 1;
-    if (lastInvoice && lastInvoice.invoiceNumber) {
-      const match = lastInvoice.invoiceNumber.match(/INV-\d{4}-(\d{4})/);
-      if (match && match[1]) {
-        nextNumber = parseInt(match[1], 10) + 1;
-      }
+  let nextNumber = 1;
+  if (lastInvoice?.invoiceNumber) {
+    const match = lastInvoice.invoiceNumber.match(/INV-\d{4}-(\d{4})/);
+    if (match?.[1]) {
+      nextNumber = parseInt(match[1], 10) + 1;
     }
-
-    this.invoiceNumber = `INV-${year}-${String(nextNumber).padStart(4, '0')}`;
   }
 
-  // Always calculate totals before saving
+  doc.invoiceNumber = `INV-${year}-${String(nextNumber).padStart(4, '0')}`;
+}
+
+// Generate invoiceNumber before required-field validation runs
+InvoiceSchema.pre('validate', async function (next) {
+  try {
+    if (this.isNew && !this.invoiceNumber) {
+      await assignNextInvoiceNumber(this);
+    }
+    next();
+  } catch (err) {
+    next(err as Error);
+  }
+});
+
+// Pre-save hook to calculate totals
+InvoiceSchema.pre('save', async function(next) {
   this.calculateTotals();
-  
   next();
 });
 

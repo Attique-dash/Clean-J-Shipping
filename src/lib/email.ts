@@ -1,4 +1,6 @@
 import nodemailer from "nodemailer";
+import type { KcdPackage } from "@/types/kcd-package";
+import { PACKAGE_STATUS_MAP } from "@/lib/tasoko-constants";
 
 const SMTP_USER = process.env.SMTP_USER || process.env.SMTP_USER;
 const EMAIL_PASS = process.env.EMAIL_PASS || process.env.SMTP_PASS || process.env.SMTP_PASS;
@@ -162,6 +164,93 @@ function formatAddressObject(obj: Record<string, string>): string {
   return parts.join('\n');
 }
 
+function formatKcdDate(value?: string): string {
+  if (!value) return '-';
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+  } catch {
+    return value;
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function buildPackageInfoTableRows(opts: {
+  trackingNumber: string;
+  status: string;
+  shipper?: string;
+  weight?: number;
+  warehouse?: string;
+  receivedDateStr: string;
+  packageContents: string;
+  kcdPackage?: Partial<KcdPackage>;
+}): string {
+  const pkg = opts.kcdPackage;
+  const statusLabel =
+    pkg?.PackageStatus !== undefined && pkg.PackageStatus !== null
+      ? PACKAGE_STATUS_MAP[String(pkg.PackageStatus)] || opts.status
+      : opts.status;
+
+  const weightVal = pkg?.Weight ?? opts.weight;
+  const weightDisplay =
+    weightVal != null && Number(weightVal) > 0
+      ? `${Number(weightVal).toFixed(2)} lb (${(Number(weightVal) * 0.453592).toFixed(2)} kg)`
+      : '-';
+
+  const customerName = [pkg?.FirstName, pkg?.LastName].filter(Boolean).join(' ');
+  const receivedDisplay = pkg?.EntryDateTime
+    ? formatKcdDate(pkg.EntryDateTime)
+    : pkg?.EntryDate
+      ? formatKcdDate(pkg.EntryDate)
+      : opts.receivedDateStr;
+
+  const rows: Array<[string, string]> = [
+    ['Tracking Number', opts.trackingNumber],
+  ];
+  if (pkg?.ControlNumber) rows.push(['House / Control Number', pkg.ControlNumber]);
+  if (pkg?.UserCode) rows.push(['Mailbox Code', pkg.UserCode]);
+  if (customerName) rows.push(['Customer', customerName]);
+  rows.push(
+    ['Description', opts.packageContents],
+    ['Shipper', pkg?.Shipper || opts.shipper || 'UNKNOWN'],
+    ['Weight', weightDisplay]
+  );
+  if (pkg?.Pieces != null && pkg.Pieces > 0) rows.push(['Pieces', String(pkg.Pieces)]);
+  rows.push(
+    ['Status', statusLabel],
+    ['Warehouse / Branch', pkg?.Branch || opts.warehouse || 'Main Warehouse']
+  );
+  if (pkg?.EntryStaff) rows.push(['Received By', pkg.EntryStaff]);
+  rows.push(['Received Date', receivedDisplay]);
+
+  if (pkg?.Length || pkg?.Width || pkg?.Height) {
+    rows.push([
+      'Dimensions (L×W×H)',
+      `${pkg.Length || 0} × ${pkg.Width || 0} × ${pkg.Height || 0}`,
+    ]);
+  }
+  if (pkg?.ManifestCode) rows.push(['Manifest Code', pkg.ManifestCode]);
+  if (pkg?.CollectionCode) rows.push(['Collection Code', pkg.CollectionCode]);
+
+  return rows
+    .map(
+      ([label, value]) => `
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;width:160px;">${escapeHtml(label)}:</td>
+            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(value)}</td>
+          </tr>`
+    )
+    .join('');
+}
+
 export async function sendNewPackageEmail(opts: {
   to: string;
   firstName: string;
@@ -180,17 +269,34 @@ export async function sendNewPackageEmail(opts: {
     seaAddress?: string;
     chinaAddress?: string;
   };
+  /** Full KCD/Askenish package fields for detailed notification emails */
+  kcdPackage?: Partial<KcdPackage>;
 }) {
   const t = getTransporter();
   if (!t) return { sent: false, reason: "Email not configured" };
 
-  const { to, firstName, trackingNumber, status, weight, shipper, warehouse, receivedBy, receivedDate, invoiceId, description, itemDescription, warehouseAddresses } = opts;
+  const { to, firstName, trackingNumber, status, weight, shipper, warehouse, receivedBy, receivedDate, invoiceId, description, itemDescription, warehouseAddresses, kcdPackage } = opts;
 
   const subject = `Package Received at Warehouse — ${trackingNumber}`;
   const receivedDateStr = receivedDate ? new Date(receivedDate).toLocaleString() : new Date().toLocaleString();
   
   // Package contents/description
-  const packageContents = itemDescription || description || "Package received at warehouse";
+  const packageContents =
+    kcdPackage?.Description ||
+    itemDescription ||
+    description ||
+    "Package received at warehouse";
+
+  const packageTableRows = buildPackageInfoTableRows({
+    trackingNumber,
+    status,
+    shipper,
+    weight,
+    warehouse,
+    receivedDateStr,
+    packageContents,
+    kcdPackage,
+  });
   
   // Try to generate and attach invoice PDF if invoiceId is provided
   const attachments: Array<{ filename: string; path: string; contentType: string }> = [];
@@ -243,38 +349,7 @@ export async function sendNewPackageEmail(opts: {
       <h3 style="margin:0 0 12px 0;color:#1e40af;">Package Information</h3>
       <table style="border-collapse:collapse;width:100%;">
         <tbody>
-          <tr>
-            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;width:140px;">Tracking Number:</td>
-            <td style="padding:8px;border-bottom:1px solid #e2e8f0;"><strong>${trackingNumber}</strong></td>
-          </tr>
-          <tr>
-            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;">Package Contents:</td>
-            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${packageContents}</td>
-          </tr>
-          <tr>
-            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;">Shipper:</td>
-            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${shipper || "UNKNOWN"}</td>
-          </tr>
-          <tr>
-            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;">Weight:</td>
-            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${weight ? `${weight} kg` : "-"}</td>
-          </tr>
-          <tr>
-            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;">Status:</td>
-            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">
-              <span style="background:#10b981;color:white;padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600;">
-                ${status}
-              </span>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#374151;font-weight:600;">Warehouse:</td>
-            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${warehouse || "Main Warehouse"}</td>
-          </tr>
-          <tr>
-            <td style="padding:8px;color:#374151;font-weight:600;">Received Date:</td>
-            <td style="padding:8px;">${receivedDateStr}</td>
-          </tr>
+          ${packageTableRows}
         </tbody>
       </table>
     </div>

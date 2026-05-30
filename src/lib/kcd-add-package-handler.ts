@@ -160,6 +160,7 @@ export async function processKcdPackageAdd(
   const weightKg = asNumber(weight);
 
   let invoiceCreated = false;
+  let billingInvoiceId: string | undefined;
   try {
     const { createBillingInvoiceForPackage } = await import('@/lib/package-billing');
     const billingInvoice = await createBillingInvoiceForPackage(
@@ -169,6 +170,7 @@ export async function processKcdPackageAdd(
     );
     if (billingInvoice) {
       invoiceCreated = true;
+      billingInvoiceId = String(billingInvoice._id);
       await Package.findByIdAndUpdate(createdPackage._id, {
         $set: {
           billingInvoiceId: billingInvoice._id,
@@ -207,20 +209,73 @@ export async function processKcdPackageAdd(
   try {
     if (user.email) {
       const kcdEmailPkg = toPublicKcdPackage(createdPackage.toObject());
+      const emailPackage: typeof kcdEmailPkg = {
+        ...kcdEmailPkg,
+        FirstName: kcdEmailPkg.FirstName || asString(body.FirstName) || user.firstName,
+        LastName: kcdEmailPkg.LastName || asString(body.LastName) || user.lastName,
+        UserCode: kcdEmailPkg.UserCode || userCode,
+        ControlNumber: kcdEmailPkg.ControlNumber || asString(body.ControlNumber),
+        Description:
+          kcdEmailPkg.Description ||
+          asString(body.Description) ||
+          `Merchandise from ${shipper || 'warehouse'}`,
+        Pieces: kcdEmailPkg.Pieces ?? (body.Pieces != null ? asNumber(body.Pieces) : undefined),
+        EntryStaff: kcdEmailPkg.EntryStaff || asString(body.EntryStaff),
+        Branch: kcdEmailPkg.Branch || asString(body.Branch) || 'KCD Main Warehouse',
+        ManifestCode: kcdEmailPkg.ManifestCode || asString(body.ManifestCode),
+        CollectionCode: kcdEmailPkg.CollectionCode || asString(body.CollectionCode),
+        Length: kcdEmailPkg.Length ?? (body.Length != null ? asNumber(body.Length) : undefined),
+        Width: kcdEmailPkg.Width ?? (body.Width != null ? asNumber(body.Width) : undefined),
+        Height: kcdEmailPkg.Height ?? (body.Height != null ? asNumber(body.Height) : undefined),
+      };
+
+      let warehouseAddresses: {
+        airAddress?: string;
+        seaAddress?: string;
+        chinaAddress?: string;
+      } = {};
+      try {
+        const { Warehouse } = await import('@/models/Warehouse');
+        const defaultWarehouse = await Warehouse.findOne({
+          isActive: true,
+          isDefault: true,
+        })
+          .select('airAddress seaAddress chinaAddress address')
+          .lean();
+        if (defaultWarehouse) {
+          const wh = defaultWarehouse as {
+            airAddress?: string;
+            seaAddress?: string;
+            chinaAddress?: string;
+            address?: string;
+          };
+          warehouseAddresses = {
+            airAddress: wh.airAddress || wh.address || '',
+            seaAddress: wh.seaAddress || wh.address || '',
+            chinaAddress: wh.chinaAddress || wh.address || '',
+          };
+        }
+      } catch {
+        /* optional */
+      }
+
       await sendNewPackageEmail({
         to: user.email,
         firstName: user.firstName || 'Customer',
-        trackingNumber: kcdEmailPkg.TrackingNumber,
-        status: String(kcdEmailPkg.PackageStatus ?? 0),
-        weight: kcdEmailPkg.Weight ?? 0,
-        shipper: kcdEmailPkg.Shipper || 'KCD Logistics',
-        warehouse: kcdEmailPkg.Branch || 'KCD Main Warehouse',
-        receivedDate: kcdEmailPkg.EntryDate
-          ? new Date(kcdEmailPkg.EntryDate)
-          : new Date(),
-        description:
-          kcdEmailPkg.Description ||
-          `Package from ${shipper || 'KCD'}`,
+        trackingNumber: emailPackage.TrackingNumber,
+        status: 'AT WAREHOUSE',
+        weight: emailPackage.Weight ?? weightKg,
+        shipper: emailPackage.Shipper || shipper || 'KCD Logistics',
+        warehouse: emailPackage.Branch || 'KCD Main Warehouse',
+        receivedDate: emailPackage.EntryDateTime
+          ? new Date(asString(emailPackage.EntryDateTime))
+          : emailPackage.EntryDate
+            ? new Date(asString(emailPackage.EntryDate))
+            : receivedDate,
+        description: emailPackage.Description,
+        kcdPackage: emailPackage,
+        invoiceId: billingInvoiceId,
+        warehouseAddresses,
       });
       emailSent = true;
     }
