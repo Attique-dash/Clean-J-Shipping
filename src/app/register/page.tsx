@@ -302,7 +302,7 @@ export default function RegisterPage() {
               </h1>
               <p className="mt-2 text-sm text-gray-600">Join us to manage your shipping needs efficiently.</p>
               
-              <form onSubmit={onSubmit} className="mt-6 space-y-4">
+              <form onSubmit={onSubmit} className="mt-6 space-y-4" autoComplete="on" method="post" action="/register">
 
                 {/* Personal Information */}
                 <div className="space-y-4">                  
@@ -346,9 +346,13 @@ export default function RegisterPage() {
                         <FaEnvelope className="text-gray-400 text-sm" />
                       </div>
                       <input
+                        id="register-email"
+                        name="email"
                         className="w-full rounded-lg border border-gray-300 bg-gray-50 pl-9 pr-3 py-2.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E67919] focus:border-transparent focus:bg-white transition-all"
                         type="email"
                         placeholder="john@example.com"
+                        autoComplete="email"
+                        inputMode="email"
                         value={form.email}
                         onChange={(e) => setForm({ ...form, email: e.target.value })}
                         required
@@ -385,9 +389,14 @@ export default function RegisterPage() {
                         <FaLock className="text-gray-400 text-sm" />
                       </div>
                       <input
+                        id="register-password"
+                        name="new-password"
                         className="w-full rounded-lg border border-gray-300 bg-gray-50 pl-9 pr-10 py-2.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E67919] focus:border-transparent focus:bg-white transition-all"
                         type={showPassword ? "text" : "password"}
                         placeholder="Min. 8 characters"
+                        autoComplete="new-password"
+                        data-lpignore="true"
+                        data-1p-ignore
                         value={form.password}
                         onChange={(e) => setForm({ ...form, password: e.target.value })}
                         required

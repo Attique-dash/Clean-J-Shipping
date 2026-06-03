@@ -26,11 +26,10 @@ function LoginPageContent() {
   const redirect = searchParams?.get("redirect") || "/";
   const tracking = searchParams?.get("tracking") || "";
   const emailParam = searchParams?.get("email") || "";
-  const passwordParam = searchParams?.get("password") || "";
 
   const [form, setForm] = useState<FormData>({ 
     email: emailParam, 
-    password: passwordParam, 
+    password: "", 
     rememberMe: false 
   });
 
@@ -238,17 +237,27 @@ function LoginPageContent() {
               </h1>
               <p className="mt-2 text-sm text-gray-600">Please enter your details to sign in and continue.</p>
               
-              <form onSubmit={onSubmit} className="mt-8 space-y-5">
+              <form
+                onSubmit={onSubmit}
+                className="mt-8 space-y-5"
+                autoComplete="on"
+                method="post"
+                action="/login"
+              >
                 <div className="group">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                  <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                       <FaEnvelope className="text-gray-400 group-focus-within:text-[#E67919] transition-colors" />
                     </div>
                     <input
+                      id="login-email"
+                      name="email"
                       className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 pl-11 pr-4 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E67919] focus:border-transparent focus:bg-white transition-all duration-200"
                       type="email"
                       placeholder="Enter your email"
+                      autoComplete="username email"
+                      inputMode="email"
                       value={form.email}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
                       required
@@ -265,15 +274,20 @@ function LoginPageContent() {
                 </div>
 
                 <div className="group">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                  <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-2">Password</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                       <FaLock className="text-gray-400 group-focus-within:text-[#E67919] transition-colors" />
                     </div>
                     <input
+                      id="login-password"
+                      name="password"
                       className="w-full rounded-xl border-2 border-gray-200 bg-gray-50 pl-11 pr-12 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E67919] focus:border-transparent focus:bg-white transition-all duration-200"
                       type={showPassword ? "text" : "password"}
                       placeholder="Enter your password"
+                      autoComplete="current-password"
+                      data-lpignore="true"
+                      data-1p-ignore
                       value={form.password}
                       onChange={(e) => setForm({ ...form, password: e.target.value })}
                       required
