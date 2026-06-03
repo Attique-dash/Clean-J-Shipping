@@ -305,13 +305,22 @@ export async function GET(req: NextRequest) {
     const queryBody = normalizeKcdBody(
       Object.fromEntries(searchParams.entries()) as Record<string, unknown>
     );
-    const getValidation = validateAddPackageBody(queryBody);
-    const trackingNumber = extractTrackingNumber(
-      getValidation.ok ? getValidation.normalized : queryBody
-    );
-    const userCodeFromQuery = extractUserCode(
-      getValidation.ok ? getValidation.normalized : queryBody
-    );
+
+    // Merge ?content= JSON (Askenish GET webhook) into query body
+    const contentParam = searchParams.get('content');
+    if (contentParam) {
+      try {
+        const parsedContent = JSON.parse(contentParam) as Record<string, unknown>;
+        Object.assign(queryBody, normalizeKcdBody(parsedContent));
+      } catch {
+        /* ignore invalid content JSON */
+      }
+    }
+
+    let getValidation = validateAddPackageBody(queryBody);
+    const normalizedBody = getValidation.ok ? getValidation.normalized : queryBody;
+    let trackingNumber = extractTrackingNumber(normalizedBody);
+    let userCodeFromQuery = extractUserCode(normalizedBody);
     const houseNumber = queryBody.ControlNumber;
     const weight = queryBody.Weight;
     const shipper = queryBody.Shipper;
@@ -319,21 +328,16 @@ export async function GET(req: NextRequest) {
     const description = queryBody.Description;
     const firstName = queryBody.FirstName;
     const lastName = queryBody.LastName;
-    
-    // Token can be in query param or header
-    const tokenFromQuery = searchParams.get('token') || searchParams.get('apiKey') || searchParams.get('api_key');
-    const tokenFromHeader = req.headers.get('x-api-key') || req.headers.get('authorization')?.replace('Bearer ', '');
-    const bodyToken = tokenFromQuery || tokenFromHeader;
-    
+
     console.log(`[KCD Webhook ${requestId}] Query params:`, {
       trackingNumber,
       UserCode: userCodeFromQuery,
       houseNumber,
       weight,
       shipper,
-      hasToken: !!bodyToken
+      queryKeys: [...searchParams.keys()],
     });
-    
+
     // Log the request
     const log = {
       timestamp,
@@ -343,25 +347,41 @@ export async function GET(req: NextRequest) {
       responseStatus: 0,
       error: undefined as string | undefined,
     };
-    
-    // Validate API Key
-    const validation = await validateApiKey(tokenFromHeader ?? null, bodyToken);
-    if (!validation.valid) {
-      console.error(`[KCD Webhook ${requestId}] API key validation failed: ${validation.error}`);
+
+    // Same auth as POST: ?id=, headers, env KCD_API_KEY fallback for Askenish
+    const validation = await validateKcdRequest(req, queryBody);
+    if (!validation.valid || !validation.token) {
+      console.error(
+        `[KCD Webhook ${requestId}] API key validation failed:`,
+        validation.error
+      );
       log.responseStatus = 401;
       log.error = validation.error || 'Invalid API key';
       addLog(log);
-      return NextResponse.json(
-        { error: `Unauthorized - ${validation.error}` },
-        { status: 401 }
-      );
+      return NextResponse.json(kcdUnauthorizedResponse(validation), {
+        status: 401,
+      });
     }
     
     if (!getValidation.ok) {
       log.responseStatus = 400;
       log.error = getValidation.errors.map((e) => e.message).join('; ');
       addLog(log);
-      return validationFailedResponse(getValidation.errors);
+      const missingData =
+        !trackingNumber && !userCodeFromQuery;
+      return NextResponse.json(
+        {
+          success: false,
+          message: missingData
+            ? 'GET webhook received with no package data. Askenish must include TrackingNumber and UserCode in the URL (or ?content= JSON). A bare URL ping cannot create a package.'
+            : 'Validation failed',
+          errors: getValidation.errors,
+          hint:
+            'Example: GET /api/kcd/packages/add?id=YOUR_API_KEY&TrackingNumber=TBA123&UserCode=CLEAN-0007&Weight=5&Shipper=Amazon',
+          data: [],
+        },
+        { status: 400 }
+      );
     }
 
     // Connect to database and create package (same as POST)
