@@ -97,9 +97,9 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // Map to response format
+    // Map to response format - handle both PascalCase (KCD) and camelCase (legacy) fields
     const mapped = packages.map((p) => {
-      const invoiceInfo = invoiceMap.get(p.trackingNumber) || { hasInvoice: false, invoiceNumber: null };
+      const invoiceInfo = invoiceMap.get(p.trackingNumber || p.TrackingNumber) || { hasInvoice: false, invoiceNumber: null };
       
       // Check for automatic invoice in package records
       const hasAutoInvoice = Array.isArray((p as any).invoiceRecords) && (p as any).invoiceRecords.length > 0;
@@ -113,54 +113,94 @@ export async function GET(req: NextRequest) {
         invoiceStatus = 'submitted'; // Has financial data
       }
       
+      // Helper to get value from either PascalCase or camelCase field
+      const getVal = (pascalField: string, camelField: string, defaultValue: any = undefined) => {
+        return (p as any)[pascalField] !== undefined ? (p as any)[pascalField] : 
+               (p as any)[camelField] !== undefined ? (p as any)[camelField] : defaultValue;
+      };
+      
+      const trackingNumber = getVal('TrackingNumber', 'trackingNumber', '');
+      const description = getVal('Description', 'description') || getVal('itemDescription', 'itemDescription', '');
+      const weight = getVal('Weight', 'weight', 0);
+      const shipper = getVal('Shipper', 'shipper', 'Unknown Shipper');
+      const currentLocation = getVal('currentLocation', 'currentLocation', '');
+      const receiverName = getVal('receiverName', 'receiverName', '') || getVal('FirstName', 'FirstName', '');
+      const estimatedDelivery = getVal('estimatedDelivery', 'estimatedDelivery');
+      const shippingCost = getVal('shippingCost', 'shippingCost', 0);
+      const totalAmount = getVal('totalAmount', 'totalAmount', 0);
+      const itemValue = getVal('itemValue', 'itemValue') || getVal('value', 'value', 0);
+      const lastScan = getVal('lastScan', 'lastScan');
+      const actualDelivery = getVal('actualDelivery', 'actualDelivery');
+      const length = getVal('Length', 'length', 0);
+      const width = getVal('Width', 'width', 0);
+      const height = getVal('Height', 'height', 0);
+      const dimensionUnit = getVal('dimensionUnit', 'dimensionUnit', 'cm');
+      const serviceMode = getVal('serviceMode', 'serviceMode', 'air');
+      const customsRequired = getVal('customsRequired', 'customsRequired', false);
+      const customsStatus = getVal('customsStatus', 'customsStatus', 'not_required');
+      const paymentStatus = getVal('paymentStatus', 'paymentStatus', 'pending');
+      const dateReceived = getVal('dateReceived', 'dateReceived') || getVal('EntryDate', 'EntryDate');
+      const daysInStorage = getVal('daysInStorage', 'daysInStorage', 0);
+      const warehouseLocation = getVal('warehouseLocation', 'warehouseLocation') || getVal('Branch', 'Branch', 'Main Warehouse');
+      const senderEmail = getVal('senderEmail', 'senderEmail', '');
+      const senderPhone = getVal('senderPhone', 'senderPhone', '');
+      const senderAddress = getVal('senderAddress', 'senderAddress', '');
+      const senderCountry = getVal('senderCountry', 'senderCountry', '');
+      const receiverEmail = getVal('receiverEmail', 'receiverEmail', '');
+      const receiverPhone = getVal('receiverPhone', 'receiverPhone', '');
+      const receiverAddress = getVal('receiverAddress', 'receiverAddress', '');
+      const receiverCountry = getVal('receiverCountry', 'receiverCountry', '');
+      const status = getVal('status', 'status', 'received');
+      
       return {
         id: p._id,
-        tracking_number: p.trackingNumber,
-        trackingNumber: p.trackingNumber,
-        status: p.status,
-        description: p.itemDescription,
-        weight_kg: p.weight,
-        weight: p.weight ? `${p.weight} kg` : undefined,
+        tracking_number: trackingNumber,
+        trackingNumber: trackingNumber,
+        status: status,
+        description: description,
+        itemDescription: description,
+        weight_kg: weight,
+        weight: weight ? `${weight} kg` : undefined,
         userCode: userCode,
-        shipper: p.shipper || 'Unknown Shipper',
-        current_location: p.currentLocation,
-        destination: p.receiverName || 'Receiver name only available',
+        shipper: shipper,
+        current_location: currentLocation,
+        destination: receiverName || 'Receiver name only available',
         updated_at: p.updatedAt?.toISOString(),
         updatedAt: p.updatedAt?.toISOString(),
         created_at: p.createdAt?.toISOString(),
         createdAt: p.createdAt?.toISOString(),
-        estimated_delivery: p.estimatedDelivery?.toISOString(),
+        estimated_delivery: estimatedDelivery?.toISOString(),
         invoice_status: invoiceStatus,
         hasInvoice: invoiceInfo.hasInvoice || hasAutoInvoice,
-        invoiceNumber: invoiceInfo.invoiceNumber || (hasAutoInvoice ? `AUTO-${p.trackingNumber}` : null),
-        shipping_cost: p.shippingCost,
-        total_amount: p.totalAmount,
-        itemValueUsd: (p as any).itemValue || (p as any).value || 0,
-        last_scan: p.lastScan?.toISOString(),
-        actual_delivery: p.actualDelivery?.toISOString(),
+        invoiceNumber: invoiceInfo.invoiceNumber || (hasAutoInvoice ? `AUTO-${trackingNumber}` : null),
+        shipping_cost: shippingCost,
+        total_amount: totalAmount,
+        itemValueUsd: itemValue || 0,
+        last_scan: lastScan?.toISOString(),
+        actual_delivery: actualDelivery?.toISOString(),
         // Additional details from admin
         dimensions: (p as any).dimensions || {
-          length: (p as any).length,
-          width: (p as any).width,
-          height: (p as any).height,
-          unit: (p as any).dimensionUnit || 'cm'
+          length: length,
+          width: width,
+          height: height,
+          unit: dimensionUnit
         },
-        serviceMode: (p as any).serviceMode || 'air',
-        customsRequired: (p as any).customsRequired || false,
-        customsStatus: (p as any).customsStatus || 'not_required',
-        paymentStatus: (p as any).paymentStatus || 'pending',
-        dateReceived: (p as any).dateReceived,
-        daysInStorage: (p as any).daysInStorage || 0,
-        warehouse_location: (p as any).warehouseLocation || 'Main Warehouse',
-        senderEmail: (p as any).senderEmail || '',
-        senderPhone: (p as any).senderPhone || '',
-        senderAddress: (p as any).senderAddress || '',
-        senderCountry: (p as any).senderCountry || '',
-        receiverName: (p as any).receiverName || '',
-        receiverEmail: (p as any).receiverEmail || '',
-        receiverPhone: (p as any).receiverPhone || '',
-        receiverAddress: (p as any).receiverAddress || '',
-        receiverCountry: (p as any).receiverCountry || '',
+        serviceMode: serviceMode,
+        customsRequired: customsRequired,
+        customsStatus: customsStatus,
+        paymentStatus: paymentStatus,
+        dateReceived: dateReceived,
+        daysInStorage: daysInStorage,
+        warehouse_location: warehouseLocation,
+        senderEmail: senderEmail,
+        senderPhone: senderPhone,
+        senderAddress: senderAddress,
+        senderCountry: senderCountry,
+        receiverName: receiverName,
+        receiverEmail: receiverEmail,
+        receiverPhone: receiverPhone,
+        receiverAddress: receiverAddress,
+        receiverCountry: receiverCountry,
       };
     });
 
