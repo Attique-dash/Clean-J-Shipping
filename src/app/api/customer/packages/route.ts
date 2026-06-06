@@ -61,17 +61,22 @@ export async function GET(req: NextRequest) {
     };
     
     // If user has a userCode, also include it in the query for KCD-synced packages
+    // Check both PascalCase (UserCode) and camelCase (userCode) fields
     if (userCode) {
       packageQuery.$or.push(
-        { userCode: userCode },
+        { UserCode: userCode },  // KCD PascalCase field
+        { userCode: userCode },  // Legacy camelCase field
         { customerCode: userCode }
       );
     }
+    
+    console.log('Package query:', JSON.stringify(packageQuery, null, 2));
 
     // Fetch both packages and invoices for this customer
+    // Select both PascalCase (KCD) and camelCase (legacy) fields to ensure we get all data
     const [packages, invoices] = await Promise.all([
       Package.find(packageQuery)
-      .select('trackingNumber status itemDescription weight senderName currentLocation receiverName receiverEmail receiverPhone receiverAddress receiverCountry updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords itemValue value dimensions length width height dimensionUnit serviceMode customsRequired customsStatus paymentStatus dateReceived daysInStorage warehouseLocation senderEmail senderPhone senderAddress senderCountry shipper warehouseAddresses')
+      .select('TrackingNumber trackingNumber status itemDescription Description description weight Weight senderName senderEmail senderPhone senderAddress senderCountry currentLocation receiverName receiverEmail receiverPhone receiverAddress receiverCountry FirstName LastName updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords itemValue value dimensions length width height dimensionUnit serviceMode customsRequired customsStatus paymentStatus dateReceived daysInStorage warehouseLocation Branch shipper warehouseAddresses userCode UserCode userId customer')
       .sort({ createdAt: -1 })
       .limit(100)
       .lean(),
@@ -83,6 +88,35 @@ export async function GET(req: NextRequest) {
     ]);
 
     console.log(`Found ${packages.length} packages and ${invoices.length} invoices for user ${userIdString} (userCode: ${userCode})`);
+    
+    // Debug: Log sample package data to understand field structure
+    if (packages.length > 0) {
+      console.log('Sample package data:', JSON.stringify(packages[0], null, 2));
+    } else {
+      console.log('No packages found. Checking if any packages exist in database...');
+      const totalPackages = await Package.countDocuments({});
+      console.log(`Total packages in database: ${totalPackages}`);
+      
+      // Check if there are packages with this userCode
+      if (userCode) {
+        const packagesByUserCode = await Package.countDocuments({ 
+          $or: [
+            { UserCode: userCode },
+            { userCode: userCode }
+          ]
+        });
+        console.log(`Packages with userCode ${userCode}: ${packagesByUserCode}`);
+      }
+      
+      // Check if there are packages with this userId
+      const packagesByUserId = await Package.countDocuments({ 
+        $or: [
+          { userId: userObjectId },
+          { userId: userIdString }
+        ]
+      });
+      console.log(`Packages with userId ${userIdString}: ${packagesByUserId}`);
+    }
 
     // Create a map of invoice numbers to package tracking numbers
     const invoiceMap = new Map();
