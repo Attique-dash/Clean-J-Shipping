@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { Package, Search, MapPin, Filter, X, Calendar, Weight, Download, ExternalLink, RefreshCw, Loader2, Eye, User, Plane, Ship } from "lucide-react";
+import { Package, Search, MapPin, Filter, X, Calendar, Weight, Download, ExternalLink, RefreshCw, Loader2, Eye, User, Plane, Ship, Upload } from "lucide-react";
 import { toast } from "react-toastify";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { ExportService } from "@/lib/export-service";
@@ -832,6 +832,16 @@ export default function CustomerPackagesPage() {
                             </span>
                           </div>
                           <div className="flex items-center gap-1">
+                            {/* Show upload invoice button for packages that need it */}
+                            {p.invoice_status !== 'submitted' && p.invoice_status !== 'billed' && p.invoice_status !== 'approved' && (
+                              <Link 
+                                href="/customer/invoice-upload" 
+                                className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-all" 
+                                title="Upload Invoice"
+                              >
+                                <Upload className="h-3 w-3" />
+                              </Link>
+                            )}
                             {/* Only show download buttons when invoice is available - like admin page */}
                             {(p.invoiceNumber || p.hasInvoice) && (
                               <>
@@ -973,7 +983,16 @@ export default function CustomerPackagesPage() {
                   )}
                 </div>
 
-                <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6">
+                <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 space-y-3">
+                  {packageToView.invoice_status !== 'submitted' && packageToView.invoice_status !== 'billed' && packageToView.invoice_status !== 'approved' && (
+                    <Link
+                      href="/customer/invoice-upload"
+                      className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-xl hover:from-[#0e447d] hover:to-[#1a5fa0] transition-all font-medium shadow-lg"
+                    >
+                      <Upload className="h-5 w-5" />
+                      <span>Upload Invoice for This Package</span>
+                    </Link>
+                  )}
                   <button onClick={() => setViewModalOpen(false)} className="w-full px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl hover:from-gray-700 hover:to-gray-800 transition-all font-medium shadow-lg">
                     Close
                   </button>
