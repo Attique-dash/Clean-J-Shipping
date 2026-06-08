@@ -1,4 +1,4 @@
-// src/app/api/customer/invoices/[packageId]/route.ts
+// src/app/api/customer/packages/[id]/invoices/route.ts
 // Get invoice files for a specific package
 
 import { NextRequest, NextResponse } from "next/server";
@@ -8,12 +8,12 @@ import { getAuthFromRequest } from "@/lib/rbac";
 import { Types } from "mongoose";
 
 interface RouteParams {
-  params: Promise<{ packageId: string }>;
+  params: Promise<{ id: string }>;
 }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    const { packageId } = await params;
+    const { id } = await params;
     
     // Authenticate user
     const payload = await getAuthFromRequest(req);
@@ -29,15 +29,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Validate packageId
-    if (!packageId || !Types.ObjectId.isValid(packageId)) {
+    // Validate id
+    if (!id || !Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: "Invalid package ID" }, { status: 400 });
     }
 
     await dbConnect();
 
     // Find the package
-    const pkg: any = await Package.findById(packageId).lean();
+    const pkg: any = await Package.findById(id).lean();
 
     if (!pkg) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     if (!pkg.invoiceUploaded || !pkg.invoiceFiles || pkg.invoiceFiles.length === 0) {
       return NextResponse.json({
         success: true,
-        packageId,
+        packageId: id,
         hasInvoices: false,
         message: "No invoices uploaded for this package",
         invoices: []
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({
       success: true,
-      packageId,
+      packageId: id,
       hasInvoices: true,
       trackingNumber: pkg.trackingNumber || pkg.TrackingNumber,
       invoiceStatus: pkg.invoiceStatus,
