@@ -81,7 +81,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       success: true,
       packageId,
       hasInvoices: true,
-      trackingNumber: pkg.trackingNumber,
+      trackingNumber: pkg.trackingNumber || pkg.TrackingNumber,
       invoiceStatus: pkg.invoiceStatus,
       pricePaid: pkg.pricePaid,
       pricePaidCurrency: pkg.pricePaidCurrency,

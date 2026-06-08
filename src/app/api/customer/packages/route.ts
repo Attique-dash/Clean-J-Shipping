@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
     // Select both PascalCase (KCD) and camelCase (legacy) fields to ensure we get all data
     const [packages, invoices] = await Promise.all([
       Package.find(packageQuery)
-      .select('TrackingNumber trackingNumber status itemDescription Description description weight Weight senderName senderEmail senderPhone senderAddress senderCountry currentLocation receiverName receiverEmail receiverPhone receiverAddress receiverCountry FirstName LastName updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords itemValue value dimensions length width height dimensionUnit serviceMode customsRequired customsStatus paymentStatus dateReceived daysInStorage warehouseLocation Branch shipper warehouseAddresses userCode UserCode userId customer')
+      .select('TrackingNumber trackingNumber status itemDescription Description description weight Weight senderName senderEmail senderPhone senderAddress senderCountry currentLocation receiverName receiverEmail receiverPhone receiverAddress receiverCountry FirstName LastName updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords itemValue value dimensions length width height dimensionUnit serviceMode customsRequired customsStatus paymentStatus paymentMethod amountPaid pricePaidCurrency dateReceived daysInStorage warehouseLocation Branch shipper warehouseAddresses userCode UserCode userId customer')
       .sort({ createdAt: -1 })
       .limit(100)
       .lean(),
@@ -173,6 +173,9 @@ export async function GET(req: NextRequest) {
       const customsRequired = getVal('customsRequired', 'customsRequired', false);
       const customsStatus = getVal('customsStatus', 'customsStatus', 'not_required');
       const paymentStatus = getVal('paymentStatus', 'paymentStatus', 'pending');
+      const paymentMethod = getVal('paymentMethod', 'paymentMethod', 'cash');
+      const amountPaid = getVal('amountPaid', 'amountPaid', 0);
+      const pricePaidCurrency = getVal('pricePaidCurrency', 'pricePaidCurrency', 'USD');
       const dateReceived = getVal('dateReceived', 'dateReceived') || getVal('EntryDate', 'EntryDate');
       const daysInStorage = getVal('daysInStorage', 'daysInStorage', 0);
       const warehouseLocation = getVal('warehouseLocation', 'warehouseLocation') || getVal('Branch', 'Branch', 'Main Warehouse');
@@ -223,6 +226,9 @@ export async function GET(req: NextRequest) {
         customsRequired: customsRequired,
         customsStatus: customsStatus,
         paymentStatus: paymentStatus,
+        paymentMethod: paymentMethod,
+        amountPaid: amountPaid,
+        pricePaidCurrency: pricePaidCurrency,
         dateReceived: dateReceived,
         daysInStorage: daysInStorage,
         warehouse_location: warehouseLocation,

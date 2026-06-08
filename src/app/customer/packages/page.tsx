@@ -109,6 +109,10 @@ type UIPackage = {
   processedAt?: string;
   source?: string;
   volume?: number;
+  // Payment fields (add these)
+  pricePaidCurrency?: string;
+  amountPaid?: number;
+  paymentMethod?: string;
 };
 
 export default function CustomerPackagesPage() {
@@ -172,20 +176,35 @@ export default function CustomerPackagesPage() {
         credentials: "include",
         cache: "no-store",
       });
-      
+
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load packages");
-      const list: UIPackage[] = Array.isArray(data?.data?.packages) 
+      const list: UIPackage[] = Array.isArray(data?.data?.packages)
         ? data.data.packages.map((pkg: any) => ({
+          ...pkg,
+          // Map tracking number
+          tracking_number: pkg.trackingNumber || pkg.tracking_number || pkg._id,
+          // Map nested recipient fields to flat structure for UI compatibility
+          receiverName: pkg.recipient?.name || pkg.receiverName,
+          receiverEmail: pkg.recipient?.email || pkg.receiverEmail,
+          receiverPhone: pkg.recipient?.phone || pkg.receiverPhone,
+          receiverAddress: pkg.recipient?.address || pkg.receiverAddress,
+          // Ensure other fields are mapped
+          weight: pkg.weight || pkg.weight_kg,
+          total_amount: pkg.totalAmount || pkg.total_amount,
+          shipping_cost: pkg.shippingCost || pkg.shipping_cost,
+          warehouse_location: pkg.warehouseLocation || pkg.warehouse_location,
+          dateReceived: pkg.dateReceived || pkg.createdAt,
+          daysInStorage: pkg.daysInStorage || Math.floor((Date.now() - new Date(pkg.dateReceived || pkg.createdAt).getTime()) / (1000 * 60 * 60 * 24)),
+        }))
+        : Array.isArray(data?.packages)
+          ? data.packages.map((pkg: any) => ({
             ...pkg,
-            // Map tracking number
             tracking_number: pkg.trackingNumber || pkg.tracking_number || pkg._id,
-            // Map nested recipient fields to flat structure for UI compatibility
             receiverName: pkg.recipient?.name || pkg.receiverName,
             receiverEmail: pkg.recipient?.email || pkg.receiverEmail,
             receiverPhone: pkg.recipient?.phone || pkg.receiverPhone,
             receiverAddress: pkg.recipient?.address || pkg.receiverAddress,
-            // Ensure other fields are mapped
             weight: pkg.weight || pkg.weight_kg,
             total_amount: pkg.totalAmount || pkg.total_amount,
             shipping_cost: pkg.shippingCost || pkg.shipping_cost,
@@ -193,31 +212,16 @@ export default function CustomerPackagesPage() {
             dateReceived: pkg.dateReceived || pkg.createdAt,
             daysInStorage: pkg.daysInStorage || Math.floor((Date.now() - new Date(pkg.dateReceived || pkg.createdAt).getTime()) / (1000 * 60 * 60 * 24)),
           }))
-        : Array.isArray(data?.packages) 
-          ? data.packages.map((pkg: any) => ({
-              ...pkg,
-              tracking_number: pkg.trackingNumber || pkg.tracking_number || pkg._id,
-              receiverName: pkg.recipient?.name || pkg.receiverName,
-              receiverEmail: pkg.recipient?.email || pkg.receiverEmail,
-              receiverPhone: pkg.recipient?.phone || pkg.receiverPhone,
-              receiverAddress: pkg.recipient?.address || pkg.receiverAddress,
-              weight: pkg.weight || pkg.weight_kg,
-              total_amount: pkg.totalAmount || pkg.total_amount,
-              shipping_cost: pkg.shippingCost || pkg.shipping_cost,
-              warehouse_location: pkg.warehouseLocation || pkg.warehouse_location,
-              dateReceived: pkg.dateReceived || pkg.createdAt,
-              daysInStorage: pkg.daysInStorage || Math.floor((Date.now() - new Date(pkg.dateReceived || pkg.createdAt).getTime()) / (1000 * 60 * 60 * 24)),
-            }))
           : [];
-      
+
       const receivedPackages = list.filter(pkg => pkg.status === "received");
       const previousReceived = previousItemsRef.current.filter(pkg => pkg.status === "received");
-      
+
       if (receivedPackages.length > previousReceived.length && previousItemsRef.current.length > 0) {
-        const newPackages = receivedPackages.filter(pkg => 
+        const newPackages = receivedPackages.filter(pkg =>
           !previousReceived.some(prev => prev.tracking_number === pkg.tracking_number)
         );
-        
+
         newPackages.forEach(pkg => {
           toast.success(`📦 Package ${pkg.tracking_number} received at warehouse!`, {
             position: "top-right",
@@ -225,7 +229,7 @@ export default function CustomerPackagesPage() {
           });
         });
       }
-      
+
       previousItemsRef.current = list;
       setItems(list);
       setTotal(Number(data?.total_packages || list.length));
@@ -256,14 +260,14 @@ export default function CustomerPackagesPage() {
       const matchesQuery = !q || p.tracking_number.toLowerCase().includes(q) || (p.description || "").toLowerCase().includes(q);
       const matchesStatus = !statusFilter || p.status === statusFilter;
       const matchesLocation = !lq || (p.current_location || "").toLowerCase().includes(lq);
-      
+
       const fromOk = !dateFrom || (p.updated_at ? new Date(p.updated_at) >= new Date(dateFrom) : true);
       const toOk = !dateTo || (p.updated_at ? new Date(p.updated_at) <= new Date(dateTo + "T23:59:59") : true);
-      
+
       const w = p.weight_kg as number | undefined;
       const wMinOk = !weightMin || (typeof w === "number" ? w >= Number(weightMin) : true);
       const wMaxOk = !weightMax || (typeof w === "number" ? w <= Number(weightMax) : true);
-      
+
       return matchesQuery && matchesStatus && matchesLocation && fromOk && toOk && wMinOk && wMaxOk;
     });
   }, [items, debouncedQuery, statusFilter, locationQuery, dateFrom, dateTo, weightMin, weightMax]);
@@ -323,27 +327,27 @@ export default function CustomerPackagesPage() {
 
   function getShippingAddressByMode(mode?: string): string {
     if (!customerProfile?.shippingAddresses) return 'Address not configured';
-    
+
     const modeLower = mode?.toLowerCase() || '';
     let address;
-    
+
     if (modeLower === 'air') {
       address = customerProfile.shippingAddresses.find(a => a.type === 'air');
     } else if (modeLower === 'ocean' || modeLower === 'sea') {
       address = customerProfile.shippingAddresses.find(a => a.type === 'sea' || a.type === 'ocean');
     }
-    
+
     if (!address) return 'Address not configured';
-    
+
     const fullName = `${customerProfile.firstName} ${customerProfile.lastName}`;
     const mailboxCode = customerProfile.mailboxNumber || customerProfile.userCode;
-    
+
     if (modeLower === 'air') {
       return `${fullName}\n${address.street}\n${address.addressLine2 || `AIR-${mailboxCode}`}\n${address.city}, ${address.state}\n${address.zipCode}`;
     } else if (modeLower === 'ocean' || modeLower === 'sea') {
       return `${fullName}\n${address.street}\n${address.addressLine2 || `SEA-${mailboxCode}`}\n${address.city}, ${address.state}\n${address.zipCode}`;
     }
-    
+
     return 'Address not configured';
   }
 
@@ -366,7 +370,7 @@ export default function CustomerPackagesPage() {
     try {
       // Try to find invoice by invoice number first, then by tracking number
       let invoiceNumber = pkg.invoiceNumber;
-      
+
       // If no invoice number, try to find invoice by tracking number from bills API
       if (!invoiceNumber) {
         try {
@@ -376,7 +380,7 @@ export default function CustomerPackagesPage() {
           });
           if (billsRes.ok) {
             const billsData = await billsRes.json();
-            const matchingBill = billsData.bills?.find((bill: any) => 
+            const matchingBill = billsData.bills?.find((bill: any) =>
               bill.tracking_number === pkg.tracking_number && bill.invoice_number
             );
             if (matchingBill?.invoice_number) {
@@ -387,30 +391,30 @@ export default function CustomerPackagesPage() {
           console.error("Error fetching invoice number from bills:", err);
         }
       }
-      
+
       if (!invoiceNumber) {
         toast.error("No invoice available for this package. The invoice may still be processing. Please try again later or contact support.");
         return;
       }
-      
+
       // Fetch invoice data from download API
       const invoiceRes = await fetch(`/api/customer/invoices/${encodeURIComponent(invoiceNumber)}/download?format=${format}`, {
         credentials: "include",
         cache: "no-store",
       });
-      
+
       if (!invoiceRes.ok) {
         const errorData = await invoiceRes.json();
         throw new Error(errorData?.error || "Failed to fetch invoice data");
       }
-      
+
       const responseData = await invoiceRes.json();
       const invoice = responseData.invoice;
-      
+
       if (!invoice) {
         throw new Error("Invoice not found");
       }
-      
+
       // Use ExportService directly like admin page does
       if (format === 'pdf') {
         const invoiceForPDF = {
@@ -448,7 +452,7 @@ export default function CustomerPackagesPage() {
             reference: payment.reference || ''
           }))
         };
-        
+
         await ExportService.toInvoicePDF(invoiceForPDF, `invoice_${invoiceNumber}`);
         toast.success(`Invoice ${invoiceNumber} downloaded as PDF`);
       } else {
@@ -478,7 +482,7 @@ export default function CustomerPackagesPage() {
             'Balance Due': `$${(Number(invoice.balanceDue) || 0).toFixed(2)}`,
             'Notes': invoice.notes || 'N/A'
           };
-          
+
           const itemsData = (invoice.items || []).map((item: any, index: number) => ({
             'Item #': index + 1,
             'Description': item.description || 'Service',
@@ -489,13 +493,13 @@ export default function CustomerPackagesPage() {
             'Tax Amount': `$${Number(item.taxAmount || 0).toFixed(2)}`,
             'Line Total': `$${Number(item.total || 0).toFixed(2)}`
           }));
-          
+
           ExportService.toExcelMultiSheet([
             { name: 'Invoice Summary', data: [invoiceSummary] },
             { name: 'Invoice Items', data: itemsData }
           ], `invoice_${invoiceNumber}_complete`);
         }
-        
+
         toast.success(`Invoice ${invoiceNumber} downloaded as Excel`);
       }
     } catch (e) {
@@ -528,7 +532,7 @@ export default function CustomerPackagesPage() {
     const trackingNumber = pkg.tracking_number;
     const existingTracking = localStorage.getItem('dashboardTracking') || '[]';
     const trackingList = JSON.parse(existingTracking);
-    
+
     if (!trackingList.includes(trackingNumber)) {
       trackingList.push(trackingNumber);
       localStorage.setItem('dashboardTracking', JSON.stringify(trackingList));
@@ -536,10 +540,10 @@ export default function CustomerPackagesPage() {
     } else {
       toast.info(`📍 ${trackingNumber} is already in tracking dashboard`, { position: "top-right", autoClose: 3000 });
     }
-    
+
     // Store tracking number in sessionStorage for auto-fill
     sessionStorage.setItem('trackingNumber', trackingNumber);
-    
+
     window.open('/customer/dashboard', '_blank');
   }
 
@@ -824,19 +828,19 @@ export default function CustomerPackagesPage() {
                         <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                           <div className="flex items-center gap-1">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getStatusColor(p.status)}`}>
-                              {p.invoice_status === 'submitted' || p.invoice_status === 'Invoice Generated' ? 'Invoice Generated' : 
-                               p.invoice_status === 'none' ? 'Invoice Pending' : 
-                               p.customsRequired && p.customsStatus !== 'cleared' ? 'Customs Pending' :
-                               p.paymentStatus === 'pending' ? 'Payment Pending' :
-                               p.invoice_status || 'Pending'}
+                              {p.invoice_status === 'submitted' || p.invoice_status === 'Invoice Generated' ? 'Invoice Generated' :
+                                p.invoice_status === 'none' ? 'Invoice Pending' :
+                                  p.customsRequired && p.customsStatus !== 'cleared' ? 'Customs Pending' :
+                                    p.paymentStatus === 'pending' ? 'Payment Pending' :
+                                      p.invoice_status || 'Pending'}
                             </span>
                           </div>
                           <div className="flex items-center gap-1">
                             {/* Show upload invoice button for packages that need it */}
                             {p.invoice_status !== 'submitted' && p.invoice_status !== 'billed' && p.invoice_status !== 'approved' && (
-                              <Link 
-                                href="/customer/invoice-upload" 
-                                className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-all" 
+                              <Link
+                                href="/customer/invoice-upload"
+                                className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-all"
                                 title="Upload Invoice"
                               >
                                 <Upload className="h-3 w-3" />
@@ -845,18 +849,18 @@ export default function CustomerPackagesPage() {
                             {/* Only show download buttons when invoice is available - like admin page */}
                             {(p.invoiceNumber || p.hasInvoice) && (
                               <>
-                                <button 
-                                  onClick={() => downloadInvoice(p, 'pdf')} 
-                                  disabled={uploadingId === p.id} 
-                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed" 
+                                <button
+                                  onClick={() => downloadInvoice(p, 'pdf')}
+                                  disabled={uploadingId === p.id}
+                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Download Invoice PDF"
                                 >
                                   {uploadingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                                 </button>
-                                <button 
-                                  onClick={() => downloadInvoice(p, 'excel')} 
-                                  disabled={uploadingId === p.id} 
-                                  className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed" 
+                                <button
+                                  onClick={() => downloadInvoice(p, 'excel')}
+                                  disabled={uploadingId === p.id}
+                                  className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Download Invoice Excel"
                                 >
                                   {uploadingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
@@ -890,7 +894,7 @@ export default function CustomerPackagesPage() {
                     </button>
                   </div>
                 </div>
-                
+
                 <div className="p-6 space-y-6">
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
                     <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -919,20 +923,6 @@ export default function CustomerPackagesPage() {
                     </div>
                   </div>
 
-                  <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-6">
-                    <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                      <User className="h-5 w-5 text-emerald-600" />
-                      Sender Information
-                    </h4>
-                    <div className="grid gap-2 md:grid-cols-2">
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Sender Name:</span><span className="text-sm font-semibold text-gray-900 bg-gray-100 px-2 py-1 rounded">{packageToView.senderName || packageToView.shipper || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Email:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderEmail || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderPhone || 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Country:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderCountry || 'N/A'}</span></div>
-                      <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{packageToView.senderAddress || 'N/A'}</span></div>
-                    </div>
-                  </div>
-
                   <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6">
                     <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                       <User className="h-5 w-5 text-blue-600" />
@@ -944,6 +934,44 @@ export default function CustomerPackagesPage() {
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Phone:</span><span className="text-sm font-medium text-gray-900">{customerProfile?.phone || 'N/A'}</span></div>
                       <div className="flex justify-between"><span className="text-sm text-gray-600">Mailbox:</span><span className="text-sm font-medium text-gray-900 font-mono bg-gray-100 px-2 py-1 rounded">{customerProfile?.mailboxNumber || customerProfile?.userCode || 'N/A'}</span></div>
                       <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Address:</span><span className="text-sm font-medium text-gray-900">{customerProfile?.address ? `${customerProfile.address.street}, ${customerProfile.address.city}, ${customerProfile.address.state} ${customerProfile.address.zipCode}, ${customerProfile.address.country}` : 'N/A'}</span></div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-6">
+                    <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <User className="h-5 w-5 text-emerald-600" />
+                      Payment Information
+                    </h4>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Currency:</span><span className="text-sm font-medium text-gray-900">{packageToView.pricePaidCurrency || 'USD'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Item Value:</span><span className="text-sm font-medium text-gray-900">{packageToView.itemValueUsd ? formatCurrency(packageToView.itemValueUsd, "USD") : 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Total Due:</span><span className="text-sm font-medium text-gray-900">{packageToView.total_amount || packageToView.totalAmount ? formatCurrency((packageToView.total_amount || packageToView.totalAmount || 0), "USD") : 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Amount Paid:</span><span className="text-sm font-medium text-gray-900">{packageToView.amountPaid ? formatCurrency(packageToView.amountPaid, "USD") : 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Balance:</span><span className="text-sm font-medium text-gray-900">{formatCurrency(Math.max(0, (packageToView.total_amount || packageToView.totalAmount || 0) - (packageToView.amountPaid || 0)), "USD")}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Payment Status:</span><span className={`text-xs font-semibold px-2 py-1 rounded-full border ${packageToView.paymentStatus === 'paid' ? 'bg-green-100 text-green-800 border-green-200' : packageToView.paymentStatus === 'partially_paid' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' : 'bg-red-100 text-red-800 border-red-200'}`}>{packageToView.paymentStatus ? packageToView.paymentStatus.replace('_', ' ').toUpperCase() : 'PENDING'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Payment Method:</span><span className="text-sm font-medium text-gray-900 capitalize">{packageToView.paymentMethod || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Invoice Status:</span><span className={`text-xs font-semibold px-2 py-1 rounded-full ${packageToView.invoice_status === 'submitted' || packageToView.invoice_status === 'approved' || packageToView.invoice_status === 'billed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{packageToView.invoice_status ? packageToView.invoice_status.replace('_', ' ').toUpperCase() : 'PENDING'}</span></div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-6">
+                    <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <Package className="h-5 w-5 text-purple-600" />
+                      Additional Details
+                    </h4>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Mailbox/User Code:</span><span className="text-sm font-medium text-gray-900 font-mono bg-gray-100 px-2 py-1 rounded">{packageToView.userCode || customerProfile?.mailboxNumber || customerProfile?.userCode || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Shipper:</span><span className="text-sm font-medium text-gray-900">{packageToView.shipper || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Warehouse Location:</span><span className="text-sm font-medium text-gray-900">{packageToView.warehouseLocation || packageToView.current_location || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Volume:</span><span className="text-sm font-medium text-gray-900">{getVolumeDisplay(packageToView.volume, packageToView.dimensions)}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Days in Storage:</span><span className="text-sm font-medium text-gray-900">{packageToView.daysInStorage || 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Required:</span><span className="text-sm font-medium text-gray-900">{packageToView.customsRequired ? 'Yes' : 'No'}</span></div>
+                      {packageToView.customsRequired && (
+                        <div className="flex justify-between"><span className="text-sm text-gray-600">Customs Status:</span><span className="text-sm font-medium text-gray-900 capitalize">{packageToView.customsStatus || 'Pending'}</span></div>
+                      )}
+                      {packageToView.specialInstructions && (
+                        <div className="flex justify-between col-span-2"><span className="text-sm text-gray-600">Special Instructions:</span><span className="text-sm font-medium text-gray-900">{packageToView.specialInstructions}</span></div>
+                      )}
                     </div>
                   </div>
 
