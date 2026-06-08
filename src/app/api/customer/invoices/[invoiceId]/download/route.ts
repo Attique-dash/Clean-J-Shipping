@@ -60,7 +60,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     if (!trackingNumber && (invoice as any).package) {
       const pkg = await Package.findById((invoice as any).package).select('TrackingNumber trackingNumber').lean();
       if (pkg) {
-        trackingNumber = pkg.TrackingNumber || pkg.trackingNumber;
+        trackingNumber = (pkg as any).TrackingNumber || (pkg as any).trackingNumber;
       }
     }
 
