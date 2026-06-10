@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { CheckCircle, AlertCircle, Loader2, MapPin, DollarSign } from "lucide-react";
+import { Package, FileText, Bell, CheckCircle, AlertCircle, Loader2, MapPin, DollarSign, Home, Users, CreditCard } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface Stats {
@@ -12,6 +12,10 @@ interface Stats {
   pendingBills: number;
   unreadMessages: number;
   walletBalance: number;
+  preAlerts: number;
+  payments: number;
+  invoices: number;
+  authorizedUsers: number;
 }
 
 interface ShippingAddress {
@@ -48,6 +52,10 @@ export default function CustomerDashboardPage() {
     pendingBills: 0,
     unreadMessages: 0,
     walletBalance: 0,
+    preAlerts: 0,
+    payments: 0,
+    invoices: 0,
+    authorizedUsers: 0,
   });
   const [shippingAddresses, setShippingAddresses] = useState<ShippingAddress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,6 +121,60 @@ export default function CustomerDashboardPage() {
         console.error("Error loading messages count:", error);
       }
 
+      // Load pre-alerts
+      let preAlertsCount = 0;
+      try {
+        const preAlertsRes = await fetch("/api/customer/pre-alerts", {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          cache: "no-store",
+        });
+        
+        if (preAlertsRes.ok) {
+          const preAlertsData = await preAlertsRes.json();
+          preAlertsCount = preAlertsData?.preAlerts?.length || 0;
+        }
+      } catch (error) {
+        console.error("Error loading pre-alerts count:", error);
+      }
+
+      // Load payments
+      let paymentsCount = 0;
+      try {
+        const paymentsRes = await fetch("/api/customer/payments", {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          cache: "no-store",
+        });
+        
+        if (paymentsRes.ok) {
+          const paymentsData = await paymentsRes.json();
+          paymentsCount = paymentsData?.payments?.length || 0;
+        }
+      } catch (error) {
+        console.error("Error loading payments count:", error);
+      }
+
+      // Load invoices
+      let invoicesCount = 0;
+      try {
+        const invoicesRes = await fetch("/api/customer/invoices", {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          cache: "no-store",
+        });
+        
+        if (invoicesRes.ok) {
+          const invoicesData = await invoicesRes.json();
+          invoicesCount = invoicesData?.invoices?.length || 0;
+        }
+      } catch (error) {
+        console.error("Error loading invoices count:", error);
+      }
+
       // Load shipping addresses
       try {
         const profileRes = await fetch("/api/customer/profile", {
@@ -126,6 +188,9 @@ export default function CustomerDashboardPage() {
           const profileData = await profileRes.json();
           if (profileData.success && profileData.data?.shippingAddresses) {
             setShippingAddresses(profileData.data.shippingAddresses);
+          }
+          if (profileData.success && profileData.data?.authorizedUsers) {
+            invoicesCount = profileData.data.authorizedUsers.length || 0;
           }
         }
       } catch (error) {
@@ -144,6 +209,10 @@ export default function CustomerDashboardPage() {
         ).length,
         unreadMessages: unreadMessagesCount,
         walletBalance,
+        preAlerts: preAlertsCount,
+        payments: paymentsCount,
+        invoices: invoicesCount,
+        authorizedUsers: 0,
       });
     } catch (error) {
       console.error("Error loading stats:", error);
@@ -155,6 +224,10 @@ export default function CustomerDashboardPage() {
         pendingBills: 0,
         unreadMessages: 0,
         walletBalance: 0,
+        preAlerts: 0,
+        payments: 0,
+        invoices: 0,
+        authorizedUsers: 0,
       });
     } finally {
       setLoading(false);
@@ -219,43 +292,133 @@ export default function CustomerDashboardPage() {
           </h1>
         </div>
 
-        {/* Wallet Balance */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <div className="flex items-center gap-3 mb-2">
-            <DollarSign className="h-5 w-5 text-[#0f4d8a]" />
-            <h2 className="font-semibold text-gray-900">Your Wallet Balance</h2>
+        {/* Wallet Balance and Local Branch */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <DollarSign className="h-5 w-5 text-[#0f4d8a]" />
+              <h2 className="font-semibold text-gray-900">Your Wallet Balance</h2>
+            </div>
+            <p className="text-3xl font-bold text-[#0f4d8a]">
+              {formatCurrency(stats.walletBalance)}
+            </p>
           </div>
-          <p className="text-3xl font-bold text-[#0f4d8a]">
-            {formatCurrency(stats.walletBalance)}
-          </p>
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <Home className="h-5 w-5 text-[#0f4d8a]" />
+              <h2 className="font-semibold text-gray-900">Your Local Branch</h2>
+            </div>
+            <p className="text-gray-600">Clean J Shipping</p>
+            <p className="text-sm text-gray-500 mt-1">Kingston, Jamaica</p>
+          </div>
         </div>
 
-        {/* Shipping Addresses */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-[#0f4d8a]" />
-            Your Shipping Addresses
-          </h2>
-          {shippingAddresses.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {shippingAddresses.map((address, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-2 capitalize">
+        {/* Stats Cards - Three Column Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Column 1: Invoice, Users, Messages */}
+          <div className="space-y-4">
+            <Link href="/customer/invoice-upload" className="bg-white rounded-lg border border-gray-200 p-4 hover:border-[#0f4d8a] transition-colors block">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">Submit Required Invoice</span>
+                </div>
+                <span className="text-2xl font-bold text-gray-900">{stats.invoices}</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">packages</p>
+            </Link>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">Authorised Users</span>
+                </div>
+                <span className="text-2xl font-bold text-gray-900">{stats.authorizedUsers}</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">users</p>
+            </div>
+            <Link href="/customer/messages" className="bg-white rounded-lg border border-gray-200 p-4 hover:border-[#0f4d8a] transition-colors block">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bell className="h-5 w-5 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">Messages</span>
+                </div>
+                <span className="text-2xl font-bold text-gray-900">{stats.unreadMessages}</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">messages</p>
+            </Link>
+          </div>
+
+          {/* Column 2: Pre-Alerts, Packages, Bills, Payments */}
+          <div className="space-y-4">
+            <Link href="/customer/pre-alerts" className="bg-white rounded-lg border border-gray-200 p-4 hover:border-[#0f4d8a] transition-colors block">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bell className="h-5 w-5 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">Pre-Alert</span>
+                </div>
+                <span className="text-2xl font-bold text-gray-900">{stats.preAlerts}</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">pre-alerts</p>
+            </Link>
+            <Link href="/customer/packages" className="bg-white rounded-lg border border-gray-200 p-4 hover:border-[#0f4d8a] transition-colors block">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Package className="h-5 w-5 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">Packages</span>
+                </div>
+                <span className="text-2xl font-bold text-gray-900">{stats.totalPackages}</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">not yet picked up</p>
+            </Link>
+            <Link href="/customer/bills" className="bg-white rounded-lg border border-gray-200 p-4 hover:border-[#0f4d8a] transition-colors block">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">Bills/Transactions</span>
+                </div>
+                <span className="text-2xl font-bold text-gray-900">{stats.pendingBills}</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">items</p>
+            </Link>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">Payments</span>
+                </div>
+                <span className="text-2xl font-bold text-gray-900">{stats.payments}</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">payments</p>
+            </div>
+          </div>
+
+          {/* Column 3: Shipping Addresses */}
+          <div className="space-y-4">
+            {shippingAddresses.length > 0 ? (
+              shippingAddresses.map((address, index) => (
+                <div key={index} className="bg-white rounded-lg border border-gray-200 p-4">
+                  <h3 className="font-semibold text-gray-900 mb-2 capitalize flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-[#0f4d8a]" />
                     {address.type} Address
                   </h3>
-                  <p className="text-sm text-gray-600 whitespace-pre-line">
-                    {address.street}
-                    {address.city && `${address.city}, `}
-                    {address.state && `${address.state} `}
-                    {address.zipCode}
-                  </p>
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <p><span className="font-medium">Name:</span> {userName}</p>
+                    <p><span className="font-medium">Address 1:</span> {address.street}</p>
+                    {address.city && <p><span className="font-medium">City:</span> {address.city}</p>}
+                    {address.state && <p><span className="font-medium">State/Province:</span> {address.state}</p>}
+                    {address.zipCode && <p><span className="font-medium">Zip/Postal Code:</span> {address.zipCode}</p>}
+                  </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-500">No shipping addresses configured</p>
-          )}
+              ))
+            ) : (
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <p className="text-gray-500 text-sm">No shipping addresses configured</p>
+              </div>
+            )}
+          </div>
         </div>
+
       </div>
     </div>
   );
