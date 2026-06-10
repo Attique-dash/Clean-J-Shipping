@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   MapPin,
+  CreditCard,
 } from "lucide-react";
 
 export default function CustomerLayout({
@@ -50,6 +51,11 @@ export default function CustomerLayout({
       href: "/customer/bills",
       label: "Bills",
       icon: FileText,
+    },
+    {
+      href: "/customer/payments",
+      label: "Payments",
+      icon: CreditCard,
     },
     {
       href: "/customer/messages",

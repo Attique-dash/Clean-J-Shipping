@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { Package, FileText, Bell, CheckCircle, AlertCircle, Loader2, MapPin, DollarSign, Home, Users, CreditCard } from "lucide-react";
+import { Package, FileText, Bell, CheckCircle, AlertCircle, Loader2, MapPin, DollarSign, Home, CreditCard } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface Stats {
@@ -15,7 +15,6 @@ interface Stats {
   preAlerts: number;
   payments: number;
   invoices: number;
-  authorizedUsers: number;
 }
 
 interface ShippingAddress {
@@ -55,7 +54,6 @@ export default function CustomerDashboardPage() {
     preAlerts: 0,
     payments: 0,
     invoices: 0,
-    authorizedUsers: 0,
   });
   const [shippingAddresses, setShippingAddresses] = useState<ShippingAddress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -212,7 +210,6 @@ export default function CustomerDashboardPage() {
         preAlerts: preAlertsCount,
         payments: paymentsCount,
         invoices: invoicesCount,
-        authorizedUsers: 0,
       });
     } catch (error) {
       console.error("Error loading stats:", error);
@@ -227,7 +224,6 @@ export default function CustomerDashboardPage() {
         preAlerts: 0,
         payments: 0,
         invoices: 0,
-        authorizedUsers: 0,
       });
     } finally {
       setLoading(false);
@@ -264,8 +260,8 @@ export default function CustomerDashboardPage() {
   const userName = session?.user?.name || session?.user?.email?.split('@')[0] || 'User';
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6 overflow-hidden">
+      <div className="max-w-7xl mx-auto h-full flex flex-col">
         {/* Error Display */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-center justify-between">
@@ -286,134 +282,124 @@ export default function CustomerDashboardPage() {
         )}
 
         {/* Welcome Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">
+        <div className="mb-4">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Hello, {userName}
           </h1>
         </div>
 
         {/* Wallet Balance and Local Branch */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
             <div className="flex items-center gap-3 mb-2">
-              <DollarSign className="h-5 w-5 text-[#0f4d8a]" />
-              <h2 className="font-semibold text-gray-900">Your Wallet Balance</h2>
+              <DollarSign className="h-6 w-6" />
+              <h2 className="font-semibold">Your Wallet Balance</h2>
             </div>
-            <p className="text-3xl font-bold text-[#0f4d8a]">
+            <p className="text-3xl font-bold">
               {formatCurrency(stats.walletBalance)}
             </p>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
             <div className="flex items-center gap-3 mb-2">
-              <Home className="h-5 w-5 text-[#0f4d8a]" />
-              <h2 className="font-semibold text-gray-900">Your Local Branch</h2>
+              <Home className="h-6 w-6" />
+              <h2 className="font-semibold">Your Local Branch</h2>
             </div>
-            <p className="text-gray-600">Clean J Shipping</p>
-            <p className="text-sm text-gray-500 mt-1">Kingston, Jamaica</p>
+            <p className="font-medium">Clean J Shipping</p>
+            <p className="text-sm opacity-90 mt-1">Kingston, Jamaica</p>
           </div>
         </div>
 
         {/* Stats Cards - Three Column Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {/* Column 1: Invoice, Users, Messages */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 overflow-y-auto pb-4">
+          {/* Column 1: Invoice, Messages */}
           <div className="space-y-4">
-            <Link href="/customer/invoice-upload" className="bg-white rounded-lg border border-gray-200 p-4 hover:border-[#0f4d8a] transition-colors block">
+            <Link href="/customer/invoice-upload" className="bg-gradient-to-br from-orange-400 to-orange-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-shadow block">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-gray-600" />
-                  <span className="text-sm font-medium text-gray-700">Submit Required Invoice</span>
+                  <FileText className="h-5 w-5" />
+                  <span className="text-sm font-medium">Submit Required Invoice</span>
                 </div>
-                <span className="text-2xl font-bold text-gray-900">{stats.invoices}</span>
+                <span className="text-2xl font-bold">{stats.invoices}</span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">packages</p>
+              <p className="text-xs opacity-90 mt-1">packages</p>
             </Link>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <Link href="/customer/messages" className="bg-gradient-to-br from-pink-400 to-pink-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-shadow block">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-gray-600" />
-                  <span className="text-sm font-medium text-gray-700">Authorised Users</span>
+                  <Bell className="h-5 w-5" />
+                  <span className="text-sm font-medium">Messages</span>
                 </div>
-                <span className="text-2xl font-bold text-gray-900">{stats.authorizedUsers}</span>
+                <span className="text-2xl font-bold">{stats.unreadMessages}</span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">users</p>
-            </div>
-            <Link href="/customer/messages" className="bg-white rounded-lg border border-gray-200 p-4 hover:border-[#0f4d8a] transition-colors block">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Bell className="h-5 w-5 text-gray-600" />
-                  <span className="text-sm font-medium text-gray-700">Messages</span>
-                </div>
-                <span className="text-2xl font-bold text-gray-900">{stats.unreadMessages}</span>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">messages</p>
+              <p className="text-xs opacity-90 mt-1">messages</p>
             </Link>
           </div>
 
           {/* Column 2: Pre-Alerts, Packages, Bills, Payments */}
           <div className="space-y-4">
-            <Link href="/customer/pre-alerts" className="bg-white rounded-lg border border-gray-200 p-4 hover:border-[#0f4d8a] transition-colors block">
+            <Link href="/customer/pre-alerts" className="bg-gradient-to-br from-teal-400 to-teal-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-shadow block">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Bell className="h-5 w-5 text-gray-600" />
-                  <span className="text-sm font-medium text-gray-700">Pre-Alert</span>
+                  <Bell className="h-5 w-5" />
+                  <span className="text-sm font-medium">Pre-Alert</span>
                 </div>
-                <span className="text-2xl font-bold text-gray-900">{stats.preAlerts}</span>
+                <span className="text-2xl font-bold">{stats.preAlerts}</span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">pre-alerts</p>
+              <p className="text-xs opacity-90 mt-1">pre-alerts</p>
             </Link>
-            <Link href="/customer/packages" className="bg-white rounded-lg border border-gray-200 p-4 hover:border-[#0f4d8a] transition-colors block">
+            <Link href="/customer/packages" className="bg-gradient-to-br from-green-400 to-green-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-shadow block">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Package className="h-5 w-5 text-gray-600" />
-                  <span className="text-sm font-medium text-gray-700">Packages</span>
+                  <Package className="h-5 w-5" />
+                  <span className="text-sm font-medium">Packages</span>
                 </div>
-                <span className="text-2xl font-bold text-gray-900">{stats.totalPackages}</span>
+                <span className="text-2xl font-bold">{stats.totalPackages}</span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">not yet picked up</p>
+              <p className="text-xs opacity-90 mt-1">not yet picked up</p>
             </Link>
-            <Link href="/customer/bills" className="bg-white rounded-lg border border-gray-200 p-4 hover:border-[#0f4d8a] transition-colors block">
+            <Link href="/customer/bills" className="bg-gradient-to-br from-red-400 to-red-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-shadow block">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-gray-600" />
-                  <span className="text-sm font-medium text-gray-700">Bills/Transactions</span>
+                  <FileText className="h-5 w-5" />
+                  <span className="text-sm font-medium">Bills/Transactions</span>
                 </div>
-                <span className="text-2xl font-bold text-gray-900">{stats.pendingBills}</span>
+                <span className="text-2xl font-bold">{stats.pendingBills}</span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">items</p>
+              <p className="text-xs opacity-90 mt-1">items</p>
             </Link>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <Link href="/customer/payments" className="bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-shadow block">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-gray-600" />
-                  <span className="text-sm font-medium text-gray-700">Payments</span>
+                  <CreditCard className="h-5 w-5" />
+                  <span className="text-sm font-medium">Payments</span>
                 </div>
-                <span className="text-2xl font-bold text-gray-900">{stats.payments}</span>
+                <span className="text-2xl font-bold">{stats.payments}</span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">payments</p>
-            </div>
+              <p className="text-xs opacity-90 mt-1">payments</p>
+            </Link>
           </div>
 
           {/* Column 3: Shipping Addresses */}
           <div className="space-y-4">
             {shippingAddresses.length > 0 ? (
-              shippingAddresses.map((address, index) => (
-                <div key={index} className="bg-white rounded-lg border border-gray-200 p-4">
-                  <h3 className="font-semibold text-gray-900 mb-2 capitalize flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-[#0f4d8a]" />
+              shippingAddresses.map((address: any, index: number) => (
+                <div key={index} className="bg-gradient-to-br from-cyan-400 to-cyan-500 rounded-xl p-4 text-white shadow-lg">
+                  <h3 className="font-semibold mb-2 capitalize flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
                     {address.type} Address
                   </h3>
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <p><span className="font-medium">Name:</span> {userName}</p>
-                    <p><span className="font-medium">Address 1:</span> {address.street}</p>
-                    {address.city && <p><span className="font-medium">City:</span> {address.city}</p>}
-                    {address.state && <p><span className="font-medium">State/Province:</span> {address.state}</p>}
-                    {address.zipCode && <p><span className="font-medium">Zip/Postal Code:</span> {address.zipCode}</p>}
+                  <div className="text-sm space-y-1">
+                    <p><span className="font-medium opacity-90">Name:</span> {userName}</p>
+                    <p><span className="font-medium opacity-90">Address 1:</span> {address.street}</p>
+                    {address.city && <p><span className="font-medium opacity-90">City:</span> {address.city}</p>}
+                    {address.state && <p><span className="font-medium opacity-90">State/Province:</span> {address.state}</p>}
+                    {address.zipCode && <p><span className="font-medium opacity-90">Zip/Postal Code:</span> {address.zipCode}</p>}
                   </div>
                 </div>
               ))
             ) : (
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <p className="text-gray-500 text-sm">No shipping addresses configured</p>
+              <div className="bg-gradient-to-br from-gray-400 to-gray-500 rounded-xl p-4 text-white shadow-lg">
+                <p className="text-sm">No shipping addresses configured</p>
               </div>
             )}
           </div>
