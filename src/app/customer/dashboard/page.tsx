@@ -16,14 +16,8 @@ import {
   MessageSquare,
   Ship,
   Plane,
+  Globe,
   Building,
-  Mail,
-  Phone,
-  Clock,
-  TrendingUp,
-  CheckCircle,
-  Loader2,
-  Receipt 
 } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 
@@ -44,8 +38,12 @@ interface ShippingAddress {
   state: string;
   zipCode: string;
   country: string;
-  shippingMethod?: "sea" | "air" | "express" | "standard";
-  warehouse?: string;
+  entranceNumber?: string;
+  cargoNumber?: string;
+  marks?: string;
+  customerName?: string;
+  warehouseAddress?: string;
+  warehouseContact?: string;
 }
 
 interface PackageData {
@@ -80,7 +78,6 @@ export default function CustomerDashboardPage() {
   const [shippingAddresses, setShippingAddresses] = useState<ShippingAddress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [recentPackages, setRecentPackages] = useState<PackageData[]>([]);
 
   useEffect(() => {
     if (session?.user) {
@@ -104,7 +101,6 @@ export default function CustomerDashboardPage() {
       if (!packagesRes.ok) throw new Error("Failed to fetch packages");
       const packagesData = await packagesRes.json();
       const packages = packagesData?.packages || [];
-      setRecentPackages(packages.slice(0, 3));
 
       // Bills
       let bills: BillData[] = [];
@@ -171,7 +167,7 @@ export default function CustomerDashboardPage() {
         console.error("Error loading payments count:", err);
       }
 
-      // Invoices needed
+      // Invoices needed (Submit Required Invoice)
       let invoicesCount = 0;
       try {
         const invoiceUploadRes = await fetch("/api/customer/invoice-upload", {
@@ -194,7 +190,7 @@ export default function CustomerDashboardPage() {
         console.error("Error loading invoice count:", err);
       }
 
-      // Shipping addresses with enhanced data
+      // Shipping addresses with enhanced data from your screenshot
       try {
         const profileRes = await fetch("/api/customer/profile", {
           method: "GET",
@@ -205,12 +201,15 @@ export default function CustomerDashboardPage() {
         if (profileRes.ok) {
           const profileData = await profileRes.json();
           if (profileData.success && profileData.data?.shippingAddresses) {
-            // Enhance addresses with shipping method suggestions
+            // Enhance addresses with additional fields from your example
             const enhancedAddresses = profileData.data.shippingAddresses.map((addr: any) => ({
               ...addr,
-              shippingMethod: addr.country === "China" ? "air" : 
-                             addr.country === "USA" ? "express" : "sea",
-              warehouse: getWarehouseForCountry(addr.country)
+              entranceNumber: addr.entranceNumber || "MS-3052",
+              cargoNumber: addr.cargoNumber || "P4U669820",
+              marks: addr.marks || "P4U669820",
+              customerName: addr.customerName || "Packit4u Limited",
+              warehouseAddress: addr.warehouseAddress || "广州市白云区白云大道南333号云东花园A183仓库",
+              warehouseContact: addr.warehouseContact || "周生 13527839367 / 18520513890",
             }));
             setShippingAddresses(enhancedAddresses);
           }
@@ -219,7 +218,7 @@ export default function CustomerDashboardPage() {
         console.error("Error loading shipping addresses:", err);
       }
 
-      // Wallet balance
+      // Wallet balance = sum of unpaid bills
       const walletBalance = bills
         .filter((b: BillData) => b.payment_status === "submitted" || b.payment_status === "none")
         .reduce((sum: number, b: BillData) => sum + (b.amount_due || 0), 0);
@@ -252,49 +251,23 @@ export default function CustomerDashboardPage() {
     }
   }
 
-  function getWarehouseForCountry(country: string): string {
-    const warehouses: Record<string, string> = {
-      "China": "Guangzhou Warehouse",
-      "USA": "New York Warehouse", 
-      "Jamaica": "Kingston Hub",
-      "UK": "London Warehouse",
-      "Canada": "Toronto Warehouse"
-    };
-    return warehouses[country] || "Global Warehouse";
-  }
-
-  function getShippingMethodIcon(method?: string) {
-    switch(method) {
-      case "air":
-        return <Plane className="h-5 w-5 text-sky-500" />;
-      case "sea":
-        return <Ship className="h-5 w-5 text-blue-600" />;
-      case "express":
-        return <TrendingUp className="h-5 w-5 text-purple-500" />;
-      default:
-        return <Package className="h-5 w-5 text-gray-500" />;
+  // Function to determine shipping method icon based on country or address type
+  function getShippingIcon(country: string, type: string) {
+    if (country === "China" || type === "China Air") {
+      return { icon: Plane, label: "Air", color: "text-sky-600", bgColor: "bg-sky-100" };
+    } else if (type === "SEA ADDRESS" || type.toLowerCase().includes("sea")) {
+      return { icon: Ship, label: "Sea", color: "text-blue-600", bgColor: "bg-blue-100" };
+    } else if (country === "USA") {
+      return { icon: Globe, label: "International", color: "text-purple-600", bgColor: "bg-purple-100" };
     }
-  }
-
-  function getShippingMethodColor(method?: string) {
-    switch(method) {
-      case "air":
-        return "bg-sky-50 text-sky-700 border-sky-200";
-      case "sea":
-        return "bg-blue-50 text-blue-700 border-blue-200";
-      case "express":
-        return "bg-purple-50 text-purple-700 border-purple-200";
-      default:
-        return "bg-gray-50 text-gray-700 border-gray-200";
-    }
+    return { icon: MapPin, label: "Standard", color: "text-gray-600", bgColor: "bg-gray-100" };
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading your dashboard...</p>
+          <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     );
@@ -302,15 +275,12 @@ export default function CustomerDashboardPage() {
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-center bg-white rounded-2xl p-8 shadow-xl max-w-md">
-          <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Package className="h-10 w-10 text-blue-600" />
-          </div>
-          <p className="text-gray-600 mb-6">Please log in to access your dashboard</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">Please log in to access your dashboard</p>
           <Link
             href="/login"
-            className="inline-block px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-md"
+            className="inline-block px-6 py-2 bg-[#0f4d8a] text-white rounded hover:bg-[#1e6bb8]"
           >
             Sign In
           </Link>
@@ -326,77 +296,59 @@ export default function CustomerDashboardPage() {
       href: "/customer/invoice-upload",
       label: "Submit Required Invoice",
       count: stats.invoices,
-      description: "Packages requiring invoice submission",
+      description: "Packages requiring invoice",
       icon: FileText,
-      gradient: "from-orange-500 to-orange-600",
-      bgGradient: "bg-gradient-to-br from-orange-50 to-orange-100",
-      iconBg: "bg-orange-100",
-      textColor: "text-orange-700"
+      gradient: "from-orange-400 to-orange-500",
     },
     {
       href: "/customer/pre-alerts",
       label: "Pre-Alerts",
       count: stats.preAlerts,
-      description: "Packages waiting for processing",
+      description: "Pre-alerts submitted by me",
       icon: Bell,
-      gradient: "from-teal-500 to-teal-600",
-      bgGradient: "bg-gradient-to-br from-teal-50 to-teal-100",
-      iconBg: "bg-teal-100",
-      textColor: "text-teal-700"
+      gradient: "from-teal-400 to-teal-500",
     },
     {
       href: "/customer/packages",
-      label: "Active Packages",
+      label: "Packages",
       count: stats.totalPackages,
-      description: "Packages in transit",
+      description: "Packages not yet picked up",
       icon: Package,
-      gradient: "from-emerald-500 to-emerald-600",
-      bgGradient: "bg-gradient-to-br from-emerald-50 to-emerald-100",
-      iconBg: "bg-emerald-100",
-      textColor: "text-emerald-700"
+      gradient: "from-green-400 to-green-500",
     },
     {
       href: "/customer/bills",
-      label: "Pending Bills",
+      label: "Bills / Transactions",
       count: stats.pendingBills,
-      description: "Ready for payment",
+      description: "Pay online, schedule deliveries",
       icon: CreditCard,
-      gradient: "from-red-500 to-red-600",
-      bgGradient: "bg-gradient-to-br from-red-50 to-red-100",
-      iconBg: "bg-red-100",
-      textColor: "text-red-700"
+      gradient: "from-red-400 to-red-500",
     },
     {
       href: "/customer/payments",
-      label: "Payment History",
+      label: "Payments",
       count: stats.payments,
-      description: "Completed transactions",
+      description: "View all my previous payments",
       icon: DollarSign,
-      gradient: "from-indigo-500 to-indigo-600",
-      bgGradient: "bg-gradient-to-br from-indigo-50 to-indigo-100",
-      iconBg: "bg-indigo-100",
-      textColor: "text-indigo-700"
+      gradient: "from-indigo-400 to-indigo-500",
     },
     {
       href: "/customer/messages",
       label: "Messages",
       count: stats.unreadMessages,
-      description: "Unread communications",
+      description: "All previous messages sent to me",
       icon: MessageSquare,
-      gradient: "from-pink-500 to-pink-600",
-      bgGradient: "bg-gradient-to-br from-pink-50 to-pink-100",
-      iconBg: "bg-pink-100",
-      textColor: "text-pink-700"
+      gradient: "from-pink-400 to-pink-500",
     },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
+      <div className="max-w-6xl mx-auto space-y-6">
         {/* Error Banner */}
         {error && (
-          <div className="mb-6 bg-red-50 border-l-4 border-red-500 rounded-lg p-4 flex items-center justify-between shadow-sm">
-            <div className="flex items-center gap-3">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-red-600" />
               <p className="text-sm text-red-800">{error}</p>
             </div>
@@ -406,270 +358,183 @@ export default function CustomerDashboardPage() {
                 setLoading(true);
                 loadStats();
               }}
-              className="text-sm bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+              className="text-sm bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
             >
               Retry
             </button>
           </div>
         )}
 
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
-                Welcome back, {userName}
-              </h1>
-              <p className="text-slate-500 mt-2">Track your shipments and manage your account</p>
+        {/* Greeting */}
+        <div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Hello, {userName}
+          </h1>
+          <p className="text-gray-500 mt-1">Here&apos;s a quick look at your account</p>
+        </div>
+
+        {/* Wallet Balance + Local Branch */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
+            <div className="flex items-center gap-3 mb-2">
+              <DollarSign className="h-6 w-6" />
+              <h2 className="font-semibold">Your Wallet Balance</h2>
             </div>
-            <div className="hidden sm:block">
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <Clock className="h-4 w-4" />
-                <span>Last updated: {new Date().toLocaleDateString()}</span>
-              </div>
+            <p className="text-3xl font-bold">{formatCurrency(stats.walletBalance)}</p>
+          </div>
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
+            <div className="flex items-center gap-3 mb-2">
+              <Home className="h-6 w-6" />
+              <h2 className="font-semibold">Your Local Branch</h2>
             </div>
+            <p className="font-medium">Clean J Shipping</p>
+            <p className="text-sm opacity-90 mt-1">Kingston, Jamaica</p>
           </div>
         </div>
 
-        {/* Stats Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Wallet Card */}
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-slate-100 hover:shadow-xl transition-shadow">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-white/20 rounded-xl p-2">
-                  <Receipt className="h-6 w-6 text-white" />
-                </div>
-                <h3 className="text-white font-semibold">Wallet Balance</h3>
-              </div>
-            </div>
-            <div className="px-6 py-5">
-              <p className="text-4xl font-bold text-slate-800">{formatCurrency(stats.walletBalance)}</p>
-              <p className="text-sm text-slate-500 mt-2">Available for shipping and services</p>
-              <Link 
-                href="/customer/wallet"
-                className="inline-block mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Add Funds →
-              </Link>
-            </div>
-          </div>
-
-          {/* Branch Card */}
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-slate-100 hover:shadow-xl transition-shadow">
-            <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-white/20 rounded-xl p-2">
-                  <Building className="h-6 w-6 text-white" />
-                </div>
-                <h3 className="text-white font-semibold">Local Branch</h3>
-              </div>
-            </div>
-            <div className="px-6 py-5">
-              <p className="text-lg font-semibold text-slate-800">Clean J Shipping</p>
-              <p className="text-slate-600">Kingston, Jamaica</p>
-              <div className="mt-3 flex items-center gap-4 text-sm">
-                <span className="flex items-center gap-1 text-slate-500">
-                  <Phone className="h-3 w-3" />
-                  +1 (876) 123-4567
-                </span>
-                <span className="flex items-center gap-1 text-slate-500">
-                  <Mail className="h-3 w-3" />
-                  support@cleanjshipping.com
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-blue-600" />
-            Quick Actions
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        {/* Stat Cards */}
+        <div>
+          <h2 className="text-lg font-semibold text-gray-700 mb-3">Quick Access</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {statCards.map((card) => {
               const Icon = card.icon;
               return (
                 <Link
                   key={card.href}
                   href={card.href}
-                  className={`${card.bgGradient} rounded-xl p-4 border border-slate-200 hover:shadow-md transition-all group`}
+                  className={`bg-gradient-to-br ${card.gradient} rounded-2xl p-5 text-white shadow-lg hover:shadow-xl transition-shadow block`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className={`${card.iconBg} rounded-lg p-2`}>
-                      <Icon className={`h-5 w-5 ${card.textColor}`} />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-5 w-5" />
+                      <span className="text-sm font-medium">{card.label}</span>
                     </div>
-                    <span className={`text-2xl font-bold ${card.textColor}`}>{card.count}</span>
+                    <span className="text-2xl font-bold">{card.count}</span>
                   </div>
-                  <div className="mt-3">
-                    <p className="font-medium text-slate-800 text-sm">{card.label}</p>
-                    <p className="text-xs text-slate-500 mt-1">{card.description}</p>
-                  </div>
+                  <p className="text-xs opacity-90 mt-2">{card.description}</p>
                 </Link>
               );
             })}
           </div>
         </div>
 
-        {/* Recent Packages & Shipping Addresses */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent Packages */}
-          {recentPackages.length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                <Package className="h-5 w-5 text-blue-600" />
-                Recent Packages
-              </h2>
-              <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
-                {recentPackages.map((pkg, idx) => (
-                  <div key={pkg.id} className={`p-4 ${idx !== recentPackages.length - 1 ? 'border-b border-slate-100' : ''}`}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-slate-800">{pkg.tracking_number || `Package ${pkg.id.slice(-6)}`}</p>
-                        <p className="text-sm text-slate-500 mt-1">Status: {pkg.status || "In Transit"}</p>
-                      </div>
-                      <Link 
-                        href={`/customer/packages/${pkg.id}`}
-                        className="text-sm text-blue-600 hover:text-blue-700"
-                      >
-                        Track →
-                      </Link>
-                    </div>
-                  </div>
-                ))}
-                <div className="bg-slate-50 px-4 py-3">
-                  <Link href="/customer/packages" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                    View All Packages →
-                  </Link>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Shipping Addresses - Enhanced */}
-          {shippingAddresses.length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                <MapPin className="h-5 w-5 text-blue-600" />
-                Your Shipping Addresses
-              </h2>
-              <div className="space-y-4">
-                {shippingAddresses.map((address, index) => (
+        {/* Shipping Addresses - Enhanced with Icons like your example */}
+        {shippingAddresses.length > 0 && (
+          <div>
+            <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              Your Shipping Addresses
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {shippingAddresses.map((address: any, index: number) => {
+                const { icon: ShippingIcon, label: shippingMethod, color, bgColor } = getShippingIcon(address.country, address.type);
+                const IconComponent = ShippingIcon;
+                
+                return (
                   <div
                     key={index}
-                    className="bg-white rounded-2xl shadow-lg border border-slate-100 hover:shadow-xl transition-all overflow-hidden"
+                    className="bg-white rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all overflow-hidden"
                   >
-                    <div className={`${getShippingMethodColor(address.shippingMethod)} px-4 py-2 border-b flex items-center justify-between`}>
+                    {/* Header with Shipping Method Icon */}
+                    <div className={`${bgColor} px-4 py-3 border-b flex items-center justify-between`}>
                       <div className="flex items-center gap-2">
-                        {getShippingMethodIcon(address.shippingMethod)}
-                        <span className="font-semibold text-sm capitalize">
-                          {address.type} Address
+                        <IconComponent className={`h-5 w-5 ${color}`} />
+                        <span className="font-semibold text-sm capitalize text-gray-700">
+                          {address.type === "SEA ADDRESS" ? "SEA ADDRESS" : `${address.type} ${shippingMethod}`}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1 text-xs">
-                        {address.shippingMethod === "air" && (
+                      <div className="flex items-center gap-1">
+                        {shippingMethod === "Air" && (
                           <>
-                            <Plane className="h-3 w-3" />
-                            <span>Express Air Shipping</span>
+                            <Plane className="h-3 w-3 text-sky-600" />
+                            <span className="text-xs font-medium text-sky-600">Air Standard</span>
                           </>
                         )}
-                        {address.shippingMethod === "sea" && (
+                        {shippingMethod === "Sea" && (
                           <>
-                            <Ship className="h-3 w-3" />
-                            <span>Ocean Freight</span>
-                          </>
-                        )}
-                        {address.shippingMethod === "express" && (
-                          <>
-                            <TrendingUp className="h-3 w-3" />
-                            <span>Express Delivery</span>
+                            <Ship className="h-3 w-3 text-blue-600" />
+                            <span className="text-xs font-medium text-blue-600">Sea Freight</span>
                           </>
                         )}
                       </div>
                     </div>
                     
-                    <div className="p-4">
-                      <div className="space-y-2">
+                    {/* Address Content */}
+                    <div className="p-4 space-y-2">
+                      <p className="text-sm">
+                        <span className="font-semibold text-gray-700">Name:</span>{" "}
+                        <span className="text-gray-600">{address.customerName || userName}</span>
+                      </p>
+                      
+                      {address.entranceNumber && (
                         <p className="text-sm">
-                          <span className="font-medium text-slate-600">Recipient:</span> {userName}
+                          <span className="font-semibold text-gray-700">Entrance 入仓号:</span>{" "}
+                          <span className="text-gray-600">{address.entranceNumber}</span>
                         </p>
+                      )}
+                      
+                      <p className="text-sm">
+                        <span className="font-semibold text-gray-700">Address 1:</span>{" "}
+                        <span className="text-gray-600">{address.street}</span>
+                      </p>
+                      
+                      {address.cargoNumber && (
                         <p className="text-sm">
-                          <span className="font-medium text-slate-600">Address:</span> {address.street}
+                          <span className="font-semibold text-gray-700">Address 2:</span>{" "}
+                          <span className="text-gray-600">{address.cargoNumber}</span>
                         </p>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          {address.city && (
-                            <p><span className="font-medium text-slate-600">City:</span> {address.city}</p>
-                          )}
-                          {address.state && (
-                            <p><span className="font-medium text-slate-600">State:</span> {address.state}</p>
-                          )}
-                          {address.zipCode && (
-                            <p><span className="font-medium text-slate-600">ZIP:</span> {address.zipCode}</p>
-                          )}
-                          {address.country && (
-                            <p><span className="font-medium text-slate-600">Country:</span> {address.country}</p>
-                          )}
-                        </div>
-                        {address.warehouse && (
-                          <div className="mt-3 pt-3 border-t border-slate-100">
-                            <div className="flex items-center gap-2 text-sm">
-                              <Building className="h-4 w-4 text-slate-400" />
-                              <span className="text-slate-600">Warehouse: </span>
-                              <span className="font-medium text-slate-700">{address.warehouse}</span>
-                            </div>
-                          </div>
+                      )}
+                      
+                      {address.marks && (
+                        <p className="text-sm">
+                          <span className="font-semibold text-gray-700">Marks 唛头:</span>{" "}
+                          <span className="text-gray-600">{address.marks}</span>
+                        </p>
+                      )}
+                      
+                      <div className="grid grid-cols-2 gap-1 text-sm">
+                        {address.city && (
+                          <p>
+                            <span className="font-semibold text-gray-700">City:</span>{" "}
+                            <span className="text-gray-600">{address.city}</span>
+                          </p>
+                        )}
+                        {address.state && (
+                          <p>
+                            <span className="font-semibold text-gray-700">State/Province:</span>{" "}
+                            <span className="text-gray-600">{address.state}</span>
+                          </p>
+                        )}
+                        {address.zipCode && (
+                          <p>
+                            <span className="font-semibold text-gray-700">Zip/Postal Code:</span>{" "}
+                            <span className="text-gray-600">{address.zipCode}</span>
+                          </p>
                         )}
                       </div>
                       
-                      <div className="mt-4 flex gap-2">
-                        <button className="flex-1 text-sm bg-slate-50 text-slate-700 px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors">
-                          Edit
-                        </button>
-                        <button className="flex-1 text-sm bg-blue-50 text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors">
-                          Set as Default
-                        </button>
-                      </div>
+                      {/* Warehouse Information */}
+                      {(address.warehouseAddress || address.warehouseContact) && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          {address.warehouseAddress && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              <span className="font-semibold">仓库地址:</span> {address.warehouseAddress}
+                            </p>
+                          )}
+                          {address.warehouseContact && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              <span className="font-semibold">仓库联系人:</span> {address.warehouseContact}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          )}
-        </div>
-
-        {/* Quick Stats Footer */}
-        <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
-            <div className="flex items-center justify-center mb-1">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-            </div>
-            <p className="text-xs text-slate-500">On-Time Delivery</p>
-            <p className="text-sm font-semibold text-slate-700">98.5%</p>
           </div>
-          <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
-            <div className="flex items-center justify-center mb-1">
-              <Package className="h-4 w-4 text-blue-500" />
-            </div>
-            <p className="text-xs text-slate-500">Total Shipments</p>
-            <p className="text-sm font-semibold text-slate-700">{stats.totalPackages}</p>
-          </div>
-          <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
-            <div className="flex items-center justify-center mb-1">
-              <DollarSign className="h-4 w-4 text-green-500" />
-            </div>
-            <p className="text-xs text-slate-500">Total Spent</p>
-            <p className="text-sm font-semibold text-slate-700">{formatCurrency(stats.walletBalance * 2)}</p>
-          </div>
-          <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
-            <div className="flex items-center justify-center mb-1">
-              <TrendingUp className="h-4 w-4 text-purple-500" />
-            </div>
-            <p className="text-xs text-slate-500">Active Shipments</p>
-            <p className="text-sm font-semibold text-slate-700">{stats.preAlerts}</p>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
