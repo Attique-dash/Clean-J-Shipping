@@ -92,5 +92,9 @@ declare module 'lucide-react' {
   export const Contact: any;
   export const Gift: any;
   export const BookOpen: any;
+  export const Percent: any;
+  export const Hash: any;
+  export const Scale: any;
+  export const Tag: any;
   // Add any other icons you use
 }

@@ -391,128 +391,100 @@ export default function CustomerDashboardPage() {
         </div>
 
         {/* Shipping Addresses - simplified, matches reference's clean address cards */}
-  {/* Shipping Addresses - simplified, matches reference's clean address cards */}
-{shippingAddresses.length > 0 && (
-  <div className="mb-8">
-    <div className="flex items-center justify-between mb-4">
-      <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-        <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-sm">
-          <MapPin className="h-5 w-5 text-white" />
-        </div>
-        Your Shipping Addresses
-        <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-          {shippingAddresses.length} {shippingAddresses.length === 1 ? 'Address' : 'Addresses'}
-        </span>
-      </h2>
-    </div>
-
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-      {shippingAddresses.map((address: any, index: number) => {
-        // Determine which icon to show based on address type
-        const getAddressIcon = () => {
-          const type = address.type?.toLowerCase();
-          if (type === 'air' || type === 'airplane') {
-            return <Plane className="h-4 w-4 text-blue-600" />;
-          } else if (type === 'sea' || type === 'ship' || type === 'ocean') {
-            return <Ship className="h-4 w-4 text-blue-600" />;
-          } else if (type === 'china' || type === 'cn') {
-            return <span className="text-base">🇨🇳</span>;
-          }
-          // Default icon
-          return <Plane className="h-4 w-4 text-blue-600" />;
-        };
-
-        // Get country flag display for China address
-        const getCountryFlag = () => {
-          const type = address.type?.toLowerCase();
-          if (type === 'china' || type === 'cn') {
-            return (
-              <div className="flex items-center gap-1 text-xs bg-gray-50 px-2 py-1 rounded-full border border-gray-200">
-                <span className="text-sm">🇨🇳</span>
-                <span className="text-gray-500">China</span>
-              </div>
-            );
-          }
-          return null;
-        };
-
-        return (
-          <div
-            key={index}
-            className="group relative bg-white rounded-2xl p-5 shadow-md border border-gray-100 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
-          >
-            {/* Decorative corner accent */}
-            <div className="absolute top-0 right-0 w-16 h-16 overflow-hidden">
-              <div className="absolute top-0 right-0 w-8 h-8 bg-gradient-to-br from-blue-400 to-cyan-400 transform rotate-45 translate-x-4 -translate-y-4"></div>
-            </div>
-
-            {/* Address header with type badge */}
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl">
-                  {getAddressIcon()}
+        {shippingAddresses.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-sm">
+                  <MapPin className="h-5 w-5 text-white" />
                 </div>
-                <h3 className="font-semibold text-gray-800 capitalize">
-                  {address.type || 'Shipping'} Address
-                </h3>
-              </div>
-              {getCountryFlag()}
+                Your Shipping Addresses
+                <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                  {shippingAddresses.length} {shippingAddresses.length === 1 ? 'Address' : 'Addresses'}
+                </span>
+              </h2>
+
             </div>
 
-            {/* User name */}
-            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-gray-100">
-              <div className="w-8 h-8 bg-gradient-to-br from-gray-700 to-gray-800 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                {userName?.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Recipient</p>
-                <p className="font-semibold text-gray-800">{userName}</p>
-              </div>
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {shippingAddresses.map((address: any, index: number) => (
+                <div
+                  key={index}
+                  className="group relative bg-white rounded-2xl p-5 shadow-md border border-gray-100 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                >
+                  {/* Decorative corner accent */}
+                  <div className="absolute top-0 right-0 w-16 h-16 overflow-hidden">
+                    <div className="absolute top-0 right-0 w-8 h-8 bg-gradient-to-br from-blue-400 to-cyan-400 transform rotate-45 translate-x-4 -translate-y-4"></div>
+                  </div>
 
-            {/* Address details */}
-            <div className="space-y-2 text-sm">
-              <div className="flex items-start gap-1">
-                <span className="text-gray-500">Address:</span>
-                <p className="text-gray-800 font-medium">{address.street}</p>
-              </div>
+                  {/* Address header with type badge */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl">
+                        <Plane className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <h3 className="font-semibold text-gray-800 capitalize">
+                        {address.type || 'Shipping'} Address
+                      </h3>
+                    </div>
 
-              {address.city && (
-                <div className="flex items-start gap-1">
-                  <span className="text-gray-500">City:</span>
-                  <span className="text-gray-700 ml-1">{address.city}</span>
+                  </div>
+
+                  {/* User name */}
+                  <div className="flex items-center gap-2 mb-3 pb-3 border-b border-gray-100">
+                    <div className="w-8 h-8 bg-gradient-to-br from-gray-700 to-gray-800 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                      {userName?.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Recipient</p>
+                      <p className="font-semibold text-gray-800">{userName}</p>
+                    </div>
+                  </div>
+
+                  {/* Address details */}
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-start gap-1">
+                      <span className="text-gray-500">Address:</span>
+                      <p className="text-gray-800 font-medium">{address.street}</p>
+                    </div>
+
+                    {address.city && (
+                      <div className="flex items-start gap-1">
+                        <span className="text-gray-500">City:</span>
+                        <span className="text-gray-700 ml-1">{address.city}</span>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      {address.state && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-gray-500 ">State/Province:</span>
+                          <span className="text-gray-700 text-sm">{address.state}</span>
+                        </div>
+                      )}
+
+                      {address.zipCode && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-gray-500 ">Postal Code:</span>
+                          <span className="text-gray-700 text-sm font-mono">{address.zipCode}</span>
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+
+                  {/* Hover effect shipping indicator */}
+                  <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="flex items-center gap-1 text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded-full">
+                      <span>Ready to ship</span>
+                    </div>
+                  </div>
                 </div>
-              )}
-
-              <div className="flex flex-wrap gap-x-4 gap-y-1">
-                {address.state && (
-                  <div className="flex items-center gap-1">
-                    <span className="text-gray-500">State/Province:</span>
-                    <span className="text-gray-700 text-sm">{address.state}</span>
-                  </div>
-                )}
-
-                {address.zipCode && (
-                  <div className="flex items-center gap-1">
-                    <span className="text-gray-500">Postal Code:</span>
-                    <span className="text-gray-700 text-sm font-mono">{address.zipCode}</span>
-                  </div>
-                )}
-              </div>
+              ))}
             </div>
 
-            {/* Hover effect shipping indicator */}
-            <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-              <div className="flex items-center gap-1 text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded-full">
-                <span>Ready to ship</span>
-              </div>
-            </div>
           </div>
-        );
-      })}
-    </div>
-  </div>
-)}
+        )}
       </div>
     </div>
   );
