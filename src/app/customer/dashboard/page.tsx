@@ -4,7 +4,17 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { Package, FileText, Bell, CheckCircle, AlertCircle, Loader2, MapPin, DollarSign, Home, CreditCard } from "lucide-react";
+import {
+  Package,
+  FileText,
+  Bell,
+  AlertCircle,
+  MapPin,
+  DollarSign,
+  Home,
+  CreditCard,
+  MessageSquare,
+} from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface Stats {
@@ -71,36 +81,31 @@ export default function CustomerDashboardPage() {
 
   async function loadStats() {
     try {
-      // Load packages
+      // Packages
       const packagesRes = await fetch("/api/customer/packages", {
         method: "GET",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         cache: "no-store",
       });
-
-      if (!packagesRes.ok) {
-        throw new Error("Failed to fetch packages");
-      }
-
+      if (!packagesRes.ok) throw new Error("Failed to fetch packages");
       const packagesData = await packagesRes.json();
       const packages = packagesData?.packages || [];
-      
-      // Load bills
+
+      // Bills
+      let bills: BillData[] = [];
       const billsRes = await fetch("/api/customer/bills", {
         method: "GET",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         cache: "no-store",
       });
-
-      let bills = [];
       if (billsRes.ok) {
         const billsData = await billsRes.json();
         bills = billsData?.bills || [];
       }
-      
-      // Load messages
+
+      // Messages
       let unreadMessagesCount = 0;
       try {
         const messagesRes = await fetch("/api/customer/messages", {
@@ -109,17 +114,16 @@ export default function CustomerDashboardPage() {
           credentials: "include",
           cache: "no-store",
         });
-        
         if (messagesRes.ok) {
           const messagesData = await messagesRes.json();
           const messages = messagesData?.messages || [];
           unreadMessagesCount = messages.filter((m: any) => !m.read || !m.viewedAt).length;
         }
-      } catch (error) {
-        console.error("Error loading messages count:", error);
+      } catch (err) {
+        console.error("Error loading messages count:", err);
       }
 
-      // Load pre-alerts
+      // Pre-alerts
       let preAlertsCount = 0;
       try {
         const preAlertsRes = await fetch("/api/customer/pre-alerts", {
@@ -128,16 +132,15 @@ export default function CustomerDashboardPage() {
           credentials: "include",
           cache: "no-store",
         });
-        
         if (preAlertsRes.ok) {
           const preAlertsData = await preAlertsRes.json();
-          preAlertsCount = preAlertsData?.preAlerts?.length || 0;
+          preAlertsCount = preAlertsData?.pre_alerts?.length || 0;
         }
-      } catch (error) {
-        console.error("Error loading pre-alerts count:", error);
+      } catch (err) {
+        console.error("Error loading pre-alerts count:", err);
       }
 
-      // Load payments
+      // Payments
       let paymentsCount = 0;
       try {
         const paymentsRes = await fetch("/api/customer/payments", {
@@ -146,34 +149,38 @@ export default function CustomerDashboardPage() {
           credentials: "include",
           cache: "no-store",
         });
-        
         if (paymentsRes.ok) {
           const paymentsData = await paymentsRes.json();
           paymentsCount = paymentsData?.payments?.length || 0;
         }
-      } catch (error) {
-        console.error("Error loading payments count:", error);
+      } catch (err) {
+        console.error("Error loading payments count:", err);
       }
 
-      // Load invoices
+      // Invoices needed (Submit Required Invoice)
       let invoicesCount = 0;
       try {
-        const invoicesRes = await fetch("/api/customer/invoices", {
+        const invoiceUploadRes = await fetch("/api/customer/invoice-upload", {
           method: "GET",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           cache: "no-store",
         });
-        
-        if (invoicesRes.ok) {
-          const invoicesData = await invoicesRes.json();
-          invoicesCount = invoicesData?.invoices?.length || 0;
+        if (invoiceUploadRes.ok) {
+          const invoiceUploadData = await invoiceUploadRes.json();
+          const pkgs = invoiceUploadData?.packages || [];
+          invoicesCount = pkgs.filter(
+            (p: any) =>
+              p.invoiceStatus !== "submitted" &&
+              p.invoiceStatus !== "billed" &&
+              p.invoiceStatus !== "approved"
+          ).length;
         }
-      } catch (error) {
-        console.error("Error loading invoices count:", error);
+      } catch (err) {
+        console.error("Error loading invoice count:", err);
       }
 
-      // Load shipping addresses
+      // Shipping addresses
       try {
         const profileRes = await fetch("/api/customer/profile", {
           method: "GET",
@@ -181,29 +188,25 @@ export default function CustomerDashboardPage() {
           credentials: "include",
           cache: "no-store",
         });
-        
         if (profileRes.ok) {
           const profileData = await profileRes.json();
           if (profileData.success && profileData.data?.shippingAddresses) {
             setShippingAddresses(profileData.data.shippingAddresses);
           }
-          if (profileData.success && profileData.data?.authorizedUsers) {
-            invoicesCount = profileData.data.authorizedUsers.length || 0;
-          }
         }
-      } catch (error) {
-        console.error("Error loading shipping addresses:", error);
+      } catch (err) {
+        console.error("Error loading shipping addresses:", err);
       }
 
-      // Calculate wallet balance (sum of unpaid bills)
+      // Wallet balance = sum of unpaid bills
       const walletBalance = bills
-        .filter((b: BillData) => b.payment_status === 'submitted' || b.payment_status === 'none')
+        .filter((b: BillData) => b.payment_status === "submitted" || b.payment_status === "none")
         .reduce((sum: number, b: BillData) => sum + (b.amount_due || 0), 0);
 
       setStats({
         totalPackages: packages.length,
-        pendingBills: bills.filter((b: BillData) => 
-          b.payment_status === 'submitted' || b.payment_status === 'none'
+        pendingBills: bills.filter(
+          (b: BillData) => b.payment_status === "submitted" || b.payment_status === "none"
         ).length,
         unreadMessages: unreadMessagesCount,
         walletBalance,
@@ -211,11 +214,9 @@ export default function CustomerDashboardPage() {
         payments: paymentsCount,
         invoices: invoicesCount,
       });
-    } catch (error) {
-      console.error("Error loading stats:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to load dashboard data";
-      setError(errorMessage);
-      
+    } catch (err) {
+      console.error("Error loading stats:", err);
+      setError(err instanceof Error ? err.message : "Failed to load dashboard data");
       setStats({
         totalPackages: 0,
         pendingBills: 0,
@@ -229,7 +230,6 @@ export default function CustomerDashboardPage() {
       setLoading(false);
     }
   }
-
 
   if (loading) {
     return (
@@ -257,14 +257,67 @@ export default function CustomerDashboardPage() {
     );
   }
 
-  const userName = session?.user?.name || session?.user?.email?.split('@')[0] || 'User';
+  const userName = session?.user?.name || session?.user?.email?.split("@")[0] || "User";
+
+  // Simple, clean stat card list - matches the reference site's
+  // "icon + title + count + one-line description" pattern
+  const statCards = [
+    {
+      href: "/customer/invoice-upload",
+      label: "Submit Required Invoice",
+      count: stats.invoices,
+      description: "Packages requiring invoice",
+      icon: FileText,
+      gradient: "from-orange-400 to-orange-500",
+    },
+    {
+      href: "/customer/pre-alerts",
+      label: "Pre-Alerts",
+      count: stats.preAlerts,
+      description: "Pre-alerts submitted by me",
+      icon: Bell,
+      gradient: "from-teal-400 to-teal-500",
+    },
+    {
+      href: "/customer/packages",
+      label: "Packages",
+      count: stats.totalPackages,
+      description: "Packages not yet picked up",
+      icon: Package,
+      gradient: "from-green-400 to-green-500",
+    },
+    {
+      href: "/customer/bills",
+      label: "Bills / Transactions",
+      count: stats.pendingBills,
+      description: "Pay online, schedule deliveries",
+      icon: CreditCard,
+      gradient: "from-red-400 to-red-500",
+    },
+    {
+      href: "/customer/payments",
+      label: "Payments",
+      count: stats.payments,
+      description: "View all my previous payments",
+      icon: DollarSign,
+      gradient: "from-indigo-400 to-indigo-500",
+    },
+    {
+      href: "/customer/messages",
+      label: "Messages",
+      count: stats.unreadMessages,
+      description: "All previous messages sent to me",
+      icon: MessageSquare,
+      gradient: "from-pink-400 to-pink-500",
+    },
+  ];
 
   return (
-    <div className="h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6 overflow-hidden">
-      <div className="max-w-7xl mx-auto h-full flex flex-col">
-        {/* Error Display */}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Error Banner */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-center justify-between">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-red-600" />
               <p className="text-sm text-red-800">{error}</p>
@@ -272,6 +325,7 @@ export default function CustomerDashboardPage() {
             <button
               onClick={() => {
                 setError(null);
+                setLoading(true);
                 loadStats();
               }}
               className="text-sm bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
@@ -281,25 +335,24 @@ export default function CustomerDashboardPage() {
           </div>
         )}
 
-        {/* Welcome Header */}
-        <div className="mb-4">
+        {/* Greeting */}
+        <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Hello, {userName}
           </h1>
+          <p className="text-gray-500 mt-1">Here&apos;s a quick look at your account</p>
         </div>
 
-        {/* Wallet Balance and Local Branch */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
+        {/* Wallet Balance + Local Branch - simple two-card row, like the reference site */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
             <div className="flex items-center gap-3 mb-2">
               <DollarSign className="h-6 w-6" />
               <h2 className="font-semibold">Your Wallet Balance</h2>
             </div>
-            <p className="text-3xl font-bold">
-              {formatCurrency(stats.walletBalance)}
-            </p>
+            <p className="text-3xl font-bold">{formatCurrency(stats.walletBalance)}</p>
           </div>
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
             <div className="flex items-center gap-3 mb-2">
               <Home className="h-6 w-6" />
               <h2 className="font-semibold">Your Local Branch</h2>
@@ -309,102 +362,82 @@ export default function CustomerDashboardPage() {
           </div>
         </div>
 
-        {/* Stats Cards - Three Column Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 overflow-y-auto pb-4">
-          {/* Column 1: Invoice, Messages */}
-          <div className="space-y-4">
-            <Link href="/customer/invoice-upload" className="bg-gradient-to-br from-orange-400 to-orange-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-shadow block">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  <span className="text-sm font-medium">Submit Required Invoice</span>
-                </div>
-                <span className="text-2xl font-bold">{stats.invoices}</span>
-              </div>
-              <p className="text-xs opacity-90 mt-1">packages</p>
-            </Link>
-            <Link href="/customer/messages" className="bg-gradient-to-br from-pink-400 to-pink-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-shadow block">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Bell className="h-5 w-5" />
-                  <span className="text-sm font-medium">Messages</span>
-                </div>
-                <span className="text-2xl font-bold">{stats.unreadMessages}</span>
-              </div>
-              <p className="text-xs opacity-90 mt-1">messages</p>
-            </Link>
-          </div>
-
-          {/* Column 2: Pre-Alerts, Packages, Bills, Payments */}
-          <div className="space-y-4">
-            <Link href="/customer/pre-alerts" className="bg-gradient-to-br from-teal-400 to-teal-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-shadow block">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Bell className="h-5 w-5" />
-                  <span className="text-sm font-medium">Pre-Alert</span>
-                </div>
-                <span className="text-2xl font-bold">{stats.preAlerts}</span>
-              </div>
-              <p className="text-xs opacity-90 mt-1">pre-alerts</p>
-            </Link>
-            <Link href="/customer/packages" className="bg-gradient-to-br from-green-400 to-green-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-shadow block">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Package className="h-5 w-5" />
-                  <span className="text-sm font-medium">Packages</span>
-                </div>
-                <span className="text-2xl font-bold">{stats.totalPackages}</span>
-              </div>
-              <p className="text-xs opacity-90 mt-1">not yet picked up</p>
-            </Link>
-            <Link href="/customer/bills" className="bg-gradient-to-br from-red-400 to-red-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-shadow block">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  <span className="text-sm font-medium">Bills/Transactions</span>
-                </div>
-                <span className="text-2xl font-bold">{stats.pendingBills}</span>
-              </div>
-              <p className="text-xs opacity-90 mt-1">items</p>
-            </Link>
-            <Link href="/customer/payments" className="bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-shadow block">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
-                  <span className="text-sm font-medium">Payments</span>
-                </div>
-                <span className="text-2xl font-bold">{stats.payments}</span>
-              </div>
-              <p className="text-xs opacity-90 mt-1">payments</p>
-            </Link>
-          </div>
-
-          {/* Column 3: Shipping Addresses */}
-          <div className="space-y-4">
-            {shippingAddresses.length > 0 ? (
-              shippingAddresses.map((address: any, index: number) => (
-                <div key={index} className="bg-gradient-to-br from-cyan-400 to-cyan-500 rounded-xl p-4 text-white shadow-lg">
-                  <h3 className="font-semibold mb-2 capitalize flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    {address.type} Address
-                  </h3>
-                  <div className="text-sm space-y-1">
-                    <p><span className="font-medium opacity-90">Name:</span> {userName}</p>
-                    <p><span className="font-medium opacity-90">Address 1:</span> {address.street}</p>
-                    {address.city && <p><span className="font-medium opacity-90">City:</span> {address.city}</p>}
-                    {address.state && <p><span className="font-medium opacity-90">State/Province:</span> {address.state}</p>}
-                    {address.zipCode && <p><span className="font-medium opacity-90">Zip/Postal Code:</span> {address.zipCode}</p>}
+        {/* Stat Cards - single clean grid, simplified from the previous 3-column layout */}
+        <div>
+          <h2 className="text-lg font-semibold text-gray-700 mb-3">Quick Access</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {statCards.map((card) => {
+              const Icon = card.icon;
+              return (
+                <Link
+                  key={card.href}
+                  href={card.href}
+                  className={`bg-gradient-to-br ${card.gradient} rounded-2xl p-5 text-white shadow-lg hover:shadow-xl transition-shadow block`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-5 w-5" />
+                      <span className="text-sm font-medium">{card.label}</span>
+                    </div>
+                    <span className="text-2xl font-bold">{card.count}</span>
                   </div>
-                </div>
-              ))
-            ) : (
-              <div className="bg-gradient-to-br from-gray-400 to-gray-500 rounded-xl p-4 text-white shadow-lg">
-                <p className="text-sm">No shipping addresses configured</p>
-              </div>
-            )}
+                  <p className="text-xs opacity-90 mt-2">{card.description}</p>
+                </Link>
+              );
+            })}
           </div>
         </div>
 
+        {/* Shipping Addresses - simplified, matches reference's clean address cards */}
+        {shippingAddresses.length > 0 && (
+          <div>
+            <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              Your Shipping Addresses
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {shippingAddresses.map((address: any, index: number) => (
+                <div
+                  key={index}
+                  className="bg-white rounded-2xl p-5 shadow border border-gray-100"
+                >
+                  <h3 className="font-semibold mb-3 capitalize flex items-center gap-2 text-gray-800">
+                    <MapPin className="h-4 w-4 text-cyan-500" />
+                    {address.type} Address
+                  </h3>
+                  <div className="text-sm space-y-1 text-gray-600">
+                    <p>
+                      <span className="font-medium text-gray-500">Name: </span>
+                      {userName}
+                    </p>
+                    <p>
+                      <span className="font-medium text-gray-500">Address 1: </span>
+                      {address.street}
+                    </p>
+                    {address.city && (
+                      <p>
+                        <span className="font-medium text-gray-500">City: </span>
+                        {address.city}
+                      </p>
+                    )}
+                    {address.state && (
+                      <p>
+                        <span className="font-medium text-gray-500">State/Province: </span>
+                        {address.state}
+                      </p>
+                    )}
+                    {address.zipCode && (
+                      <p>
+                        <span className="font-medium text-gray-500">Zip/Postal Code: </span>
+                        {address.zipCode}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
