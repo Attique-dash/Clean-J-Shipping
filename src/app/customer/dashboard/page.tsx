@@ -420,8 +420,20 @@ export default function CustomerDashboardPage() {
                   {/* Address header with type badge */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-2">
-                      <div className="p-2 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl">
-                        <Plane className="h-4 w-4 text-blue-600" />
+                      <div className={`p-2 rounded-xl ${
+                        address.type?.toLowerCase() === 'sea' 
+                          ? 'bg-gradient-to-br from-blue-100 to-cyan-100' 
+                          : address.type?.toLowerCase() === 'china'
+                          ? 'bg-gradient-to-br from-red-100 to-orange-100'
+                          : 'bg-gradient-to-br from-blue-100 to-cyan-100'
+                      }`}>
+                        {address.type?.toLowerCase() === 'sea' ? (
+                          <Ship className="h-4 w-4 text-blue-600" />
+                        ) : address.type?.toLowerCase() === 'china' ? (
+                          <span className="text-xl">🇨🇳</span>
+                        ) : (
+                          <Plane className="h-4 w-4 text-blue-600" />
+                        )}
                       </div>
                       <h3 className="font-semibold text-gray-800 capitalize">
                         {address.type || 'Shipping'} Address

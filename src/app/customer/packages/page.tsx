@@ -658,32 +658,33 @@ export default function CustomerPackagesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-5">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               {filtered.length} Package{filtered.length !== 1 ? "s" : ""}
             </h1>
+            <p className="text-gray-500 mt-1">Track and manage your shipments</p>
           </div>
         </div>
 
         {/* Search + Filter */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-5">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm"
+                className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm"
                 placeholder="Search tracking number, merchant, or description…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
             </div>
             <select
-              className="px-4 py-2.5 border border-gray-200 rounded-lg focus:border-[#0f4d8a] focus:outline-none text-sm"
+              className="px-4 py-3 border border-gray-200 rounded-xl focus:border-[#0f4d8a] focus:outline-none text-sm bg-white"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -740,14 +741,14 @@ export default function CustomerPackagesPage() {
           </div>
         )}
 
-        {/* Package Cards — reference grid: 4 columns desktop */}
+        {/* Package Cards — larger cards, 3 columns on desktop */}
         {paginated.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-            <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">No packages found</p>
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-12 text-center">
+            <Package className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500 text-lg">No packages found</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {paginated.map((pkg) => {
               const amt = totalAmount(pkg);
               const trackNum = pkg.tracking_number;
@@ -755,37 +756,41 @@ export default function CustomerPackagesPage() {
               return (
                 <div
                   key={trackNum}
-                  className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow"
+                  className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
                 >
                   {/* Card header row: icon + tracking + amount */}
-                  <div className="flex items-center justify-between px-4 pt-4 pb-2">
-                    <div className="flex items-center gap-2 text-[#0f4d8a]">
-                      {getServiceIcon(pkg.serviceMode)}
-                      <span className="font-bold text-sm text-gray-900">
+                  <div className="flex items-center justify-between px-5 pt-5 pb-3">
+                    <div className="flex items-center gap-3 text-[#0f4d8a]">
+                      <div className="p-2 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl">
+                        {getServiceIcon(pkg.serviceMode)}
+                      </div>
+                      <span className="font-bold text-base text-gray-900">
                         {trackNum}
                       </span>
                     </div>
                     {amt > 0 && (
-                      <span className="font-bold text-gray-900 text-sm">
-                        ${amt.toFixed(2)}
-                      </span>
+                      <div className="px-3 py-1 bg-gradient-to-r from-green-400 to-green-500 rounded-full">
+                        <span className="font-bold text-white text-sm">
+                          ${amt.toFixed(2)}
+                        </span>
+                      </div>
                     )}
                   </div>
 
                   {/* Date */}
-                  <div className="flex items-center justify-between px-4 pb-2 text-xs text-gray-500">
-                    <span>{formatDate(pkg.dateReceived || pkg.createdAt)}</span>
+                  <div className="flex items-center justify-between px-5 pb-3 text-sm text-gray-500">
+                    <span className="font-medium">{formatDate(pkg.dateReceived || pkg.createdAt)}</span>
                     {pkg.dateReceived && (
-                      <span className="text-gray-400">
+                      <span className="text-gray-400 text-xs">
                         ({getRelativeDate(pkg.dateReceived)})
                       </span>
                     )}
                   </div>
 
                   {/* Status badge — full width green/orange pill */}
-                  <div className="px-4 pb-3">
+                  <div className="px-5 pb-4">
                     <div
-                      className={`w-full text-center py-1.5 rounded text-xs font-semibold ${getStatusClasses(
+                      className={`w-full text-center py-2 rounded-lg text-sm font-semibold ${getStatusClasses(
                         pkg.status
                       )}`}
                     >
@@ -794,52 +799,52 @@ export default function CustomerPackagesPage() {
                   </div>
 
                   {/* LBS / VAL row */}
-                  <div className="flex items-center justify-between px-4 pb-2 text-xs text-gray-700">
-                    <span>
-                      <span className="font-semibold">LBS:</span>{" "}
-                      {typeof pkg.weight_kg === "number"
+                  <div className="flex items-center justify-between px-5 pb-3 text-sm text-gray-700">
+                    <div className="flex items-center gap-1">
+                      <Scale className="h-4 w-4 text-gray-400" />
+                      <span className="font-semibold">{typeof pkg.weight_kg === "number"
                         ? Math.round(pkg.weight_kg)
-                        : pkg.weight || 1}
-                    </span>
-                    <span>
-                      <span className="font-semibold">VAL:</span> $
-                      {(pkg.usdValue || pkg.itemValueUsd || 25).toFixed(2)}
-                    </span>
+                        : pkg.weight || 1} lbs</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <DollarSign className="h-4 w-4 text-gray-400" />
+                      <span className="font-semibold">${(pkg.usdValue || pkg.itemValueUsd || 25).toFixed(2)}</span>
+                    </div>
                   </div>
 
                   {/* Merchant + tracking detail */}
-                  <div className="px-4 pb-1 text-xs text-gray-700 font-medium">
+                  <div className="px-5 pb-2 text-sm text-gray-700 font-medium">
                     {pkg.merchant || pkg.shipper || "UNKNOWN"}
                   </div>
                   {pkg.trackingNum && pkg.trackingNum !== trackNum && (
-                    <div className="px-4 pb-1 text-xs text-gray-500">
+                    <div className="px-5 pb-2 text-xs text-gray-500">
                       TRK#: {pkg.trackingNum.length > 20
                         ? pkg.trackingNum.slice(0, 20) + "…"
                         : pkg.trackingNum}
                     </div>
                   )}
-                  <div className="px-4 pb-3 text-xs text-gray-600">
+                  <div className="px-5 pb-4 text-sm text-gray-600">
                     {pkg.description || pkg.itemDescription || "Merchandise"}
                   </div>
 
                   {/* Action icon buttons */}
-                  <div className="border-t border-gray-100 px-4 py-3 flex items-center gap-2">
+                  <div className="border-t border-gray-100 px-5 py-4 flex items-center gap-3 bg-gray-50">
                     {/* Box icon → package detail popup */}
                     <button
                       onClick={() => setDetailPkg(pkg)}
                       title="View package details"
-                      className="flex items-center justify-center w-9 h-9 border border-gray-300 rounded-lg text-gray-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-600 transition-colors"
+                      className="flex items-center justify-center w-10 h-10 border border-gray-300 rounded-xl text-gray-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-600 transition-colors"
                     >
-                      <Package className="h-4 w-4" />
+                      <Package className="h-5 w-5" />
                     </button>
 
                     {/* Tag / receipt icon → invoice popup */}
                     <button
                       onClick={() => setInvoicePkg(pkg)}
                       title="View invoice / receipt"
-                      className="flex items-center justify-center w-9 h-9 border border-gray-300 rounded-lg text-gray-600 hover:bg-green-50 hover:border-green-400 hover:text-green-600 transition-colors"
+                      className="flex items-center justify-center w-10 h-10 border border-gray-300 rounded-xl text-gray-600 hover:bg-green-50 hover:border-green-400 hover:text-green-600 transition-colors"
                     >
-                      <Tag className="h-4 w-4" />
+                      <Tag className="h-5 w-5" />
                     </button>
 
                     {/* Pay button if not collected */}
@@ -848,9 +853,9 @@ export default function CustomerPackagesPage() {
                         <Link
                           href={`/customer/bills`}
                           title="Pay bill"
-                          className="flex items-center justify-center w-9 h-9 border border-gray-300 rounded-lg text-gray-600 hover:bg-orange-50 hover:border-orange-400 hover:text-orange-600 transition-colors ml-auto"
+                          className="flex items-center justify-center w-10 h-10 border border-gray-300 rounded-xl text-gray-600 hover:bg-orange-50 hover:border-orange-400 hover:text-orange-600 transition-colors ml-auto"
                         >
-                          <CreditCard className="h-4 w-4" />
+                          <CreditCard className="h-5 w-5" />
                         </Link>
                       )}
                   </div>

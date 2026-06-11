@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
     // Select both PascalCase (KCD) and camelCase (legacy) fields to ensure we get all data
     const [packages, invoices] = await Promise.all([
       Package.find(packageQuery)
-      .select('TrackingNumber trackingNumber status itemDescription Description description weight Weight senderName senderEmail senderPhone senderAddress senderCountry currentLocation receiverName receiverEmail receiverPhone receiverAddress receiverCountry FirstName LastName updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords itemValue value dimensions length width height dimensionUnit serviceMode customsRequired customsStatus paymentStatus paymentMethod amountPaid pricePaidCurrency dateReceived daysInStorage warehouseLocation Branch shipper warehouseAddresses userCode UserCode userId customer')
+      .select('TrackingNumber trackingNumber status itemDescription Description description weight Weight senderName senderEmail senderPhone senderAddress senderCountry currentLocation receiverName receiverEmail receiverPhone receiverAddress receiverCountry FirstName LastName updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords itemValue value dimensions length width height dimensionUnit serviceMode customsRequired customsStatus paymentStatus paymentMethod amountPaid pricePaidCurrency dateReceived daysInStorage warehouseLocation Branch shipper warehouseAddresses userCode UserCode userId customer dutyPercent gctPercent freight processingFee badAddressFee storageFee houseAwb trackingNum manifest merchant rateGroup commercialInvoice hsCode collection')
       .sort({ createdAt: -1 })
       .limit(100)
       .lean(),
@@ -188,6 +188,20 @@ export async function GET(req: NextRequest) {
       const receiverAddress = getVal('receiverAddress', 'receiverAddress', '');
       const receiverCountry = getVal('receiverCountry', 'receiverCountry', '');
       const status = getVal('status', 'status', 'received');
+      const dutyPercent = getVal('dutyPercent', 'dutyPercent', 20);
+      const gctPercent = getVal('gctPercent', 'gctPercent', 15);
+      const freight = getVal('freight', 'freight', shippingCost);
+      const processingFee = getVal('processingFee', 'processingFee', 0);
+      const badAddressFee = getVal('badAddressFee', 'badAddressFee', 0);
+      const storageFee = getVal('storageFee', 'storageFee', 0);
+      const houseAwb = getVal('houseAwb', 'houseAwb', trackingNumber);
+      const trackingNum = getVal('trackingNum', 'trackingNum', trackingNumber);
+      const manifest = getVal('manifest', 'manifest', '');
+      const merchant = getVal('merchant', 'merchant', shipper);
+      const rateGroup = getVal('rateGroup', 'rateGroup', 'Standard Rate');
+      const commercialInvoice = getVal('commercialInvoice', 'commercialInvoice', 'NO');
+      const hsCode = getVal('HSCode', 'hsCode', '');
+      const collection = getVal('collection', 'collection', '');
       
       return {
         id: p._id,
@@ -241,6 +255,22 @@ export async function GET(req: NextRequest) {
         receiverPhone: receiverPhone,
         receiverAddress: receiverAddress,
         receiverCountry: receiverCountry,
+        // Billing details
+        dutyPercent: dutyPercent,
+        gctPercent: gctPercent,
+        freight: freight,
+        processingFee: processingFee,
+        badAddressFee: badAddressFee,
+        storageFee: storageFee,
+        // Additional tracking info
+        houseAwb: houseAwb,
+        trackingNum: trackingNum,
+        manifest: manifest,
+        merchant: merchant,
+        rateGroup: rateGroup,
+        commercialInvoice: commercialInvoice,
+        hsCode: hsCode,
+        collection: collection,
       };
     });
 

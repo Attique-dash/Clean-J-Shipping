@@ -6,6 +6,7 @@ import { Package } from "@/models/Package";
 import { User } from "@/models/User";
 import { getAuthFromRequest } from "@/lib/rbac";
 import { sendPaymentReceiptEmail } from "@/lib/email";
+import { Types } from "mongoose";
 
 export async function GET(req: Request) {
   // ✅ FIX: Added await
@@ -21,13 +22,58 @@ export async function GET(req: Request) {
     
     await dbConnect();
     
-    const payments = await Payment.find({ userId: payload.id })
+    // Get consistent user ID
+    const userId = (payload as { id?: string; _id?: string; uid?: string }).id || 
+                  (payload as { id?: string; _id?: string; uid?: string })._id || 
+                  (payload as { id?: string; _id?: string; uid?: string }).uid;
+    
+    // Fetch payments from Payment model
+    const modelPayments = await Payment.find({ 
+      $or: [
+        { userId: userId },
+        { customer: userId }
+      ]
+    })
       .sort({ createdAt: -1 })
-      .limit(100);
+      .limit(100)
+      .lean();
 
-    console.log('[Payments API] Found payments:', payments.length);
+    // Also fetch payments from Invoice.paymentHistory
+    const Invoice = (await import('@/models/Invoice')).default;
+    const invoices = await Invoice.find({ 
+      $or: [
+        { userId: new Types.ObjectId(userId) },
+        { 'customer.id': userId }
+      ]
+    })
+      .select('invoiceNumber paymentHistory trackingNumber createdAt')
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
 
-    return NextResponse.json({ payments });
+    // Convert invoice payment history to payment format
+    const invoicePayments = invoices.flatMap((inv: any) => {
+      if (!Array.isArray(inv.paymentHistory)) return [];
+      return inv.paymentHistory.map((ph: any) => ({
+        _id: ph._id || `${inv._id}-${ph.date}`,
+        reference: inv.invoiceNumber || inv.trackingNumber,
+        amount: ph.amount || 0,
+        currency: ph.currency || 'USD',
+        status: ph.status || 'completed',
+        method: ph.method || 'card',
+        createdAt: ph.date || inv.createdAt,
+        gatewayId: ph.transactionId || ph.gatewayId,
+      }));
+    });
+
+    // Combine and deduplicate payments
+    const allPayments = [...modelPayments, ...invoicePayments]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 100);
+
+    console.log('[Payments API] Found payments:', allPayments.length, '(model:', modelPayments.length, ', invoice:', invoicePayments.length, ')');
+
+    return NextResponse.json({ payments: allPayments });
   } catch (error) {
     console.error("[Payments API] Error:", error);
     return NextResponse.json({ error: "Failed to fetch payments" }, { status: 500 });
