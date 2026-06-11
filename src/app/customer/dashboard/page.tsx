@@ -14,10 +14,6 @@ import {
   Home,
   CreditCard,
   MessageSquare,
-  Ship,
-  Plane,
-  Globe,
-  Building,
 } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 
@@ -38,12 +34,6 @@ interface ShippingAddress {
   state: string;
   zipCode: string;
   country: string;
-  entranceNumber?: string;
-  cargoNumber?: string;
-  marks?: string;
-  customerName?: string;
-  warehouseAddress?: string;
-  warehouseContact?: string;
 }
 
 interface PackageData {
@@ -190,7 +180,7 @@ export default function CustomerDashboardPage() {
         console.error("Error loading invoice count:", err);
       }
 
-      // Shipping addresses with enhanced data from your screenshot
+      // Shipping addresses
       try {
         const profileRes = await fetch("/api/customer/profile", {
           method: "GET",
@@ -201,17 +191,7 @@ export default function CustomerDashboardPage() {
         if (profileRes.ok) {
           const profileData = await profileRes.json();
           if (profileData.success && profileData.data?.shippingAddresses) {
-            // Enhance addresses with additional fields from your example
-            const enhancedAddresses = profileData.data.shippingAddresses.map((addr: any) => ({
-              ...addr,
-              entranceNumber: addr.entranceNumber || "MS-3052",
-              cargoNumber: addr.cargoNumber || "P4U669820",
-              marks: addr.marks || "P4U669820",
-              customerName: addr.customerName || "Packit4u Limited",
-              warehouseAddress: addr.warehouseAddress || "广州市白云区白云大道南333号云东花园A183仓库",
-              warehouseContact: addr.warehouseContact || "周生 13527839367 / 18520513890",
-            }));
-            setShippingAddresses(enhancedAddresses);
+            setShippingAddresses(profileData.data.shippingAddresses);
           }
         }
       } catch (err) {
@@ -251,18 +231,6 @@ export default function CustomerDashboardPage() {
     }
   }
 
-  // Function to determine shipping method icon based on country or address type
-  function getShippingIcon(country: string, type: string) {
-    if (country === "China" || type === "China Air") {
-      return { icon: Plane, label: "Air", color: "text-sky-600", bgColor: "bg-sky-100" };
-    } else if (type === "SEA ADDRESS" || type.toLowerCase().includes("sea")) {
-      return { icon: Ship, label: "Sea", color: "text-blue-600", bgColor: "bg-blue-100" };
-    } else if (country === "USA") {
-      return { icon: Globe, label: "International", color: "text-purple-600", bgColor: "bg-purple-100" };
-    }
-    return { icon: MapPin, label: "Standard", color: "text-gray-600", bgColor: "bg-gray-100" };
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -291,6 +259,8 @@ export default function CustomerDashboardPage() {
 
   const userName = session?.user?.name || session?.user?.email?.split("@")[0] || "User";
 
+  // Simple, clean stat card list - matches the reference site's
+  // "icon + title + count + one-line description" pattern
   const statCards = [
     {
       href: "/customer/invoice-upload",
@@ -373,7 +343,7 @@ export default function CustomerDashboardPage() {
           <p className="text-gray-500 mt-1">Here&apos;s a quick look at your account</p>
         </div>
 
-        {/* Wallet Balance + Local Branch */}
+        {/* Wallet Balance + Local Branch - simple two-card row, like the reference site */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
             <div className="flex items-center gap-3 mb-2">
@@ -392,7 +362,7 @@ export default function CustomerDashboardPage() {
           </div>
         </div>
 
-        {/* Stat Cards */}
+        {/* Stat Cards - single clean grid, simplified from the previous 3-column layout */}
         <div>
           <h2 className="text-lg font-semibold text-gray-700 mb-3">Quick Access</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -418,7 +388,7 @@ export default function CustomerDashboardPage() {
           </div>
         </div>
 
-        {/* Shipping Addresses - Enhanced with Icons like your example */}
+        {/* Shipping Addresses - simplified, matches reference's clean address cards */}
         {shippingAddresses.length > 0 && (
           <div>
             <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
@@ -426,112 +396,45 @@ export default function CustomerDashboardPage() {
               Your Shipping Addresses
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {shippingAddresses.map((address: any, index: number) => {
-                const { icon: ShippingIcon, label: shippingMethod, color, bgColor } = getShippingIcon(address.country, address.type);
-                const IconComponent = ShippingIcon;
-                
-                return (
-                  <div
-                    key={index}
-                    className="bg-white rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all overflow-hidden"
-                  >
-                    {/* Header with Shipping Method Icon */}
-                    <div className={`${bgColor} px-4 py-3 border-b flex items-center justify-between`}>
-                      <div className="flex items-center gap-2">
-                        <IconComponent className={`h-5 w-5 ${color}`} />
-                        <span className="font-semibold text-sm capitalize text-gray-700">
-                          {address.type === "SEA ADDRESS" ? "SEA ADDRESS" : `${address.type} ${shippingMethod}`}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {shippingMethod === "Air" && (
-                          <>
-                            <Plane className="h-3 w-3 text-sky-600" />
-                            <span className="text-xs font-medium text-sky-600">Air Standard</span>
-                          </>
-                        )}
-                        {shippingMethod === "Sea" && (
-                          <>
-                            <Ship className="h-3 w-3 text-blue-600" />
-                            <span className="text-xs font-medium text-blue-600">Sea Freight</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Address Content */}
-                    <div className="p-4 space-y-2">
-                      <p className="text-sm">
-                        <span className="font-semibold text-gray-700">Name:</span>{" "}
-                        <span className="text-gray-600">{address.customerName || userName}</span>
+              {shippingAddresses.map((address: any, index: number) => (
+                <div
+                  key={index}
+                  className="bg-white rounded-2xl p-5 shadow border border-gray-100"
+                >
+                  <h3 className="font-semibold mb-3 capitalize flex items-center gap-2 text-gray-800">
+                    <MapPin className="h-4 w-4 text-cyan-500" />
+                    {address.type} Address
+                  </h3>
+                  <div className="text-sm space-y-1 text-gray-600">
+                    <p>
+                      <span className="font-medium text-gray-500">Name: </span>
+                      {userName}
+                    </p>
+                    <p>
+                      <span className="font-medium text-gray-500">Address 1: </span>
+                      {address.street}
+                    </p>
+                    {address.city && (
+                      <p>
+                        <span className="font-medium text-gray-500">City: </span>
+                        {address.city}
                       </p>
-                      
-                      {address.entranceNumber && (
-                        <p className="text-sm">
-                          <span className="font-semibold text-gray-700">Entrance 入仓号:</span>{" "}
-                          <span className="text-gray-600">{address.entranceNumber}</span>
-                        </p>
-                      )}
-                      
-                      <p className="text-sm">
-                        <span className="font-semibold text-gray-700">Address 1:</span>{" "}
-                        <span className="text-gray-600">{address.street}</span>
+                    )}
+                    {address.state && (
+                      <p>
+                        <span className="font-medium text-gray-500">State/Province: </span>
+                        {address.state}
                       </p>
-                      
-                      {address.cargoNumber && (
-                        <p className="text-sm">
-                          <span className="font-semibold text-gray-700">Address 2:</span>{" "}
-                          <span className="text-gray-600">{address.cargoNumber}</span>
-                        </p>
-                      )}
-                      
-                      {address.marks && (
-                        <p className="text-sm">
-                          <span className="font-semibold text-gray-700">Marks 唛头:</span>{" "}
-                          <span className="text-gray-600">{address.marks}</span>
-                        </p>
-                      )}
-                      
-                      <div className="grid grid-cols-2 gap-1 text-sm">
-                        {address.city && (
-                          <p>
-                            <span className="font-semibold text-gray-700">City:</span>{" "}
-                            <span className="text-gray-600">{address.city}</span>
-                          </p>
-                        )}
-                        {address.state && (
-                          <p>
-                            <span className="font-semibold text-gray-700">State/Province:</span>{" "}
-                            <span className="text-gray-600">{address.state}</span>
-                          </p>
-                        )}
-                        {address.zipCode && (
-                          <p>
-                            <span className="font-semibold text-gray-700">Zip/Postal Code:</span>{" "}
-                            <span className="text-gray-600">{address.zipCode}</span>
-                          </p>
-                        )}
-                      </div>
-                      
-                      {/* Warehouse Information */}
-                      {(address.warehouseAddress || address.warehouseContact) && (
-                        <div className="mt-3 pt-3 border-t border-gray-100">
-                          {address.warehouseAddress && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              <span className="font-semibold">仓库地址:</span> {address.warehouseAddress}
-                            </p>
-                          )}
-                          {address.warehouseContact && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              <span className="font-semibold">仓库联系人:</span> {address.warehouseContact}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    )}
+                    {address.zipCode && (
+                      <p>
+                        <span className="font-medium text-gray-500">Zip/Postal Code: </span>
+                        {address.zipCode}
+                      </p>
+                    )}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           </div>
         )}
