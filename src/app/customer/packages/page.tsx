@@ -71,6 +71,26 @@ type UIPackage = {
   commercialInvoice?: string;
   hsCode?: string;
   collection?: string;
+  // Customer information (like admin view)
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  userCode?: string;
+  // Pieces count
+  pieces?: number;
+  // Entry date (for display)
+  entryDate?: string;
+  // Dimensions
+  dimensions?: {
+    length: number;
+    width: number;
+    height: number;
+    unit: string;
+  };
+  // Payment details
+  paymentMethod?: string;
+  amountPaid?: number;
+  pricePaidCurrency?: string;
 };
 
 type InvoiceRecord = {
@@ -221,42 +241,69 @@ function PackageDetailModal({
               </h3>
               <div className="space-y-2 text-sm">
                 <InfoRow icon={<Building className="h-3.5 w-3.5" />} label="Branch" value={pkg.branch || "Main Branch"} />
-                <InfoRow icon={<Calendar className="h-3.5 w-3.5" />} label="Manifest" value={pkg.manifest || pkg.dateReceived ? new Date(pkg.manifest || pkg.dateReceived || "").toLocaleDateString() : "—"} />
+                <InfoRow icon={<Calendar className="h-3.5 w-3.5" />} label="Entry Date" value={pkg.entryDate || pkg.dateReceived ? new Date(pkg.entryDate || pkg.dateReceived || "").toLocaleDateString() : "—"} />
                 <InfoRow icon={<Package className="h-3.5 w-3.5" />} label="Collection" value={pkg.collection || "—"} />
                 <InfoRow icon={<Building className="h-3.5 w-3.5" />} label="Merchant" value={pkg.merchant || pkg.shipper || "UNKNOWN"} />
                 <InfoRow icon={<FileText className="h-3.5 w-3.5" />} label="Description" value={pkg.description || pkg.itemDescription || "Merchandise"} />
+                <InfoRow icon={<Hash className="h-3.5 w-3.5" />} label="Pieces" value={String(pkg.pieces || 1)} />
+                <InfoRow icon={<Scale className="h-3.5 w-3.5" />} label="Dimensions (L×W×H)" value={pkg.dimensions ? `${pkg.dimensions.length} × ${pkg.dimensions.width} × ${pkg.dimensions.height} ${pkg.dimensions.unit}` : "—"} />
                 <InfoRow icon={<Hash className="h-3.5 w-3.5" />} label="HS Code" value={pkg.hsCode || "—"} />
                 <InfoRow icon={<Scale className="h-3.5 w-3.5" />} label="Rate Group" value={pkg.rateGroup || "Standard Rate"} />
                 <InfoRow icon={<FileText className="h-3.5 w-3.5" />} label="Commercial" value={pkg.commercialInvoice || "NO"} />
               </div>
             </div>
 
-            {/* Billing Info */}
+            {/* Customer Info */}
             <div className="border border-gray-200 rounded-lg p-4">
               <h3 className="font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">
-                Billing Info
+                Customer Info
               </h3>
               <div className="space-y-2 text-sm">
-                <InfoRow
-                  icon={<Scale className="h-3.5 w-3.5" />}
-                  label="Weight/Billable"
-                  value={`${pkg.weight_kg || pkg.weight || 0} / 1`}
-                />
-                <InfoRow
-                  icon={<Percent className="h-3.5 w-3.5" />}
-                  label="Duty %"
-                  value={`${pkg.dutyPercent ?? 20}%`}
-                />
-                <InfoRow
-                  icon={<Percent className="h-3.5 w-3.5" />}
-                  label="GCT %"
-                  value={`${pkg.gctPercent ?? 15}%`}
-                />
-                <InfoRow
-                  icon={<DollarSign className="h-3.5 w-3.5" />}
-                  label="USD Value"
-                  value={`$${pkg.usdValue || pkg.itemValueUsd || 25}.00`}
-                />
+                <InfoRow icon={<User className="h-3.5 w-3.5" />} label="Customer" value={pkg.customerName || "—"} />
+                <InfoRow icon={<Mail className="h-3.5 w-3.5" />} label="Email" value={pkg.customerEmail || "—"} />
+                <InfoRow icon={<Hash className="h-3.5 w-3.5" />} label="Phone" value={pkg.customerPhone || "—"} />
+                <InfoRow icon={<Hash className="h-3.5 w-3.5" />} label="Mailbox / User code" value={pkg.userCode || "—"} />
+              </div>
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <p className="text-xs font-semibold text-gray-700 mb-2">Billing Info</p>
+                <div className="space-y-1.5 text-sm">
+                  <InfoRow
+                    icon={<Scale className="h-3.5 w-3.5" />}
+                    label="Weight/Billable"
+                    value={`${pkg.weight_kg || pkg.weight || 0} / 1`}
+                  />
+                  <InfoRow
+                    icon={<Percent className="h-3.5 w-3.5" />}
+                    label="Duty %"
+                    value={`${pkg.dutyPercent ?? 20}%`}
+                  />
+                  <InfoRow
+                    icon={<Percent className="h-3.5 w-3.5" />}
+                    label="GCT %"
+                    value={`${pkg.gctPercent ?? 15}%`}
+                  />
+                  <InfoRow
+                    icon={<DollarSign className="h-3.5 w-3.5" />}
+                    label="USD Value"
+                    value={`$${pkg.usdValue || pkg.itemValueUsd || 25}.00`}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Info */}
+            <div className="border border-gray-200 rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">
+                Payment Info
+              </h3>
+              <div className="space-y-2 text-sm">
+                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Currency" value={pkg.pricePaidCurrency || "USD"} />
+                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Item Value" value={`$${(pkg.itemValueUsd || 0).toFixed(2)}`} />
+                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Total Due" value={`$${(pkg.total_amount || 0).toFixed(2)}`} />
+                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Amount Paid" value={`$${(pkg.amountPaid || 0).toFixed(2)}`} />
+                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Balance" value={`$${Math.max(0, (pkg.total_amount || 0) - (pkg.amountPaid || 0)).toFixed(2)}`} />
+                <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Payment Status" value={<span className="capitalize">{pkg.paymentStatus || "pending"}</span>} />
+                <InfoRow icon={<CreditCard className="h-3.5 w-3.5" />} label="Payment Method" value={<span className="capitalize">{pkg.paymentMethod || "N/A"}</span>} />
               </div>
               <div className="mt-3 pt-3 border-t border-gray-100">
                 <p className="text-xs font-semibold text-gray-700 mb-2">Our Charges</p>
@@ -268,15 +315,17 @@ function PackageDetailModal({
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Tracking Info */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h3 className="font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">
-                Tracking Info
-              </h3>
+          {/* Tracking Info */}
+          <div className="border border-gray-200 rounded-lg p-4">
+            <h3 className="font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">
+              Tracking Info
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Collected status bar */}
               <div
-                className={`text-center py-2 rounded-lg text-sm font-semibold mb-3 ${getStatusClasses(pkg.status)}`}
+                className={`text-center py-2 rounded-lg text-sm font-semibold ${getStatusClasses(pkg.status)}`}
               >
                 {statusLabel(pkg.status)}
               </div>
@@ -494,7 +543,7 @@ function InfoRow({
 }: {
   icon?: React.ReactNode;
   label: string;
-  value: string;
+  value: React.ReactNode;
   mono?: boolean;
 }) {
   return (

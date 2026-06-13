@@ -44,8 +44,8 @@ export async function GET(req: NextRequest) {
     await dbConnect();
 
     // Get user information to include userCode in query (for KCD-synced packages)
-    const user = (await User.findById(userIdString).select('userCode').lean()) as unknown as { userCode?: string } | null;
-    const userCode = user?.userCode || '';
+    const userForCode = (await User.findById(userIdString).select('userCode').lean()) as unknown as { userCode?: string } | null;
+    const userCode = userForCode?.userCode || '';
     
     console.log('User userCode for KCD package lookup:', userCode);
 
@@ -74,9 +74,9 @@ export async function GET(req: NextRequest) {
 
     // Fetch both packages and invoices for this customer
     // Select both PascalCase (KCD) and camelCase (legacy) fields to ensure we get all data
-    const [packages, invoices] = await Promise.all([
+    const [packages, invoices, user] = await Promise.all([
       Package.find(packageQuery)
-      .select('TrackingNumber trackingNumber status itemDescription Description description weight Weight senderName senderEmail senderPhone senderAddress senderCountry currentLocation receiverName receiverEmail receiverPhone receiverAddress receiverCountry FirstName LastName updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords itemValue value dimensions length width height dimensionUnit serviceMode customsRequired customsStatus paymentStatus paymentMethod amountPaid pricePaidCurrency dateReceived daysInStorage warehouseLocation Branch shipper warehouseAddresses userCode UserCode userId customer dutyPercent gctPercent freight processingFee badAddressFee storageFee houseAwb trackingNum manifest merchant rateGroup commercialInvoice hsCode collection')
+      .select('TrackingNumber trackingNumber status itemDescription Description description weight Weight senderName senderEmail senderPhone senderAddress senderCountry currentLocation receiverName receiverEmail receiverPhone receiverAddress receiverCountry FirstName LastName updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords itemValue value dimensions length width height dimensionUnit serviceMode customsRequired customsStatus paymentStatus paymentMethod amountPaid pricePaidCurrency dateReceived daysInStorage warehouseLocation Branch shipper warehouseAddresses userCode UserCode userId customer dutyPercent gctPercent freight processingFee badAddressFee storageFee houseAwb trackingNum manifest merchant rateGroup commercialInvoice hsCode collection Pieces EntryDate')
       .sort({ createdAt: -1 })
       .limit(100)
       .lean(),
@@ -84,7 +84,8 @@ export async function GET(req: NextRequest) {
         .populate('package', 'trackingNumber')
         .select('invoiceNumber package status')
         .sort({ createdAt: -1 })
-        .lean()
+        .lean(),
+      User.findById(userIdString).select('firstName lastName email phone userCode').lean() as { firstName?: string; lastName?: string; email?: string; phone?: string; userCode?: string } | null
     ]);
 
     console.log(`Found ${packages.length} packages and ${invoices.length} invoices for user ${userIdString} (userCode: ${userCode})`);
@@ -202,6 +203,13 @@ export async function GET(req: NextRequest) {
       const commercialInvoice = getVal('commercialInvoice', 'commercialInvoice', 'NO');
       const hsCode = getVal('HSCode', 'hsCode', '');
       const collection = getVal('collection', 'collection', '');
+      const pieces = getVal('Pieces', 'pieces', 1);
+      
+      // Get customer information from user object
+      const customerName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : '';
+      const customerEmail = user?.email || '';
+      const customerPhone = user?.phone || '';
+      const customerUserCode = user?.userCode || userCode;
       
       return {
         id: p._id,
@@ -212,7 +220,7 @@ export async function GET(req: NextRequest) {
         itemDescription: description,
         weight_kg: weight,
         weight: weight ? `${weight} kg` : undefined,
-        userCode: userCode,
+        userCode: customerUserCode,
         shipper: shipper,
         current_location: currentLocation,
         destination: receiverName || 'Receiver name only available',
@@ -271,6 +279,14 @@ export async function GET(req: NextRequest) {
         commercialInvoice: commercialInvoice,
         hsCode: hsCode,
         collection: collection,
+        // Customer information (like admin view)
+        customerName: customerName,
+        customerEmail: customerEmail,
+        customerPhone: customerPhone,
+        // Pieces count
+        pieces: pieces,
+        // Entry date (for display)
+        entryDate: dateReceived,
       };
     });
 
