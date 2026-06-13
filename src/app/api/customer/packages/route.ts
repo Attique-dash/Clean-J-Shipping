@@ -1,296 +1,306 @@
-// src/app/api/customer/packages/route.ts
+// FIXED: src/app/api/customer/packages/route.ts
+// Key changes:
+// 1. Added .populate('userId', ...) to get customer name/email/phone
+// 2. Added all payment fields to .select()
+// 3. Fixed field mapping to match what admin portal shows
+// 4. Added KCD PascalCase fields (TrackingNumber, Weight, Branch, etc.)
+// 5. Properly map paymentStatus, amountPaid, totalAmount, pricePaidCurrency
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthFromRequest, requireRole } from '@/lib/rbac';
 import { dbConnect } from '@/lib/db';
 import { Package } from '@/models/Package';
 import { User } from '@/models/User';
-import Invoice from '@/models/Invoice';
 import { Types } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    console.log('Customer packages API called');
-    
-    // CRITICAL FIX: Always await getAuthFromRequest
     const auth = await getAuthFromRequest(req);
-    
-    console.log('Auth result:', auth ? 'Authenticated' : 'Not authenticated');
-    
-    // Check if user is authorized
     const authError = requireRole(auth, 'customer');
-    if (authError) {
-      console.log('Auth error:', authError);
-      return authError;
-    }
+    if (authError) return authError;
 
-    // TypeScript now knows auth is not null - use consistent ID extraction
     const userIdString = auth!.id || auth!._id || auth!.uid;
-    
-    console.log('User ID extracted:', userIdString);
-
     if (!userIdString) {
-      console.error('User ID not found in auth payload');
-      return NextResponse.json(
-        { error: 'User ID not found in authentication' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'User ID not found in authentication' }, { status: 400 });
     }
 
-    console.log('Fetching packages for user:', userIdString);
-
-    // Connect to database
     await dbConnect();
 
-    // Get user information to include userCode in query (for KCD-synced packages)
-    const userForCode = (await User.findById(userIdString).select('userCode').lean()) as unknown as { userCode?: string } | null;
-    const userCode = userForCode?.userCode || '';
-    
-    console.log('User userCode for KCD package lookup:', userCode);
+    // Get user info including userCode
+    const userDoc = await User.findById(userIdString)
+      .select('userCode firstName lastName email phone shippingId')
+      .lean() as { userCode?: string; firstName?: string; lastName?: string; email?: string; phone?: string; shippingId?: string } | null;
 
-    // CRITICAL FIX: Convert userId string to ObjectId for proper MongoDB matching
-    // Also query by userCode to catch packages synced from KCD that may have different ID formats
+    const userCode = userDoc?.userCode || '';
     const userObjectId = new Types.ObjectId(userIdString);
-    
+
+    // Build query matching both userId and userCode (for KCD-synced packages)
     const packageQuery: any = {
       $or: [
         { userId: userObjectId },
-        { userId: userIdString },  // Also check string format for backward compatibility
+        { userId: userIdString },
       ]
     };
-    
-    // If user has a userCode, also include it in the query for KCD-synced packages
-    // Check both PascalCase (UserCode) and camelCase (userCode) fields
     if (userCode) {
       packageQuery.$or.push(
-        { UserCode: userCode },  // KCD PascalCase field
-        { userCode: userCode },  // Legacy camelCase field
+        { UserCode: userCode },
+        { userCode: userCode },
         { customerCode: userCode }
       );
     }
-    
-    console.log('Package query:', JSON.stringify(packageQuery, null, 2));
 
-    // Fetch both packages and invoices for this customer
-    // Select both PascalCase (KCD) and camelCase (legacy) fields to ensure we get all data
-    const [packages, invoices, user] = await Promise.all([
-      Package.find(packageQuery)
-      .select('TrackingNumber trackingNumber status itemDescription Description description weight Weight senderName senderEmail senderPhone senderAddress senderCountry currentLocation receiverName receiverEmail receiverPhone receiverAddress receiverCountry FirstName LastName updatedAt createdAt estimatedDelivery shippingCost totalAmount lastScan actualDelivery invoiceRecords itemValue value dimensions length width height dimensionUnit serviceMode customsRequired customsStatus paymentStatus paymentMethod amountPaid pricePaidCurrency dateReceived daysInStorage warehouseLocation Branch shipper warehouseAddresses userCode UserCode userId customer dutyPercent gctPercent freight processingFee badAddressFee storageFee houseAwb trackingNum manifest merchant rateGroup commercialInvoice hsCode collection Pieces EntryDate')
+    // Fetch packages with userId populated to get customer details
+    const packages = await Package.find(packageQuery)
+      .populate('userId', 'firstName lastName email phone userCode shippingId')
+      .select([
+        // KCD PascalCase fields
+        'TrackingNumber', 'UserCode', 'Weight', 'Branch', 'Shipper',
+        'Description', 'EntryDate', 'PackageStatus', 'PackagePayments',
+        'Pieces', 'Length', 'Width', 'Height',
+        // camelCase fields
+        'trackingNumber', 'userCode', 'weightLbs', 'weight', 'branch',
+        'shipper', 'description', 'itemDescription', 'entryDate', 'status',
+        'serviceMode', 'dateReceived', 'createdAt', 'updatedAt',
+        // Payment fields
+        'paymentStatus', 'paymentMethod', 'amountPaid', 'totalAmount',
+        'itemValue', 'itemValueUSD', 'value', 'pricePaid', 'pricePaidCurrency',
+        'paymentCurrency', 'amountPaidCurrency', 'PackagePayments',
+        // Location/warehouse
+        'warehouseLocation', 'currentLocation',
+        // Invoice fields
+        'invoiceStatus', 'invoiceUploaded', 'invoiceFiles', 'invoiceSubmittedAt',
+        'billingInvoiceId',
+        // Sender/receiver info
+        'senderName', 'senderEmail', 'senderPhone', 'senderAddress', 'senderCountry',
+        'receiverName', 'receiverEmail', 'receiverPhone', 'receiverAddress', 'receiverCountry',
+        // Billing breakdown fields
+        'dutyPercent', 'gctPercent', 'freight', 'processingFee', 'badAddressFee', 'storageFee',
+        // Tracking detail fields
+        'houseAwb', 'trackingNum', 'manifest', 'merchant', 'rateGroup',
+        'commercialInvoice', 'hsCode', 'collection',
+        // Dimensions
+        'dimensions', 'dimensionUnit',
+        // Misc
+        'userId', 'specialInstructions',
+      ].join(' '))
       .sort({ createdAt: -1 })
-      .limit(100)
-      .lean(),
-      Invoice.find({ userId: new Types.ObjectId(userIdString) })
-        .populate('package', 'trackingNumber')
-        .select('invoiceNumber package status')
-        .sort({ createdAt: -1 })
-        .lean(),
-      User.findById(userIdString).select('firstName lastName email phone userCode').lean() as { firstName?: string; lastName?: string; email?: string; phone?: string; userCode?: string } | null
-    ]);
+      .limit(200)
+      .lean();
 
-    console.log(`Found ${packages.length} packages and ${invoices.length} invoices for user ${userIdString} (userCode: ${userCode})`);
-    
-    // Debug: Log sample package data to understand field structure
-    if (packages.length > 0) {
-      console.log('Sample package data:', JSON.stringify(packages[0], null, 2));
-    } else {
-      console.log('No packages found. Checking if any packages exist in database...');
-      const totalPackages = await Package.countDocuments({});
-      console.log(`Total packages in database: ${totalPackages}`);
-      
-      // Check if there are packages with this userCode
-      if (userCode) {
-        const packagesByUserCode = await Package.countDocuments({ 
-          $or: [
-            { UserCode: userCode },
-            { userCode: userCode }
-          ]
-        });
-        console.log(`Packages with userCode ${userCode}: ${packagesByUserCode}`);
+    // Helper: get value from either PascalCase or camelCase, with fallback
+    const getVal = (doc: any, ...keys: string[]) => {
+      for (const key of keys) {
+        if (doc[key] !== undefined && doc[key] !== null && doc[key] !== '') {
+          return doc[key];
+        }
       }
-      
-      // Check if there are packages with this userId
-      const packagesByUserId = await Package.countDocuments({ 
-        $or: [
-          { userId: userObjectId },
-          { userId: userIdString }
-        ]
-      });
-      console.log(`Packages with userId ${userIdString}: ${packagesByUserId}`);
-    }
+      return undefined;
+    };
 
-    // Create a map of invoice numbers to package tracking numbers
-    const invoiceMap = new Map();
-    invoices.forEach((invoice: any) => {
-      // Check multiple ways to link invoice to package
-      const trackingNumber = invoice.package?.trackingNumber || invoice.tracking_number;
-      if (trackingNumber && invoice.invoiceNumber) {
-        invoiceMap.set(trackingNumber, {
-          hasInvoice: true,
-          invoiceNumber: invoice.invoiceNumber
-        });
-      }
-    });
+    // Parse PackagePayments string to extract payment amounts
+    const parsePayments = (paymentStr: string, doc: any) => {
+      let itemValueUsd = 0;
+      let shippingCostUsd = 0;
+      let totalAmountUsd = 0;
+      let amountPaidUsd = 0;
+      let currency = 'USD';
+      let paymentStatus = 'pending';
+      let paymentMethod = 'cash';
 
-    // Map to response format - handle both PascalCase (KCD) and camelCase (legacy) fields
-    const mapped = packages.map((p) => {
-      const invoiceInfo = invoiceMap.get(p.trackingNumber || p.TrackingNumber) || { hasInvoice: false, invoiceNumber: null };
-      
-      // Check for automatic invoice in package records
-      const hasAutoInvoice = Array.isArray((p as any).invoiceRecords) && (p as any).invoiceRecords.length > 0;
-      let invoiceStatus = 'pending';
-      
-      if (invoiceInfo.hasInvoice) {
-        invoiceStatus = 'submitted';
-      } else if (hasAutoInvoice) {
-        invoiceStatus = 'submitted'; // Auto-generated invoice
-      } else if ((p as any).totalAmount > 0 || (p as any).shippingCost > 0) {
-        invoiceStatus = 'submitted'; // Has financial data
+      // Try PackagePayments string first (KCD format)
+      if (typeof paymentStr === 'string' && paymentStr.length > 0) {
+        const pairs = paymentStr.split('|');
+        for (const pair of pairs) {
+          const [key, val] = pair.split('=');
+          switch (key) {
+            case 'ItemValueUSD': itemValueUsd = parseFloat(val) || 0; break;
+            case 'ShippingCostUSD': shippingCostUsd = parseFloat(val) || 0; break;
+            case 'TotalAmountUSD': totalAmountUsd = parseFloat(val) || 0; break;
+            case 'AmountPaidUSD': amountPaidUsd = parseFloat(val) || 0; break;
+            case 'Currency': currency = val || 'USD'; break;
+            case 'PaymentStatus': paymentStatus = val || 'pending'; break;
+            case 'PaymentMethod': paymentMethod = val || 'cash'; break;
+          }
+        }
       }
-      
-      // Helper to get value from either PascalCase or camelCase field
-      const getVal = (pascalField: string, camelField: string, defaultValue: any = undefined) => {
-        return (p as any)[pascalField] !== undefined ? (p as any)[pascalField] : 
-               (p as any)[camelField] !== undefined ? (p as any)[camelField] : defaultValue;
+
+      // Fall back to direct fields if PackagePayments didn't have them
+      if (itemValueUsd === 0) {
+        itemValueUsd = parseFloat(String(doc.itemValueUSD || doc.itemValue || doc.value || doc.pricePaid || 0));
+      }
+      if (totalAmountUsd === 0) {
+        totalAmountUsd = parseFloat(String(doc.totalAmount || 0)) || itemValueUsd;
+      }
+      if (amountPaidUsd === 0) {
+        amountPaidUsd = parseFloat(String(doc.amountPaid || 0));
+      }
+      if (currency === 'USD') {
+        currency = doc.pricePaidCurrency || doc.paymentCurrency || doc.amountPaidCurrency || 'USD';
+      }
+      if (paymentStatus === 'pending') {
+        paymentStatus = doc.paymentStatus || 'pending';
+      }
+      if (paymentMethod === 'cash') {
+        paymentMethod = doc.paymentMethod || 'cash';
+      }
+
+      return { itemValueUsd, shippingCostUsd, totalAmountUsd, amountPaidUsd, currency, paymentStatus, paymentMethod };
+    };
+
+    // Map packages to response — same fields admin sees
+    const mapped = packages.map((p: any) => {
+      // Get populated user data
+      const populatedUser = typeof p.userId === 'object' && p.userId !== null && p.userId.email
+        ? p.userId
+        : null;
+
+      // Build customer name/email/phone from populated user or userDoc
+      const customerFirstName = populatedUser?.firstName || userDoc?.firstName || '';
+      const customerLastName = populatedUser?.lastName || userDoc?.lastName || '';
+      const customerName = [customerFirstName, customerLastName].filter(Boolean).join(' ') || userDoc?.email || '';
+      const customerEmail = populatedUser?.email || userDoc?.email || '';
+      const customerPhone = populatedUser?.phone || userDoc?.phone || '';
+      const resolvedUserCode = populatedUser?.userCode || populatedUser?.shippingId || userCode || '';
+
+      // Resolve tracking number (KCD PascalCase takes priority)
+      const trackingNumber = getVal(p, 'TrackingNumber', 'trackingNumber') || '';
+
+      // Resolve weight
+      const weightLbs = parseFloat(String(getVal(p, 'weightLbs', 'Weight', 'weight') || 0));
+
+      // Resolve branch/warehouse
+      const warehouseLocation = getVal(p, 'warehouseLocation', 'Branch', 'branch', 'currentLocation') || 'Main Warehouse';
+
+      // Resolve shipper
+      const shipper = getVal(p, 'Shipper', 'shipper', 'merchant', 'senderName') || 'Unknown';
+
+      // Resolve description
+      const description = getVal(p, 'Description', 'description', 'itemDescription') || '';
+
+      // Resolve entry/received date
+      const dateReceived = getVal(p, 'dateReceived', 'EntryDate', 'entryDate', 'createdAt');
+
+      // Resolve status
+      const status = getVal(p, 'status') || (() => {
+        const ps = p.PackageStatus ?? 0;
+        if (ps >= 4) return 'delivered';
+        if (ps === 3) return 'in_transit';
+        if (ps === 2) return 'shipped';
+        if (ps === 1) return 'ready_to_ship';
+        return 'received';
+      })();
+
+      // Resolve service mode
+      const serviceMode = getVal(p, 'serviceMode') || 'air';
+
+      // Parse payment data
+      const payment = parsePayments(p.PackagePayments || '', p);
+
+      // Resolve dimensions
+      const dims = p.dimensions || {};
+      const dimensions = {
+        length: parseFloat(String(getVal(p, 'Length', 'length') || dims.length || 0)),
+        width: parseFloat(String(getVal(p, 'Width', 'width') || dims.width || 0)),
+        height: parseFloat(String(getVal(p, 'Height', 'height') || dims.height || 0)),
+        unit: p.dimensionUnit || dims.unit || 'cm',
       };
-      
-      const trackingNumber = getVal('TrackingNumber', 'trackingNumber', '');
-      const description = getVal('Description', 'description') || getVal('itemDescription', 'itemDescription', '');
-      const weight = getVal('Weight', 'weight', 0);
-      const shipper = getVal('Shipper', 'shipper', 'Unknown Shipper');
-      const currentLocation = getVal('currentLocation', 'currentLocation', '');
-      const receiverName = getVal('receiverName', 'receiverName', '') || getVal('FirstName', 'FirstName', '');
-      const estimatedDelivery = getVal('estimatedDelivery', 'estimatedDelivery');
-      const shippingCost = getVal('shippingCost', 'shippingCost', 0);
-      const totalAmount = getVal('totalAmount', 'totalAmount', 0);
-      const itemValue = getVal('itemValue', 'itemValue') || getVal('value', 'value', 0);
-      const lastScan = getVal('lastScan', 'lastScan');
-      const actualDelivery = getVal('actualDelivery', 'actualDelivery');
-      const length = getVal('Length', 'length', 0);
-      const width = getVal('Width', 'width', 0);
-      const height = getVal('Height', 'height', 0);
-      const dimensionUnit = getVal('dimensionUnit', 'dimensionUnit', 'cm');
-      const serviceMode = getVal('serviceMode', 'serviceMode', 'air');
-      const customsRequired = getVal('customsRequired', 'customsRequired', false);
-      const customsStatus = getVal('customsStatus', 'customsStatus', 'not_required');
-      const paymentStatus = getVal('paymentStatus', 'paymentStatus', 'pending');
-      const paymentMethod = getVal('paymentMethod', 'paymentMethod', 'cash');
-      const amountPaid = getVal('amountPaid', 'amountPaid', 0);
-      const pricePaidCurrency = getVal('pricePaidCurrency', 'pricePaidCurrency', 'USD');
-      const dateReceived = getVal('dateReceived', 'dateReceived') || getVal('EntryDate', 'EntryDate');
-      const daysInStorage = getVal('daysInStorage', 'daysInStorage', 0);
-      const warehouseLocation = getVal('warehouseLocation', 'warehouseLocation') || getVal('Branch', 'Branch', 'Main Warehouse');
-      const senderEmail = getVal('senderEmail', 'senderEmail', '');
-      const senderPhone = getVal('senderPhone', 'senderPhone', '');
-      const senderAddress = getVal('senderAddress', 'senderAddress', '');
-      const senderCountry = getVal('senderCountry', 'senderCountry', '');
-      const receiverEmail = getVal('receiverEmail', 'receiverEmail', '');
-      const receiverPhone = getVal('receiverPhone', 'receiverPhone', '');
-      const receiverAddress = getVal('receiverAddress', 'receiverAddress', '');
-      const receiverCountry = getVal('receiverCountry', 'receiverCountry', '');
-      const status = getVal('status', 'status', 'received');
-      const dutyPercent = getVal('dutyPercent', 'dutyPercent', 20);
-      const gctPercent = getVal('gctPercent', 'gctPercent', 15);
-      const freight = getVal('freight', 'freight', shippingCost);
-      const processingFee = getVal('processingFee', 'processingFee', 0);
-      const badAddressFee = getVal('badAddressFee', 'badAddressFee', 0);
-      const storageFee = getVal('storageFee', 'storageFee', 0);
-      const houseAwb = getVal('houseAwb', 'houseAwb', trackingNumber);
-      const trackingNum = getVal('trackingNum', 'trackingNum', trackingNumber);
-      const manifest = getVal('manifest', 'manifest', '');
-      const merchant = getVal('merchant', 'merchant', shipper);
-      const rateGroup = getVal('rateGroup', 'rateGroup', 'Standard Rate');
-      const commercialInvoice = getVal('commercialInvoice', 'commercialInvoice', 'NO');
-      const hsCode = getVal('HSCode', 'hsCode', '');
-      const collection = getVal('collection', 'collection', '');
-      const pieces = getVal('Pieces', 'pieces', 1);
-      
-      // Get customer information from user object
-      const customerName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : '';
-      const customerEmail = user?.email || '';
-      const customerPhone = user?.phone || '';
-      const customerUserCode = user?.userCode || userCode;
-      
+
       return {
-        id: p._id,
+        // IDs
+        id: p._id?.toString(),
+        _id: p._id?.toString(),
+
+        // Tracking
         tracking_number: trackingNumber,
-        trackingNumber: trackingNumber,
-        status: status,
-        description: description,
+        trackingNumber,
+        houseAwb: trackingNumber,
+        trackingNum: trackingNumber,
+
+        // Status
+        status,
+        invoiceStatus: p.invoiceStatus || 'pending',
+        invoiceUploaded: p.invoiceUploaded || false,
+        paymentStatus: payment.paymentStatus,
+
+        // Customer info (matches admin view)
+        customerName,
+        customerEmail,
+        customerPhone,
+        userCode: resolvedUserCode,
+
+        // Package details
+        shipper,
+        merchant: shipper,
+        description,
         itemDescription: description,
-        weight_kg: weight,
-        weight: weight ? `${weight} kg` : undefined,
-        userCode: customerUserCode,
-        shipper: shipper,
-        current_location: currentLocation,
-        destination: receiverName || 'Receiver name only available',
-        updated_at: p.updatedAt?.toISOString(),
-        updatedAt: p.updatedAt?.toISOString(),
-        created_at: p.createdAt?.toISOString(),
-        createdAt: p.createdAt?.toISOString(),
-        estimated_delivery: estimatedDelivery?.toISOString(),
-        invoice_status: invoiceStatus,
-        hasInvoice: invoiceInfo.hasInvoice || hasAutoInvoice,
-        invoiceNumber: invoiceInfo.invoiceNumber || (hasAutoInvoice ? `AUTO-${trackingNumber}` : null),
-        shipping_cost: shippingCost,
-        total_amount: totalAmount,
-        itemValueUsd: itemValue || 0,
-        last_scan: lastScan?.toISOString(),
-        actual_delivery: actualDelivery?.toISOString(),
-        // Additional details from admin
-        dimensions: (p as any).dimensions || {
-          length: length,
-          width: width,
-          height: height,
-          unit: dimensionUnit
-        },
-        serviceMode: serviceMode,
-        customsRequired: customsRequired,
-        customsStatus: customsStatus,
-        paymentStatus: paymentStatus,
-        paymentMethod: paymentMethod,
-        amountPaid: amountPaid,
-        pricePaidCurrency: pricePaidCurrency,
-        dateReceived: dateReceived,
-        daysInStorage: daysInStorage,
+        weight: weightLbs,
+        weight_kg: weightLbs,
+        pieces: getVal(p, 'Pieces', 'pieces') || 1,
+        serviceMode,
+
+        // Location
         warehouse_location: warehouseLocation,
-        senderEmail: senderEmail,
-        senderPhone: senderPhone,
-        senderAddress: senderAddress,
-        senderCountry: senderCountry,
-        receiverName: receiverName,
-        receiverEmail: receiverEmail,
-        receiverPhone: receiverPhone,
-        receiverAddress: receiverAddress,
-        receiverCountry: receiverCountry,
-        // Billing details
-        dutyPercent: dutyPercent,
-        gctPercent: gctPercent,
-        freight: freight,
-        processingFee: processingFee,
-        badAddressFee: badAddressFee,
-        storageFee: storageFee,
-        // Additional tracking info
-        houseAwb: houseAwb,
-        trackingNum: trackingNum,
-        manifest: manifest,
-        merchant: merchant,
-        rateGroup: rateGroup,
-        commercialInvoice: commercialInvoice,
-        hsCode: hsCode,
-        collection: collection,
-        // Customer information (like admin view)
-        customerName: customerName,
-        customerEmail: customerEmail,
-        customerPhone: customerPhone,
-        // Pieces count
-        pieces: pieces,
-        // Entry date (for display)
-        entryDate: dateReceived,
+        warehouseLocation,
+        branch: warehouseLocation,
+
+        // Dates
+        dateReceived: dateReceived ? new Date(dateReceived).toISOString() : null,
+        entryDate: dateReceived ? new Date(dateReceived).toISOString() : null,
+        createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : null,
+        updatedAt: p.updatedAt ? new Date(p.updatedAt).toISOString() : null,
+
+        // Payment data (matches admin "Update Payment" modal)
+        totalAmount: payment.totalAmountUsd,
+        total_amount: payment.totalAmountUsd,
+        amountPaid: payment.amountPaidUsd,
+        itemValueUsd: payment.itemValueUsd,
+        usdValue: payment.itemValueUsd,
+        shipping_cost: payment.shippingCostUsd,
+        freight: payment.shippingCostUsd || payment.totalAmountUsd,
+        paymentMethod: payment.paymentMethod,
+        pricePaidCurrency: payment.currency,
+        pricePaid: payment.itemValueUsd,
+
+        // Billing breakdown
+        dutyPercent: p.dutyPercent ?? 20,
+        gctPercent: p.gctPercent ?? 15,
+        processingFee: p.processingFee || 0,
+        badAddressFee: p.badAddressFee || 0,
+        storageFee: p.storageFee || 0,
+
+        // Sender/receiver info
+        senderName: p.senderName || '',
+        senderEmail: p.senderEmail || '',
+        senderPhone: p.senderPhone || '',
+        senderAddress: p.senderAddress || '',
+        senderCountry: p.senderCountry || '',
+        receiverName: p.receiverName || customerName,
+        receiverEmail: p.receiverEmail || customerEmail,
+        receiverPhone: p.receiverPhone || customerPhone,
+        receiverAddress: p.receiverAddress || '',
+        receiverCountry: p.receiverCountry || '',
+
+        // Dimensions
+        dimensions,
+
+        // Additional tracking/billing fields
+        manifest: p.manifest || '',
+        rateGroup: p.rateGroup || 'Standard Rate',
+        commercialInvoice: p.commercialInvoice || 'NO',
+        hsCode: p.hsCode || '',
+        collection: p.collection || '',
+
+        // Invoice files
+        invoiceFiles: p.invoiceFiles || [],
+        invoiceSubmittedAt: p.invoiceSubmittedAt,
+
+        // Legacy invoice fields
+        invoice_status: p.invoiceStatus || 'pending',
+        hasInvoice: !!(p.invoiceUploaded || p.billingInvoiceId),
       };
     });
-
-    console.log('Successfully mapped packages and sending response');
 
     return NextResponse.json({
       packages: mapped,
@@ -298,18 +308,8 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: unknown) {
     console.error('Error fetching packages:', error);
-    
-    // More detailed error logging
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-    }
-
     return NextResponse.json(
-      { 
-        error: 'Failed to fetch packages',
-        details: process.env.NODE_ENV === 'development' ? error instanceof Error ? error.message : 'Unknown error' : undefined
-      },
+      { error: 'Failed to fetch packages', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
