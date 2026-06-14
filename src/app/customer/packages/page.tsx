@@ -787,7 +787,7 @@ export default function CustomerPackagesPage() {
                     </div>
                     <div className="flex items-center gap-1">
                       <DollarSign className="h-4 w-4 text-gray-400" />
-                      <span className="font-semibold">${(pkg.itemValueUsd || pkg.usdValue || 0).toFixed(2)}</span>
+                      <span className="font-semibold">${amt.toFixed(2)}</span>
                     </div>
                   </div>
 
