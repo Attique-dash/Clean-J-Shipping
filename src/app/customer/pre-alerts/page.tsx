@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Package, Loader2, CheckCircle, XCircle, Clock, Plane, MapPin, Calendar, FileText, Send } from "lucide-react";
+import { Bell, Package, Loader2, CheckCircle, XCircle, Clock, Plane, MapPin, Calendar, FileText, Send, Plus, Edit, Download, X, Upload } from "lucide-react";
 import { toast } from "react-toastify";
 
 type PreAlert = {
@@ -15,6 +15,17 @@ type PreAlert = {
   status?: "submitted" | "approved" | "rejected";
   decidedAt?: string;
   createdAt?: string;
+  description?: string;
+  pricePaid?: number;
+  overseasCourier?: string;
+  attachmentFile?: {
+    filename: string;
+    originalName: string;
+    mimetype: string;
+    size: number;
+    path: string;
+    url?: string;
+  };
 };
 
 type Alert = {
@@ -33,6 +44,25 @@ export default function PreAlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Modal states
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<PreAlert | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Form state
+  const [formData, setFormData] = useState({
+    trackingNumber: '',
+    carrier: '',
+    origin: '',
+    expectedDate: '',
+    description: '',
+    pricePaid: '',
+    overseasCourier: '',
+    notes: '',
+  });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   async function load() {
     setLoading(true);
@@ -65,6 +95,142 @@ export default function PreAlertsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  // Handle add pre-alert
+  const handleAddPreAlert = async () => {
+    setSubmitting(true);
+    try {
+      const formDataObj = new FormData();
+      formDataObj.append('tracking_number', formData.trackingNumber);
+      formDataObj.append('carrier', formData.carrier);
+      formDataObj.append('origin', formData.origin);
+      formDataObj.append('expected_date', formData.expectedDate);
+      formDataObj.append('description', formData.description);
+      formDataObj.append('price_paid', formData.pricePaid);
+      formDataObj.append('overseas_courier', formData.overseasCourier);
+      formDataObj.append('notes', formData.notes);
+      if (selectedFile) {
+        formDataObj.append('file', selectedFile);
+      }
+
+      const res = await fetch('/api/customer/pre-alerts', {
+        method: 'POST',
+        body: formDataObj,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to create pre-alert');
+
+      toast.success('Pre-alert created successfully');
+      setAddModalOpen(false);
+      resetForm();
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create pre-alert');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handle edit pre-alert
+  const handleEditPreAlert = async () => {
+    if (!editingItem) return;
+    setSubmitting(true);
+    try {
+      const formDataObj = new FormData();
+      formDataObj.append('carrier', formData.carrier);
+      formDataObj.append('origin', formData.origin);
+      formDataObj.append('expected_date', formData.expectedDate);
+      formDataObj.append('description', formData.description);
+      formDataObj.append('price_paid', formData.pricePaid);
+      formDataObj.append('overseas_courier', formData.overseasCourier);
+      formDataObj.append('notes', formData.notes);
+      if (selectedFile) {
+        formDataObj.append('file', selectedFile);
+      }
+
+      const res = await fetch(`/api/customer/pre-alerts/${editingItem._id}`, {
+        method: 'PATCH',
+        body: formDataObj,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to update pre-alert');
+
+      toast.success('Pre-alert updated successfully');
+      setEditModalOpen(false);
+      setEditingItem(null);
+      resetForm();
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update pre-alert');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handle delete pre-alert
+  const handleDeletePreAlert = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this pre-alert?')) return;
+
+    try {
+      const res = await fetch(`/api/customer/pre-alerts/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) throw new Error('Failed to delete pre-alert');
+
+      toast.success('Pre-alert deleted successfully');
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete pre-alert');
+    }
+  };
+
+  // Handle download file
+  const handleDownloadFile = (attachmentFile: PreAlert['attachmentFile']) => {
+    if (!attachmentFile || !attachmentFile.url) return;
+    window.open(attachmentFile.url, '_blank');
+  };
+
+  // Open edit modal
+  const openEditModal = (item: PreAlert) => {
+    setEditingItem(item);
+    setFormData({
+      trackingNumber: item.trackingNumber,
+      carrier: item.carrier || '',
+      origin: item.origin || '',
+      expectedDate: item.expectedDate ? new Date(item.expectedDate).toISOString().split('T')[0] : '',
+      description: item.description || '',
+      pricePaid: item.pricePaid ? String(item.pricePaid) : '',
+      overseasCourier: item.overseasCourier || '',
+      notes: item.notes || '',
+    });
+    setSelectedFile(null);
+    setEditModalOpen(true);
+  };
+
+  // Reset form
+  const resetForm = () => {
+    setFormData({
+      trackingNumber: '',
+      carrier: '',
+      origin: '',
+      expectedDate: '',
+      description: '',
+      pricePaid: '',
+      overseasCourier: '',
+      notes: '',
+    });
+    setSelectedFile(null);
+    setEditingItem(null);
+  };
+
+  // Open add modal
+  const openAddModal = () => {
+    resetForm();
+    setAddModalOpen(true);
+  };
 
   function getStatusInfo(status?: PreAlert["status"]) {
     switch (status) {
@@ -132,6 +298,13 @@ export default function PreAlertsPage() {
                     </p>
                   </div>
                 </div>
+                <button
+                  onClick={openAddModal}
+                  className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-[#E67919] to-[#d46a0f] text-white rounded-xl hover:shadow-lg transition-all font-medium"
+                >
+                  <Plus className="h-5 w-5" />
+                  Add Pre-Alert
+                </button>
               </div>
             </div>
           </header>
@@ -302,10 +475,30 @@ export default function PreAlertsPage() {
                                 </p>
                               </div>
                             </div>
-                            <span className={`inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-full border ${statusInfo.bgColor}`}>
-                              <StatusIcon className="h-3 w-3 mr-1" />
-                              {statusInfo.label}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-full border ${statusInfo.bgColor}`}>
+                                <StatusIcon className="h-3 w-3 mr-1" />
+                                {statusInfo.label}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => openEditModal(item)}
+                                  className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
+                                  title="Edit pre-alert"
+                                >
+                                  <Edit className="h-4 w-4 text-white" />
+                                </button>
+                                {item.attachmentFile && (
+                                  <button
+                                    onClick={() => handleDownloadFile(item.attachmentFile)}
+                                    className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
+                                    title="Download attachment"
+                                  >
+                                    <Download className="h-4 w-4 text-white" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
 
@@ -407,6 +600,146 @@ export default function PreAlertsPage() {
           </div>
         </div>
       </div>
+
+      {/* Add/Edit Pre-Alert Modal */}
+      {(addModalOpen || editModalOpen) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { setAddModalOpen(false); setEditModalOpen(false); }}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-bold text-gray-900">
+                {editModalOpen ? 'Edit Pre-Alert' : 'Add New Pre-Alert'}
+              </h2>
+              <button onClick={() => { setAddModalOpen(false); setEditModalOpen(false); }} className="p-2 rounded-full hover:bg-gray-100 text-gray-500">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tracking Number *</label>
+                  <input
+                    type="text"
+                    value={formData.trackingNumber}
+                    onChange={(e) => setFormData({ ...formData, trackingNumber: e.target.value })}
+                    disabled={editModalOpen}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter tracking number"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Carrier *</label>
+                  <input
+                    type="text"
+                    value={formData.carrier}
+                    onChange={(e) => setFormData({ ...formData, carrier: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g., Amazon, FedEx"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Origin *</label>
+                  <input
+                    type="text"
+                    value={formData.origin}
+                    onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g., USA, China"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Expected Date *</label>
+                  <input
+                    type="date"
+                    value={formData.expectedDate}
+                    onChange={(e) => setFormData({ ...formData, expectedDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Price Paid</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.pricePaid}
+                    onChange={(e) => setFormData({ ...formData, pricePaid: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Overseas Courier</label>
+                  <input
+                    type="text"
+                    value={formData.overseasCourier}
+                    onChange={(e) => setFormData({ ...formData, overseasCourier: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g., DHL, UPS"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Describe the items in the shipment"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Any additional notes"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Attachment (Invoice/Receipt)</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                  />
+                  {selectedFile && (
+                    <span className="text-sm text-gray-600 truncate max-w-[200px]">{selectedFile.name}</span>
+                  )}
+                </div>
+                {editingItem?.attachmentFile && !selectedFile && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    Current file: {editingItem.attachmentFile.originalName}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => { setAddModalOpen(false); setEditModalOpen(false); }}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={editModalOpen ? handleEditPreAlert : handleAddPreAlert}
+                disabled={submitting || !formData.trackingNumber || !formData.carrier || !formData.origin || !formData.expectedDate}
+                className="px-4 py-2 bg-[#0f4d8a] text-white rounded-lg hover:bg-[#1e6bb8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? 'Saving...' : (editModalOpen ? 'Update Pre-Alert' : 'Create Pre-Alert')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

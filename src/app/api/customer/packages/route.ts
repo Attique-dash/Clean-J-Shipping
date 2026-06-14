@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
       return undefined;
     };
 
-    // Parse PackagePayments string to extract payment amounts
+    // Parse PackagePayments string to extract payment amounts - using same logic as admin portal
     const parsePayments = (paymentStr: string, doc: any) => {
       let itemValueUsd = 0;
       let shippingCostUsd = 0;
@@ -109,29 +109,41 @@ export async function GET(req: NextRequest) {
       let paymentStatus = 'pending';
       let paymentMethod = 'cash';
 
-      // Try PackagePayments string first (KCD format)
+      // Try PackagePayments as JSON first (KCD format)
       if (typeof paymentStr === 'string' && paymentStr.length > 0) {
-        const pairs = paymentStr.split('|');
-        for (const pair of pairs) {
-          const [key, val] = pair.split('=');
-          switch (key) {
-            case 'ItemValueUSD': itemValueUsd = parseFloat(val) || 0; break;
-            case 'ShippingCostUSD': shippingCostUsd = parseFloat(val) || 0; break;
-            case 'TotalAmountUSD': totalAmountUsd = parseFloat(val) || 0; break;
-            case 'AmountPaidUSD': amountPaidUsd = parseFloat(val) || 0; break;
-            case 'Currency': currency = val || 'USD'; break;
-            case 'PaymentStatus': paymentStatus = val || 'pending'; break;
-            case 'PaymentMethod': paymentMethod = val || 'cash'; break;
+        try {
+          const parsed = JSON.parse(paymentStr);
+          itemValueUsd = parseFloat(parsed.itemValueUsd) || 0;
+          shippingCostUsd = parseFloat(parsed.shippingCostUsd) || 0;
+          totalAmountUsd = parseFloat(parsed.totalAmountUsd) || 0;
+          amountPaidUsd = parseFloat(parsed.amountPaidUsd) || 0;
+          currency = parsed.currency || 'USD';
+          paymentStatus = parsed.paymentStatus || 'pending';
+          paymentMethod = parsed.paymentMethod || 'cash';
+        } catch {
+          // Try pipe-delimited format (legacy)
+          const pairs = paymentStr.split('|');
+          for (const pair of pairs) {
+            const [key, val] = pair.split('=');
+            switch (key) {
+              case 'ItemValueUSD': itemValueUsd = parseFloat(val) || 0; break;
+              case 'ShippingCostUSD': shippingCostUsd = parseFloat(val) || 0; break;
+              case 'TotalAmountUSD': totalAmountUsd = parseFloat(val) || 0; break;
+              case 'AmountPaidUSD': amountPaidUsd = parseFloat(val) || 0; break;
+              case 'Currency': currency = val || 'USD'; break;
+              case 'PaymentStatus': paymentStatus = val || 'pending'; break;
+              case 'PaymentMethod': paymentMethod = val || 'cash'; break;
+            }
           }
         }
       }
 
       // Fall back to direct fields if PackagePayments didn't have them
       if (itemValueUsd === 0) {
-        itemValueUsd = parseFloat(String(doc.itemValueUSD || doc.itemValue || doc.value || doc.pricePaid || 0));
+        itemValueUsd = parseFloat(String(doc.itemValueUSD || doc.itemValueUsd || doc.itemValue || doc.value || doc.pricePaid || 0));
       }
       if (totalAmountUsd === 0) {
-        totalAmountUsd = parseFloat(String(doc.totalAmount || 0)) || itemValueUsd;
+        totalAmountUsd = parseFloat(String(doc.totalAmount || doc.total_amount || 0)) || itemValueUsd;
       }
       if (amountPaidUsd === 0) {
         amountPaidUsd = parseFloat(String(doc.amountPaid || 0));

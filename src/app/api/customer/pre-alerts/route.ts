@@ -9,6 +9,9 @@ import { Message } from "@/models/Message";
 import { customerPreAlertCreateSchema } from "@/lib/validators";
 import { IPreAlert } from "@/models/PreAlert";
 import { Types } from "mongoose";
+import { writeFile, mkdir } from "fs/promises";
+import { existsSync } from "fs";
+import path from "path";
 
 type PreAlertLean = Omit<IPreAlert, "_id"> & {
   _id?: { toString(): string };
@@ -70,7 +73,7 @@ export async function GET(req: Request) {
     .limit(10)
     .lean();
   
-  return NextResponse.json({ 
+  return NextResponse.json({
     pre_alerts: preAlerts.map((p: any) => ({
       _id: p._id?.toString() || "",
       trackingNumber: p.trackingNumber,
@@ -82,6 +85,10 @@ export async function GET(req: Request) {
       createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : null,
       decidedAt: p.decidedAt ? new Date(p.decidedAt).toISOString() : null,
       userCode: p.userCode,
+      description: p.description || null,
+      pricePaid: p.pricePaid || null,
+      overseasCourier: p.overseasCourier || null,
+      attachmentFile: p.attachmentFile || null,
     })),
     alerts: {
       packages: recentPackages.map((p: any) => ({
@@ -123,19 +130,38 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-  const parsed = customerPreAlertCreateSchema.safeParse(raw);
-  if (!parsed.success) {
-    const errorMessages = parsed.error.errors.map(err => `${err.path.join('.')}: ${err.message}`).join(', ');
-    return NextResponse.json({ error: errorMessages }, { status: 400 });
+  const contentType = req.headers.get("content-type") || "";
+  let formData: FormData | null = null;
+  let body: any = {};
+
+  // Handle both JSON and FormData
+  if (contentType.includes("multipart/form-data")) {
+    formData = await req.formData();
+    body = {};
+    formData.forEach((value, key) => {
+      if (value instanceof File) {
+        body[key] = value;
+      } else {
+        body[key] = value;
+      }
+    });
+  } else {
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
   }
 
-  const { tracking_number, carrier, origin, expected_date, notes } = parsed.data;
+  const tracking_number = body.tracking_number || body.trackingNumber;
+  const carrier = body.carrier;
+  const origin = body.origin;
+  const expected_date = body.expected_date || body.expectedDate;
+  const notes = body.notes;
+  const description = body.description;
+  const pricePaid = body.pricePaid ? parseFloat(body.pricePaid) : undefined;
+  const overseasCourier = body.overseas_courier || body.overseasCourier;
+  const file = body.file;
 
   const user = payload._id ? await User.findById(payload._id).select("_id userCode") : null;
   const userCode = user?.userCode || (payload.userCode as string | undefined);
@@ -151,6 +177,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Expected arrival date is required" }, { status: 400 });
   }
 
+  // Handle file upload
+  let attachmentFile: any = null;
+  if (file && file instanceof File) {
+    const uploadDir = path.join(process.cwd(), "public", "uploads", "prealerts");
+    if (!existsSync(uploadDir)) {
+      await mkdir(uploadDir, { recursive: true });
+    }
+
+    const filename = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+    const filepath = path.join(uploadDir, filename);
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+
+    await writeFile(filepath, buffer);
+
+    attachmentFile = {
+      filename,
+      originalName: file.name,
+      mimetype: file.type,
+      size: file.size,
+      path: `/uploads/prealerts/${filename}`,
+      url: `/uploads/prealerts/${filename}`,
+    };
+  }
+
   let created;
   try {
     created = await PreAlert.create({
@@ -161,6 +212,10 @@ export async function POST(req: Request) {
       origin,
       expectedDate,
       notes,
+      description,
+      pricePaid,
+      overseasCourier,
+      attachmentFile,
     });
   } catch (error) {
     // Handle duplicate key error
@@ -183,6 +238,10 @@ export async function POST(req: Request) {
     origin: origin ?? null,
     expected_date: expectedDate ? expectedDate.toISOString() : null,
     notes: notes ?? null,
+    description: description ?? null,
+    pricePaid: pricePaid ?? null,
+    overseasCourier: overseasCourier ?? null,
+    attachmentFile: attachmentFile ?? null,
     integration_source: "customer_pre_alert",
   });
 }

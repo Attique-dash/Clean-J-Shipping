@@ -14,6 +14,19 @@ export interface IPreAlert {
   decidedAt?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
+  // File attachment for pre-alert (e.g., invoice, receipt)
+  attachmentFile?: {
+    filename: string;
+    originalName: string;
+    mimetype: string;
+    size: number;
+    path: string;
+    url?: string;
+  };
+  // Additional fields for pre-alert details
+  description?: string;
+  pricePaid?: number;
+  overseasCourier?: string;
 }
 
 const PreAlertSchema = new Schema<IPreAlert>(
@@ -28,6 +41,19 @@ const PreAlertSchema = new Schema<IPreAlert>(
     status: { type: String, enum: ["submitted", "approved", "rejected"], default: "submitted", index: true },
     decidedBy: { type: Schema.Types.ObjectId, ref: "User" },
     decidedAt: { type: Date },
+    // File attachment for pre-alert (e.g., invoice, receipt)
+    attachmentFile: {
+      filename: { type: String },
+      originalName: { type: String },
+      mimetype: { type: String },
+      size: { type: Number },
+      path: { type: String },
+      url: { type: String },
+    },
+    // Additional fields for pre-alert details
+    description: { type: String },
+    pricePaid: { type: Number },
+    overseasCourier: { type: String },
   },
   { timestamps: true }
 );
