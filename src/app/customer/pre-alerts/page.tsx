@@ -79,9 +79,9 @@ export default function PreAlertsPage() {
       formDataObj.append('overseas_courier', formData.overseasCourier);
       formDataObj.append('expected_date', formData.expectedDate);
       
-      selectedFiles.forEach((file) => {
-        formDataObj.append('files', file);
-      });
+      if (selectedFiles.length > 0) {
+        formDataObj.append('file', selectedFiles[0]);
+      }
 
       const res = await fetch('/api/customer/pre-alerts', {
         method: 'POST',
@@ -114,9 +114,9 @@ export default function PreAlertsPage() {
       formDataObj.append('overseas_courier', formData.overseasCourier);
       formDataObj.append('expected_date', formData.expectedDate);
       
-      selectedFiles.forEach((file) => {
-        formDataObj.append('files', file);
-      });
+      if (selectedFiles.length > 0) {
+        formDataObj.append('file', selectedFiles[0]);
+      }
 
       const res = await fetch(`/api/customer/pre-alerts/${editingItem._id}`, {
         method: 'PATCH',
