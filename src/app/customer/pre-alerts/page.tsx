@@ -12,6 +12,7 @@ type PreAlert = {
   description?: string;
   pricePaid?: number;
   overseasCourier?: string;
+  expectedDate?: string;
   status?: "submitted" | "approved" | "rejected";
   createdAt?: string;
   attachmentFiles?: Array<{
@@ -42,6 +43,7 @@ export default function PreAlertsPage() {
     pricePaid: '',
     merchant: '',
     overseasCourier: '',
+    expectedDate: '',
   });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
@@ -75,6 +77,7 @@ export default function PreAlertsPage() {
       formDataObj.append('price_paid', formData.pricePaid);
       formDataObj.append('merchant', formData.merchant);
       formDataObj.append('overseas_courier', formData.overseasCourier);
+      formDataObj.append('expected_date', formData.expectedDate);
       
       selectedFiles.forEach((file) => {
         formDataObj.append('files', file);
@@ -109,6 +112,7 @@ export default function PreAlertsPage() {
       formDataObj.append('price_paid', formData.pricePaid);
       formDataObj.append('merchant', formData.merchant);
       formDataObj.append('overseas_courier', formData.overseasCourier);
+      formDataObj.append('expected_date', formData.expectedDate);
       
       selectedFiles.forEach((file) => {
         formDataObj.append('files', file);
@@ -167,6 +171,7 @@ export default function PreAlertsPage() {
       pricePaid: item.pricePaid ? String(item.pricePaid) : '',
       merchant: item.merchant || '',
       overseasCourier: item.overseasCourier || '',
+      expectedDate: item.expectedDate ? new Date(item.expectedDate).toISOString().split('T')[0] : '',
     });
     setSelectedFiles([]);
     setEditModalOpen(true);
@@ -180,6 +185,7 @@ export default function PreAlertsPage() {
       pricePaid: '',
       merchant: '',
       overseasCourier: '',
+      expectedDate: '',
     });
     setSelectedFiles([]);
     setEditingItem(null);
@@ -198,49 +204,31 @@ export default function PreAlertsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Section */}
-        <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl">
-          <div className="absolute inset-0 bg-white/10" />
-          <div className="relative flex flex-col gap-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
-                  <Bell className="h-7 w-7" />
-                </div>
-                <div>
-                  <p className="text-sm uppercase tracking-widest text-blue-100">Customer Portal</p>
-                  <h1 className="text-3xl font-bold leading-tight md:text-4xl">Pre-Alerts</h1>
-                  <p className="text-blue-100 mt-1 flex items-center gap-2">
-                    <Bell className="h-4 w-4" />
-                    Notify us about incoming shipments
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={openAddModal}
-                className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-[#E67919] to-[#d46a0f] text-white rounded-xl hover:shadow-lg transition-all font-medium"
-              >
-                <Plus className="h-5 w-5" />
-                Add Alert
-              </button>
-            </div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Pre-Alerts
+            </h1>
+            <p className="text-gray-500 mt-1">Notify us about incoming shipments</p>
           </div>
-        </header>
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 px-4 py-2 bg-[#0f4d8a] text-white rounded-xl hover:bg-[#1e6bb8] transition-all font-medium shadow-sm"
+          >
+            <Plus className="h-5 w-5" />
+            Add Alert
+          </button>
+        </div>
 
         {/* Pre-Alerts List Section */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] px-6 py-4">
-            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-              <Package className="w-5 h-5" />
-              Pre-Alerts List
-            </h2>
-          </div>
           <div className="p-6">
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 text-[#0f4d8a] animate-spin" />
+                <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
                 <span className="ml-3 text-gray-600">Loading pre-alerts...</span>
               </div>
             ) : items.length === 0 ? (
@@ -250,46 +238,33 @@ export default function PreAlertsPage() {
                 <p className="text-sm text-gray-500 mb-6">Click "Add Alert" to notify us about incoming shipments.</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {items.map((item) => (
                   <div 
                     key={item._id} 
-                    className="bg-gradient-to-r from-slate-50 to-blue-50 hover:from-slate-100 hover:to-blue-100 rounded-xl border border-gray-200 overflow-hidden transition-all duration-200 hover:shadow-lg"
+                    className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
                   >
-                    <div className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Package className="h-5 w-5 text-[#0f4d8a]" />
-                            <h3 className="text-lg font-semibold text-gray-900">{item.trackingNumber}</h3>
+                    <div className="p-5">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3 text-[#0f4d8a]">
+                          <div className="p-2 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl">
+                            <Package className="h-5 w-5" />
                           </div>
-                          <p className="text-sm text-gray-600 mb-1">
-                            <span className="font-medium">Merchant:</span> {item.merchant || 'Not specified'}
-                          </p>
-                          <p className="text-sm text-gray-600 mb-1">
-                            <span className="font-medium">Description:</span> {item.description || 'Not specified'}
-                          </p>
-                          <p className="text-sm text-gray-600 mb-1">
-                            <span className="font-medium">Price Paid:</span> ${item.pricePaid ? item.pricePaid.toFixed(2) : '0.00'}
-                          </p>
-                          <p className="text-sm text-gray-600 mb-1">
-                            <span className="font-medium">Overseas Courier:</span> {item.overseasCourier || 'Not specified'}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-2">
-                            Created: {item.createdAt ? new Date(item.createdAt).toLocaleString() : "N/A"}
-                          </p>
+                          <span className="font-bold text-base text-gray-900 truncate max-w-[140px]" title={item.trackingNumber}>
+                            {item.trackingNumber}
+                          </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => openEditModal(item)}
-                            className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                            className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                             title="Edit pre-alert"
                           >
                             <Edit className="h-4 w-4 text-gray-600" />
                           </button>
                           <button
                             onClick={() => handleDeletePreAlert(item._id)}
-                            className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-red-50 hover:border-red-300 transition-colors"
+                            className="p-2 bg-gray-100 hover:bg-red-100 rounded-lg transition-colors"
                             title="Delete pre-alert"
                           >
                             <X className="h-4 w-4 text-gray-600" />
@@ -297,10 +272,28 @@ export default function PreAlertsPage() {
                         </div>
                       </div>
                       
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Merchant:</span>
+                          <span className="text-gray-900 font-medium">{item.merchant || 'Not specified'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Courier:</span>
+                          <span className="text-gray-900 font-medium">{item.overseasCourier || 'Not specified'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Price:</span>
+                          <span className="text-gray-900 font-medium">${item.pricePaid ? item.pricePaid.toFixed(2) : '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Expected:</span>
+                          <span className="text-gray-900 font-medium">{item.expectedDate ? new Date(item.expectedDate).toLocaleDateString() : 'N/A'}</span>
+                        </div>
+                      </div>
+                      
                       {/* Attachments Section */}
                       {item.attachmentFiles && item.attachmentFiles.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                          <p className="text-sm font-medium text-gray-700 mb-2">Attachments:</p>
+                        <div className="mt-4 pt-4 border-t border-gray-100">
                           <div className="flex flex-wrap gap-2">
                             {item.attachmentFiles.map((file, idx) => (
                               <button
@@ -309,7 +302,7 @@ export default function PreAlertsPage() {
                                 className="flex items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm transition-colors"
                               >
                                 <FileText className="h-4 w-4" />
-                                <span className="truncate max-w-[200px]">{file.originalName}</span>
+                                <span className="truncate max-w-[150px]">{file.originalName}</span>
                                 <Download className="h-4 w-4" />
                               </button>
                             ))}
@@ -390,7 +383,18 @@ export default function PreAlertsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tracking #</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Expected Arrival Date *</label>
+                <input
+                  type="date"
+                  value={formData.expectedDate}
+                  onChange={(e) => setFormData({ ...formData, expectedDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tracking # *</label>
                 <input
                   type="text"
                   value={formData.trackingNumber}
@@ -398,6 +402,7 @@ export default function PreAlertsPage() {
                   disabled={editModalOpen}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   placeholder="Enter tracking number"
+                  required
                 />
               </div>
 
@@ -435,7 +440,7 @@ export default function PreAlertsPage() {
                 </button>
                 <button
                   onClick={editModalOpen ? handleEditPreAlert : handleAddPreAlert}
-                  disabled={submitting || !formData.trackingNumber}
+                  disabled={submitting || !formData.trackingNumber || !formData.expectedDate}
                   className="px-4 py-2 bg-[#0f4d8a] text-white rounded-lg hover:bg-[#1e6bb8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? 'Saving...' : 'SAVE'}
