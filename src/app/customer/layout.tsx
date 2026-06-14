@@ -38,11 +38,6 @@ export default function CustomerLayout({
       icon: Package,
     },
     {
-      href: "/customer/shipping-addresses",
-      label: "Shipping Addresses",
-      icon: MapPin,
-    },
-    {
       href: "/customer/invoice-upload",
       label: "Package Invoices",
       icon: FileText,
