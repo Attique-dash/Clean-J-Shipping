@@ -160,7 +160,7 @@ export async function POST(req: Request) {
   const expected_date = body.expected_date || body.expectedDate;
   const notes = body.notes;
   const description = body.description;
-  const pricePaid = body.pricePaid ? parseFloat(body.pricePaid) : undefined;
+  const pricePaid = (body.price_paid || body.pricePaid) ? parseFloat(body.price_paid || body.pricePaid) : undefined;
   const overseasCourier = body.overseas_courier || body.overseasCourier;
   const merchant = body.merchant;
   const file = body.file;

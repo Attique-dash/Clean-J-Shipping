@@ -118,7 +118,7 @@ export async function PATCH(
     }
     if (body.notes !== undefined) preAlert.notes = body.notes;
     if (body.description !== undefined) preAlert.description = body.description;
-    if (body.pricePaid !== undefined) preAlert.pricePaid = parseFloat(body.pricePaid);
+    if (body.price_paid !== undefined || body.pricePaid !== undefined) preAlert.pricePaid = parseFloat(body.price_paid || body.pricePaid);
     if (body.overseas_courier !== undefined || body.overseasCourier !== undefined) {
       preAlert.overseasCourier = body.overseas_courier || body.overseasCourier;
     }

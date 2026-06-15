@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { Bell, Package, Loader2, Plus, Edit, Download, X, FileText } from "lucide-react";
 import { toast } from "react-toastify";
+import jsPDF from "jspdf";
 
 type PreAlert = {
   _id: string;
@@ -163,42 +164,56 @@ export default function PreAlertsPage() {
   };
 
   // Handle download example file
-  const handleDownloadExample = () => {
-    const exampleContent = `Pre-Alert Upload Example
-========================
-
-This file shows the required information for creating a pre-alert:
-
-Required Fields:
-- Tracking Number: Your package tracking number (e.g., 1Z999AA10123456784)
-- Expected Date: When you expect the package to arrive (YYYY-MM-DD format)
-
-Optional Fields:
-- Merchant: Where you purchased the item (e.g., Amazon, eBay, Walmart)
-- Description: Brief description of the item(s)
-- Price Paid: Total cost of the item(s) in USD
-- Overseas Courier: Shipping carrier (DHL, FedEx, UPS, USPS, Other)
-- File Upload: Attach invoice or receipt (PDF, JPG, PNG)
-
-Example Data:
-Tracking Number: 1Z999AA10123456784
-Merchant: Amazon
-Description: Wireless Bluetooth Headphones
-Price Paid: 89.99
-Overseas Courier: DHL
-Expected Date: 2024-12-25
-
-For questions, contact support@cleanjshipping.com
-`;
-    const blob = new Blob([exampleContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'pre-alert-upload-example.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const handleDownloadExample = (item: PreAlert) => {
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(20);
+    doc.setTextColor(15, 77, 138);
+    doc.text('Pre-Alert Details', 20, 20);
+    
+    // Add line
+    doc.setDrawColor(200, 200, 200);
+    doc.line(20, 25, 190, 25);
+    
+    // Add content
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    
+    let yPosition = 35;
+    const lineHeight = 10;
+    
+    doc.text(`Tracking Number: ${item.trackingNumber}`, 20, yPosition);
+    yPosition += lineHeight;
+    
+    doc.text(`Merchant: ${item.merchant || 'Not specified'}`, 20, yPosition);
+    yPosition += lineHeight;
+    
+    doc.text(`Description: ${item.description || 'Not specified'}`, 20, yPosition);
+    yPosition += lineHeight;
+    
+    doc.text(`Price Paid: $${item.pricePaid ? item.pricePaid.toFixed(2) : '0.00'}`, 20, yPosition);
+    yPosition += lineHeight;
+    
+    doc.text(`Overseas Courier: ${item.overseasCourier || 'Not specified'}`, 20, yPosition);
+    yPosition += lineHeight;
+    
+    doc.text(`Expected Date: ${item.expectedDate ? new Date(item.expectedDate).toLocaleDateString() : 'N/A'}`, 20, yPosition);
+    yPosition += lineHeight;
+    
+    doc.text(`Status: ${item.status || 'submitted'}`, 20, yPosition);
+    yPosition += lineHeight;
+    
+    doc.text(`Created: ${item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}`, 20, yPosition);
+    yPosition += lineHeight + 10;
+    
+    // Add footer
+    doc.setFontSize(10);
+    doc.setTextColor(128, 128, 128);
+    doc.text('Clean J Shipping - Customer Portal', 20, yPosition);
+    
+    // Save the PDF
+    doc.save(`pre-alert-${item.trackingNumber}.pdf`);
   };
 
   // Open edit modal
@@ -357,12 +372,12 @@ For questions, contact support@cleanjshipping.com
                             ))
                           )}
                           <button
-                            onClick={handleDownloadExample}
+                            onClick={() => handleDownloadExample(item)}
                             className="flex items-center gap-2 px-3 py-2 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg text-sm transition-colors"
-                            title="Download example file"
+                            title="Download pre-alert details"
                           >
                             <FileText className="h-4 w-4" />
-                            <span>Example</span>
+                            <span>Download</span>
                             <Download className="h-4 w-4" />
                           </button>
                         </div>
