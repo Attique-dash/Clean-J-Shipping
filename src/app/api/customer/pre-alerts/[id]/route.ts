@@ -40,6 +40,7 @@ export async function GET(
         description: preAlert.description,
         pricePaid: preAlert.pricePaid,
         overseasCourier: preAlert.overseasCourier,
+        merchant: preAlert.merchant,
         attachmentFile: preAlert.attachmentFile,
         createdAt: preAlert.createdAt,
         updatedAt: preAlert.updatedAt,
@@ -121,6 +122,7 @@ export async function PATCH(
     if (body.overseas_courier !== undefined || body.overseasCourier !== undefined) {
       preAlert.overseasCourier = body.overseas_courier || body.overseasCourier;
     }
+    if (body.merchant !== undefined) preAlert.merchant = body.merchant;
 
     // Handle file upload
     if (body.file && body.file instanceof File) {
@@ -173,6 +175,7 @@ export async function PATCH(
         description: preAlert.description,
         pricePaid: preAlert.pricePaid,
         overseasCourier: preAlert.overseasCourier,
+        merchant: preAlert.merchant,
         attachmentFile: preAlert.attachmentFile,
         decidedAt: preAlert.decidedAt,
         decidedBy: preAlert.decidedBy,

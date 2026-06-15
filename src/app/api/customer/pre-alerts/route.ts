@@ -88,6 +88,7 @@ export async function GET(req: Request) {
       description: p.description || null,
       pricePaid: p.pricePaid || null,
       overseasCourier: p.overseasCourier || null,
+      merchant: p.merchant || null,
       attachmentFile: p.attachmentFile || null,
     })),
     alerts: {
@@ -161,6 +162,7 @@ export async function POST(req: Request) {
   const description = body.description;
   const pricePaid = body.pricePaid ? parseFloat(body.pricePaid) : undefined;
   const overseasCourier = body.overseas_courier || body.overseasCourier;
+  const merchant = body.merchant;
   const file = body.file;
 
   const user = payload._id ? await User.findById(payload._id).select("_id userCode") : null;
@@ -215,6 +217,7 @@ export async function POST(req: Request) {
       description,
       pricePaid,
       overseasCourier,
+      merchant,
       attachmentFile,
     });
   } catch (error) {
@@ -241,6 +244,7 @@ export async function POST(req: Request) {
     description: description ?? null,
     pricePaid: pricePaid ?? null,
     overseasCourier: overseasCourier ?? null,
+    merchant: merchant ?? null,
     attachmentFile: attachmentFile ?? null,
     integration_source: "customer_pre_alert",
   });

@@ -162,6 +162,45 @@ export default function PreAlertsPage() {
     window.open(url, '_blank');
   };
 
+  // Handle download example file
+  const handleDownloadExample = () => {
+    const exampleContent = `Pre-Alert Upload Example
+========================
+
+This file shows the required information for creating a pre-alert:
+
+Required Fields:
+- Tracking Number: Your package tracking number (e.g., 1Z999AA10123456784)
+- Expected Date: When you expect the package to arrive (YYYY-MM-DD format)
+
+Optional Fields:
+- Merchant: Where you purchased the item (e.g., Amazon, eBay, Walmart)
+- Description: Brief description of the item(s)
+- Price Paid: Total cost of the item(s) in USD
+- Overseas Courier: Shipping carrier (DHL, FedEx, UPS, USPS, Other)
+- File Upload: Attach invoice or receipt (PDF, JPG, PNG)
+
+Example Data:
+Tracking Number: 1Z999AA10123456784
+Merchant: Amazon
+Description: Wireless Bluetooth Headphones
+Price Paid: 89.99
+Overseas Courier: DHL
+Expected Date: 2024-12-25
+
+For questions, contact support@cleanjshipping.com
+`;
+    const blob = new Blob([exampleContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'pre-alert-upload-example.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   // Open edit modal
   const openEditModal = (item: PreAlert) => {
     setEditingItem(item);
@@ -290,12 +329,22 @@ export default function PreAlertsPage() {
                           <span className="text-gray-900 font-medium">{item.expectedDate ? new Date(item.expectedDate).toLocaleDateString() : 'N/A'}</span>
                         </div>
                       </div>
+
+                      {/* Description Card */}
+                      {item.description && (
+                        <div className="mt-4 pt-4 border-t border-gray-100">
+                          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4">
+                            <p className="text-sm text-gray-700 font-medium mb-1">Description</p>
+                            <p className="text-sm text-gray-600">{item.description}</p>
+                          </div>
+                        </div>
+                      )}
                       
                       {/* Attachments Section */}
-                      {item.attachmentFiles && item.attachmentFiles.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-gray-100">
-                          <div className="flex flex-wrap gap-2">
-                            {item.attachmentFiles.map((file, idx) => (
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        <div className="flex flex-wrap gap-2">
+                          {item.attachmentFiles && item.attachmentFiles.length > 0 && (
+                            item.attachmentFiles.map((file, idx) => (
                               <button
                                 key={idx}
                                 onClick={() => handleDownloadFile(file.url)}
@@ -305,10 +354,19 @@ export default function PreAlertsPage() {
                                 <span className="truncate max-w-[150px]">{file.originalName}</span>
                                 <Download className="h-4 w-4" />
                               </button>
-                            ))}
-                          </div>
+                            ))
+                          )}
+                          <button
+                            onClick={handleDownloadExample}
+                            className="flex items-center gap-2 px-3 py-2 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg text-sm transition-colors"
+                            title="Download example file"
+                          >
+                            <FileText className="h-4 w-4" />
+                            <span>Example</span>
+                            <Download className="h-4 w-4" />
+                          </button>
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
                 ))}

@@ -27,6 +27,7 @@ export interface IPreAlert {
   description?: string;
   pricePaid?: number;
   overseasCourier?: string;
+  merchant?: string;
 }
 
 const PreAlertSchema = new Schema<IPreAlert>(
@@ -54,6 +55,7 @@ const PreAlertSchema = new Schema<IPreAlert>(
     description: { type: String },
     pricePaid: { type: Number },
     overseasCourier: { type: String },
+    merchant: { type: String },
   },
   { timestamps: true }
 );
