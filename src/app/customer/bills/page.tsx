@@ -3,208 +3,53 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
-import { 
-  CreditCard, 
-  FileText, 
-  CheckCircle,
-  AlertCircle,
-  Clock,
-  Lock,
-  LockOpen,
-  ShoppingCart,
-  Filter,
-  X,
-  Calendar,
-  DollarSign,
-  Package,
-  User,
-  MapPin,
-  Receipt,
-  Printer,
-  Mail,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-} from "lucide-react";
+import Link from "next/link";
+import { CreditCard, FileText, CheckCircle, Lock, Unlock, ShoppingCart, Filter, X, Calendar, Package, User, MapPin, Printer, Mail, ChevronLeft, ChevronRight, Eye, Plane, Building, Hash, Scale, DollarSign, Copy } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import Loading from "@/components/Loading";
-import Link from "next/link";
 
-interface BillPackage {
-  packageId: string;
-  trackingNumber: string;
-  shipper: string;
-  weight: number;
-  itemValue: number;
-  shippingFee: number;
-  customsFee: number;
-  total: number;
-  itemDescription?: string;
-}
-
-interface Bill {
-  _id: string;
-  billNumber?: string;
-  tracking_number: string;
-  description?: string;
-  invoice_number?: string;
-  invoice_date?: string;
-  currency?: string;
-  amount_due: number;
-  payment_status: 'submitted' | 'reviewed' | 'rejected' | 'none' | 'paid' | 'overdue' | 'partially_paid';
-  due_payment?: number;
-  paid_payment?: number;
-  balance?: number;
-  last_updated?: string;
-  payment_id?: string;
-  payment_method?: string;
-  // Additional fields from admin bills
-  status?: string;
-  itemTotal?: number;
-  shippingFee?: number;
-  customsFee?: number;
-  totalAmount?: number;
-  packages?: BillPackage[];
-  paidAt?: string;
-  paidAmount?: number;
-  createdAt?: string;
-  adminNotes?: string;
-}
-
-interface PaymentHistory {
-  _id: string;
-  billNumber: string;
-  amount: number;
-  currency: string;
-  status: string;
-  paidAt: string;
-  paymentMethod: string;
-  transactionId?: string;
-}
+interface PackageDetails { branch?: string; manifest?: string; merchant?: string; weight?: number; description?: string; hsCode?: string; userCode?: string; pieces?: number; dimensions?: { length: number; width: number; height: number }; entryDate?: string; serviceMode?: string; itemValue?: number; freight?: number; processingFee?: number; storageFee?: number; dutyPercent?: number; gctPercent?: number; warehouseLocation?: string; rateGroup?: string; commercialInvoice?: string; houseAwb?: string; trackingNum?: string; collection?: string; customerName?: string; customerEmail?: string; customerPhone?: string; }
+interface Bill { _id: string; billNumber?: string; tracking_number: string; description?: string; invoice_number?: string; invoice_date?: string; currency?: string; amount_due: number; payment_status: "submitted"|"reviewed"|"rejected"|"none"|"paid"|"overdue"|"partially_paid"; due_payment?: number; paid_payment?: number; balance?: number; last_updated?: string; payment_id?: string; payment_method?: string; status?: string; totalAmount?: number; paidAt?: string; paidAmount?: number; createdAt?: string; adminNotes?: string; packageDetails?: PackageDetails; }
 
 const PAGE_SIZE = 12;
+const CART_KEY = "customer_bills_cart";
+function fmtDate(d?: string) { return d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) : "N/A"; }
+function relDate(d: string): string { const diff = Date.now() - new Date(d).getTime(); const days = Math.floor(diff / 86400000); if (days === 0) return "today"; if (days < 7) return `${days}d ago`; const w = Math.floor(days / 7); if (w < 5) return `${w}w ago`; const m = Math.floor(days / 30); return m < 2 ? "a month ago" : `${m}mo ago`; }
+function isPaid(b: Bill) { return b.payment_status === "paid" || b.status === "paid"; }
 
 export default function BillsPage() {
   const { data: session } = useSession();
   const { formatCurrency } = useCurrency();
-  
   const [bills, setBills] = useState<Bill[]>([]);
-  const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
-  const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
-  const [detailModalOpen, setDetailModalOpen] = useState(false);
-  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [selectedBill, setSelectedBill] = useState<Bill|null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [receiptBill, setReceiptBill] = useState<Bill|null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [cart, setCart] = useState<Bill[]>([]);
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  
-  // Fetch all bills
-  useEffect(() => {
-    if (session?.user?.id) {
-      fetchBills();
-      fetchPaymentHistory();
-    }
-  }, [session]);
-  
+  const [statusFilter, setStatusFilter] = useState("");
+
+  useEffect(() => { try { const s = localStorage.getItem(CART_KEY); if (s) setCart(JSON.parse(s)); } catch {} }, []);
+  useEffect(() => { try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch {} }, [cart]);
+  useEffect(() => { if (session?.user?.id) fetchBills(); }, [session]);
+
   const fetchBills = async () => {
-    try {
-      const res = await fetch('/api/customer/bills', { credentials: 'include' });
-      const data = await res.json();
-      if (res.ok) {
-        setBills(data.bills || []);
-      } else {
-        toast.error(data.error || 'Failed to load bills');
-      }
-    } catch (error) {
-      toast.error('Error loading bills');
-    } finally {
-      setLoading(false);
-    }
+    try { const r = await fetch("/api/customer/bills", { credentials: "include" }); const d = await r.json(); if (r.ok) setBills(d.bills||[]); else toast.error(d.error||"Failed"); } catch { toast.error("Error loading bills"); } finally { setLoading(false); }
   };
-  
-  const fetchPaymentHistory = async () => {
-    try {
-      const res = await fetch('/api/customer/payments', { credentials: 'include' });
-      const data = await res.json();
-      if (res.ok) {
-        const history = (data.payments || []).map((payment: any) => ({
-          _id: payment._id,
-          billNumber: payment.reference || payment.trackingNumber || 'Unknown',
-          amount: payment.amount,
-          currency: payment.currency,
-          status: payment.status,
-          paidAt: payment.createdAt || payment.paidAt,
-          paymentMethod: payment.method || payment.paymentMethod || 'card',
-          transactionId: payment.gatewayId || payment.transactionId
-        }));
-        setPaymentHistory(history);
-      }
-    } catch (error) {
-      console.error('Error loading payment history:', error);
-    }
-  };
+  const addToCart = (b: Bill) => { if (!cart.find(x=>x._id===b._id)) { setCart([...cart,b]); toast.success("Added to cart"); } else toast.info("Already in cart"); };
+  const removeFromCart = (id: string) => setCart(cart.filter(b=>b._id!==id));
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
-
-  const getRelativeDate = (dateString: string): string => {
-    const diff = Date.now() - new Date(dateString).getTime();
-    const days = Math.floor(diff / 86400000);
-    if (days === 0) return 'today';
-    if (days < 7) return `${days} day${days > 1 ? 's' : ''} ago`;
-    const weeks = Math.floor(days / 7);
-    if (weeks < 5) return `${weeks} week${weeks > 1 ? 's' : ''} ago`;
-    const months = Math.floor(days / 30);
-    return `${months} month${months > 1 ? 's' : ''} ago`;
-  };
-
-  const isPaid = (bill: Bill) => {
-    return bill.payment_status === 'paid' || bill.status === 'paid';
-  };
-
-  const addToCart = (bill: Bill) => {
-    if (!cart.find(b => b._id === bill._id)) {
-      setCart([...cart, bill]);
-      toast.success('Added to cart');
-    } else {
-      toast.info('Already in cart');
-    }
-  };
-
-  const removeFromCart = (billId: string) => {
-    setCart(cart.filter(b => b._id !== billId));
-  };
-
-  const openDetailModal = (bill: Bill) => {
-    setSelectedBill(bill);
-    setDetailModalOpen(true);
-  };
-
-  // Filter bills
-  const filteredBills = bills.filter(bill => {
-    if (statusFilter && bill.payment_status !== statusFilter) return false;
-    return true;
-  });
-
-  const pendingBills = filteredBills.filter(b => !isPaid(b));
-  const paidBills = filteredBills.filter(b => isPaid(b));
-  const displayBills = showHistory ? paidBills : pendingBills;
-
-  const totalPages = Math.max(1, Math.ceil(displayBills.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const paginatedBills = displayBills.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
-  );
-
-  const totalAmount = displayBills.reduce((sum, bill) => sum + (bill.amount_due || 0), 0);
+  const filtered = bills.filter(b => !statusFilter || b.payment_status === statusFilter);
+  const pending = filtered.filter(b => !isPaid(b));
+  const paid = filtered.filter(b => isPaid(b));
+  const display = showHistory ? paid : pending;
+  const totalPages = Math.max(1, Math.ceil(display.length / PAGE_SIZE));
+  const curPage = Math.min(page, totalPages);
+  const paginated = display.slice((curPage-1)*PAGE_SIZE, curPage*PAGE_SIZE);
+  const totalAmt = display.reduce((s,b) => s+(b.amount_due||0), 0);
 
   if (loading) return <Loading message="Loading your bills..." />;
 
@@ -214,149 +59,50 @@ export default function BillsPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              {displayBills.length} Bills {formatCurrency(totalAmount, 'USD')}
-            </h1>
+            <h1 className="text-3xl font-bold text-gray-900">{display.length} Bills <span className="text-red-600">{formatCurrency(totalAmt,"USD")}</span></h1>
             <p className="text-gray-500 mt-1">Manage your bills and payments</p>
           </div>
           <div className="flex items-center gap-3">
-            {/* Cart Button */}
-            <button
-              onClick={() => setFilterModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 shadow-sm text-sm font-medium"
-            >
-              <ShoppingCart className="h-4 w-4" />
-              CART ({cart.length})
-            </button>
-            {/* Filter Button */}
-            <button
-              onClick={() => setFilterModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 shadow-sm text-sm font-medium"
-            >
-              <Filter className="h-4 w-4" />
-              FILTER
-            </button>
+            <button onClick={()=>setCartOpen(true)} className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-[#0f4d8a] rounded-lg text-[#0f4d8a] hover:bg-blue-50 text-sm font-semibold"><ShoppingCart className="h-4 w-4" />CART{cart.length>0?` (${cart.length})`:""}</button>
+            <button onClick={()=>setFilterOpen(true)} className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-[#0f4d8a] rounded-lg text-[#0f4d8a] hover:bg-blue-50 text-sm font-semibold"><Filter className="h-4 w-4" />FILTER</button>
           </div>
         </div>
-
-        {/* Toggle Buttons */}
+        {/* Top pagination */}
+        {totalPages > 1 && <div className="flex items-center gap-2"><button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={curPage===1} className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 text-sm">&laquo;</button>{Array.from({length:totalPages},(_,i)=>i+1).map(n=><button key={n} onClick={()=>setPage(n)} className={`px-4 py-1.5 rounded-lg text-sm font-medium ${curPage===n?"bg-[#f5f0e8] text-gray-900 border border-gray-300":"bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}>{n}</button>)}<button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={curPage===totalPages} className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 text-sm">&raquo;</button></div>}
+        {/* Toggle */}
         <div className="flex gap-2">
-          <button
-            onClick={() => { setShowHistory(false); setPage(1); }}
-            className={`px-4 py-2 rounded-xl font-medium transition-all ${
-              !showHistory 
-                ? 'bg-[#0f4d8a] text-white shadow-md' 
-                : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            Pending ({pendingBills.length})
-          </button>
-          <button
-            onClick={() => { setShowHistory(true); setPage(1); }}
-            className={`px-4 py-2 rounded-xl font-medium transition-all ${
-              showHistory 
-                ? 'bg-[#0f4d8a] text-white shadow-md' 
-                : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            Paid ({paidBills.length})
-          </button>
+          <button onClick={()=>{setShowHistory(false);setPage(1);}} className={`px-5 py-2 rounded-lg font-medium text-sm ${!showHistory?"bg-[#0f4d8a] text-white shadow-md":"bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"}`}>Pending ({pending.length})</button>
+          <button onClick={()=>{setShowHistory(true);setPage(1);}} className={`px-5 py-2 rounded-lg font-medium text-sm ${showHistory?"bg-[#0f4d8a] text-white shadow-md":"bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"}`}>Paid ({paid.length})</button>
         </div>
-
-        {/* Bills Cards Grid */}
-        {paginatedBills.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-12 text-center">
-            <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg">No bills found</p>
-          </div>
+        {/* Cards */}
+        {paginated.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-12 text-center"><FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" /><p className="text-gray-500 text-lg">No bills found</p></div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {paginatedBills.map((bill) => {
-              const billNumber = bill.billNumber || bill.invoice_number || bill.tracking_number;
-              const dueAmount = bill.due_payment || bill.amount_due || 0;
-              const paidAmount = bill.paid_payment || (isPaid(bill) ? dueAmount : 0);
-              const balance = bill.balance || (isPaid(bill) ? 0 : dueAmount);
-              const billDate = bill.invoice_date || bill.last_updated || bill.createdAt;
-
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {paginated.map(bill => {
+              const bn = bill.billNumber||bill.invoice_number||bill.tracking_number;
+              const due = bill.due_payment||bill.amount_due||0;
+              const paidAmt = bill.paid_payment||(isPaid(bill)?due:0);
+              const bal = bill.balance||(isPaid(bill)?0:due);
+              const dt = bill.invoice_date||bill.last_updated||bill.createdAt;
+              const branch = bill.packageDetails?.branch||"Main Branch";
+              const p = isPaid(bill);
               return (
-                <div
-                  key={bill._id || billNumber}
-                  className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
-                >
+                <div key={bill._id||bn} className="bg-[#faf8f5] rounded-xl border border-gray-200 shadow-md hover:shadow-lg transition-all">
                   <div className="p-5">
-                    {/* Header with bill number and lock icon */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2 text-[#0f4d8a]">
-                        <div className="p-2 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl">
-                          <Receipt className="h-5 w-5" />
-                        </div>
-                        <span className="font-bold text-base text-gray-900">
-                          #{billNumber}
-                        </span>
-                      </div>
-                      {/* Lock Icon */}
-                      {isPaid(bill) ? (
-                        <div className="relative">
-                          <Lock className="h-6 w-6 text-green-600" />
-                          <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
-                            PAID
-                          </span>
-                        </div>
-                      ) : (
-                        <LockOpen className="h-6 w-6 text-orange-500" />
-                      )}
+                    <div className="flex items-start justify-between mb-3">
+                      <div><p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Package TX</p><h3 className="text-lg font-bold text-gray-900">#{bn}</h3></div>
+                      {p ? <div className="relative flex items-center justify-center w-12 h-12"><Lock className="h-8 w-8 text-green-600" strokeWidth={2.5}/><span className="absolute -bottom-0.5 -right-1 bg-red-600 text-white text-[7px] font-extrabold px-1.5 py-0.5 rounded-full border border-white transform rotate-[-12deg]">PAID</span></div> : <Unlock className="h-8 w-8 text-blue-500" strokeWidth={2}/>}
                     </div>
-
-                    {/* Date and relative time */}
-                    <div className="flex items-center justify-between mb-4 text-sm">
-                      <span className="text-gray-600 font-medium">
-                        {formatDate(billDate)}
-                      </span>
-                      <span className="text-gray-400 text-xs">
-                        ({billDate ? getRelativeDate(billDate) : 'N/A'})
-                      </span>
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-4"><span className="font-medium">{fmtDate(dt)}</span><span className="text-gray-400">{branch}</span>{dt&&<span className="text-gray-400">({relDate(dt)})</span>}</div>
+                    <div className="space-y-1.5 mb-4 text-sm">
+                      <div className="flex justify-between"><span className="text-gray-500 font-medium">DUE:</span><span className="font-semibold text-gray-900">{formatCurrency(due,bill.currency||"USD")} <span className="text-xs text-gray-400">({bill.currency||"USD"})</span></span></div>
+                      <div className="flex justify-between"><span className="text-gray-500 font-medium">PAID:</span><span className="font-semibold text-gray-900">{formatCurrency(paidAmt,bill.currency||"USD")} <span className="text-xs text-gray-400">({bill.currency||"USD"})</span></span></div>
+                      <div className="flex justify-between"><span className="text-gray-500 font-medium">BALANCE:</span><span className={`font-bold ${bal>0?"text-red-600":"text-green-600"}`}>{formatCurrency(bal,bill.currency||"USD")} <span className="text-xs">({bill.currency||"USD"})</span></span></div>
                     </div>
-
-                    {/* Amounts */}
-                    <div className="space-y-2 mb-4">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">DUE:</span>
-                        <span className="font-semibold text-gray-900">
-                          {formatCurrency(dueAmount, bill.currency || 'USD')}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">PAID:</span>
-                        <span className="font-semibold text-gray-900">
-                          {formatCurrency(paidAmount, bill.currency || 'USD')}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">BALANCE:</span>
-                        <span className={`font-semibold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          {formatCurrency(balance, bill.currency || 'USD')}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons */}
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => openDetailModal(bill)}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-[#0f4d8a] text-white rounded-lg hover:bg-[#1e6bb8] transition-colors text-sm font-medium"
-                      >
-                        <FileText className="h-4 w-4" />
-                        DETAILS
-                      </button>
-                      {!isPaid(bill) && (
-                        <button
-                          onClick={() => addToCart(bill)}
-                          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-                        >
-                          <ShoppingCart className="h-4 w-4" />
-                          ADD
-                        </button>
-                      )}
+                      <button onClick={()=>{setSelectedBill(bill);setDetailOpen(true);}} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border-2 border-[#0f4d8a] text-[#0f4d8a] rounded-lg hover:bg-blue-50 text-sm font-semibold"><Eye className="h-4 w-4"/>DETAILS</button>
+                      {!p && <button onClick={()=>addToCart(bill)} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border-2 border-[#0f4d8a] text-[#0f4d8a] rounded-lg hover:bg-blue-50 text-sm font-semibold"><ShoppingCart className="h-4 w-4"/>ADD</button>}
                     </div>
                   </div>
                 </div>
@@ -364,289 +110,111 @@ export default function BillsPage() {
             })}
           </div>
         )}
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-              <button
-                key={pageNum}
-                onClick={() => setPage(pageNum)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  currentPage === pageNum
-                    ? 'bg-[#0f4d8a] text-white'
-                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                {pageNum}
-              </button>
-            ))}
-            <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </div>
-        )}
-
-        {/* Detail Modal */}
-        {detailModalOpen && selectedBill && (
-          <BillDetailModal
-            bill={selectedBill}
-            onClose={() => {
-              setDetailModalOpen(false);
-              setSelectedBill(null);
-            }}
-          />
-        )}
-
-        {/* Filter Modal */}
-        {filterModalOpen && (
-          <FilterModal
-            onClose={() => setFilterModalOpen(false)}
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
-            cart={cart}
-            removeFromCart={removeFromCart}
-          />
-        )}
+        {/* Bottom pagination */}
+        {totalPages > 1 && <div className="flex items-center justify-center gap-2"><button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={curPage===1} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50"><ChevronLeft className="h-5 w-5"/></button>{Array.from({length:totalPages},(_,i)=>i+1).map(n=><button key={n} onClick={()=>setPage(n)} className={`px-4 py-2 rounded-lg font-medium ${curPage===n?"bg-[#0f4d8a] text-white":"bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"}`}>{n}</button>)}<button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={curPage===totalPages} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50"><ChevronRight className="h-5 w-5"/></button></div>}
       </div>
+      {detailOpen && selectedBill && <BillDetailModal bill={selectedBill} onClose={()=>{setDetailOpen(false);setSelectedBill(null);}} onOpenReceipt={()=>{setReceiptBill(selectedBill);setDetailOpen(false);}}/>}
+      {receiptBill && <ReceiptModal bill={receiptBill} onClose={()=>setReceiptBill(null)}/>}
+      {cartOpen && <CartModal cart={cart} removeFromCart={removeFromCart} onClose={()=>setCartOpen(false)}/>}
+      {filterOpen && <FilterModal onClose={()=>setFilterOpen(false)} statusFilter={statusFilter} setStatusFilter={setStatusFilter}/>}
     </div>
   );
 }
 
-// Bill Detail Modal Component
-function BillDetailModal({ bill, onClose }: { bill: Bill; onClose: () => void }) {
-  const { formatCurrency } = useCurrency();
-  
-  const billNumber = bill.billNumber || bill.invoice_number || bill.tracking_number;
-  const dueAmount = bill.due_payment || bill.amount_due || 0;
-  const paidAmount = bill.paid_payment || (bill.payment_status === 'paid' ? dueAmount : 0);
-  const balance = bill.balance || (bill.payment_status === 'paid' ? 0 : dueAmount);
-  const billDate = bill.invoice_date || bill.last_updated || bill.createdAt;
-  const isPaid = bill.payment_status === 'paid' || bill.status === 'paid';
+/* ═══ InfoRow ═══ */
+function IR({ icon, label, value, mono }: { icon?: React.ReactNode; label: string; value: React.ReactNode; mono?: boolean }) {
+  return <div className="flex items-start justify-between gap-2 py-0.5"><span className="text-gray-500 flex items-center gap-1 shrink-0 text-sm">{icon}{label}:</span><span className={`text-gray-800 text-right break-all text-sm ${mono?"font-mono text-xs":"font-medium"}`}>{value??"—"}</span></div>;
+}
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
+/* ═══ Bill Detail Modal (2 views) ═══ */
+function BillDetailModal({ bill, onClose, onOpenReceipt }: { bill: Bill; onClose: () => void; onOpenReceipt: () => void }) {
+  const [pkgView, setPkgView] = useState(false);
+  const bn = bill.billNumber||bill.invoice_number||bill.tracking_number;
+  const due = bill.due_payment||bill.amount_due||0;
+  const paidAmt = bill.paid_payment||(bill.payment_status==="paid"?due:0);
+  const bal = bill.balance||(bill.payment_status==="paid"?0:due);
+  const dt = bill.invoice_date||bill.last_updated||bill.createdAt;
+  const p = isPaid(bill); const pd = bill.packageDetails;
+  const awb = pd?.houseAwb||bill.tracking_number; const tot = pd?.freight||due; const iv = pd?.itemValue||0; const wt = pd?.weight||0;
+  const fr = pd?.freight||due; const pf = pd?.processingFee||0; const sf = pd?.storageFee||0;
+  const branch = pd?.branch||"Main Branch"; const merch = pd?.merchant||"UNKNOWN"; const desc = pd?.description||bill.description||"Merchandise";
+
+  if (pkgView) return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 md:p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[95vh] overflow-y-auto" onClick={e=>e.stopPropagation()}>
         <div className="sticky top-0 bg-white border-b border-gray-200 flex items-center justify-between px-6 py-4 z-10">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">
-              {billNumber} / {formatCurrency(dueAmount, bill.currency || 'USD')}
-            </h2>
-            <p className="text-sm text-gray-500 mt-0.5">Bill Details</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <h2 className="text-xl font-bold text-gray-900">AWB/BL: {awb} / <span className="text-gray-500">${tot.toFixed(2)}</span></h2>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-500"><X className="h-5 w-5"/></button>
         </div>
-
         <div className="p-6 space-y-6">
-          {/* Top row: identity + status + totals */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Identity card */}
             <div className="border border-gray-200 rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-gray-900 text-sm">{billNumber}</span>
-                <Receipt className="h-5 w-5 text-gray-400" />
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Package className="h-4 w-4 text-gray-400" />
-                <span>{bill.description || 'Package Bill'}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Calendar className="h-4 w-4 text-gray-400" />
-                <span>{billDate ? new Date(billDate).toLocaleDateString() : 'N/A'}</span>
-              </div>
+              <div className="flex items-center justify-between"><span className="font-semibold text-gray-900 text-sm">{awb}</span><Package className="h-5 w-5 text-gray-400"/></div>
+              <div className="flex items-center gap-2 text-sm text-gray-600"><User className="h-4 w-4 text-gray-400"/><span>{pd?.userCode||""} {pd?.customerName||""}</span></div>
+              <div className="flex items-center gap-2 text-sm text-gray-600"><Plane className="h-4 w-4 text-gray-400"/><span>Air Standard</span></div>
             </div>
-
-            {/* Status card */}
-            <div className="border border-gray-200 rounded-lg p-4 flex items-center justify-center">
-              {isPaid ? (
-                <div className="flex items-center gap-2 bg-green-500 text-white px-4 py-3 rounded-lg w-full justify-center">
-                  <Lock className="h-5 w-5" />
-                  <span className="font-semibold">PAID</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 bg-orange-400 text-white px-4 py-3 rounded-lg w-full justify-center">
-                  <LockOpen className="h-5 w-5" />
-                  <span className="font-semibold">UNPAID</span>
-                </div>
-              )}
-            </div>
-
-            {/* Totals */}
+            <div className="border border-gray-200 rounded-lg p-4 flex items-center justify-center"><div className="flex items-center gap-2 bg-green-500 text-white px-4 py-3 rounded-lg w-full justify-center"><CheckCircle className="h-5 w-5"/><span className="font-semibold">No issues with package.</span></div></div>
             <div className="border border-gray-200 rounded-lg p-4 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Sub-Total:</span>
-                <span className="font-medium">{formatCurrency(dueAmount, bill.currency || 'USD')}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-green-600">Discount:</span>
-                <span className="text-green-600 font-medium">$0.00</span>
-              </div>
-              <div className="flex justify-between text-sm font-bold border-t pt-2">
-                <span>Total:</span>
-                <span>{formatCurrency(dueAmount, bill.currency || 'USD')}</span>
-              </div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Sub-Total:</span><span className="font-medium">${tot.toFixed(2)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-green-600">Discount:</span><span className="text-green-600 font-medium">$0.00</span></div>
+              <div className="flex justify-between text-sm font-bold border-t pt-2"><span>Total:</span><span>${tot.toFixed(2)}</span></div>
             </div>
           </div>
-
-          {/* Three-column info section */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Bill Info */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h3 className="font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">
-                Bill Info
-              </h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Bill #:</span>
-                  <span className="font-medium">{billNumber}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Date:</span>
-                  <span className="font-medium">{billDate ? new Date(billDate).toLocaleDateString() : 'N/A'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Description:</span>
-                  <span className="font-medium">{bill.description || '—'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Currency:</span>
-                  <span className="font-medium">{bill.currency || 'USD'}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Payment Info */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h3 className="font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">
-                Payment Info
-              </h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Due Amount:</span>
-                  <span className="font-medium">{formatCurrency(dueAmount, bill.currency || 'USD')}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Paid Amount:</span>
-                  <span className="font-medium">{formatCurrency(paidAmount, bill.currency || 'USD')}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Balance:</span>
-                  <span className={`font-medium ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {formatCurrency(balance, bill.currency || 'USD')}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Status:</span>
-                  <span className={`font-medium capitalize ${
-                    bill.payment_status === 'paid' ? 'text-green-600' :
-                    bill.payment_status === 'overdue' ? 'text-red-600' :
-                    'text-orange-600'
-                  }`}>
-                    {bill.payment_status}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Tracking Info */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h3 className="font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">
-                Tracking Info
-              </h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Tracking #:</span>
-                  <span className="font-medium font-mono text-xs">{bill.tracking_number}</span>
-                </div>
-                {bill.payment_method && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Payment Method:</span>
-                    <span className="font-medium capitalize">{bill.payment_method}</span>
-                  </div>
-                )}
-                {bill.paidAt && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Paid At:</span>
-                    <span className="font-medium">{new Date(bill.paidAt).toLocaleDateString()}</span>
-                  </div>
-                )}
-              </div>
+            <div className="border border-gray-200 rounded-lg p-4"><h3 className="font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">Package Info</h3><div className="space-y-1 text-sm">
+              <IR icon={<Building className="h-3.5 w-3.5"/>} label="Branch" value={branch}/>
+              <IR icon={<Calendar className="h-3.5 w-3.5"/>} label="Manifest" value={pd?.manifest||"—"}/>
+              <IR icon={<Package className="h-3.5 w-3.5"/>} label="Collection" value={pd?.collection||"—"}/>
+              <IR icon={<Building className="h-3.5 w-3.5"/>} label="Merchant" value={merch}/>
+              <IR icon={<FileText className="h-3.5 w-3.5"/>} label="Description" value={desc}/>
+              <IR icon={<Hash className="h-3.5 w-3.5"/>} label="HS Code" value={pd?.hsCode||"—"}/>
+              <IR icon={<Scale className="h-3.5 w-3.5"/>} label="Rate Group" value={pd?.rateGroup||"Standard Rate"}/>
+              <IR icon={<FileText className="h-3.5 w-3.5"/>} label="Commercial" value={pd?.commercialInvoice||"NO"}/>
+            </div></div>
+            <div className="border border-gray-200 rounded-lg p-4"><h3 className="font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">Billing Info</h3><div className="space-y-1 text-sm">
+              <IR icon={<Scale className="h-3.5 w-3.5"/>} label="Weight/Billable" value={`${wt} / ${pd?.pieces||1}`}/>
+              <IR icon={<Hash className="h-3.5 w-3.5"/>} label="Duty %" value={`${pd?.dutyPercent||20}%`}/>
+              <IR icon={<Hash className="h-3.5 w-3.5"/>} label="GCT %" value={`${pd?.gctPercent||15}%`}/>
+              <IR icon={<DollarSign className="h-3.5 w-3.5"/>} label="USD Value" value={`$${iv.toFixed(2)}`}/>
+            </div><h4 className="font-semibold text-gray-800 mt-4 mb-2 text-sm">Our Charges</h4><div className="space-y-1 text-sm">
+              <IR label="Freight" value={`$${fr.toFixed(2)}`}/><IR label="Processing Fee" value={`$${pf.toFixed(2)}`}/><IR label="Bad Address Fee" value="$0.00"/><IR label="Storage Fee" value={`$${sf.toFixed(2)}`}/>
+            </div></div>
+            <div className="border border-gray-200 rounded-lg p-4"><h3 className="font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">Tracking Info</h3>
+              <div className="mb-3"><span className="inline-block px-3 py-1 bg-green-500 text-white text-sm font-semibold rounded-full">Collected</span></div>
+              <div className="space-y-1 text-sm"><IR icon={<Hash className="h-3.5 w-3.5"/>} label="House AWB" value={awb} mono/><IR icon={<MapPin className="h-3.5 w-3.5"/>} label="Tracking #" value={pd?.trackingNum||bill.tracking_number} mono/></div>
             </div>
           </div>
+          <div className="flex justify-end pt-2 border-t border-gray-100"><button onClick={()=>setPkgView(false)} className="flex items-center gap-2 px-5 py-2.5 border-2 border-[#0f4d8a] text-[#0f4d8a] rounded-lg hover:bg-blue-50 text-sm font-semibold"><X className="h-4 w-4"/>CANCEL</button></div>
+        </div>
+      </div>
+    </div>
+  );
 
-          {/* Package Details (if available) */}
-          {bill.packages && bill.packages.length > 0 && (
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h3 className="font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">
-                Package Details
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="px-3 py-2 text-left text-gray-600 font-semibold">Tracking #</th>
-                      <th className="px-3 py-2 text-left text-gray-600 font-semibold">Shipper</th>
-                      <th className="px-3 py-2 text-left text-gray-600 font-semibold">Weight</th>
-                      <th className="px-3 py-2 text-left text-gray-600 font-semibold">Value</th>
-                      <th className="px-3 py-2 text-right text-gray-600 font-semibold">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bill.packages.map((pkg, idx) => (
-                      <tr key={idx} className="border-t border-gray-100">
-                        <td className="px-3 py-2 font-medium">{pkg.trackingNumber}</td>
-                        <td className="px-3 py-2">{pkg.shipper}</td>
-                        <td className="px-3 py-2">{pkg.weight} lbs</td>
-                        <td className="px-3 py-2">${pkg.itemValue?.toFixed(2) || '0.00'}</td>
-                        <td className="px-3 py-2 text-right font-medium">${pkg.total?.toFixed(2) || '0.00'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto" onClick={e=>e.stopPropagation()}>
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 z-10">
+          <div className="flex items-start justify-between">
+            <div><h2 className="text-2xl font-bold text-gray-900">{bn}</h2><div className="flex items-center gap-3 mt-1"><span className="text-sm text-gray-500 font-medium">Package</span>{p?<div className="flex items-center gap-1.5"><Lock className="h-5 w-5 text-green-600"/><span className="bg-red-600 text-white text-[8px] font-extrabold px-2 py-0.5 rounded-full transform rotate-[-8deg]">PAID</span></div>:<Unlock className="h-5 w-5 text-orange-500"/>}<span className="text-sm text-gray-400">{fmtDate(dt)} {dt&&`(${relDate(dt)})`}</span></div></div>
+            <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-500"><X className="h-5 w-5"/></button>
+          </div>
+          <div className="flex justify-end gap-8 mt-3 text-sm"><div><span className="text-gray-500">Package Amt:</span><span className="ml-2 font-semibold">${due.toFixed(2)}</span></div><div><span className="text-gray-500">Sub-Total:</span><span className="ml-2 font-semibold">${due.toFixed(2)}</span></div><div><span className="text-gray-500">Total Due:</span><span className="ml-2 font-bold">${due.toFixed(2)}</span></div></div>
+        </div>
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm"><User className="h-4 w-4 text-gray-400"/><span className="font-semibold text-gray-900">{pd?.userCode||""} {pd?.customerName||"Customer"}</span></div>
+              <div className="flex items-center gap-2 text-sm"><Building className="h-4 w-4 text-gray-400"/><span className="text-gray-700">{branch}</span></div>
+              <div className="flex items-center gap-2 text-sm"><CreditCard className="h-4 w-4 text-gray-400"/><span className="text-gray-700 capitalize">{bill.payment_method||"Cash"}</span></div>
+              <div className="flex items-center gap-2 text-sm"><DollarSign className="h-4 w-4 text-gray-400"/><span className="font-bold text-red-600">Balance ${bal.toFixed(2)}</span><button onClick={()=>navigator.clipboard?.writeText(`$${bal.toFixed(2)}`)} className="p-1 hover:bg-gray-100 rounded"><Copy className="h-3.5 w-3.5 text-gray-400"/></button></div>
             </div>
-          )}
-
-          {/* Action buttons */}
+            <div><label className="text-sm font-medium text-gray-600 mb-1 block">Description/Notes</label><div className="border border-gray-200 rounded-lg p-3 text-sm text-gray-600 min-h-[80px] bg-gray-50">{bill.description||bill.adminNotes||"—"}</div></div>
+          </div>
+          <div className="border border-gray-200 rounded-lg overflow-hidden"><table className="w-full text-sm"><thead><tr className="bg-gray-50"><th className="px-4 py-3 text-left text-gray-600 font-semibold text-xs uppercase">House AWB#</th><th className="px-4 py-3 text-left text-gray-600 font-semibold text-xs uppercase">Description</th><th className="px-4 py-3 text-left text-gray-600 font-semibold text-xs uppercase">Merchant</th><th className="px-4 py-3 text-center text-gray-600 font-semibold text-xs uppercase">LBS</th><th className="px-4 py-3 text-right text-gray-600 font-semibold text-xs uppercase">Value(USD)</th><th className="px-4 py-3 text-right text-gray-600 font-semibold text-xs uppercase">Due({bill.currency||"USD"})</th><th className="w-10"></th></tr></thead><tbody><tr className="border-t border-gray-100 hover:bg-gray-50"><td className="px-4 py-3 font-mono text-xs">{pd?.houseAwb||bill.tracking_number}</td><td className="px-4 py-3 text-gray-700">{desc}</td><td className="px-4 py-3 text-gray-700">{merch}</td><td className="px-4 py-3 text-center">{wt||1}</td><td className="px-4 py-3 text-right">${iv.toFixed(2)}</td><td className="px-4 py-3 text-right font-semibold">${due.toFixed(2)}</td><td className="px-4 py-3 text-center"><button onClick={()=>setPkgView(true)} className="p-1.5 border border-blue-300 rounded text-blue-500 hover:bg-blue-50"><Eye className="h-4 w-4"/></button></td></tr></tbody></table></div>
           <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
-            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-              <Mail className="h-4 w-4" />
-              Email Invoice
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium">
-              <Printer className="h-4 w-4" />
-              Print Invoice
-            </button>
-            <button
-              onClick={onClose}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium"
-            >
-              <X className="h-4 w-4" />
-              Close
-            </button>
+            <button onClick={onOpenReceipt} className="flex items-center gap-2 px-4 py-2.5 border-2 border-[#0f4d8a] text-[#0f4d8a] rounded-lg hover:bg-blue-50 text-sm font-semibold"><Mail className="h-4 w-4"/>EMAIL INVOICE</button>
+            <button onClick={()=>window.print()} className="flex items-center gap-2 px-4 py-2.5 border-2 border-[#0f4d8a] text-[#0f4d8a] rounded-lg hover:bg-blue-50 text-sm font-semibold"><Printer className="h-4 w-4"/>PRINT INVOICE</button>
+            <button onClick={onClose} className="flex items-center gap-2 px-5 py-2.5 border-2 border-red-500 text-red-500 rounded-lg hover:bg-red-50 text-sm font-semibold"><X className="h-4 w-4"/>CANCEL</button>
           </div>
         </div>
       </div>
@@ -654,127 +222,61 @@ function BillDetailModal({ bill, onClose }: { bill: Bill; onClose: () => void })
   );
 }
 
-// Filter Modal Component
-function FilterModal({
-  onClose,
-  statusFilter,
-  setStatusFilter,
-  cart,
-  removeFromCart
-}: {
-  onClose: () => void;
-  statusFilter: string;
-  setStatusFilter: (filter: string) => void;
-  cart: Bill[];
-  removeFromCart: (id: string) => void;
-}) {
+/* ═══ Receipt Modal ═══ */
+function ReceiptModal({ bill, onClose }: { bill: Bill; onClose: () => void }) {
+  const pd = bill.packageDetails; const due = bill.due_payment||bill.amount_due||0; const paidAmt = bill.paid_payment||(bill.payment_status==="paid"?due:0); const bal = bill.balance||(bill.payment_status==="paid"?0:due);
+  const awb = pd?.houseAwb||bill.tracking_number; const wt = pd?.weight||1; const iv = pd?.itemValue||0; const fr = pd?.freight||due; const sf = pd?.storageFee||0; const pf = pd?.processingFee||0; const merch = pd?.merchant||"UNKNOWN"; const desc = pd?.description||bill.description||"Merchandise";
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-gray-900">Filter & Cart</h2>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-500">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={e=>e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200"><h2 className="text-lg font-bold text-gray-900">Receipt/Invoice</h2><button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-500"><X className="h-5 w-5"/></button></div>
         <div className="p-6 space-y-6">
-          {/* Status Filter */}
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-3">Filter by Status</h3>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="status"
-                  value=""
-                  checked={statusFilter === ""}
-                  onChange={() => setStatusFilter("")}
-                  className="w-4 h-4 text-[#0f4d8a]"
-                />
-                <span className="text-sm text-gray-700">All Bills</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="status"
-                  value="submitted"
-                  checked={statusFilter === "submitted"}
-                  onChange={() => setStatusFilter("submitted")}
-                  className="w-4 h-4 text-[#0f4d8a]"
-                />
-                <span className="text-sm text-gray-700">Pending</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="status"
-                  value="paid"
-                  checked={statusFilter === "paid"}
-                  onChange={() => setStatusFilter("paid")}
-                  className="w-4 h-4 text-[#0f4d8a]"
-                />
-                <span className="text-sm text-gray-700">Paid</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="status"
-                  value="overdue"
-                  checked={statusFilter === "overdue"}
-                  onChange={() => setStatusFilter("overdue")}
-                  className="w-4 h-4 text-[#0f4d8a]"
-                />
-                <span className="text-sm text-gray-700">Overdue</span>
-              </label>
-            </div>
-          </div>
+          <div className="flex justify-between items-start"><div><p className="text-sm font-semibold text-gray-800">Customer: <span className="font-normal">[{pd?.userCode||""}] {pd?.customerName||"Customer"}</span></p></div><div className="text-right"><p className="text-sm font-semibold text-gray-800">Notes:</p><p className="text-xs text-gray-400 mt-1">{bill.adminNotes||"—"}</p></div></div>
+          <table className="w-full text-xs border-collapse border border-gray-200"><thead><tr className="bg-gray-50"><th className="text-left px-3 py-2.5 text-gray-600 font-semibold border border-gray-200">House AWB#</th><th className="text-left px-3 py-2.5 text-gray-600 font-semibold border border-gray-200">Information</th><th className="text-left px-3 py-2.5 text-gray-600 font-semibold border border-gray-200">Our Fees</th><th className="text-left px-3 py-2.5 text-gray-600 font-semibold border border-gray-200">Govt Fees</th><th className="text-right px-3 py-2.5 text-gray-600 font-semibold border border-gray-200">Discount</th><th className="text-right px-3 py-2.5 text-gray-600 font-semibold border border-gray-200">Due</th></tr></thead><tbody><tr><td className="px-3 py-3 border border-gray-200 align-top"><p className="font-semibold text-gray-900">{awb}</p><p className="text-gray-500 mt-1">{merch}</p></td><td className="px-3 py-3 border border-gray-200 align-top"><p><span className="text-gray-500">Weight:</span> {wt} Lbs</p><p><span className="text-gray-500">USD Value:</span> ${iv.toFixed(2)}</p></td><td className="px-3 py-3 border border-gray-200 align-top"><p><span className="text-gray-500">Freight:</span> ${fr.toFixed(2)}</p><p><span className="text-gray-500">Storage:</span> ${sf.toFixed(2)}</p></td><td className="px-3 py-3 border border-gray-200 align-top"><p><span className="text-gray-500">Proc fee:</span> ${pf.toFixed(2)}</p><p><span className="text-gray-500">Duty:</span> $0.00</p><p><span className="text-gray-500">GCT:</span> $0.00</p></td><td className="px-3 py-3 border border-gray-200 align-top text-right">$0.00</td><td className="px-3 py-3 border border-gray-200 align-top text-right font-semibold">${due.toFixed(2)}</td></tr><tr><td className="px-3 py-2 border border-gray-200 text-gray-500">{merch}</td><td colSpan={4} className="px-3 py-2 border border-gray-200 text-gray-500">{desc}</td><td className="border border-gray-200"></td></tr></tbody></table>
+          <div className="grid grid-cols-3 gap-4 pt-2"><div><p className="font-bold text-gray-900 text-sm">Thank you for your business!</p><p className="text-xs text-gray-500 mt-1">Please print or save this for your records</p></div><div><p className="font-semibold text-gray-800 text-sm mb-1">Payment Details</p><p className="text-xs text-gray-600 capitalize">{bill.payment_method||"Cash"}: ${paidAmt.toFixed(2)}</p></div><div className="text-right space-y-0.5"><p className="text-xs text-gray-600">Sub-Total: <span className="font-semibold">${due.toFixed(2)}</span></p><p className="text-xs text-gray-600">Total: <span className="font-semibold">{bill.currency||"USD"}${due.toFixed(2)}</span></p><p className="text-xs text-gray-600">Payment: <span className="font-semibold">${paidAmt.toFixed(2)}</span></p><p className="text-xs">Balance: <span className={`font-semibold ${bal>0?"text-red-500":"text-gray-900"}`}>${bal.toFixed(2)}</span></p></div></div>
+        </div>
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <button className="flex items-center gap-2 px-4 py-2 border-2 border-[#0f4d8a] text-[#0f4d8a] rounded-lg hover:bg-blue-50 text-sm font-semibold"><Mail className="h-4 w-4"/>EMAIL INVOICE</button>
+          <button onClick={()=>window.print()} className="flex items-center gap-2 px-4 py-2 border-2 border-[#0f4d8a] text-[#0f4d8a] rounded-lg hover:bg-blue-50 text-sm font-semibold"><Printer className="h-4 w-4"/>PRINT INVOICE</button>
+          <button onClick={()=>window.print()} className="flex items-center gap-2 px-4 py-2 border-2 border-[#0f4d8a] text-[#0f4d8a] rounded-lg hover:bg-blue-50 text-sm font-semibold"><Printer className="h-4 w-4"/>PRINT RECEIPT</button>
+          <button onClick={onClose} className="flex items-center gap-2 px-4 py-2 border-2 border-red-500 text-red-500 rounded-lg hover:bg-red-50 text-sm font-semibold"><X className="h-4 w-4"/>CANCEL</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-          {/* Cart */}
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-3">Cart ({cart.length})</h3>
-            {cart.length === 0 ? (
-              <p className="text-sm text-gray-500">No items in cart</p>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {cart.map((item) => (
-                  <div
-                    key={item._id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        #{item.billNumber || item.invoice_number || item.tracking_number}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {item.currency || 'USD'} {item.amount_due?.toFixed(2) || '0.00'}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => removeFromCart(item._id)}
-                      className="p-1 text-red-500 hover:bg-red-100 rounded"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+/* ═══ Cart Modal ═══ */
+function CartModal({ cart, removeFromCart, onClose }: { cart: Bill[]; removeFromCart: (id: string) => void; onClose: () => void }) {
+  const { formatCurrency } = useCurrency();
+  const total = cart.reduce((s,i) => s+(i.due_payment||i.amount_due||0), 0);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={e=>e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200"><h2 className="text-lg font-bold text-gray-900"><ShoppingCart className="inline h-5 w-5 mr-2"/>Cart ({cart.length})</h2><button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-500"><X className="h-5 w-5"/></button></div>
+        <div className="p-6 space-y-4">
+          {cart.length===0 ? <div className="text-center py-8"><ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-3"/><p className="text-gray-500">Your cart is empty</p></div> : <>
+            <div className="space-y-2 max-h-64 overflow-y-auto">{cart.map(item => { const bn = item.billNumber||item.invoice_number||item.tracking_number; return <div key={item._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100"><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-gray-900 truncate">#{bn}</p><p className="text-xs text-gray-500">{formatCurrency(item.due_payment||item.amount_due||0, item.currency||"USD")}</p></div><button onClick={()=>removeFromCart(item._id)} className="p-1.5 text-red-500 hover:bg-red-100 rounded"><X className="h-4 w-4"/></button></div>; })}</div>
+            <div className="flex justify-between items-center pt-3 border-t border-gray-200"><span className="font-semibold text-gray-900">Total:</span><span className="font-bold text-lg">{formatCurrency(total,"USD")}</span></div>
+            <Link href="/customer/checkout" onClick={()=>{try{localStorage.setItem("customer_cart",JSON.stringify(cart));}catch{}}} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-lg font-semibold hover:shadow-lg"><CreditCard className="h-5 w-5"/>Proceed to Checkout</Link>
+          </>}
+          <button onClick={onClose} className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm">Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-          {/* Close Button */}
-          <button
-            onClick={onClose}
-            className="w-full px-4 py-2 bg-[#0f4d8a] text-white rounded-lg hover:bg-[#1e6bb8] font-medium"
-          >
-            Close
-          </button>
+/* ═══ Filter Modal ═══ */
+function FilterModal({ onClose, statusFilter, setStatusFilter }: { onClose: () => void; statusFilter: string; setStatusFilter: (f: string) => void }) {
+  const [temp, setTemp] = useState(statusFilter);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm" onClick={e=>e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200"><h2 className="text-lg font-bold text-gray-900"><Filter className="inline h-5 w-5 mr-2"/>Filter Bills</h2><button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-500"><X className="h-5 w-5"/></button></div>
+        <div className="p-6 space-y-6">
+          <div><h3 className="font-semibold text-gray-900 mb-3">Filter by Status</h3><div className="space-y-2.5">{[{v:"",l:"All Bills"},{v:"submitted",l:"Pending"},{v:"paid",l:"Paid"},{v:"overdue",l:"Overdue"}].map(o=><label key={o.v} className="flex items-center gap-3 cursor-pointer"><input type="radio" name="sf" value={o.v} checked={temp===o.v} onChange={()=>setTemp(o.v)} className="w-4 h-4 accent-[#0f4d8a]"/><span className="text-sm text-gray-700">{o.l}</span></label>)}</div></div>
+          <div className="flex gap-3"><button onClick={()=>{setStatusFilter(temp);onClose();}} className="flex-1 px-4 py-2.5 bg-[#0f4d8a] text-white rounded-lg hover:bg-[#1e6bb8] font-medium text-sm">Apply</button><button onClick={()=>{setTemp("");setStatusFilter("");}} className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm">Reset</button></div>
         </div>
       </div>
     </div>

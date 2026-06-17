@@ -31,8 +31,9 @@ export async function GET(req: Request) {
     }
 
     // Fetch package-based bills first
+    // Fetch package-based bills with full detail fields
     const pkgs = await Package.find({ userId, status: { $ne: "Deleted" } })
-      .select("trackingNumber invoiceDocuments invoiceRecords updatedAt createdAt description totalAmount shippingCost itemDescription")
+      .select("trackingNumber invoiceDocuments invoiceRecords updatedAt createdAt description totalAmount shippingCost itemDescription Branch branch ManifestCode manifestId Shipper shipper Weight weight Description HSCode hsCode UserCode userCode Pieces pieces Length length Width width Height height EntryDate entryDate ServiceTypeID serviceMode itemValueUsd usdValue freight processingFee storageFee dutyPercent gctPercent warehouseLocation rateGroup commercialInvoice houseAwb trackingNum collection customerName customerEmail customerPhone")
       .sort({ updatedAt: -1 })
       .limit(500)
       .lean();
@@ -72,7 +73,42 @@ export async function GET(req: Request) {
       due_payment?: number;
       paid_payment?: number;
       balance?: number;
+      packageDetails?: {
+        branch?: string;
+        manifest?: string;
+        merchant?: string;
+        weight?: number;
+        description?: string;
+        hsCode?: string;
+        userCode?: string;
+        pieces?: number;
+        dimensions?: { length: number; width: number; height: number };
+        entryDate?: Date | string;
+        serviceMode?: string;
+        itemValue?: number;
+        freight?: number;
+        processingFee?: number;
+        storageFee?: number;
+        dutyPercent?: number;
+        gctPercent?: number;
+        warehouseLocation?: string;
+        rateGroup?: string;
+        commercialInvoice?: string;
+        houseAwb?: string;
+        trackingNum?: string;
+        collection?: string;
+        customerName?: string;
+        customerEmail?: string;
+        customerPhone?: string;
+      };
     };
+
+    // Create a package lookup map by tracking number for enriching invoice bills
+    const pkgByTracking = new Map<string, any>();
+    (pkgs as any[]).forEach((pkg: any) => {
+      const tn = pkg.trackingNumber || pkg.TrackingNumber || '';
+      if (tn) pkgByTracking.set(tn, pkg);
+    });
 
     // Create bills from admin invoices
     const invoiceBills: Bill[] = invoices.map((inv: {
@@ -118,6 +154,37 @@ export async function GET(req: Request) {
       
       // Ensure tracking_number is always a string - check multiple sources
       const trackingNumber = inv.package?.trackingNumber || (inv as any).tracking_number || inv.invoiceNumber || 'UNKNOWN';
+      
+      // Look up matching package for detail fields
+      const matchedPkg = pkgByTracking.get(trackingNumber);
+      const pkgDetails = matchedPkg ? {
+        branch: matchedPkg.Branch || matchedPkg.branch || 'Main Branch',
+        manifest: matchedPkg.ManifestCode || matchedPkg.manifestId || '',
+        merchant: matchedPkg.Shipper || matchedPkg.shipper || matchedPkg.description || 'UNKNOWN',
+        weight: matchedPkg.Weight || matchedPkg.weight || 0,
+        description: matchedPkg.Description || matchedPkg.description || matchedPkg.itemDescription || 'Merchandise',
+        hsCode: matchedPkg.HSCode || matchedPkg.hsCode || '',
+        userCode: matchedPkg.UserCode || matchedPkg.userCode || '',
+        pieces: matchedPkg.Pieces || matchedPkg.pieces || 1,
+        dimensions: { length: matchedPkg.Length || matchedPkg.length || 0, width: matchedPkg.Width || matchedPkg.width || 0, height: matchedPkg.Height || matchedPkg.height || 0 },
+        entryDate: matchedPkg.EntryDate || matchedPkg.entryDate || matchedPkg.createdAt || '',
+        serviceMode: matchedPkg.ServiceTypeID || matchedPkg.serviceMode || 'air',
+        itemValue: matchedPkg.itemValueUsd || matchedPkg.usdValue || 0,
+        freight: matchedPkg.freight || matchedPkg.shippingCost || matchedPkg.totalAmount || 0,
+        processingFee: matchedPkg.processingFee || 0,
+        storageFee: matchedPkg.storageFee || 0,
+        dutyPercent: matchedPkg.dutyPercent || 20,
+        gctPercent: matchedPkg.gctPercent || 15,
+        warehouseLocation: matchedPkg.warehouseLocation || matchedPkg.Branch || matchedPkg.branch || 'Main Branch',
+        rateGroup: matchedPkg.rateGroup || 'Standard Rate',
+        commercialInvoice: matchedPkg.commercialInvoice || 'NO',
+        houseAwb: matchedPkg.houseAwb || matchedPkg.trackingNumber || matchedPkg.TrackingNumber || '',
+        trackingNum: matchedPkg.trackingNum || matchedPkg.trackingNumber || matchedPkg.TrackingNumber || '',
+        collection: matchedPkg.collection || matchedPkg.CollectionCode || '',
+        customerName: matchedPkg.customerName || '',
+        customerEmail: matchedPkg.customerEmail || '',
+        customerPhone: matchedPkg.customerPhone || '',
+      } : undefined;
             
       return {
         tracking_number: trackingNumber,
@@ -128,6 +195,7 @@ export async function GET(req: Request) {
         amount_due: balanceDue, // Use calculated balanceDue to match admin view
         payment_status: paymentStatus,
         last_updated: inv.updatedAt ? new Date(inv.updatedAt).toISOString() : (inv.createdAt ? new Date(inv.createdAt).toISOString() : undefined),
+        packageDetails: pkgDetails,
       };
     });
 
@@ -190,6 +258,27 @@ export async function GET(req: Request) {
         totalAmount?: number;
         shippingCost?: number;
         itemDescription?: string;
+        // Additional detail fields
+        Branch?: string; branch?: string;
+        ManifestCode?: string; manifestId?: string;
+        Shipper?: string; shipper?: string;
+        Weight?: number; weight?: number;
+        Description?: string; description?: string;
+        HSCode?: string; hsCode?: string;
+        UserCode?: string; userCode?: string;
+        Pieces?: number; pieces?: number;
+        Length?: number; length?: number;
+        Width?: number; width?: number;
+        Height?: number; height?: number;
+        EntryDate?: Date | string; entryDate?: Date | string;
+        ServiceTypeID?: string; serviceMode?: string;
+        itemValueUsd?: number; usdValue?: number;
+        freight?: number; processingFee?: number; storageFee?: number;
+        dutyPercent?: number; gctPercent?: number;
+        warehouseLocation?: string; rateGroup?: string;
+        commercialInvoice?: string; houseAwb?: string;
+        trackingNum?: string; collection?: string;
+        customerName?: string; customerEmail?: string; customerPhone?: string;
       };
       const recs = Array.isArray(pkg.invoiceRecords) ? pkg.invoiceRecords : [];
       
@@ -237,6 +326,35 @@ export async function GET(req: Request) {
           payment_status,
           currency: "USD", // Use USD as default, not JMD
           last_updated: (pkg.updatedAt || pkg.createdAt) ? new Date(pkg.updatedAt || pkg.createdAt).toISOString() : undefined,
+          // Package detail fields
+          packageDetails: {
+            branch: pkg.Branch || pkg.branch || 'Main Branch',
+            manifest: pkg.ManifestCode || pkg.manifestId || '',
+            merchant: pkg.Shipper || pkg.shipper || pkg.description || 'UNKNOWN',
+            weight: pkg.Weight || pkg.weight || 0,
+            description: pkg.Description || pkg.description || pkg.itemDescription || 'Merchandise',
+            hsCode: pkg.HSCode || pkg.hsCode || '',
+            userCode: pkg.UserCode || pkg.userCode || '',
+            pieces: pkg.Pieces || pkg.pieces || 1,
+            dimensions: { length: pkg.Length || pkg.length || 0, width: pkg.Width || pkg.width || 0, height: pkg.Height || pkg.height || 0 },
+            entryDate: pkg.EntryDate || pkg.entryDate || pkg.createdAt || '',
+            serviceMode: pkg.ServiceTypeID || pkg.serviceMode || 'air',
+            itemValue: pkg.itemValueUsd || pkg.usdValue || 0,
+            freight: pkg.freight || pkg.shippingCost || pkg.totalAmount || packageAmount,
+            processingFee: pkg.processingFee || 0,
+            storageFee: pkg.storageFee || 0,
+            dutyPercent: pkg.dutyPercent || 20,
+            gctPercent: pkg.gctPercent || 15,
+            warehouseLocation: pkg.warehouseLocation || pkg.Branch || pkg.branch || 'Main Branch',
+            rateGroup: pkg.rateGroup || 'Standard Rate',
+            commercialInvoice: pkg.commercialInvoice || 'NO',
+            houseAwb: pkg.houseAwb || pkg.trackingNumber || pkg.TrackingNumber || '',
+            trackingNum: pkg.trackingNum || pkg.trackingNumber || pkg.TrackingNumber || '',
+            collection: pkg.collection || pkg.CollectionCode || '',
+            customerName: pkg.customerName || '',
+            customerEmail: pkg.customerEmail || '',
+            customerPhone: pkg.customerPhone || '',
+          },
         },
       ];
       }
@@ -278,6 +396,35 @@ export async function GET(req: Request) {
           amount_due: amountDue,
           payment_status: paymentStatus,
           last_updated: (pkg.updatedAt || pkg.createdAt) ? new Date(pkg.updatedAt || pkg.createdAt).toISOString() : undefined,
+          // Package detail fields
+          packageDetails: {
+            branch: pkg.Branch || pkg.branch || 'Main Branch',
+            manifest: pkg.ManifestCode || pkg.manifestId || '',
+            merchant: pkg.Shipper || pkg.shipper || pkg.description || 'UNKNOWN',
+            weight: pkg.Weight || pkg.weight || 0,
+            description: pkg.Description || pkg.description || pkg.itemDescription || 'Merchandise',
+            hsCode: pkg.HSCode || pkg.hsCode || '',
+            userCode: pkg.UserCode || pkg.userCode || '',
+            pieces: pkg.Pieces || pkg.pieces || 1,
+            dimensions: { length: pkg.Length || pkg.length || 0, width: pkg.Width || pkg.width || 0, height: pkg.Height || pkg.height || 0 },
+            entryDate: pkg.EntryDate || pkg.entryDate || pkg.createdAt || '',
+            serviceMode: pkg.ServiceTypeID || pkg.serviceMode || 'air',
+            itemValue: pkg.itemValueUsd || pkg.usdValue || 0,
+            freight: pkg.freight || pkg.shippingCost || pkg.totalAmount || totalAmount,
+            processingFee: pkg.processingFee || 0,
+            storageFee: pkg.storageFee || 0,
+            dutyPercent: pkg.dutyPercent || 20,
+            gctPercent: pkg.gctPercent || 15,
+            warehouseLocation: pkg.warehouseLocation || pkg.Branch || pkg.branch || 'Main Branch',
+            rateGroup: pkg.rateGroup || 'Standard Rate',
+            commercialInvoice: pkg.commercialInvoice || 'NO',
+            houseAwb: pkg.houseAwb || pkg.trackingNumber || pkg.TrackingNumber || '',
+            trackingNum: pkg.trackingNum || pkg.trackingNumber || pkg.TrackingNumber || '',
+            collection: pkg.collection || pkg.CollectionCode || '',
+            customerName: pkg.customerName || '',
+            customerEmail: pkg.customerEmail || '',
+            customerPhone: pkg.customerPhone || '',
+          },
         },
       ];
     });
