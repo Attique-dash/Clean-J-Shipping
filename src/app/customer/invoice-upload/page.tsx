@@ -3,707 +3,345 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
-import { 
-  Upload, 
-  FileText, 
-  X, 
-  Loader2,
-  CheckCircle,
-  AlertCircle,
-  RefreshCw,
-  File,
-  Package,
-  DollarSign,
-  Plane,
-  Ship,
-  Truck,
-  Check,
-  Eye,
-  Download,
+import {
+  Upload, FileText, X, Loader2, CheckCircle, AlertCircle, RefreshCw,
+  Package, DollarSign, Plane, Ship, Truck, Check, Eye, Download, Search,
+  ChevronLeft, ChevronRight, Clock, Tag,
 } from "lucide-react";
 import Loading from "@/components/Loading";
 
-interface InvoiceFile {
-  url: string;
-  publicId: string;
-  filename: string;
-  size: number;
-  uploadedAt: string;
-}
-
+interface InvoiceFile { url: string; publicId: string; filename: string; size: number; uploadedAt: string; }
 interface PackageData {
-  id: string;
-  trackingNumber: string;
-  tracking_number: string;
-  shipper: string;
-  weight: number;
-  serviceMode: 'air' | 'ocean' | 'local';
-  dateReceived?: Date;
-  received_date?: string;
-  invoiceStatus: 'pending' | 'submitted' | 'approved' | 'rejected' | 'billed';
-  invoiceUploaded: boolean;
-  pricePaid: number;
-  pricePaidCurrency: string;
-  invoiceFiles: InvoiceFile[] | string[];
-  invoiceSubmittedAt?: string;
-  hasInvoice: boolean;
-  description?: string;
-  warehouseLocation?: string;
+  id: string; trackingNumber: string; tracking_number: string; shipper: string;
+  weight: number; serviceMode: 'air' | 'ocean' | 'local'; dateReceived?: string;
+  received_date?: string; invoiceStatus: 'pending' | 'submitted' | 'approved' | 'rejected' | 'billed';
+  invoiceUploaded: boolean; pricePaid: number; pricePaidCurrency: string;
+  invoiceFiles: InvoiceFile[] | string[]; invoiceSubmittedAt?: string; hasInvoice: boolean;
+  description?: string; warehouseLocation?: string; merchant?: string;
 }
 
-interface InvoiceFormData {
-  price_paid: number;
-  currency: string;
-  files: File[];
+const PAGE_SIZE = 9;
+
+function statusLabel(s: string) {
+  const m: Record<string,string> = { submitted: "Submitted", approved: "Approved", rejected: "Rejected", billed: "Billed", pending: "Pending" };
+  return m[s] || s;
+}
+function statusClasses(s: string) {
+  switch(s) {
+    case 'submitted': return "bg-blue-100 text-blue-800";
+    case 'approved': return "bg-green-100 text-green-800";
+    case 'rejected': return "bg-red-100 text-red-800";
+    case 'billed': return "bg-purple-100 text-purple-800";
+    default: return "bg-yellow-100 text-yellow-800";
+  }
+}
+function statusIcon(s: string) {
+  switch(s) {
+    case 'submitted': return <CheckCircle className="w-3.5 h-3.5 mr-1" />;
+    case 'approved': return <Check className="w-3.5 h-3.5 mr-1" />;
+    case 'rejected': return <X className="w-3.5 h-3.5 mr-1" />;
+    case 'billed': return <DollarSign className="w-3.5 h-3.5 mr-1" />;
+    default: return <AlertCircle className="w-3.5 h-3.5 mr-1" />;
+  }
+}
+function serviceIcon(mode?: string) {
+  switch ((mode||"").toLowerCase()) {
+    case 'air': return <Plane className="h-5 w-5" />;
+    case 'ocean': case 'sea': return <Ship className="h-5 w-5" />;
+    case 'local': return <Truck className="h-5 w-5" />;
+    default: return <Package className="h-5 w-5" />;
+  }
+}
+function fmtDate(d?: string) { return d ? new Date(d).toLocaleDateString("en-GB",{day:"2-digit",month:"2-digit",year:"numeric"}) : "N/A"; }
+function relDate(d: string) { const diff=Date.now()-new Date(d).getTime(); const days=Math.floor(diff/86400000); if(days===0) return "today"; if(days<7) return `${days}d ago`; const w=Math.floor(days/7); if(w<5) return `${w}w ago`; const m=Math.floor(days/30); return m<2?"a month ago":`${m}mo ago`; }
+function getTrack(p: PackageData) { return p.trackingNumber || p.tracking_number || p.id || "UNKNOWN"; }
+function canSubmit(p: PackageData) { return p.invoiceStatus !== 'submitted' && p.invoiceStatus !== 'billed' && p.invoiceStatus !== 'approved'; }
+function fileIcon(fn: string) { return fn.endsWith('.pdf') ? <FileText className="h-4 w-4 text-red-500"/> : <FileText className="h-4 w-4 text-blue-500"/>; }
+
+/* ═══ Upload Modal ═══ */
+function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () => void; onDone: () => void }) {
+  const tn = getTrack(pkg);
+  const [price, setPrice] = useState(pkg.pricePaid?.toString() || "0");
+  const [currency, setCurrency] = useState(pkg.pricePaidCurrency || "USD");
+  const [files, setFiles] = useState<File[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const valid = Array.from(e.target.files).filter(f => {
+      if (!['application/pdf','image/jpeg','image/jpg','image/png'].includes(f.type)) { toast.error(`Invalid type: ${f.name}`); return false; }
+      if (f.size > 10*1024*1024) { toast.error(`Too large: ${f.name}`); return false; }
+      return true;
+    });
+    setFiles(prev => [...prev, ...valid].slice(0, 3));
+  };
+
+  const handleSubmit = async () => {
+    const p = parseFloat(price);
+    if (!p || p <= 0) { toast.error("Enter a valid price"); return; }
+    if (files.length === 0) { toast.error("Upload at least one file"); return; }
+    setSubmitting(true);
+    try {
+      const fd = new FormData();
+      files.forEach(f => fd.append("files_0", f));
+      fd.append("upload_0", JSON.stringify({ tracking_number: tn, price_paid: p, currency }));
+      const res = await fetch("/api/customer/invoice-upload", { method: "POST", body: fd, credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || data?.message || "Failed");
+      toast.success("Invoice submitted!");
+      onDone();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e=>e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2"><Upload className="h-5 w-5 text-[#0f4d8a]"/>Upload Invoice</h2>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-500"><X className="h-5 w-5"/></button>
+        </div>
+        <div className="p-6 space-y-5">
+          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <p className="text-sm text-gray-500">Tracking Number</p>
+            <p className="font-bold text-gray-900 font-mono">{tn}</p>
+            <p className="text-sm text-gray-500 mt-1">{pkg.shipper || pkg.merchant || "—"}</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Price Paid <span className="text-red-500">*</span></label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"/>
+                <input type="number" step="0.01" min="0" placeholder="0.00" value={price} onChange={e=>setPrice(e.target.value)} className="w-full pl-9 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0f4d8a] focus:border-transparent text-sm"/>
+              </div>
+              <select value={currency} onChange={e=>setCurrency(e.target.value)} className="px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0f4d8a] text-sm bg-white">
+                <option>USD</option><option>EUR</option><option>GBP</option><option>JMD</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Invoice Files <span className="text-red-500">*</span></label>
+            {files.length > 0 && (
+              <div className="space-y-2 mb-3">{files.map((f,i)=>(
+                <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
+                  <div className="flex items-center gap-2">{fileIcon(f.name)}<span className="text-sm text-gray-700 truncate max-w-[200px]">{f.name}</span></div>
+                  <button onClick={()=>setFiles(files.filter((_,j)=>j!==i))} className="text-red-500 hover:text-red-700"><X className="h-4 w-4"/></button>
+                </div>
+              ))}</div>
+            )}
+            {files.length < 3 && (
+              <label className="flex items-center justify-center gap-2 px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-[#0f4d8a] hover:bg-blue-50 transition-colors">
+                <Upload className="h-5 w-5 text-gray-400"/><span className="text-sm text-gray-600">{files.length===0?"Upload Files":"Add More"}</span>
+                <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange} className="hidden"/>
+              </label>
+            )}
+            <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG — max 10MB each, up to 3 files</p>
+          </div>
+          {pkg.invoiceFiles && pkg.invoiceFiles.length > 0 && (
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Previously Uploaded</p>
+              <div className="space-y-1">{pkg.invoiceFiles.slice(0,3).map((f,i)=>{
+                const isObj = typeof f === 'object' && (f as any).url;
+                const fn = isObj ? (f as any).filename : String(f).split('/').pop()||'file';
+                const url = isObj ? (f as any).url : String(f);
+                return <div key={i} className="flex items-center gap-2 text-sm bg-gray-50 rounded px-3 py-2">
+                  {fileIcon(fn)}<span className="truncate max-w-[150px] text-gray-700 flex-1">{fn}</span>
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="p-1 text-blue-600 hover:bg-blue-100 rounded"><Eye className="h-4 w-4"/></a>
+                  <a href={url} download={fn} className="p-1 text-green-600 hover:bg-green-100 rounded"><Download className="h-4 w-4"/></a>
+                </div>;
+              })}</div>
+            </div>
+          )}
+          <div className="flex gap-3 pt-2">
+            <button onClick={handleSubmit} disabled={submitting} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-lg font-semibold hover:shadow-lg disabled:opacity-50 text-sm">
+              {submitting ? <><Loader2 className="h-4 w-4 animate-spin"/>Submitting...</> : <><Upload className="h-4 w-4"/>Submit Invoice</>}
+            </button>
+            <button onClick={onClose} className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
+/* ═══ Main Page ═══ */
 export default function CustomerInvoiceUploadPage() {
   const { data: session } = useSession();
   const [packages, setPackages] = useState<PackageData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [selectedPackages, setSelectedPackages] = useState<Set<string>>(new Set());
-  const [formData, setFormData] = useState<Record<string, InvoiceFormData>>({});
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [uploadPkg, setUploadPkg] = useState<PackageData | null>(null);
 
-  // Load packages on mount
-  useEffect(() => {
-    if (session?.user) {
-      loadPackages();
-    } else if (session === null) {
-      setLoading(false);
-    }
-  }, [session]);
-
-  async function loadPackages() {
+  async function load() {
     try {
       setLoading(true);
-      const res = await fetch("/api/customer/invoice-upload", {
-        credentials: "include",
-        cache: "no-store",
-      });
-      
+      const res = await fetch("/api/customer/invoice-upload", { credentials: "include", cache: "no-store" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to load packages");
-      
-      setPackages(data.packages || []);
-      
-      // Initialize form data for each package
-      const initialFormData: Record<string, InvoiceFormData> = {};
-      data.packages?.forEach((pkg: PackageData) => {
-        initialFormData[pkg.trackingNumber] = {
-          price_paid: 0,
-          currency: 'USD',
-          files: []
-        };
-      });
-      setFormData(initialFormData);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load packages");
-    } finally {
-      setLoading(false);
-    }
+      if (!res.ok) throw new Error(data?.error || "Failed to load");
+      const list = (data.packages || []).map((p: any) => ({ ...p, trackingNumber: p.trackingNumber || p.tracking_number || p.id || "", tracking_number: p.tracking_number || p.trackingNumber || p.id || "", merchant: p.shipper || p.merchant || "UNKNOWN" }));
+      setPackages(list);
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
+    finally { setLoading(false); }
   }
 
-  const handleSelectPackage = (trackingNumber: string) => {
-    const newSelected = new Set(selectedPackages);
-    if (newSelected.has(trackingNumber)) {
-      newSelected.delete(trackingNumber);
-    } else {
-      newSelected.add(trackingNumber);
-    }
-    setSelectedPackages(newSelected);
-  };
+  useEffect(() => { if (session?.user) load(); else if (session === null) setLoading(false); }, [session]);
+  useEffect(() => { setPage(1); }, [query, statusFilter]);
 
-  const handleSelectAll = () => {
-    const availablePackages = packages.filter(p => canSubmit(p));
-    if (selectedPackages.size === availablePackages.length) {
-      setSelectedPackages(new Set());
-    } else {
-      setSelectedPackages(new Set(availablePackages.map(p => p.trackingNumber)));
-    }
-  };
+  const filtered = packages.filter(p => {
+    const tn = getTrack(p);
+    const q = query.trim().toLowerCase();
+    const matchQ = !q || tn.toLowerCase().includes(q) || (p.shipper||"").toLowerCase().includes(q) || (p.description||"").toLowerCase().includes(q);
+    const matchS = !statusFilter || p.invoiceStatus === statusFilter;
+    return matchQ && matchS;
+  });
 
-  const handlePriceChange = (trackingNumber: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [trackingNumber]: {
-        ...prev[trackingNumber],
-        price_paid: parseFloat(value) || 0
-      }
-    }));
-  };
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const curPage = Math.min(page, totalPages);
+  const paginated = filtered.slice((curPage-1)*PAGE_SIZE, curPage*PAGE_SIZE);
+  const needUpload = packages.filter(p => canSubmit(p)).length;
 
-  const handleCurrencyChange = (trackingNumber: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [trackingNumber]: {
-        ...prev[trackingNumber],
-        currency: value
-      }
-    }));
-  };
-
-  const handleFileChange = (trackingNumber: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const files = Array.from(e.target.files);
-      
-      // Validate files
-      const validFiles = files.filter(file => {
-        const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
-        if (!validTypes.includes(file.type)) {
-          toast.error(`Invalid file type: ${file.name}. Only PDF, JPG, and PNG files are allowed.`);
-          return false;
-        }
-        if (file.size > 10 * 1024 * 1024) {
-          toast.error(`File too large: ${file.name}. Maximum size is 10MB.`);
-          return false;
-        }
-        return true;
-      });
-
-      // Limit to 3 files per package
-      const currentFiles = formData[trackingNumber]?.files || [];
-      const newFiles = [...currentFiles, ...validFiles].slice(0, 3);
-      
-      setFormData(prev => ({
-        ...prev,
-        [trackingNumber]: {
-          ...prev[trackingNumber],
-          files: newFiles
-        }
-      }));
-    }
-  };
-
-  const removeFile = (trackingNumber: string, index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      [trackingNumber]: {
-        ...prev[trackingNumber],
-        files: prev[trackingNumber].files.filter((_, i) => i !== index)
-      }
-    }));
-  };
-
-  const handleSubmit = async () => {
-    if (selectedPackages.size === 0) {
-      toast.error("Please select at least one package");
-      return;
-    }
-
-    // Validate selected packages
-    const uploads: any[] = [];
-    let hasError = false;
-
-    for (const trackingNumber of selectedPackages) {
-      const pkg = packages.find(p => p.trackingNumber === trackingNumber);
-      const data = formData[trackingNumber];
-
-      if (!pkg) continue;
-
-      // Skip already submitted packages
-      if (pkg.invoiceStatus === 'submitted' || pkg.invoiceStatus === 'billed') {
-        continue;
-      }
-
-      // Check required fields
-      if (!data.price_paid || data.price_paid <= 0) {
-        toast.error(`Please enter a valid price paid for package ${trackingNumber}`);
-        hasError = true;
-        break;
-      }
-
-      if (data.files.length === 0) {
-        toast.error(`Please upload at least one invoice file for package ${trackingNumber}`);
-        hasError = true;
-        break;
-      }
-
-      uploads.push({
-        tracking_number: trackingNumber,
-        price_paid: data.price_paid,
-        currency: data.currency,
-        files: data.files
-      });
-    }
-
-    if (hasError) return;
-
-    if (uploads.length === 0) {
-      toast.error("No valid packages to submit");
-      return;
-    }
-
-    setSubmitting(true);
-
-    try {
-      const formDataToSend = new FormData();
-      
-      uploads.forEach((upload, index) => {
-        // Add files
-        upload.files.forEach((file: File) => {
-          formDataToSend.append(`files_${index}`, file);
-        });
-        
-        // Add metadata (without files)
-        const { files, ...metadata } = upload;
-        formDataToSend.append(`upload_${index}`, JSON.stringify(metadata));
-      });
-
-      const res = await fetch("/api/customer/invoice-upload", {
-        method: "POST",
-        body: formDataToSend,
-        credentials: "include",
-      });
-
-      const result = await res.json();
-      
-      if (!res.ok) {
-        // Show detailed errors from results array
-        if (result.results && result.results.length > 0) {
-          const failedResults = result.results.filter((r: any) => !r.success);
-          failedResults.forEach((r: any) => {
-            toast.error(`${r.tracking_number}: ${r.error || 'Unknown error'}`);
-          });
-        } else {
-          toast.error(result?.error || result?.message || "Failed to submit invoices");
-        }
-        return;
-      }
-
-      if (result.success) {
-        toast.success(result.message);
-        
-        // Reload packages to update status
-        await loadPackages();
-        
-        // Clear selection
-        setSelectedPackages(new Set());
-      } else {
-        throw new Error(result.message || "Failed to submit invoices");
-      }
-
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to submit invoices");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  const getServiceModeIcon = (mode?: string) => {
-    switch (mode?.toLowerCase()) {
-      case 'air':
-        return <Plane className="h-4 w-4" />;
-      case 'ocean':
-        return <Ship className="h-4 w-4" />;
-      case 'local':
-        return <Truck className="h-4 w-4" />;
-      default:
-        return <Package className="h-4 w-4" />;
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'submitted':
-        return (
-          <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-            <CheckCircle className="w-3 h-3 mr-1" />
-            Submitted
-          </span>
-        );
-      case 'approved':
-        return (
-          <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-            <Check className="w-3 h-3 mr-1" />
-            Approved
-          </span>
-        );
-      case 'rejected':
-        return (
-          <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-            <X className="w-3 h-3 mr-1" />
-            Rejected
-          </span>
-        );
-      case 'billed':
-        return (
-          <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
-            <DollarSign className="w-3 h-3 mr-1" />
-            Billed
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-            <AlertCircle className="w-3 h-3 mr-1" />
-            Pending
-          </span>
-        );
-    }
-  };
-
-  const getFileIcon = (filename: string) => {
-    if (filename.endsWith('.pdf')) {
-      return <FileText className="h-4 w-4 text-red-500" />;
-    }
-    return <File className="h-4 w-4 text-blue-500" />;
-  };
-
-  const canSubmit = (pkg: PackageData) => {
-    return pkg.invoiceStatus !== 'submitted' && 
-           pkg.invoiceStatus !== 'billed' && 
-           pkg.invoiceStatus !== 'approved';
-  };
-
-  if (loading && session === undefined) {
-    return <Loading message="Loading packages..." />;
-  }
-
-  if (!session && !loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-8">
-          <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
-            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-red-500 to-orange-600 mx-auto mb-6">
-              <Package className="h-8 w-8 text-white" />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Authentication Required</h2>
-            <p className="text-gray-600 mb-6">Please log in to upload invoices</p>
-            <a
-              href="/login"
-              className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-xl hover:shadow-lg transition-all font-medium"
-            >
-              Sign In to Your Account
-            </a>
-          </div>
-        </div>
+  if (loading && session === undefined) return <Loading message="Loading packages..." />;
+  if (!session && !loading) return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+      <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-200 text-center max-w-md">
+        <Package className="h-16 w-16 text-gray-300 mx-auto mb-4"/>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Authentication Required</h2>
+        <p className="text-gray-600 mb-6">Please log in to upload invoices</p>
+        <a href="/login" className="inline-flex items-center px-6 py-3 bg-[#0f4d8a] text-white rounded-xl hover:shadow-lg font-medium">Sign In</a>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Background Pattern */}
-        <div className="fixed inset-0 z-0 opacity-30 pointer-events-none">
-          <div className="absolute inset-0" style={{
-            backgroundImage: 'radial-gradient(circle at 1px 1px, rgb(99 102 241 / 0.15) 1px, transparent 0)',
-            backgroundSize: '40px 40px'
-          }}></div>
-        </div>
-
-        <div className="relative z-10 space-y-6">
-          {/* Header */}
-          <header className="relative overflow-hidden rounded-3xl border border-white/50 bg-gradient-to-r from-[#0f4d8a] via-[#0e447d] to-[#0d3d70] p-6 text-white shadow-2xl">
-            <div className="absolute inset-0 bg-white/10" />
-            <div className="relative flex flex-col gap-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
-                    <FileText className="h-7 w-7" />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl font-bold leading-tight md:text-3xl">Invoice Upload</h1>
-                    <p className="text-blue-100 mt-1 flex items-center gap-2">
-                      <Package className="h-4 w-4" />
-                      {packages.filter(p => canSubmit(p)).length} packages requiring invoice upload
-                      <span className="ml-2 rounded-full bg-green-100/20 backdrop-blur-sm px-2 py-0.5 text-xs font-medium text-green-100">Ready</span>
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => loadPackages()}
-                  disabled={loading}
-                  className="flex items-center space-x-2 px-6 py-3 bg-white/15 backdrop-blur-sm border border-white/20 text-white rounded-lg hover:bg-white/25 transition-all duration-200 font-medium"
-                >
-                  <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
-                  <span>Refresh</span>
-                </button>
-              </div>
-            </div>
-          </header>
-
-          {/* Instructions */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <h3 className="font-semibold text-blue-900 mb-2">How to Upload Invoices:</h3>
-            <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-              <li>Select the packages you want to upload invoices for</li>
-              <li>Enter the price you paid for each package (item value)</li>
-              <li>Upload invoice files (PDF, JPG, or PNG, max 10MB each, up to 3 files per package)</li>
-              <li>Click &quot;Submit All Invoices&quot; to complete</li>
-            </ol>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              {filtered.length} Package Invoice{filtered.length !== 1 ? "s" : ""}
+            </h1>
+            <p className="text-gray-500 mt-1">{needUpload} package{needUpload !== 1 ? "s" : ""} requiring invoice upload</p>
           </div>
-
-          {packages.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-12">
-              <div className="flex flex-col items-center justify-center space-y-4">
-                <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gray-100">
-                  <Package className="h-10 w-10 text-gray-400" />
-                </div>
-                <div className="text-center">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No packages available</h3>
-                  <p className="text-sm text-gray-600">You don&apos;t have any packages that require invoice upload at the moment.</p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Select All */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center justify-between">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedPackages.size === packages.filter(p => canSubmit(p)).length && packages.filter(p => canSubmit(p)).length > 0}
-                    onChange={handleSelectAll}
-                    className="h-5 w-5 rounded border-gray-300 text-[#0f4d8a] focus:ring-[#0f4d8a]"
-                  />
-                  <span className="font-medium text-gray-700">
-                    Select All ({packages.filter(p => canSubmit(p)).length} available)
-                  </span>
-                </label>
-                
-                <div className="text-sm text-gray-500">
-                  {selectedPackages.size} selected
-                </div>
-              </div>
-
-              {/* Packages List */}
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left w-12"></th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Package</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Details</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Price Paid</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Invoice Files</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {packages.map((pkg) => {
-                        const isSelected = selectedPackages.has(pkg.trackingNumber);
-                        const canEdit = canSubmit(pkg);
-                        const data = formData[pkg.trackingNumber] || { price_paid: 0, currency: 'USD', files: [] };
-                        
-                        return (
-                          <tr 
-                            key={pkg.trackingNumber} 
-                            className={`hover:bg-gray-50 ${!canEdit ? 'bg-gray-50/50' : ''}`}
-                          >
-                            <td className="px-4 py-4">
-                              {canEdit ? (
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => handleSelectPackage(pkg.trackingNumber)}
-                                  className="h-5 w-5 rounded border-gray-300 text-[#0f4d8a] focus:ring-[#0f4d8a]"
-                                />
-                              ) : (
-                                <CheckCircle className="h-5 w-5 text-green-500" />
-                              )}
-                            </td>
-                            <td className="px-4 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#0f4d8a] to-[#1e6bb8] text-white">
-                                  {getServiceModeIcon(pkg.serviceMode)}
-                                </div>
-                                <div>
-                                  <div className="font-semibold text-gray-900">{pkg.trackingNumber}</div>
-                                  <div className="text-sm text-gray-500">{pkg.shipper}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-4">
-                              <div className="text-sm text-gray-900">
-                                <span className="font-medium">{pkg.weight} kg</span>
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                Received: {formatDate(pkg.received_date)}
-                              </div>
-                              {pkg.warehouseLocation && (
-                                <div className="text-sm text-gray-500">
-                                  Location: {pkg.warehouseLocation}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-4 py-4">
-                              {getStatusBadge(pkg.invoiceStatus)}
-                              {pkg.invoiceSubmittedAt && (
-                                <div className="text-xs text-gray-500 mt-1">
-                                  Submitted: {formatDate(pkg.invoiceSubmittedAt)}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-4 py-4">
-                              {canEdit ? (
-                                <div className="flex gap-2">
-                                  <div className="relative flex-1">
-                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                    <input
-                                      type="number"
-                                      step="0.01"
-                                      min="0"
-                                      placeholder="0.00"
-                                      value={data.price_paid || ''}
-                                      onChange={(e) => handlePriceChange(pkg.trackingNumber, e.target.value)}
-                                      disabled={!isSelected}
-                                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0f4d8a] focus:border-transparent text-sm disabled:bg-gray-100"
-                                    />
-                                  </div>
-                                  <select
-                                    value={data.currency}
-                                    onChange={(e) => handleCurrencyChange(pkg.trackingNumber, e.target.value)}
-                                    disabled={!isSelected}
-                                    className="px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0f4d8a] focus:border-transparent text-sm disabled:bg-gray-100"
-                                  >
-                                    <option value="USD">USD</option>
-                                    <option value="EUR">EUR</option>
-                                    <option value="GBP">GBP</option>
-                                    <option value="JMD">JMD</option>
-                                  </select>
-                                </div>
-                              ) : (
-                                <div className="text-sm">
-                                  <span className="font-semibold text-gray-900">
-                                    {pkg.pricePaidCurrency} {pkg.pricePaid?.toFixed(2)}
-                                  </span>
-                                  {pkg.invoiceFiles.length > 0 && (
-                                    <div className="text-xs text-gray-500 mt-1">
-                                      {pkg.invoiceFiles.length} file(s) uploaded
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-4 py-4">
-                              {canEdit ? (
-                                <div className="space-y-2">
-                                  {isSelected && data.files.length > 0 && (
-                                    <div className="space-y-1">
-                                      {data.files.map((file, index) => (
-                                        <div key={index} className="flex items-center justify-between bg-gray-100 rounded px-2 py-1 text-sm">
-                                          <div className="flex items-center gap-2">
-                                            {getFileIcon(file.name)}
-                                            <span className="truncate max-w-[120px]">{file.name}</span>
-                                          </div>
-                                          <button
-                                            onClick={() => removeFile(pkg.trackingNumber, index)}
-                                            className="text-red-500 hover:text-red-700"
-                                          >
-                                            <X className="h-4 w-4" />
-                                          </button>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                  {isSelected && data.files.length < 3 && (
-                                    <label className={`flex items-center justify-center gap-2 px-3 py-2 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-                                      isSelected ? 'border-gray-300 hover:border-[#0f4d8a] hover:bg-blue-50' : 'border-gray-200 bg-gray-50'
-                                    }`}>
-                                      <Upload className="h-4 w-4 text-gray-400" />
-                                      <span className="text-sm text-gray-600">
-                                        {data.files.length === 0 ? 'Upload Files' : 'Add More'}
-                                      </span>
-                                      <input
-                                        type="file"
-                                        multiple
-                                        accept=".pdf,.jpg,.jpeg,.png"
-                                        onChange={(e) => handleFileChange(pkg.trackingNumber, e)}
-                                        disabled={!isSelected}
-                                        className="hidden"
-                                      />
-                                    </label>
-                                  )}
-                                  {isSelected && data.files.length >= 3 && (
-                                    <span className="text-xs text-gray-500">Max 3 files</span>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="space-y-2">
-                                  {pkg.invoiceFiles.slice(0, 2).map((file, index) => {
-                                    // Handle both old string format and new Cloudinary object format
-                                    const isCloudinaryFile = typeof file === 'object' && (file as any).url;
-                                    const fileUrl = isCloudinaryFile ? (file as any).url : String(file);
-                                    const fileName = isCloudinaryFile ? (file as any).filename : String(file).split('/').pop() || 'file';
-                                    
-                                    return (
-                                      <div key={index} className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg px-3 py-2">
-                                        {getFileIcon(fileName)}
-                                        <span className="truncate max-w-[120px] text-gray-700 flex-1" title={fileName}>
-                                          {fileName}
-                                        </span>
-                                        <a
-                                          href={fileUrl as string}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                                          title="View"
-                                        >
-                                          <Eye className="h-4 w-4" />
-                                        </a>
-                                        <a
-                                          href={fileUrl as string}
-                                          download={fileName}
-                                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
-                                          title="Download"
-                                        >
-                                          <Download className="h-4 w-4" />
-                                        </a>
-                                      </div>
-                                    );
-                                  })}
-                                  {pkg.invoiceFiles.length > 2 && (
-                                    <div className="text-xs text-gray-500 pl-1">
-                                      +{pkg.invoiceFiles.length - 2} more file(s)
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <div className="flex justify-end">
-                <button
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-xl hover:shadow-lg transition-all font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>Submitting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-5 w-5" />
-                      <span>Submit All Invoices ({selectedPackages.size})</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
+          <button onClick={load} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 shadow-sm text-sm font-medium">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}/>Refresh
+          </button>
         </div>
+
+        {/* Search + Filter */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-5">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"/>
+              <input className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm" placeholder="Search tracking number, shipper, or description…" value={query} onChange={e=>setQuery(e.target.value)}/>
+            </div>
+            <select className="px-4 py-3 border border-gray-200 rounded-xl focus:border-[#0f4d8a] focus:outline-none text-sm bg-white" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
+              <option value="">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="submitted">Submitted</option>
+              <option value="approved">Approved</option>
+              <option value="billed">Billed</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Instructions */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <h3 className="font-semibold text-blue-900 mb-2">How to Upload Invoices:</h3>
+          <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+            <li>Click the upload button on any package card below</li>
+            <li>Enter the price you paid for the package (item value)</li>
+            <li>Upload invoice files (PDF, JPG, or PNG, max 10MB each, up to 3 files)</li>
+            <li>Click &quot;Submit Invoice&quot; to complete</li>
+          </ol>
+        </div>
+
+        {/* Package Cards */}
+        {paginated.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-12 text-center">
+            <Package className="h-16 w-16 text-gray-300 mx-auto mb-4"/>
+            <p className="text-gray-500 text-lg">No packages found</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginated.map(pkg => {
+              const tn = getTrack(pkg);
+              const cs = canSubmit(pkg);
+              return (
+                <div key={tn} className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                  <div className="flex items-center justify-between px-5 pt-5 pb-3">
+                    <div className="flex items-center gap-3 text-[#0f4d8a]">
+                      <div className="p-2 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl">{serviceIcon(pkg.serviceMode)}</div>
+                      <span className="font-bold text-base text-gray-900 truncate max-w-[160px]" title={tn}>{tn}</span>
+                    </div>
+                    <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full ${statusClasses(pkg.invoiceStatus)}`}>
+                      {statusIcon(pkg.invoiceStatus)}{statusLabel(pkg.invoiceStatus)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between px-5 pb-3 text-sm text-gray-500">
+                    <span className="font-medium">{fmtDate(pkg.received_date || pkg.dateReceived)}</span>
+                    {(pkg.received_date || pkg.dateReceived) && <span className="text-gray-400 text-xs">({relDate(pkg.received_date || pkg.dateReceived || "")})</span>}
+                  </div>
+
+                  <div className="px-5 pb-3 space-y-1 text-sm text-gray-700">
+                    <div className="flex items-center gap-1"><Tag className="h-4 w-4 text-gray-400"/><span className="font-medium">{pkg.shipper || pkg.merchant || "UNKNOWN"}</span></div>
+                    <div className="flex items-center gap-1 text-gray-500"><Package className="h-3.5 w-3.5"/>{pkg.weight} kg</div>
+                    {pkg.warehouseLocation && <div className="text-xs text-gray-400">{pkg.warehouseLocation}</div>}
+                  </div>
+
+                  {pkg.pricePaid > 0 && (
+                    <div className="px-5 pb-3 text-sm">
+                      <span className="text-gray-500">Price: </span>
+                      <span className="font-semibold text-gray-900">{pkg.pricePaidCurrency} {pkg.pricePaid.toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {pkg.invoiceFiles && pkg.invoiceFiles.length > 0 && (
+                    <div className="px-5 pb-3">
+                      <p className="text-xs text-gray-400 mb-1">{pkg.invoiceFiles.length} file(s) uploaded</p>
+                      <div className="flex gap-1">{pkg.invoiceFiles.slice(0,3).map((f,i)=>{
+                        const isObj = typeof f === 'object' && (f as any).url;
+                        const fn = isObj ? (f as any).filename : String(f).split('/').pop()||'file';
+                        const url = isObj ? (f as any).url : String(f);
+                        return <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="p-1.5 border border-gray-200 rounded hover:bg-blue-50 hover:border-blue-300 text-gray-500 hover:text-blue-600" title={fn}><FileText className="h-4 w-4"/></a>;
+                      })}</div>
+                    </div>
+                  )}
+
+                  {pkg.invoiceSubmittedAt && (
+                    <div className="px-5 pb-2 text-xs text-gray-400 flex items-center gap-1"><Clock className="h-3.5 w-3.5"/>Submitted: {fmtDate(pkg.invoiceSubmittedAt)}</div>
+                  )}
+
+                  <div className="border-t border-gray-100 px-5 py-4 flex items-center gap-3 bg-gray-50">
+                    {cs ? (
+                      <button onClick={()=>setUploadPkg(pkg)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-lg font-semibold hover:shadow-lg text-sm">
+                        <Upload className="h-4 w-4"/>Upload Invoice
+                      </button>
+                    ) : (
+                      <div className="flex-1 text-center text-sm text-green-600 font-semibold flex items-center justify-center gap-2"><CheckCircle className="h-4 w-4"/>{statusLabel(pkg.invoiceStatus)}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2">
+            <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={curPage===1} className="flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-40"><ChevronLeft className="h-4 w-4"/></button>
+            {Array.from({length:totalPages},(_,i)=>i+1).filter(p=>p===1||p===totalPages||Math.abs(p-curPage)<=1).reduce<(number|"…")[]>((acc,p,idx,arr)=>{if(idx>0&&p-(arr[idx-1] as number)>1) acc.push("…"); acc.push(p); return acc;},[]).map((p,idx)=><span key={idx}>{p==="…" ? <span className="px-1 text-gray-400 text-sm">…</span> : <button key={p as number} onClick={()=>setPage(p as number)} className={`h-9 w-9 rounded-lg text-sm font-medium border ${curPage===p?"bg-[#0f4d8a] text-white border-[#0f4d8a]":"bg-white text-gray-600 border-gray-200 hover:bg-gray-50"}`}>{p}</button>}</span>)}
+            <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={curPage===totalPages} className="flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-40"><ChevronRight className="h-4 w-4"/></button>
+          </div>
+        )}
       </div>
+
+      {uploadPkg && <UploadModal pkg={uploadPkg} onClose={()=>setUploadPkg(null)} onDone={()=>{setUploadPkg(null); load();}}/>}
     </div>
   );
 }

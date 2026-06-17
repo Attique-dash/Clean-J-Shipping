@@ -16,6 +16,11 @@ const CART_KEY = "customer_bills_cart";
 function fmtDate(d?: string) { return d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) : "N/A"; }
 function relDate(d: string): string { const diff = Date.now() - new Date(d).getTime(); const days = Math.floor(diff / 86400000); if (days === 0) return "today"; if (days < 7) return `${days}d ago`; const w = Math.floor(days / 7); if (w < 5) return `${w}w ago`; const m = Math.floor(days / 30); return m < 2 ? "a month ago" : `${m}mo ago`; }
 function isPaid(b: Bill) { return b.payment_status === "paid" || b.status === "paid"; }
+function getBillNumber(b: Bill): string {
+  const bn = b.billNumber || b.invoice_number || b.tracking_number;
+  if (!bn || bn === "UNKNOWN") return `PKG-${b._id?.slice(-6) || "N/A"}`;
+  return bn;
+}
 
 export default function BillsPage() {
   const { data: session } = useSession();
@@ -80,12 +85,12 @@ export default function BillsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {paginated.map(bill => {
-              const bn = bill.billNumber||bill.invoice_number||bill.tracking_number;
+              const bn = getBillNumber(bill);
               const due = bill.due_payment||bill.amount_due||0;
               const paidAmt = bill.paid_payment||(isPaid(bill)?due:0);
               const bal = bill.balance||(isPaid(bill)?0:due);
               const dt = bill.invoice_date||bill.last_updated||bill.createdAt;
-              const branch = bill.packageDetails?.branch||"Main Branch";
+              const branch = bill.packageDetails?.warehouseLocation||bill.packageDetails?.branch||"Main Branch";
               const p = isPaid(bill);
               return (
                 <div key={bill._id||bn} className="bg-[#faf8f5] rounded-xl border border-gray-200 shadow-md hover:shadow-lg transition-all">
@@ -129,7 +134,7 @@ function IR({ icon, label, value, mono }: { icon?: React.ReactNode; label: strin
 /* ═══ Bill Detail Modal (2 views) ═══ */
 function BillDetailModal({ bill, onClose, onOpenReceipt }: { bill: Bill; onClose: () => void; onOpenReceipt: () => void }) {
   const [pkgView, setPkgView] = useState(false);
-  const bn = bill.billNumber||bill.invoice_number||bill.tracking_number;
+  const bn = getBillNumber(bill);
   const due = bill.due_payment||bill.amount_due||0;
   const paidAmt = bill.paid_payment||(bill.payment_status==="paid"?due:0);
   const bal = bill.balance||(bill.payment_status==="paid"?0:due);
@@ -256,7 +261,7 @@ function CartModal({ cart, removeFromCart, onClose }: { cart: Bill[]; removeFrom
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200"><h2 className="text-lg font-bold text-gray-900"><ShoppingCart className="inline h-5 w-5 mr-2"/>Cart ({cart.length})</h2><button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-500"><X className="h-5 w-5"/></button></div>
         <div className="p-6 space-y-4">
           {cart.length===0 ? <div className="text-center py-8"><ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-3"/><p className="text-gray-500">Your cart is empty</p></div> : <>
-            <div className="space-y-2 max-h-64 overflow-y-auto">{cart.map(item => { const bn = item.billNumber||item.invoice_number||item.tracking_number; return <div key={item._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100"><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-gray-900 truncate">#{bn}</p><p className="text-xs text-gray-500">{formatCurrency(item.due_payment||item.amount_due||0, item.currency||"USD")}</p></div><button onClick={()=>removeFromCart(item._id)} className="p-1.5 text-red-500 hover:bg-red-100 rounded"><X className="h-4 w-4"/></button></div>; })}</div>
+            <div className="space-y-2 max-h-64 overflow-y-auto">{cart.map(item => { const bn = getBillNumber(item); return <div key={item._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100"><div className="flex-1 min-w-0"><p className="text-sm font-semibold text-gray-900 truncate">#{bn}</p><p className="text-xs text-gray-500">{formatCurrency(item.due_payment||item.amount_due||0, item.currency||"USD")}</p></div><button onClick={()=>removeFromCart(item._id)} className="p-1.5 text-red-500 hover:bg-red-100 rounded"><X className="h-4 w-4"/></button></div>; })}</div>
             <div className="flex justify-between items-center pt-3 border-t border-gray-200"><span className="font-semibold text-gray-900">Total:</span><span className="font-bold text-lg">{formatCurrency(total,"USD")}</span></div>
             <Link href="/customer/checkout" onClick={()=>{try{localStorage.setItem("customer_cart",JSON.stringify(cart));}catch{}}} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-lg font-semibold hover:shadow-lg"><CreditCard className="h-5 w-5"/>Proceed to Checkout</Link>
           </>}

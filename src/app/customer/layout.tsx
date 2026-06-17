@@ -16,6 +16,7 @@ import {
   X,
   MapPin,
   CreditCard,
+  Headphones,
 } from "lucide-react";
 
 export default function CustomerLayout({
@@ -66,6 +67,11 @@ export default function CustomerLayout({
       href: "/customer/profile",
       label: "Profile",
       icon: User,
+    },
+    {
+      href: "/customer/contact",
+      label: "Contact Us",
+      icon: Headphones,
     },
   ];
 
