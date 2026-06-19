@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Mail, Phone, MapPin, Send, Loader2, CheckCircle, XCircle, Clock, MessageSquare, Headphones } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { Mail, Phone, MapPin, Send, Loader2, CheckCircle, XCircle, Clock, MessageSquare, Plane, Ship } from "lucide-react";
 
 function isSupportOnline(): boolean {
   const now = new Date();
@@ -13,24 +14,14 @@ function isSupportOnline(): boolean {
   return false;
 }
 
-const LOCATIONS = [
-  {
-    name: "Main Branch / Kingston",
-    address: "41C Half Way Tree RD, Kingston, Kingston 5",
-    hours: "9:30am – 5:00pm",
-    phone: "(876) 210-6049",
-    mapQuery: "41C Half Way Tree Road, Kingston 5, Jamaica",
-    mapEmbed: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3783.8!2d-76.7875!3d18.0035!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTjCsDAwJzEyLjYiTiA3NsKwNDcnMTUuMCJX!5e0!3m2!1sen!2sjm!4v1700000000000",
-  },
-  {
-    name: "Linstead Branch",
-    address: "Shop #16 South Parade Plaza, Linstead, St. Catherine",
-    hours: "9:00am – 5:00pm",
-    phone: "(876) 815-1779",
-    mapQuery: "South Parade Plaza, Linstead, St. Catherine, Jamaica",
-    mapEmbed: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3783.8!2d-76.9540!3d18.0750!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTjCsDA0JzMwLjAiTiA3NsKwNTcnMTQuNCJX!5e0!3m2!1sen!2sjm!4v1700000000001",
-  },
-];
+interface ShippingAddress {
+  type: string;
+  street: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+}
 
 const CONTACT_INFO = {
   phones: ["(876) 210-6049", "(876) 869-4330"],
@@ -39,11 +30,13 @@ const CONTACT_INFO = {
 };
 
 export default function CustomerContactPage() {
-  const [form, setForm] = useState({ message: "" });
+  const { data: session } = useSession();
+  const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(false);
+  const [addresses, setAddresses] = useState<ShippingAddress[]>([]);
 
   useEffect(() => {
     setIsOnline(isSupportOnline());
@@ -51,9 +44,64 @@ export default function CustomerContactPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Pre-fill name and email from session
+  useEffect(() => {
+    if (session?.user) {
+      setForm(f => ({
+        ...f,
+        name: session.user?.name || session.user?.email?.split("@")[0] || "",
+        email: session.user?.email || "",
+      }));
+    }
+  }, [session]);
+
+  // Fetch shipping addresses from dashboard API
+  useEffect(() => {
+    async function fetchAddresses() {
+      try {
+        const res = await fetch("/api/customer/dashboard", { credentials: "include" });
+        const data = await res.json();
+        if (res.ok && data.shippingAddresses?.length > 0) {
+          setAddresses(data.shippingAddresses);
+        }
+      } catch { /* use defaults */ }
+    }
+    if (session?.user) fetchAddresses();
+  }, [session]);
+
+  // Default addresses if API hasn't returned yet
+  const displayAddresses = addresses.length > 0 ? addresses : [
+    { type: "air", street: "700 NW 57 Place", city: "Ft. Lauderdale", state: "Florida", zipCode: "33309", country: "USA" },
+    { type: "sea", street: "700 NW 57 Place", city: "Ft. Lauderdale", state: "Florida", zipCode: "33309", country: "USA" },
+    { type: "china", street: "Baoshan No.2 Industrial Zone", city: "Shenzhen", state: "Guangdong Province", zipCode: "518000", country: "China" },
+  ];
+
+  function getMapEmbed(addr: ShippingAddress): string {
+    const q = encodeURIComponent(`${addr.street}, ${addr.city}, ${addr.state} ${addr.zipCode}, ${addr.country}`);
+    return `https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${q}`;
+  }
+
+  function getMapSearch(addr: ShippingAddress): string {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${addr.street}, ${addr.city}, ${addr.state} ${addr.zipCode}, ${addr.country}`)}`;
+  }
+
+  function getLocationIcon(type: string) {
+    const t = (type || "").toLowerCase();
+    if (t === "sea") return <Ship className="h-4 w-4 text-blue-600" />;
+    if (t === "china") return <span className="text-lg">🇨🇳</span>;
+    return <Plane className="h-4 w-4 text-blue-600" />;
+  }
+
+  function getLocationLabel(type: string) {
+    const t = (type || "").toLowerCase();
+    if (t === "sea") return "Sea Freight Address";
+    if (t === "china") return "China Warehouse";
+    return "Air Freight Address";
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.message.trim()) return;
+    if (!form.name.trim() || !form.email.trim() || !form.message.trim()) return;
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -61,12 +109,17 @@ export default function CustomerContactPage() {
       const res = await fetch("/api/support/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject: "Contact Us Message", message: form.message }),
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          subject: form.subject.trim() || "Contact Us Message",
+          message: form.message.trim(),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to send");
       setSuccess("Your message has been sent successfully. We will get back to you shortly.");
-      setForm({ message: "" });
+      setForm(f => ({ ...f, subject: "", message: "" }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to send message");
     } finally {
@@ -88,12 +141,46 @@ export default function CustomerContactPage() {
           {/* Message Form - Left (2 columns) */}
           <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-lg p-6">
             <form onSubmit={onSubmit} className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Name <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm"
+                    placeholder="Your name"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email <span className="text-red-500">*</span></label>
+                  <input
+                    type="email"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm"
+                    placeholder="your@email.com"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Message</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
+                <input
+                  type="text"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm"
+                  placeholder="What is this about?"
+                  value={form.subject}
+                  onChange={(e) => setForm({ ...form, subject: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Message <span className="text-red-500">*</span></label>
                 <textarea
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm resize-none"
                   placeholder="Type your message here..."
-                  rows={8}
+                  rows={6}
                   value={form.message}
                   onChange={(e) => setForm({ ...form, message: e.target.value })}
                   required
@@ -176,40 +263,50 @@ export default function CustomerContactPage() {
           </div>
         </div>
 
-        {/* Locations with Maps */}
+        {/* Shipping Addresses with Maps */}
         <div className="space-y-6">
-          {LOCATIONS.map((loc, idx) => (
+          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-sm">
+              <MapPin className="h-5 w-5 text-white" />
+            </div>
+            Shipping Addresses
+          </h2>
+          {displayAddresses.map((addr, idx) => (
             <div key={idx} className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
                 {/* Location Info */}
                 <div className="p-6 flex flex-col justify-center">
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">{loc.name}</h3>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`p-2 rounded-xl ${addr.type?.toLowerCase() === "sea" ? "bg-gradient-to-br from-blue-100 to-cyan-100" : addr.type?.toLowerCase() === "china" ? "bg-gradient-to-br from-red-100 to-orange-100" : "bg-gradient-to-br from-blue-100 to-cyan-100"}`}>
+                      {getLocationIcon(addr.type)}
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900">{getLocationLabel(addr.type)}</h3>
+                  </div>
                   <div className="space-y-3 text-sm">
                     <div className="flex items-start gap-3">
                       <MapPin className="h-4 w-4 text-[#0f4d8a] mt-0.5 shrink-0" />
-                      <span className="text-gray-700">{loc.address}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Clock className="h-4 w-4 text-[#E67919] shrink-0" />
-                      <span className="text-gray-700">{loc.hours}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Phone className="h-4 w-4 text-[#0891b2] shrink-0" />
-                      <a href={`tel:${loc.phone.replace(/\D/g, "")}`} className="text-gray-700 hover:text-[#0f4d8a]">{loc.phone}</a>
+                      <div>
+                        <p className="text-gray-800 font-medium">{addr.street}</p>
+                        <p className="text-gray-600">{addr.city}, {addr.state} {addr.zipCode}</p>
+                        <p className="text-gray-500">{addr.country}</p>
+                      </div>
                     </div>
                   </div>
+                  <a href={getMapSearch(addr)} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-2 text-sm text-[#0f4d8a] font-medium hover:underline">
+                    <MapPin className="h-4 w-4" />Open in Google Maps
+                  </a>
                 </div>
                 {/* Map */}
                 <div className="h-64 md:h-full min-h-[250px] bg-gray-100">
                   <iframe
-                    src={loc.mapEmbed}
+                    src={getMapEmbed(addr)}
                     width="100%"
                     height="100%"
                     style={{ border: 0, minHeight: 250 }}
                     allowFullScreen
                     loading="lazy"
                     referrerPolicy="no-referrer-when-downgrade"
-                    title={`${loc.name} Map`}
+                    title={`${addr.type} Address Map`}
                   />
                 </div>
               </div>

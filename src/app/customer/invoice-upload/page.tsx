@@ -6,7 +6,7 @@ import { toast } from "react-toastify";
 import {
   Upload, FileText, X, Loader2, CheckCircle, AlertCircle, RefreshCw,
   Package, DollarSign, Plane, Ship, Truck, Check, Eye, Download, Search,
-  ChevronLeft, ChevronRight, Clock, Tag,
+  ChevronLeft, ChevronRight, Clock, Tag, Scale, MapPin, Building, User,
 } from "lucide-react";
 import Loading from "@/components/Loading";
 
@@ -17,7 +17,9 @@ interface PackageData {
   received_date?: string; invoiceStatus: 'pending' | 'submitted' | 'approved' | 'rejected' | 'billed';
   invoiceUploaded: boolean; pricePaid: number; pricePaidCurrency: string;
   invoiceFiles: InvoiceFile[] | string[]; invoiceSubmittedAt?: string; hasInvoice: boolean;
-  description?: string; warehouseLocation?: string; merchant?: string;
+  description?: string; itemDescription?: string; warehouseLocation?: string; merchant?: string;
+  branch?: string; houseAwb?: string; trackingNum?: string; userCode?: string;
+  pieces?: number; freight?: number; totalAmount?: number; total_amount?: number;
 }
 
 const PAGE_SIZE = 9;
@@ -104,7 +106,7 @@ function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () =
         <div className="p-6 space-y-5">
           <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
             <p className="text-sm text-gray-500">Tracking Number</p>
-            <p className="font-bold text-gray-900 font-mono">{tn}</p>
+            <p className="font-bold text-gray-900 font-mono break-all">{tn}</p>
             <p className="text-sm text-gray-500 mt-1">{pkg.shipper || pkg.merchant || "—"}</p>
           </div>
           <div>
@@ -177,11 +179,54 @@ export default function CustomerInvoiceUploadPage() {
   async function load() {
     try {
       setLoading(true);
+      // Fetch invoice-upload data
       const res = await fetch("/api/customer/invoice-upload", { credentials: "include", cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load");
-      const list = (data.packages || []).map((p: any) => ({ ...p, trackingNumber: p.trackingNumber || p.tracking_number || p.id || "", tracking_number: p.tracking_number || p.trackingNumber || p.id || "", merchant: p.shipper || p.merchant || "UNKNOWN" }));
-      setPackages(list);
+      const invoicePkgs = (data.packages || []).map((p: any) => ({
+        ...p,
+        trackingNumber: p.trackingNumber || p.tracking_number || p.id || "",
+        tracking_number: p.tracking_number || p.trackingNumber || p.id || "",
+        merchant: p.shipper || p.merchant || "UNKNOWN",
+      }));
+
+      // Also fetch from packages API for better tracking numbers and details
+      try {
+        const pkgRes = await fetch("/api/customer/packages", { credentials: "include", cache: "no-store" });
+        const pkgData = await pkgRes.json();
+        if (pkgRes.ok) {
+          const rawPkgs: any[] = Array.isArray(pkgData?.packages) ? pkgData.packages : [];
+          const pkgMap = new Map<string, any>();
+          rawPkgs.forEach((p: any) => {
+            const tn = p.trackingNumber || p.tracking_number || "";
+            if (tn) pkgMap.set(tn, p);
+          });
+          // Enrich invoice packages with real package data
+          invoicePkgs.forEach((ip: any) => {
+            const tn = ip.trackingNumber || ip.tracking_number || "";
+            const realPkg = pkgMap.get(tn);
+            if (realPkg) {
+              ip.trackingNumber = realPkg.trackingNumber || realPkg.tracking_number || ip.trackingNumber;
+              ip.tracking_number = realPkg.tracking_number || realPkg.trackingNumber || ip.tracking_number;
+              ip.houseAwb = realPkg.houseAwb || realPkg.trackingNumber || ip.trackingNumber;
+              ip.trackingNum = realPkg.trackingNum || realPkg.tracking_number || ip.trackingNumber;
+              ip.description = realPkg.description || realPkg.itemDescription || realPkg.Description || ip.description;
+              ip.itemDescription = realPkg.itemDescription || realPkg.description || ip.itemDescription;
+              ip.merchant = realPkg.Shipper || realPkg.shipper || realPkg.merchant || ip.merchant;
+              ip.shipper = realPkg.Shipper || realPkg.shipper || ip.shipper;
+              ip.warehouseLocation = realPkg.warehouseLocation || realPkg.Branch || realPkg.branch || ip.warehouseLocation;
+              ip.branch = realPkg.Branch || realPkg.branch || ip.branch;
+              ip.userCode = realPkg.UserCode || realPkg.userCode || ip.userCode;
+              ip.pieces = realPkg.Pieces || realPkg.pieces || ip.pieces;
+              ip.weight = realPkg.Weight || realPkg.weight || ip.weight;
+              ip.freight = realPkg.freight || realPkg.shippingCost || realPkg.totalAmount || ip.freight;
+              ip.totalAmount = realPkg.totalAmount || realPkg.total_amount || ip.totalAmount;
+            }
+          });
+        }
+      } catch { /* continue without enrichment */ }
+
+      setPackages(invoicePkgs);
     } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
     finally { setLoading(false); }
   }
@@ -270,14 +315,16 @@ export default function CustomerInvoiceUploadPage() {
             {paginated.map(pkg => {
               const tn = getTrack(pkg);
               const cs = canSubmit(pkg);
+              const desc = pkg.description || pkg.itemDescription || "Merchandise";
+              const amt = pkg.freight || pkg.totalAmount || pkg.total_amount || 0;
               return (
-                <div key={tn} className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                <div key={tn} className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col">
                   <div className="flex items-center justify-between px-5 pt-5 pb-3">
-                    <div className="flex items-center gap-3 text-[#0f4d8a]">
-                      <div className="p-2 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl">{serviceIcon(pkg.serviceMode)}</div>
-                      <span className="font-bold text-base text-gray-900 truncate max-w-[160px]" title={tn}>{tn}</span>
+                    <div className="flex items-center gap-3 text-[#0f4d8a] min-w-0">
+                      <div className="p-2 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl shrink-0">{serviceIcon(pkg.serviceMode)}</div>
+                      <span className="font-bold text-base text-gray-900 truncate" title={tn}>{tn}</span>
                     </div>
-                    <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full ${statusClasses(pkg.invoiceStatus)}`}>
+                    <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full shrink-0 ml-2 ${statusClasses(pkg.invoiceStatus)}`}>
                       {statusIcon(pkg.invoiceStatus)}{statusLabel(pkg.invoiceStatus)}
                     </span>
                   </div>
@@ -287,16 +334,27 @@ export default function CustomerInvoiceUploadPage() {
                     {(pkg.received_date || pkg.dateReceived) && <span className="text-gray-400 text-xs">({relDate(pkg.received_date || pkg.dateReceived || "")})</span>}
                   </div>
 
-                  <div className="px-5 pb-3 space-y-1 text-sm text-gray-700">
-                    <div className="flex items-center gap-1"><Tag className="h-4 w-4 text-gray-400"/><span className="font-medium">{pkg.shipper || pkg.merchant || "UNKNOWN"}</span></div>
-                    <div className="flex items-center gap-1 text-gray-500"><Package className="h-3.5 w-3.5"/>{pkg.weight} kg</div>
-                    {pkg.warehouseLocation && <div className="text-xs text-gray-400">{pkg.warehouseLocation}</div>}
+                  <div className="px-5 pb-3 space-y-1.5 text-sm text-gray-700 min-h-[80px]">
+                    <div className="flex items-center gap-1.5"><Tag className="h-4 w-4 text-gray-400 shrink-0"/><span className="font-medium truncate">{pkg.shipper || pkg.merchant || "UNKNOWN"}</span></div>
+                    <div className="flex items-center gap-1.5 text-gray-500"><FileText className="h-3.5 w-3.5 shrink-0"/><span className="truncate">{desc}</span></div>
+                    <div className="flex items-center gap-3 text-xs text-gray-400">
+                      {pkg.weight > 0 && <span className="flex items-center gap-1"><Scale className="h-3.5 w-3.5"/>{pkg.weight} lbs</span>}
+                      {pkg.pieces && pkg.pieces > 1 && <span>{pkg.pieces} pcs</span>}
+                      {pkg.warehouseLocation && <span className="flex items-center gap-1 truncate"><MapPin className="h-3.5 w-3.5"/>{pkg.warehouseLocation}</span>}
+                    </div>
                   </div>
 
+                  {amt > 0 && (
+                    <div className="px-5 pb-3 text-sm flex items-center justify-between">
+                      <span className="text-gray-500">Freight:</span>
+                      <span className="font-semibold text-gray-900">${Number(amt).toFixed(2)}</span>
+                    </div>
+                  )}
+
                   {pkg.pricePaid > 0 && (
-                    <div className="px-5 pb-3 text-sm">
-                      <span className="text-gray-500">Price: </span>
-                      <span className="font-semibold text-gray-900">{pkg.pricePaidCurrency} {pkg.pricePaid.toFixed(2)}</span>
+                    <div className="px-5 pb-3 text-sm flex items-center justify-between">
+                      <span className="text-gray-500">Price Paid:</span>
+                      <span className="font-semibold text-gray-900">{pkg.pricePaidCurrency || "USD"} {pkg.pricePaid.toFixed(2)}</span>
                     </div>
                   )}
 
@@ -316,7 +374,7 @@ export default function CustomerInvoiceUploadPage() {
                     <div className="px-5 pb-2 text-xs text-gray-400 flex items-center gap-1"><Clock className="h-3.5 w-3.5"/>Submitted: {fmtDate(pkg.invoiceSubmittedAt)}</div>
                   )}
 
-                  <div className="border-t border-gray-100 px-5 py-4 flex items-center gap-3 bg-gray-50">
+                  <div className="border-t border-gray-100 px-5 py-4 flex items-center gap-3 bg-gray-50 mt-auto">
                     {cs ? (
                       <button onClick={()=>setUploadPkg(pkg)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-lg font-semibold hover:shadow-lg text-sm">
                         <Upload className="h-4 w-4"/>Upload Invoice
