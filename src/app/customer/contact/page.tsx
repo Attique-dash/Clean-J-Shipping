@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Mail, Phone, MapPin, Send, Loader2, CheckCircle, XCircle, Clock, MessageSquare, Plane, Ship } from "lucide-react";
+import { Mail, Phone, MapPin, Send, Loader2, CheckCircle, XCircle, Clock, MessageSquare, Plane, Ship, Headphones } from "lucide-react";
 
 function isSupportOnline(): boolean {
   const now = new Date();
@@ -128,11 +128,11 @@ export default function CustomerContactPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Contact Us</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Contact Us</h1>
           <p className="text-gray-500 mt-1">Drop us a message. We will get back to you shortly.</p>
         </div>
 

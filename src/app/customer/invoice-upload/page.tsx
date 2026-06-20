@@ -249,7 +249,7 @@ export default function CustomerInvoiceUploadPage() {
 
   if (loading && session === undefined) return <Loading message="Loading packages..." />;
   if (!session && !loading) return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
       <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-200 text-center max-w-md">
         <Package className="h-16 w-16 text-gray-300 mx-auto mb-4"/>
         <h2 className="text-xl font-bold text-gray-900 mb-2">Authentication Required</h2>
@@ -260,20 +260,26 @@ export default function CustomerInvoiceUploadPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 admin-header p-6 text-white shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-white/10" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur"><Upload className="h-7 w-7" /></div>
+              <div><div>
+            <h1 className="text-3xl font-bold text-white">
               {filtered.length} Package Invoice{filtered.length !== 1 ? "s" : ""}
             </h1>
-            <p className="text-gray-500 mt-1">{needUpload} package{needUpload !== 1 ? "s" : ""} requiring invoice upload</p>
+            <p className="text-gray-300-custom mt-1">{needUpload} package{needUpload !== 1 ? "s" : ""} requiring invoice upload</p>
           </div>
-          <button onClick={load} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 shadow-sm text-sm font-medium">
+          <button onClick={load} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-blue-100 hover:bg-gray-50 shadow-sm text-sm font-medium">
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}/>Refresh
-          </button>
-        </div>
+          </button></div>
+            </div>
+          </div>
+        </header>
 
         {/* Search + Filter */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-5">

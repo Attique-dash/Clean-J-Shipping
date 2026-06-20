@@ -258,15 +258,19 @@ export default function PreAlertsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 admin-header p-6 text-white shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-white/10" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur"><Bell className="h-7 w-7" /></div>
+              <div><div>
+            <h1 className="text-3xl font-bold text-white">
               Pre-Alerts
             </h1>
-            <p className="text-gray-500 mt-1">Notify us about incoming shipments</p>
+            <p className="text-gray-300-custom mt-1">Notify us about incoming shipments</p>
           </div>
           <button
             onClick={openAddModal}
@@ -274,8 +278,10 @@ export default function PreAlertsPage() {
           >
             <Plus className="h-5 w-5" />
             Add Alert
-          </button>
-        </div>
+          </button></div>
+            </div>
+          </div>
+        </header>
 
         {/* Pre-Alerts List Section */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">

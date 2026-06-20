@@ -106,19 +106,23 @@ export default function CustomerMessagesPage() {
   const paginated = filtered.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6">
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 admin-header p-6 text-white shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-white/10" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur"><MessageSquare className="h-7 w-7" /></div>
+              <div><div>
+            <h1 className="text-3xl font-bold text-white">
               Messages
             </h1>
-            <p className="text-gray-500 mt-1">{filtered.length} message{filtered.length !== 1 ? "s" : ""}</p>
+            <p className="text-gray-300-custom mt-1">{filtered.length} message{filtered.length !== 1 ? "s" : ""}</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300-custom" />
               <input
                 className="w-64 pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:border-[#0f4d8a] focus:ring-2 focus:ring-blue-100 focus:outline-none text-sm bg-white shadow-sm"
                 placeholder="Search messages..."
@@ -126,11 +130,13 @@ export default function CustomerMessagesPage() {
                 onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
               />
             </div>
-            <button onClick={load} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 shadow-sm text-sm font-medium">
+            <button onClick={load} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-blue-100 hover:bg-gray-50 shadow-sm text-sm font-medium">
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
+          </div></div>
+            </div>
           </div>
-        </div>
+        </header>
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-800">{error}</div>

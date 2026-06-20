@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import {
   CreditCard, CheckCircle, Clock, AlertCircle, Loader2, DollarSign,
   Search, ChevronLeft, ChevronRight, Eye, X, Calendar, Hash, FileText,
-  RefreshCw, ArrowUpRight, ArrowLeft, Filter,
+  RefreshCw, Filter,
 } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 
@@ -166,7 +166,7 @@ export default function PaymentsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
         <div className="text-center"><Loader2 className="h-8 w-8 text-[#0f4d8a] animate-spin mx-auto mb-2" /><p className="text-gray-600 text-sm">Loading payments…</p></div>
       </div>
     );
@@ -174,7 +174,7 @@ export default function PaymentsPage() {
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-200 text-center max-w-md">
           <CreditCard className="h-16 w-16 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-600 mb-6">Please log in to view your payments</p>
@@ -185,16 +185,22 @@ export default function PaymentsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Payment History</h1>
-            <p className="text-gray-500 mt-1">{totalPayments} payment{totalPayments !== 1 ? "s" : ""} · Total paid: {formatCurrency(totalPaid, "USD")}</p>
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 admin-header p-6 text-white shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-white/10" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur"><CreditCard className="h-7 w-7" /></div>
+              <div><div>
+            <h1 className="text-3xl font-bold text-white">Payment History</h1>
+            <p className="text-gray-300-custom mt-1">{totalPayments} payment{totalPayments !== 1 ? "s" : ""} · Total paid: {formatCurrency(totalPaid, "USD")}</p>
           </div>
-          <button onClick={loadPayments} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 shadow-sm text-sm font-medium"><RefreshCw className="h-4 w-4" />Refresh</button>
-        </div>
+          <button onClick={loadPayments} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-blue-100 hover:bg-gray-50 shadow-sm text-sm font-medium"><RefreshCw className="h-4 w-4" />Refresh</button></div>
+            </div>
+          </div>
+        </header>
 
         {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-800">{error}</div>}
 

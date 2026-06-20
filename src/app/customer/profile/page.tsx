@@ -77,7 +77,7 @@ export default function CustomerProfilePage() {
 
   if (loading) return <Loading message="Loading profile..." />;
   if (error && !profile) return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 flex items-center justify-center">
       <div className="rounded-xl border-l-4 border-red-500 bg-white p-6 shadow-xl"><p className="text-red-600">{error}</p></div>
     </div>
   );
@@ -86,13 +86,17 @@ export default function CustomerProfilePage() {
   const completion = Math.round(((profile.full_name ? 1 : 0) + (profile.email ? 1 : 0) + (profile.phone ? 1 : 0) + (profile.address?.street ? 1 : 0) + (profile.address?.city ? 1 : 0)) / 5 * 100);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">My Profile</h1>
-            <p className="text-gray-500 mt-1">Manage your account settings and preferences</p>
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 admin-header p-6 text-white shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-white/10" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur"><User className="h-7 w-7" /></div>
+              <div><div>
+            <h1 className="text-3xl font-bold text-white">My Profile</h1>
+            <p className="text-gray-300-custom mt-1">Manage your account settings and preferences</p>
           </div>
           <div className="flex items-center gap-3">
             {profile.accountStatus === 'inactive' ? (
@@ -100,8 +104,10 @@ export default function CustomerProfilePage() {
             ) : (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-100 text-green-700 text-sm font-semibold"><Check className="h-3.5 w-3.5"/>Active</span>
             )}
+          </div></div>
+            </div>
           </div>
-        </div>
+        </header>
 
         {error && <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-800">{error}</div>}
 

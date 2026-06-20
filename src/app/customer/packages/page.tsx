@@ -485,15 +485,21 @@ export default function CustomerPackagesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{filtered.length} Package{filtered.length !== 1 ? "s" : ""}</h1>
-            {lastRefreshed && <p className="text-gray-400 text-xs mt-1">Updated {lastRefreshed.toLocaleTimeString()}</p>}
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 admin-header p-6 text-white shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-white/10" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur"><Package className="h-7 w-7" /></div>
+              <div>
+                <h1 className="text-3xl font-bold leading-tight md:text-4xl">{filtered.length} Package{filtered.length !== 1 ? "s" : ""}</h1>
+                {lastRefreshed && <p className="text-gray-300-custom mt-1">Updated {lastRefreshed.toLocaleTimeString()}</p>}
+              </div>
+            </div>
+            <button onClick={() => load(true)} className="group flex items-center gap-2 rounded-lg bg-white border border-gray-200 px-4 py-2.5 font-medium text-gray-700 shadow-md transition-all hover:bg-gray-50 hover:shadow-lg text-sm"><RefreshCw className="h-4 w-4 transition-transform text-gray-600 group-hover:rotate-180" />Refresh</button>
           </div>
-          <button onClick={() => load(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 shadow-sm text-sm font-medium"><RefreshCw className="h-4 w-4" />Refresh</button>
-        </div>
+        </header>
         <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-5">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1 relative">

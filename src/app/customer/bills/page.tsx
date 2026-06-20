@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
 import Link from "next/link";
-import { CreditCard, FileText, CheckCircle, Lock, Unlock, ShoppingCart, Filter, X, Calendar, Package, User, MapPin, Printer, Mail, ChevronLeft, ChevronRight, Eye, Plane, Building, Hash, Scale, DollarSign, Copy, RefreshCw } from "lucide-react";
+import { CreditCard, FileText, CheckCircle, Lock, Unlock, ShoppingCart, Filter, X, Calendar, Package, User, MapPin, Printer, Mail, ChevronLeft, ChevronRight, Eye, Plane, Building, Hash, Scale, DollarSign, Copy, RefreshCw, Receipt } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import Loading from "@/components/Loading";
 
@@ -69,20 +69,26 @@ export default function BillsPage() {
   if (loading) return <Loading message="Loading your bills..." />;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-orange-50/20 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{filtered.length} Bills <span className="text-red-600">{formatCurrency(totalAmt,"USD")}</span></h1>
-            <p className="text-gray-500 mt-1">{pendingCount} pending · {paidCount} paid</p>
+        <header className="relative overflow-hidden rounded-3xl border border-white/50 admin-header p-6 text-white shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-white/10" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur"><Receipt className="h-7 w-7" /></div>
+              <div><div>
+            <h1 className="text-3xl font-bold text-white">{filtered.length} Bills <span className="text-orange-300">{formatCurrency(totalAmt,"USD")}</span></h1>
+            <p className="text-gray-300-custom mt-1">{pendingCount} pending · {paidCount} paid</p>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={()=>setCartOpen(true)} className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-[#0f4d8a] rounded-lg text-[#0f4d8a] hover:bg-blue-50 text-sm font-semibold"><ShoppingCart className="h-4 w-4" />CART{cart.length>0?` (${cart.length})`:""}</button>
             <button onClick={()=>setFilterOpen(true)} className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-[#0f4d8a] rounded-lg text-[#0f4d8a] hover:bg-blue-50 text-sm font-semibold"><Filter className="h-4 w-4" />FILTER</button>
-            <button onClick={fetchBills} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 text-sm font-medium"><RefreshCw className="h-4 w-4" /></button>
+            <button onClick={fetchBills} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-blue-100 hover:bg-gray-50 text-sm font-medium"><RefreshCw className="h-4 w-4" /></button>
+          </div></div>
+            </div>
           </div>
-        </div>
+        </header>
 
         {/* Status filter chips */}
         <div className="flex flex-wrap gap-2">
