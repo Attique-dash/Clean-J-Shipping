@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import {
   CreditCard, CheckCircle, Clock, AlertCircle, Loader2, DollarSign,
   Search, ChevronLeft, ChevronRight, Eye, X, Calendar, Hash, FileText,
-  RefreshCw, ArrowUpRight, ArrowDownLeft, Filter,
+  RefreshCw, ArrowUpRight, ArrowLeft, Filter,
 } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 
