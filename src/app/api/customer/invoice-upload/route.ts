@@ -47,16 +47,17 @@ export async function GET(req: Request) {
       ]
     }).sort({ dateReceived: -1 }).lean();
 
-    // Format packages for frontend
+    // Format packages for frontend — use PascalCase (KCD model) with camelCase fallbacks
     const formattedPackages = packages.map(pkg => ({
       id: pkg._id?.toString(),
-      trackingNumber: pkg.trackingNumber,
-      tracking_number: pkg.trackingNumber,
-      shipper: pkg.shipper || pkg.senderName || 'N/A',
-      weight: pkg.weight,
-      serviceMode: pkg.serviceMode || 'air',
-      dateReceived: pkg.dateReceived || pkg.createdAt,
-      received_date: pkg.dateReceived?.toISOString() || pkg.createdAt?.toISOString(),
+      trackingNumber: pkg.TrackingNumber || pkg.trackingNumber || pkg.TrackingNumber,
+      tracking_number: pkg.TrackingNumber || pkg.trackingNumber || pkg.TrackingNumber,
+      shipper: pkg.Shipper || pkg.shipper || 'N/A',
+      merchant: pkg.Shipper || pkg.shipper || 'N/A',
+      weight: pkg.Weight || pkg.weight || 0,
+      serviceMode: pkg.ServiceTypeID || pkg.serviceMode || 'air',
+      dateReceived: pkg.EntryDate || pkg.EntryDateTime || pkg.dateReceived || pkg.createdAt,
+      received_date: (pkg.EntryDate || pkg.EntryDateTime || pkg.dateReceived || pkg.createdAt)?.toISOString?.() || pkg.EntryDate || pkg.EntryDateTime || pkg.dateReceived || pkg.createdAt,
       invoiceStatus: pkg.invoiceStatus || 'pending',
       invoiceUploaded: pkg.invoiceUploaded || false,
       pricePaid: pkg.pricePaid || 0,
@@ -64,8 +65,18 @@ export async function GET(req: Request) {
       invoiceFiles: pkg.invoiceFiles || [],
       invoiceSubmittedAt: pkg.invoiceSubmittedAt,
       hasInvoice: pkg.invoiceUploaded === true,
-      description: pkg.itemDescription || pkg.description,
-      warehouseLocation: pkg.warehouseLocation
+      description: pkg.Description || pkg.description || pkg.itemDescription || '',
+      itemDescription: pkg.Description || pkg.description || '',
+      warehouseLocation: pkg.Branch || pkg.warehouseLocation || pkg.branch || '',
+      branch: pkg.Branch || pkg.branch || '',
+      userCode: pkg.UserCode || pkg.userCode || '',
+      pieces: pkg.Pieces || pkg.pieces || 1,
+      freight: pkg.freight || pkg.shipping_cost || 0,
+      totalAmount: pkg.totalAmount || pkg.total_amount || pkg.freight || 0,
+      total_amount: pkg.totalAmount || pkg.total_amount || pkg.freight || 0,
+      houseAwb: pkg.TrackingNumber || pkg.trackingNumber || '',
+      trackingNum: pkg.TrackingNumber || pkg.trackingNumber || '',
+      status: pkg.status || 'received',
     }));
 
     return NextResponse.json({

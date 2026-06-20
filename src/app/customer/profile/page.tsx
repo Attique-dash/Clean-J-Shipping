@@ -120,7 +120,7 @@ export default function CustomerProfilePage() {
               </div>
               <div className="flex-1">
                 <h2 className="text-xl font-bold text-gray-900">{profile.full_name}</h2>
-                <p className="text-sm text-gray-500 flex items-center gap-2 mt-0.5"><Mail className="h-3.5 w-3.5"/>{profile.email}</p>
+                <p className="text-sm text-gray-500 flex items-center gap-2 mt-0.5 min-w-0"><Mail className="h-3.5 w-3.5 shrink-0"/><span className="truncate break-all">{profile.email}</span></p>
                 <p className="text-xs text-gray-400 font-mono mt-0.5">{profile.user_code}</p>
               </div>
               <div className="hidden sm:block text-right">
@@ -140,9 +140,9 @@ export default function CustomerProfilePage() {
                 <div className="p-2 bg-white rounded-lg shadow-sm"><Shield className="h-4 w-4 text-[#0f4d8a]"/></div>
                 <div><p className="text-xs text-gray-500">User Code</p><p className="text-sm font-semibold font-mono text-gray-900 mt-0.5">{profile.user_code}</p></div>
               </div>
-              <div className="flex items-start gap-3 p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
-                <div className="p-2 bg-white rounded-lg shadow-sm"><Mail className="h-4 w-4 text-[#0f4d8a]"/></div>
-                <div><p className="text-xs text-gray-500">Email</p><p className="text-sm font-semibold text-gray-900 mt-0.5">{profile.email}</p></div>
+              <div className="flex items-start gap-3 p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl border border-blue-100 min-w-0">
+                <div className="p-2 bg-white rounded-lg shadow-sm shrink-0"><Mail className="h-4 w-4 text-[#0f4d8a]"/></div>
+                <div className="min-w-0"><p className="text-xs text-gray-500">Email</p><p className="text-sm font-semibold text-gray-900 mt-0.5 break-all overflow-hidden">{profile.email}</p></div>
               </div>
               <div className="flex items-start gap-3 p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
                 <div className="p-2 bg-white rounded-lg shadow-sm"><Phone className="h-4 w-4 text-[#0f4d8a]"/></div>

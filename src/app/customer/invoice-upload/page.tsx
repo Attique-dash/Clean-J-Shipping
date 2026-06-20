@@ -56,7 +56,7 @@ function serviceIcon(mode?: string) {
 }
 function fmtDate(d?: string) { return d ? new Date(d).toLocaleDateString("en-GB",{day:"2-digit",month:"2-digit",year:"numeric"}) : "N/A"; }
 function relDate(d: string) { const diff=Date.now()-new Date(d).getTime(); const days=Math.floor(diff/86400000); if(days===0) return "today"; if(days<7) return `${days}d ago`; const w=Math.floor(days/7); if(w<5) return `${w}w ago`; const m=Math.floor(days/30); return m<2?"a month ago":`${m}mo ago`; }
-function getTrack(p: PackageData) { return p.trackingNumber || p.tracking_number || p.id || "UNKNOWN"; }
+function getTrack(p: PackageData) { return p.trackingNumber || p.tracking_number || p.houseAwb || p.trackingNum || "UNKNOWN"; }
 function canSubmit(p: PackageData) { return p.invoiceStatus !== 'submitted' && p.invoiceStatus !== 'billed' && p.invoiceStatus !== 'approved'; }
 function fileIcon(fn: string) { return fn.endsWith('.pdf') ? <FileText className="h-4 w-4 text-red-500"/> : <FileText className="h-4 w-4 text-blue-500"/>; }
 
@@ -185,9 +185,17 @@ export default function CustomerInvoiceUploadPage() {
       if (!res.ok) throw new Error(data?.error || "Failed to load");
       const invoicePkgs = (data.packages || []).map((p: any) => ({
         ...p,
-        trackingNumber: p.trackingNumber || p.tracking_number || p.id || "",
-        tracking_number: p.tracking_number || p.trackingNumber || p.id || "",
-        merchant: p.shipper || p.merchant || "UNKNOWN",
+        trackingNumber: p.trackingNumber || p.tracking_number || p.TrackingNumber || "",
+        tracking_number: p.tracking_number || p.trackingNumber || p.TrackingNumber || "",
+        merchant: p.Shipper || p.shipper || p.merchant || "UNKNOWN",
+        shipper: p.Shipper || p.shipper || "UNKNOWN",
+        weight: p.Weight || p.weight || 0,
+        description: p.Description || p.description || p.itemDescription || "",
+        warehouseLocation: p.Branch || p.warehouseLocation || p.branch || "",
+        userCode: p.UserCode || p.userCode || "",
+        pieces: p.Pieces || p.pieces || 1,
+        totalAmount: p.totalAmount || p.total_amount || p.freight || 0,
+        total_amount: p.totalAmount || p.total_amount || p.freight || 0,
       }));
 
       // Also fetch from packages API for better tracking numbers and details
@@ -206,12 +214,12 @@ export default function CustomerInvoiceUploadPage() {
             const tn = ip.trackingNumber || ip.tracking_number || "";
             const realPkg = pkgMap.get(tn);
             if (realPkg) {
-              ip.trackingNumber = realPkg.trackingNumber || realPkg.tracking_number || ip.trackingNumber;
-              ip.tracking_number = realPkg.tracking_number || realPkg.trackingNumber || ip.tracking_number;
-              ip.houseAwb = realPkg.houseAwb || realPkg.trackingNumber || ip.trackingNumber;
-              ip.trackingNum = realPkg.trackingNum || realPkg.tracking_number || ip.trackingNumber;
-              ip.description = realPkg.description || realPkg.itemDescription || realPkg.Description || ip.description;
-              ip.itemDescription = realPkg.itemDescription || realPkg.description || ip.itemDescription;
+              ip.trackingNumber = realPkg.TrackingNumber || realPkg.trackingNumber || realPkg.tracking_number || ip.trackingNumber;
+              ip.tracking_number = realPkg.TrackingNumber || realPkg.tracking_number || realPkg.trackingNumber || ip.tracking_number;
+              ip.houseAwb = realPkg.houseAwb || realPkg.TrackingNumber || realPkg.trackingNumber || ip.trackingNumber;
+              ip.trackingNum = realPkg.trackingNum || realPkg.TrackingNumber || realPkg.tracking_number || ip.trackingNumber;
+              ip.description = realPkg.Description || realPkg.description || realPkg.itemDescription || ip.description;
+              ip.itemDescription = realPkg.Description || realPkg.itemDescription || realPkg.description || ip.itemDescription;
               ip.merchant = realPkg.Shipper || realPkg.shipper || realPkg.merchant || ip.merchant;
               ip.shipper = realPkg.Shipper || realPkg.shipper || ip.shipper;
               ip.warehouseLocation = realPkg.warehouseLocation || realPkg.Branch || realPkg.branch || ip.warehouseLocation;
@@ -219,8 +227,9 @@ export default function CustomerInvoiceUploadPage() {
               ip.userCode = realPkg.UserCode || realPkg.userCode || ip.userCode;
               ip.pieces = realPkg.Pieces || realPkg.pieces || ip.pieces;
               ip.weight = realPkg.Weight || realPkg.weight || ip.weight;
-              ip.freight = realPkg.freight || realPkg.shippingCost || realPkg.totalAmount || ip.freight;
-              ip.totalAmount = realPkg.totalAmount || realPkg.total_amount || ip.totalAmount;
+              ip.freight = realPkg.freight || realPkg.shipping_cost || realPkg.totalAmount || ip.freight;
+              ip.totalAmount = realPkg.totalAmount || realPkg.total_amount || realPkg.freight || ip.totalAmount;
+              ip.status = realPkg.status || ip.status;
             }
           });
         }
@@ -299,17 +308,6 @@ export default function CustomerInvoiceUploadPage() {
           </div>
         </div>
 
-        {/* Instructions */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <h3 className="font-semibold text-blue-900 mb-2">How to Upload Invoices:</h3>
-          <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-            <li>Click the upload button on any package card below</li>
-            <li>Enter the price you paid for the package (item value)</li>
-            <li>Upload invoice files (PDF, JPG, or PNG, max 10MB each, up to 3 files)</li>
-            <li>Click &quot;Submit Invoice&quot; to complete</li>
-          </ol>
-        </div>
-
         {/* Package Cards */}
         {paginated.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-12 text-center">
@@ -325,68 +323,81 @@ export default function CustomerInvoiceUploadPage() {
               const amt = pkg.freight || pkg.totalAmount || pkg.total_amount || 0;
               return (
                 <div key={tn} className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col">
-                  <div className="flex items-center justify-between px-5 pt-5 pb-3">
-                    <div className="flex items-center gap-3 text-[#0f4d8a] min-w-0">
-                      <div className="p-2 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl shrink-0">{serviceIcon(pkg.serviceMode)}</div>
-                      <span className="font-bold text-base text-gray-900 truncate" title={tn}>{tn}</span>
-                    </div>
-                    <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full shrink-0 ml-2 ${statusClasses(pkg.invoiceStatus)}`}>
-                      {statusIcon(pkg.invoiceStatus)}{statusLabel(pkg.invoiceStatus)}
-                    </span>
+                  {/* Header with tracking number and status */}
+                  <div className="flex items-center gap-3 px-6 pt-6 pb-3 text-[#0f4d8a]">
+                    <div className="p-2.5 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl shrink-0">{serviceIcon(pkg.serviceMode)}</div>
+                    <span className="font-bold text-lg text-gray-900 truncate" title={tn}>{tn}</span>
                   </div>
 
-                  <div className="flex items-center justify-between px-5 pb-3 text-sm text-gray-500">
+                  {/* Date and relative time */}
+                  <div className="flex items-center justify-between px-6 pb-3 text-sm text-gray-500">
                     <span className="font-medium">{fmtDate(pkg.received_date || pkg.dateReceived)}</span>
                     {(pkg.received_date || pkg.dateReceived) && <span className="text-gray-400 text-xs">({relDate(pkg.received_date || pkg.dateReceived || "")})</span>}
                   </div>
 
-                  <div className="px-5 pb-3 space-y-1.5 text-sm text-gray-700 min-h-[80px]">
-                    <div className="flex items-center gap-1.5"><Tag className="h-4 w-4 text-gray-400 shrink-0"/><span className="font-medium truncate">{pkg.shipper || pkg.merchant || "UNKNOWN"}</span></div>
-                    <div className="flex items-center gap-1.5 text-gray-500"><FileText className="h-3.5 w-3.5 shrink-0"/><span className="truncate">{desc}</span></div>
-                    <div className="flex items-center gap-3 text-xs text-gray-400">
-                      {pkg.weight > 0 && <span className="flex items-center gap-1"><Scale className="h-3.5 w-3.5"/>{pkg.weight} lbs</span>}
-                      {pkg.pieces && pkg.pieces > 1 && <span>{pkg.pieces} pcs</span>}
-                      {pkg.warehouseLocation && <span className="flex items-center gap-1 truncate"><MapPin className="h-3.5 w-3.5"/>{pkg.warehouseLocation}</span>}
-                    </div>
+                  {/* Status badge */}
+                  <div className="px-6 pb-3">
+                    <span className={`inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-full ${statusClasses(pkg.invoiceStatus)}`}>
+                      {statusIcon(pkg.invoiceStatus)}{statusLabel(pkg.invoiceStatus)}
+                    </span>
                   </div>
 
+                  {/* Package details */}
+                  <div className="px-6 pb-4 space-y-2 text-sm text-gray-700 flex-1">
+                    <div className="flex items-center gap-2"><Tag className="h-4 w-4 text-gray-400 shrink-0"/><span className="font-semibold">{pkg.shipper || pkg.merchant || "UNKNOWN"}</span></div>
+                    <div className="flex items-center gap-2 text-gray-500"><FileText className="h-4 w-4 shrink-0"/><span className="truncate">{desc}</span></div>
+                    <div className="flex items-center gap-4 text-xs text-gray-400 pt-1">
+                      {pkg.weight > 0 && <span className="flex items-center gap-1"><Scale className="h-3.5 w-3.5"/>{pkg.weight} lbs</span>}
+                      {pkg.pieces && pkg.pieces > 1 && <span className="flex items-center gap-1"><Package className="h-3.5 w-3.5"/>{pkg.pieces} pcs</span>}
+                      {pkg.warehouseLocation && <span className="flex items-center gap-1 truncate"><MapPin className="h-3.5 w-3.5"/>{pkg.warehouseLocation}</span>}
+                    </div>
+                    {pkg.userCode && (
+                      <div className="flex items-center gap-2 text-xs text-gray-400 pt-1"><Building className="h-3.5 w-3.5 shrink-0"/><span>{pkg.userCode}</span></div>
+                    )}
+                  </div>
+
+                  {/* Amount */}
                   {amt > 0 && (
-                    <div className="px-5 pb-3 text-sm flex items-center justify-between">
-                      <span className="text-gray-500">Freight:</span>
-                      <span className="font-semibold text-gray-900">${Number(amt).toFixed(2)}</span>
+                    <div className="mx-6 mb-3 p-3 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg text-sm flex items-center justify-between">
+                      <span className="text-gray-500 font-medium">Freight:</span>
+                      <span className="font-bold text-gray-900 text-base">${Number(amt).toFixed(2)}</span>
                     </div>
                   )}
 
+                  {/* Price paid */}
                   {pkg.pricePaid > 0 && (
-                    <div className="px-5 pb-3 text-sm flex items-center justify-between">
-                      <span className="text-gray-500">Price Paid:</span>
-                      <span className="font-semibold text-gray-900">{pkg.pricePaidCurrency || "USD"} {pkg.pricePaid.toFixed(2)}</span>
+                    <div className="mx-6 mb-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg text-sm flex items-center justify-between">
+                      <span className="text-gray-500 font-medium">Price Paid:</span>
+                      <span className="font-bold text-gray-900 text-base">{pkg.pricePaidCurrency || "USD"} {pkg.pricePaid.toFixed(2)}</span>
                     </div>
                   )}
 
+                  {/* Previously uploaded files */}
                   {pkg.invoiceFiles && pkg.invoiceFiles.length > 0 && (
-                    <div className="px-5 pb-3">
-                      <p className="text-xs text-gray-400 mb-1">{pkg.invoiceFiles.length} file(s) uploaded</p>
-                      <div className="flex gap-1">{pkg.invoiceFiles.slice(0,3).map((f,i)=>{
+                    <div className="px-6 pb-3">
+                      <p className="text-xs text-gray-400 mb-1.5">{pkg.invoiceFiles.length} file(s) uploaded</p>
+                      <div className="flex gap-1.5">{pkg.invoiceFiles.slice(0,3).map((f,i)=>{
                         const isObj = typeof f === 'object' && (f as any).url;
                         const fn = isObj ? (f as any).filename : String(f).split('/').pop()||'file';
                         const url = isObj ? (f as any).url : String(f);
-                        return <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="p-1.5 border border-gray-200 rounded hover:bg-blue-50 hover:border-blue-300 text-gray-500 hover:text-blue-600" title={fn}><FileText className="h-4 w-4"/></a>;
+                        return <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="p-2 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 text-gray-500 hover:text-blue-600 transition-colors" title={fn}><FileText className="h-4 w-4"/></a>;
                       })}</div>
                     </div>
                   )}
 
+                  {/* Submitted at */}
                   {pkg.invoiceSubmittedAt && (
-                    <div className="px-5 pb-2 text-xs text-gray-400 flex items-center gap-1"><Clock className="h-3.5 w-3.5"/>Submitted: {fmtDate(pkg.invoiceSubmittedAt)}</div>
+                    <div className="px-6 pb-2 text-xs text-gray-400 flex items-center gap-1.5"><Clock className="h-3.5 w-3.5"/>Submitted: {fmtDate(pkg.invoiceSubmittedAt)}</div>
                   )}
 
-                  <div className="border-t border-gray-100 px-5 py-4 flex items-center gap-3 bg-gray-50 mt-auto">
+                  {/* Action button */}
+                  <div className="border-t border-gray-100 px-6 py-4 flex items-center gap-3 bg-gray-50 mt-auto">
                     {cs ? (
-                      <button onClick={()=>setUploadPkg(pkg)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-lg font-semibold hover:shadow-lg text-sm">
+                      <button onClick={()=>setUploadPkg(pkg)} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-xl font-semibold hover:shadow-lg text-sm transition-all">
                         <Upload className="h-4 w-4"/>Upload Invoice
                       </button>
                     ) : (
-                      <div className="flex-1 text-center text-sm text-green-600 font-semibold flex items-center justify-center gap-2"><CheckCircle className="h-4 w-4"/>{statusLabel(pkg.invoiceStatus)}</div>
+                      <div className="flex-1 text-center text-sm text-green-600 font-semibold flex items-center justify-center gap-2 py-2"><CheckCircle className="h-5 w-5"/>{statusLabel(pkg.invoiceStatus)}</div>
                     )}
                   </div>
                 </div>
