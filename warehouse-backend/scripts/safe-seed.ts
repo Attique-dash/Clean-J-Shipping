@@ -59,35 +59,35 @@ const safeSeed = async () => {
       const warehouse = await Warehouse.create({
         name: 'KCD Logistics Corp - Main',
         code: 'KCD',
-        address: '700 NW 57 Place',
-        city: 'Ft. Lauderdale',
+        address: '3200 NW 112th Ave',
+        city: 'Doral',
         state: 'Florida',
-        zipCode: '33309',
+        zipCode: '33172',
         country: 'USA',
         isActive: true,
         isDefault: true,
         companyAbbreviation: 'CLEAN',
         airAddress: {
           name: 'Clean J Shipping',
-          street: '700 NW 57 Place',
-          city: 'Ft. Lauderdale',
+          street: '3200 NW 112th Ave',
+          city: 'Doral',
           state: 'Florida',
-          zipCode: '33309',
+          zipCode: '33172',
           country: 'USA',
           phone: '1 (876) 578-5945',
           email: 'cleanjshipping@gmail.com',
-          instructions: 'Standard Air Address - Use AIR-[MAILBOX#] format for recipient line'
+          instructions: 'Standard Air Address - Use KCDX-[MAILBOX#] format for recipient line'
         },
         seaAddress: {
           name: 'Clean J Shipping',
-          street: '700 NW 57 Place',
-          city: 'Ft. Lauderdale',
+          street: '3200 NW 112th Ave',
+          city: 'Doral',
           state: 'Florida',
-          zipCode: '33309',
+          zipCode: '33172',
           country: 'USA',
           phone: '1 (876) 578-5945',
           email: 'cleanjshipping@gmail.com',
-          instructions: 'Standard Sea Address - Use SEA-[MAILBOX#] format for recipient line'
+          instructions: 'Standard Sea Address - Use KCDX-[MAILBOX#] format for recipient line'
         },
         chinaAddress: {
           name: 'Clean J Shipping - China Office',

@@ -12,7 +12,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import Loading from "@/components/Loading";
 
 interface Stats { totalPackages: number; pendingBills: number; unreadMessages: number; walletBalance: number; preAlerts: number; payments: number; invoices: number; }
-interface ShippingAddress { type: string; street: string; city: string; state: string; zipCode: string; country: string; }
+interface ShippingAddress { type: string; street: string; city: string; state: string; zipCode: string; country: string; addressLine2?: string; }
 
 const CACHE_KEY = "customer_dashboard_cache";
 const CACHE_TTL = 2 * 60 * 1000;
@@ -225,6 +225,7 @@ export default function CustomerDashboardPage() {
                       </div>
                       <div className="space-y-2 text-sm">
                         <div className="flex items-start gap-2"><MapPin className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" /><p className="text-gray-700 font-medium">{address.street}</p></div>
+                        {address.addressLine2 && <div className="flex items-center gap-2 text-gray-600"><span className="font-mono font-semibold text-[#0f4d8a]">{address.addressLine2}</span></div>}
                         {address.city && <div className="flex items-center gap-2 text-gray-600"><span className="text-gray-400">City:</span><span>{address.city}</span></div>}
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-gray-600">
                           {address.state && <span>{address.state}</span>}

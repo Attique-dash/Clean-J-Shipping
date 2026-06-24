@@ -21,25 +21,25 @@ async function seedWarehouse() {
           $set: {
             airAddress: {
               name: 'Clean J Shipping',
-              street: '700 NW 57 Place',
-              city: 'Ft. Lauderdale',
+              street: '3200 NW 112th Ave',
+              city: 'Doral',
               state: 'Florida',
-              zipCode: '33309',
+              zipCode: '33172',
               country: 'USA',
               phone: '1 (876) 578-5945',
               email: 'cleanjshipping@gmail.com',
-              instructions: 'Include mailbox number in recipient line - Use AIR-[MAILBOX#] format'
+              instructions: 'Include mailbox number in recipient line - Use KCDX-[MAILBOX#] format'
             },
             seaAddress: {
               name: 'Clean J Shipping',
-              street: '700 NW 57 Place',
-              city: 'Ft. Lauderdale',
+              street: '3200 NW 112th Ave',
+              city: 'Doral',
               state: 'Florida',
-              zipCode: '33309',
+              zipCode: '33172',
               country: 'USA',
               phone: '1 (876) 578-5945',
               email: 'cleanjshipping@gmail.com',
-              instructions: 'Include mailbox number in recipient line - Use SEA-[MAILBOX#] format'
+              instructions: 'Include mailbox number in recipient line - Use KCDX-[MAILBOX#] format'
             },
             chinaAddress: {
               name: 'Clean J Shipping',
@@ -62,35 +62,35 @@ async function seedWarehouse() {
       const warehouse = new Warehouse({
         code: 'CJS',
         name: 'Clean J Shipping Main Warehouse',
-        address: '700 NW 57 Place',
-        city: 'Ft. Lauderdale',
+        address: '3200 NW 112th Ave',
+        city: 'Doral',
         state: 'Florida',
-        zipCode: '33309',
+        zipCode: '33172',
         country: 'USA',
         isActive: true,
         isDefault: true,
         companyAbbreviation: 'CLEAN',
         airAddress: {
           name: 'Clean J Shipping',
-          street: '700 NW 57 Place',
-          city: 'Ft. Lauderdale',
+          street: '3200 NW 112th Ave',
+          city: 'Doral',
           state: 'Florida',
-          zipCode: '33309',
+          zipCode: '33172',
           country: 'USA',
           phone: '1 (876) 578-5945',
           email: 'cleanjshipping@gmail.com',
-          instructions: 'Include mailbox number in recipient line - Use AIR-[MAILBOX#] format'
+          instructions: 'Include mailbox number in recipient line - Use KCDX-[MAILBOX#] format'
         },
         seaAddress: {
           name: 'Clean J Shipping',
-          street: '700 NW 57 Place',
-          city: 'Ft. Lauderdale',
+          street: '3200 NW 112th Ave',
+          city: 'Doral',
           state: 'Florida',
-          zipCode: '33309',
+          zipCode: '33172',
           country: 'USA',
           phone: '1 (876) 578-5945',
           email: 'cleanjshipping@gmail.com',
-          instructions: 'Include mailbox number in recipient line - Use SEA-[MAILBOX#] format'
+          instructions: 'Include mailbox number in recipient line - Use KCDX-[MAILBOX#] format'
         },
         chinaAddress: {
           name: 'Clean J Shipping',

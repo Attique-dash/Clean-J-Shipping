@@ -21,6 +21,7 @@ interface ShippingAddress {
   state: string;
   zipCode: string;
   country: string;
+  addressLine2?: string;
 }
 
 const CONTACT_INFO = {
@@ -71,8 +72,8 @@ export default function CustomerContactPage() {
 
   // Default addresses if API hasn't returned yet
   const displayAddresses = addresses.length > 0 ? addresses : [
-    { type: "air", street: "700 NW 57 Place", city: "Ft. Lauderdale", state: "Florida", zipCode: "33309", country: "USA" },
-    { type: "sea", street: "700 NW 57 Place", city: "Ft. Lauderdale", state: "Florida", zipCode: "33309", country: "USA" },
+    { type: "air", street: "3200 NW 112th Ave", city: "Doral", state: "Florida", zipCode: "33172", country: "USA" },
+    { type: "sea", street: "3200 NW 112th Ave", city: "Doral", state: "Florida", zipCode: "33172", country: "USA" },
     { type: "china", street: "Baoshan No.2 Industrial Zone", city: "Shenzhen", state: "Guangdong Province", zipCode: "518000", country: "China" },
   ];
 
@@ -287,6 +288,7 @@ export default function CustomerContactPage() {
                       <MapPin className="h-4 w-4 text-[#0f4d8a] mt-0.5 shrink-0" />
                       <div>
                         <p className="text-gray-800 font-medium">{addr.street}</p>
+                        {addr.addressLine2 && <p className="text-[#0f4d8a] font-mono font-semibold">{addr.addressLine2}</p>}
                         <p className="text-gray-600">{addr.city}, {addr.state} {addr.zipCode}</p>
                         <p className="text-gray-500">{addr.country}</p>
                       </div>

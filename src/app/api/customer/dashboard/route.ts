@@ -113,23 +113,25 @@ export async function GET(req: Request) {
         !b.payment_status
     ).length;
 
-    // Shipping addresses
+    // Shipping addresses — KCD Logistics warehouse addresses
     const shippingAddresses = userDoc?.shippingAddresses || [
       {
         type: "air",
-        street: "700 NW 57 Place",
-        city: "Ft. Lauderdale",
+        street: "3200 NW 112th Ave",
+        city: "Doral",
         state: "Florida",
-        zipCode: "33309",
+        zipCode: "33172",
         country: "USA",
+        addressLine2: `KCDX-${userDoc?.userCode || ""}`,
       },
       {
         type: "sea",
-        street: "700 NW 57 Place",
-        city: "Ft. Lauderdale",
+        street: "3200 NW 112th Ave",
+        city: "Doral",
         state: "Florida",
-        zipCode: "33309",
+        zipCode: "33172",
         country: "USA",
+        addressLine2: `KCDX-${userDoc?.userCode || ""}`,
       },
       {
         type: "china",
@@ -138,6 +140,7 @@ export async function GET(req: Request) {
         state: "Guangdong Province",
         zipCode: "518000",
         country: "China",
+        addressLine2: userDoc?.userCode || "",
       },
     ];
 

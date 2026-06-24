@@ -280,8 +280,8 @@ function InvoiceModal({ pkg, onClose, userEmail }: { pkg: UIPackage; onClose: ()
                 <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center"><Plane className="h-4 w-4 text-white" /></div>
                 <span className="font-bold text-gray-900 text-sm">Clean J Shipping</span>
               </div>
-              <p className="text-xs text-gray-600">700 NW 57 Place</p>
-              <p className="text-xs text-gray-600">Ft. Lauderdale, FL 33309</p>
+              <p className="text-xs text-gray-600">3200 NW 112th Ave</p>
+              <p className="text-xs text-gray-600">Doral, FL 33172</p>
               <p className="text-xs text-gray-600">(876) 578-5945</p>
               <p className="text-xs text-blue-600">cleanjshipping.com</p>
             </div>

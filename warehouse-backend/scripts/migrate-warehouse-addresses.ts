@@ -32,25 +32,25 @@ const migrateWarehouseAddresses = async () => {
     const defaultAddresses = {
       airAddress: {
         name: 'Clean J Shipping - Air Cargo (Tax Exempt)',
-        street: '700 NW 57 Place',
-        city: 'Ft. Lauderdale',
+        street: '3200 NW 112th Ave',
+        city: 'Doral',
         state: 'Florida',
-        zipCode: '33309',
+        zipCode: '33172',
         country: 'USA',
         phone: '1 (876) 578-5945',
         email: 'cleanjshipping@gmail.com',
-        instructions: 'Include your mailbox number (AIR-[MAILBOX#]) for air shipments'
+        instructions: 'Include your mailbox number (KCDX-[MAILBOX#]) for air shipments'
       },
       seaAddress: {
         name: 'Clean J Shipping - Sea Cargo (Tax Exempt)',
-        street: '700 NW 57 Place',
-        city: 'Ft. Lauderdale',
+        street: '3200 NW 112th Ave',
+        city: 'Doral',
         state: 'Florida',
-        zipCode: '33309',
+        zipCode: '33172',
         country: 'USA',
         phone: '1 (876) 578-5945',
         email: 'cleanjshipping@gmail.com',
-        instructions: 'Include your mailbox number (SEA-[MAILBOX#]) for sea shipments'
+        instructions: 'Include your mailbox number (KCDX-[MAILBOX#]) for sea shipments'
       },
       chinaAddress: {
         name: 'Clean J Shipping China Office',

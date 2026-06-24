@@ -620,31 +620,31 @@ export const getAllShippingAddresses = async (req: AdminRequest, res: Response):
       {
         _id: 'default-air',
         type: 'air',
-        street: '700 NW 57 Place',
-        city: 'Ft. Lauderdale',
+        street: '3200 NW 112th Ave',
+        city: 'Doral',
         state: 'FL',
-        zipCode: '33309',
+        zipCode: '33172',
         country: 'USA',
         isDefault: true,
         displayName: '✈️ Standard Air Address (USA)',
         formattedAddress: {
           name: 'First and Last Name',
-          address: '700 NW 57 Place\nAIR-[MAILBOX#]\nFt. Lauderdale, Florida 33309\nUnited States'
+          address: '3200 NW 112th Ave\nKCDX-[MAILBOX#]\nDoral, Florida 33172\nUnited States'
         }
       },
       {
         _id: 'default-sea',
         type: 'sea',
-        street: '700 NW 57 Place',
-        city: 'Ft. Lauderdale',
+        street: '3200 NW 112th Ave',
+        city: 'Doral',
         state: 'FL',
-        zipCode: '33309',
+        zipCode: '33172',
         country: 'USA',
         isDefault: true,
         displayName: '🚢 Standard Sea Address (USA)',
         formattedAddress: {
           name: 'First and Last Name',
-          address: '700 NW 57 Place\nSEA-[MAILBOX#]\nFt. Lauderdale, Florida 33309\nUnited States'
+          address: '3200 NW 112th Ave\nKCDX-[MAILBOX#]\nDoral, Florida 33172\nUnited States'
         }
       },
       {
