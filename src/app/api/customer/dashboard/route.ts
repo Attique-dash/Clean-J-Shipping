@@ -113,8 +113,9 @@ export async function GET(req: Request) {
         !b.payment_status
     ).length;
 
-    // Shipping addresses — KCD Logistics warehouse addresses
-    const shippingAddresses = userDoc?.shippingAddresses || [
+    // Always use correct KCD Logistics warehouse addresses with user's mailbox code
+    const mailboxCode = userCode ? `KCDX-${userCode}` : "";
+    const shippingAddresses = [
       {
         type: "air",
         street: "3200 NW 112th Ave",
@@ -122,7 +123,7 @@ export async function GET(req: Request) {
         state: "Florida",
         zipCode: "33172",
         country: "USA",
-        addressLine2: `KCDX-${userDoc?.userCode || ""}`,
+        addressLine2: mailboxCode,
       },
       {
         type: "sea",
@@ -131,7 +132,7 @@ export async function GET(req: Request) {
         state: "Florida",
         zipCode: "33172",
         country: "USA",
-        addressLine2: `KCDX-${userDoc?.userCode || ""}`,
+        addressLine2: mailboxCode,
       },
       {
         type: "china",
@@ -140,7 +141,7 @@ export async function GET(req: Request) {
         state: "Guangdong Province",
         zipCode: "518000",
         country: "China",
-        addressLine2: userDoc?.userCode || "",
+        addressLine2: userCode || "",
       },
     ];
 
