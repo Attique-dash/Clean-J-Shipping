@@ -98,35 +98,35 @@ const seedData = async () => {
       Warehouse.create({
         name: 'Clean J Shipping - Florida Warehouse',
         code: 'CLEAN-FL',
-        address: '3200 NW 112th Ave',
-        city: 'Doral',
+        address: '700 NW 57 Place',
+        city: 'Ft. Lauderdale',
         state: 'Florida',
-        zipCode: '33172',
+        zipCode: '33309',
         country: 'USA',
         isActive: true,
         isDefault: true,
         companyAbbreviation: 'CLEAN',
         airAddress: {
           name: 'Clean J Shipping - Air Cargo (Tax Exempt)',
-          street: '3200 NW 112th Ave',
-          city: 'Doral',
+          street: '700 NW 57 Place',
+          city: 'Ft. Lauderdale',
           state: 'Florida',
-          zipCode: '33172',
+          zipCode: '33309',
           country: 'USA',
           phone: '1 (876) 578-5945',
           email: 'cleanjshipping@gmail.com',
-          instructions: 'Standard Air Address - Use KCDX-[MAILBOX#] format for recipient line'
+          instructions: 'Standard Air Address - Use AIR-[MAILBOX#] format for recipient line'
         },
         seaAddress: {
           name: 'Clean J Shipping - Sea Cargo (Tax Exempt)',
-          street: '3200 NW 112th Ave',
-          city: 'Doral',
+          street: '700 NW 57 Place',
+          city: 'Ft. Lauderdale',
           state: 'Florida',
-          zipCode: '33172',
+          zipCode: '33309',
           country: 'USA',
           phone: '1 (876) 578-5945',
           email: 'cleanjshipping@gmail.com',
-          instructions: 'Standard Sea Address - Use KCDX-[MAILBOX#] format for recipient line'
+          instructions: 'Standard Sea Address - Use AIR-[MAILBOX#] format for recipient line'
         },
         chinaAddress: {
           name: 'KCD Logistics Corp - China Office',
@@ -143,30 +143,30 @@ const seedData = async () => {
       Warehouse.create({
         name: 'Clean J Shipping - Backup',
         code: 'CLEAN-BK',
-        address: '3200 NW 112th Ave',
-        city: 'Doral',
+        address: '700 NW 57 Place',
+        city: 'Ft. Lauderdale',
         state: 'Florida',
-        zipCode: '33172',
+        zipCode: '33309',
         country: 'USA',
         isActive: true,
         isDefault: false,
         companyAbbreviation: 'CLEAN',
         airAddress: {
           name: 'Clean J Shipping - Air Backup',
-          street: '3200 NW 112th Ave',
-          city: 'Doral',
+          street: '700 NW 57 Place',
+          city: 'Ft. Lauderdale',
           state: 'Florida',
-          zipCode: '33172',
+          zipCode: '33309',
           country: 'USA',
           phone: '1 (876) 578-5945',
           email: 'cleanjshipping@gmail.com'
         },
         seaAddress: {
           name: 'Clean J Shipping - Sea Backup',
-          street: '3200 NW 112th Ave',
-          city: 'Doral',
+          street: '700 NW 57 Place',
+          city: 'Ft. Lauderdale',
           state: 'Florida',
-          zipCode: '33172',
+          zipCode: '33309',
           country: 'USA',
           phone: '1 (876) 578-5945',
           email: 'cleanjshipping@gmail.com'
@@ -288,13 +288,13 @@ const seedData = async () => {
     console.log('\n=== Database Seeding Complete ===');
     console.log('\n✅ CLEAN J SHIPPING ADDRESSES CONFIGURED:');
     console.log('\n📍 Air Address (AIR):');
-    console.log('   3200 NW 112th Ave');
-    console.log('   KCDX-[MAILBOX#]');
-    console.log('   Doral, Florida 33172');
+    console.log('   700 NW 57 Place');
+    console.log('   AIR-[MAILBOX#]');
+    console.log('   Ft. Lauderdale, Florida 33309');
     console.log('\n🚢 Sea Address (SEA):');
-    console.log('   3200 NW 112th Ave');
-    console.log('   KCDX-[MAILBOX#]');
-    console.log('   Doral, Florida 33172');
+    console.log('   700 NW 57 Place');
+    console.log('   AIR-[MAILBOX#]');
+    console.log('   Ft. Lauderdale, Florida 33309');
     console.log('\n🇨🇳 China Address:');
     console.log('   FirstName LastName / [MAILBOX#]');
     console.log('   China, Guangdong Province, Shenzhen');

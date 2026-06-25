@@ -114,25 +114,26 @@ export async function GET(req: Request) {
     ).length;
 
     // Always use correct KCD Logistics warehouse addresses with user's mailbox code
-    const mailboxCode = userCode ? `KCDX-${userCode}` : "";
+    const airMailbox = userCode ? `AIR-${userCode}` : "";
+    const seaMailbox = userCode ? `SEA-${userCode}` : "";
     const shippingAddresses = [
       {
         type: "air",
-        street: "3200 NW 112th Ave",
-        city: "Doral",
+        street: "700 NW 57 Place",
+        city: "Ft. Lauderdale",
         state: "Florida",
-        zipCode: "33172",
+        zipCode: "33309",
         country: "USA",
-        addressLine2: mailboxCode,
+        addressLine2: airMailbox,
       },
       {
         type: "sea",
-        street: "3200 NW 112th Ave",
-        city: "Doral",
+        street: "700 NW 57 Place",
+        city: "Ft. Lauderdale",
         state: "Florida",
-        zipCode: "33172",
+        zipCode: "33309",
         country: "USA",
-        addressLine2: mailboxCode,
+        addressLine2: seaMailbox,
       },
       {
         type: "china",

@@ -72,8 +72,8 @@ export default function CustomerContactPage() {
 
   // Default addresses if API hasn't returned yet
   const displayAddresses = addresses.length > 0 ? addresses : [
-    { type: "air", street: "3200 NW 112th Ave", city: "Doral", state: "Florida", zipCode: "33172", country: "USA" },
-    { type: "sea", street: "3200 NW 112th Ave", city: "Doral", state: "Florida", zipCode: "33172", country: "USA" },
+    { type: "air", street: "700 NW 57 Place", city: "Ft. Lauderdale", state: "Florida", zipCode: "33309", country: "USA" },
+    { type: "sea", street: "700 NW 57 Place", city: "Ft. Lauderdale", state: "Florida", zipCode: "33309", country: "USA" },
     { type: "china", street: "Baoshan No.2 Industrial Zone", city: "Shenzhen", state: "Guangdong Province", zipCode: "518000", country: "China" },
   ];
 
