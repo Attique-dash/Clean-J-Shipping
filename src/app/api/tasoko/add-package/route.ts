@@ -1,119 +1,258 @@
-import { NextResponse } from "next/server";
+// src/app/api/tasoko/add-package/route.ts
+// Tasoko Packing API — Add Package Endpoint
+// URL: https://cleanjshipping.com/api/tasoko/add-package
+// Method: POST
+// Request: [{PackageID, TrackingNumber, UserCode, Weight, Shipper, ...}]
+
+import { NextRequest, NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
-import { Package, type IPackage } from "@/models/Package";
+import { Package } from "@/models/Package";
 import { User } from "@/models/User";
-import { tasokoAddPackageSchema } from "@/lib/validators";
-import { isWarehouseAuthorized } from "@/lib/rbac";
+import { sendNewPackageEmail } from "@/lib/email";
+import { validateApiKey } from "@/lib/api-key-validation";
+import {
+  validateKcdRequest,
+  parseKcdInboundPackages,
+  applyApiTokenToPackages,
+  kcdUnauthorizedResponse,
+} from "@/lib/kcd-auth";
+import { processKcdPackageAdd } from "@/lib/kcd-add-package-handler";
+import {
+  buildKcdPackageDocument,
+  toPublicKcdPackage,
+} from "@/lib/package-format";
+import {
+  validateAddPackageBody,
+  validationFailedResponse,
+  trackingNumberQuery,
+  extractUserCode,
+  extractTrackingNumber,
+  normalizeKcdBody,
+} from "@/lib/kcd-package-validation";
+import {
+  kcdPackageCreatedResponse,
+  kcdErrorResponse,
+} from "@/lib/kcd-api-response";
+import crypto from "crypto";
 
-export async function POST(req: Request) {
-  if (!isWarehouseAuthorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+/**
+ * POST /api/tasoko/add-package
+ * Receives package data in Tasoko Packing API format (PascalCase array)
+ */
+export async function POST(req: NextRequest) {
+  const timestamp = new Date().toISOString();
+  const requestId = crypto.randomUUID();
 
-  await dbConnect();
+  console.log(`[Tasoko AddPackage ${requestId}] POST received at ${timestamp}`);
 
-  let body: unknown;
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    let rawBody: string;
+    let parsed: unknown;
+    try {
+      rawBody = await req.text();
+      parsed = rawBody ? JSON.parse(rawBody) : {};
+    } catch {
+      return validationFailedResponse([
+        { field: 'body', message: 'Request body must be valid JSON' },
+      ]);
+    }
+
+    const { packages: inboundPackages, proxyToken } = parseKcdInboundPackages(parsed);
+
+    const validation = await validateKcdRequest(req, parsed);
+    if (!validation.valid || !validation.token) {
+      console.error(`[Tasoko AddPackage ${requestId}] Auth failed:`, validation.error);
+      return NextResponse.json(kcdUnauthorizedResponse(validation), { status: 401 });
+    }
+
+    const token = validation.token;
+
+    let packagesToProcess = inboundPackages;
+    if (packagesToProcess.length === 0 && parsed && typeof parsed === 'object') {
+      const obj = parsed as Record<string, unknown>;
+      if (!obj.content && !obj.method && !obj.url) {
+        packagesToProcess = [obj];
+      }
+    }
+    if (packagesToProcess.length === 0) {
+      return validationFailedResponse([
+        { field: 'body', message: 'Expected a Tasoko package object or array of packages' },
+      ]);
+    }
+    packagesToProcess = applyApiTokenToPackages(packagesToProcess, token);
+
+    const createdPackages: ReturnType<typeof toPublicKcdPackage>[] = [];
+    let lastNotifications = { preAlertCreated: false, emailSent: false, invoiceCreated: false };
+
+    for (const pkgBody of packagesToProcess) {
+      const result = await processKcdPackageAdd(pkgBody, requestId);
+      if (!result.ok) {
+        return NextResponse.json(result.body, { status: result.status });
+      }
+      createdPackages.push(result.package);
+      lastNotifications = result.notifications;
+    }
+
+    console.log(`[Tasoko AddPackage ${requestId}] Created ${createdPackages.length} package(s)`);
+    return kcdPackageCreatedResponse(createdPackages, { notifications: lastNotifications });
+
+  } catch (error) {
+    console.error(`[Tasoko AddPackage ${requestId}] Error:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    if (errorMessage.includes('E11000') || errorMessage.includes('duplicate key')) {
+      let duplicateField = 'unknown field';
+      if (errorMessage.includes('trackingNumber')) duplicateField = 'tracking number';
+      else if (errorMessage.includes('UserCode')) duplicateField = 'user code';
+
+      return NextResponse.json({
+        success: false,
+        message: `A package with this ${duplicateField} already exists`,
+        error: `Duplicate ${duplicateField}`,
+        errorCode: 'DUPLICATE_KEY',
+        data: [],
+      }, { status: 409 });
+    }
+
+    return kcdErrorResponse('Internal server error', 500, {
+      requestId,
+      errorCode: 'TASOKO_INTERNAL_ERROR',
+      error: errorMessage,
+    });
   }
+}
 
-  const parsed = tasokoAddPackageSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  }
+/**
+ * GET /api/tasoko/add-package
+ * Some Tasoko systems send data via GET with query params
+ */
+export async function GET(req: NextRequest) {
+  const timestamp = new Date().toISOString();
+  const requestId = crypto.randomUUID();
 
-  const {
-    integration_id,
-    tracking_number,
-    customer_id,
-    description,
-    value,
-    currency = "USD",
-    origin,
-    order_id,
-    supplier,
-    ship_date,
-  } = parsed.data;
+  console.log(`[Tasoko AddPackage ${requestId}] GET received at ${timestamp}`);
 
-  // Ensure customer exists by userCode
-  const customer = await User.findOne({ userCode: customer_id, role: "customer" }).select("_id userCode");
-  if (!customer) {
-    return NextResponse.json({ error: "Customer not found" }, { status: 404 });
-  }
+  try {
+    const { searchParams } = new URL(req.url);
 
-  // Normalize ship_date to midnight UTC if date-only
-  let shipDate: Date | undefined = undefined;
-  if (ship_date) {
-    shipDate = /^\d{4}-\d{2}-\d{2}$/.test(ship_date)
-      ? new Date(`${ship_date}T00:00:00.000Z`)
-      : new Date(ship_date);
-  }
+    const queryBody = normalizeKcdBody(
+      Object.fromEntries(searchParams.entries()) as Record<string, unknown>
+    );
 
-  const now = new Date();
+    // Merge ?content= JSON if present
+    const contentParam = searchParams.get('content');
+    if (contentParam) {
+      try {
+        const parsedContent = JSON.parse(contentParam) as Record<string, unknown>;
+        Object.assign(queryBody, normalizeKcdBody(parsedContent));
+      } catch { /* ignore */ }
+    }
 
-  // Store Tasoko metadata in packagePayments as JSON for now
-  const tasokoMeta = {
-    integration_id,
-    value: value ?? null,
-    currency: currency || "USD",
-    origin: origin ?? null,
-    order_id: order_id ?? null,
-    supplier: supplier ?? null,
-    ship_date: shipDate ? shipDate.toISOString() : null,
-    integration_source: "tasoko",
-  };
+    let getValidation = validateAddPackageBody(queryBody);
+    const normalizedBody = getValidation.ok ? getValidation.normalized : queryBody;
+    let trackingNumber = extractTrackingNumber(normalizedBody);
+    let userCodeFromQuery = extractUserCode(normalizedBody);
+    const houseNumber = queryBody.ControlNumber;
+    const weight = queryBody.Weight;
+    const shipper = queryBody.Shipper;
+    const receivedAt = queryBody.EntryDateTime || queryBody.EntryDate;
+    const description = queryBody.Description;
+    const firstName = queryBody.FirstName;
+    const lastName = queryBody.LastName;
 
-  const initial: Partial<IPackage> = {
-    trackingNumber: tracking_number,
-    userCode: customer.userCode,
-    customer: customer._id,
-    description,
-    status: "At Warehouse",
-    entryDate: shipDate || now,
-    packagePayments: JSON.stringify(tasokoMeta),
-    branch: undefined,
-  };
+    const validation = await validateKcdRequest(req, queryBody);
+    if (!validation.valid || !validation.token) {
+      return NextResponse.json(kcdUnauthorizedResponse(validation), { status: 401 });
+    }
 
-  await Package.findOneAndUpdate(
-    { trackingNumber: tracking_number },
-    {
-      $setOnInsert: {
-        userCode: initial.userCode,
-        customer: initial.customer,
-        trackingNumber: tracking_number,
-        createdAt: now,
+    if (!getValidation.ok) {
+      return NextResponse.json({
+        success: false,
+        message: 'GET request received with no package data. Include TrackingNumber and UserCode in URL params.',
+        errors: getValidation.errors,
+        hint: 'Example: GET /api/tasoko/add-package?id=YOUR_API_KEY&TrackingNumber=TBA123&UserCode=CLEAN-0007&Weight=5&Shipper=Amazon',
+        data: [],
+      }, { status: 400 });
+    }
+
+    await dbConnect();
+
+    const userCode = userCodeFromQuery;
+    const user = await User.findOne({ userCode });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found", userCode }, { status: 404 });
+    }
+
+    const existingPackage = await Package.findOne(trackingNumberQuery(trackingNumber));
+    if (existingPackage) {
+      return NextResponse.json(
+        { error: "Package already exists", trackingNumber, packageId: existingPackage._id },
+        { status: 409 }
+      );
+    }
+
+    const weightNum = typeof weight === 'number' ? weight : Number(weight) || 0;
+    const receivedDate = receivedAt ? new Date(String(receivedAt)) : new Date();
+
+    const packageData = buildKcdPackageDocument(
+      {
+        TrackingNumber: trackingNumber,
+        ControlNumber: houseNumber,
+        FirstName: firstName,
+        LastName: lastName,
+        UserCode: userCode,
+        Weight: weightNum,
+        Shipper: shipper,
+        EntryDate: receivedDate,
+        EntryDateTime: receivedDate,
+        Branch: 'KCD Main Warehouse',
+        Description: description,
+        EntryStaff: 'Tasoko Webhook',
       },
-      $set: {
-        description: typeof description === "string" ? description : undefined,
-        status: "At Warehouse",
-        entryDate: shipDate || now,
-        updatedAt: now,
-        packagePayments: initial.packagePayments,
-      },
-      $push: {
-        history: {
-          status: "At Warehouse",
-          at: now,
-          note: `Added via Tasoko integration ${integration_id}`,
+      user,
+      {
+        source: 'tasoko_webhook',
+        sourceDetails: {
+          syncedAt: new Date(),
+          syncStatus: 'synced',
+          apiEndpoint: '/api/tasoko/add-package',
         },
-      },
-    },
-    { upsert: true, new: false }
-  );
+      }
+    );
 
-  return NextResponse.json({
-    integration_id,
-    tracking_number,
-    customer_id,
-    description: description ?? null,
-    value: value ?? null,
-    currency: currency || "USD",
-    origin: origin ?? null,
-    order_id: order_id ?? null,
-    supplier: supplier ?? null,
-    ship_date: shipDate ? shipDate.toISOString() : null,
-    integration_source: "tasoko",
-  });
+    const createdPackage = await Package.create(packageData);
+    console.log(`[Tasoko AddPackage ${requestId}] Package created: ${createdPackage._id}`);
+
+    let emailSent = false;
+    try {
+      if (user.email) {
+        const kcdGetPkg = toPublicKcdPackage(createdPackage.toObject());
+        await sendNewPackageEmail({
+          to: user.email,
+          firstName: user.firstName || "Customer",
+          trackingNumber: kcdGetPkg.TrackingNumber,
+          status: String(kcdGetPkg.PackageStatus ?? 0),
+          weight: kcdGetPkg.Weight ?? 0,
+          shipper: kcdGetPkg.Shipper || 'KCD Logistics',
+          warehouse: kcdGetPkg.Branch || "KCD Main Warehouse",
+          receivedDate: kcdGetPkg.EntryDate ? new Date(kcdGetPkg.EntryDate) : new Date(),
+          description: kcdGetPkg.Description || `Package from ${shipper || 'KCD'}`,
+        });
+        emailSent = true;
+      }
+    } catch (emailError) {
+      console.error(`[Tasoko AddPackage ${requestId}] Email failed:`, emailError);
+    }
+
+    const kcdGetResponse = toPublicKcdPackage(createdPackage.toObject());
+    return kcdPackageCreatedResponse([kcdGetResponse], {
+      message: 'Package created successfully via GET',
+      notifications: { emailSent },
+    });
+
+  } catch (error) {
+    console.error(`[Tasoko AddPackage ${requestId}] Error:`, error);
+    return NextResponse.json({ error: "Internal server error", requestId }, { status: 500 });
+  }
 }

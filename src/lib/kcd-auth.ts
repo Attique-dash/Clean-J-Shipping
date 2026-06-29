@@ -227,9 +227,9 @@ export function buildNextAuthAttempts(
   let usedEnvFallback = false;
   const path = req.nextUrl.pathname.toLowerCase();
   const isCustomers =
-    path.includes('/kcd/customers') || path.includes('/v1/get-customers');
+    path.includes('/kcd/customers') || path.includes('/v1/get-customers') || path.includes('/tasoko/customers');
   const isPackageAdd =
-    path.includes('/kcd/packages/add') || path.includes('/v1/add-package');
+    path.includes('/kcd/packages/add') || path.includes('/v1/add-package') || path.includes('/tasoko/add-package');
   // Askenish co-load often POSTs package webhooks without any token; trust KCD_API_KEY on server.
   const allowEnv = isCustomers || isPackageAdd;
 
@@ -342,7 +342,12 @@ export async function validateKcdRequest(
     path.includes('/kcd/customers') ||
     path.includes('/v1/get-customers') ||
     path.includes('/kcd/packages/add') ||
-    path.includes('/v1/add-package');
+    path.includes('/v1/add-package') ||
+    path.includes('/tasoko/customers') ||
+    path.includes('/tasoko/add-package') ||
+    path.includes('/tasoko/update-package') ||
+    path.includes('/tasoko/delete-package') ||
+    path.includes('/tasoko/update-manifest');
 
   if (attempts.length === 0) {
     const errors: Array<{ field: string; message: string }> = [];
