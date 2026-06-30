@@ -185,15 +185,24 @@ export function validateAddPackageBody(body: Record<string, unknown>): {
 
   const serviceMode =
     normalized.serviceMode ?? normalized.ServiceMode ?? normalized.ServiceTypeID;
+  // Tasoko API uses UUID ServiceTypeIDs as well as plain text
+  const validServiceModes = ['air', 'ocean', 'local', 'sea'];
+  const validServiceTypeUUIDs = [
+    '59cadcd4-7508-450b-85aa-9ec908d168fe', // AIR STANDARD
+    '25a1d8e5-a478-4cc3-b1fd-a37d0d787302', // AIR EXPRESS
+    '8df142ca-0573-4ce9-b11d-7a3e5f8ba196', // AIR PREMIUM
+    '7c9638e8-4bb3-499e-8af9-d09f757a099e', // SEA STANDARD
+  ];
   if (
     serviceMode !== undefined &&
     serviceMode !== null &&
     serviceMode !== '' &&
-    !['air', 'ocean', 'local', 'sea'].includes(String(serviceMode).toLowerCase())
+    !validServiceModes.includes(String(serviceMode).toLowerCase()) &&
+    !validServiceTypeUUIDs.includes(String(serviceMode).toLowerCase())
   ) {
     pushError(errors, {
       field: 'ServiceTypeID',
-      message: 'Service mode must be air, ocean, sea, or local',
+      message: 'Service mode must be air, ocean, sea, local, or a valid Tasoko ServiceTypeID UUID',
       value: serviceMode,
     });
   }
