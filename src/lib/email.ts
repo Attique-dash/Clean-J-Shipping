@@ -1,4 +1,6 @@
-import nodemailer from "nodemailer";
+import * as nodemailer from "nodemailer";
+import { format } from 'date-fns';
+import type { IInvoice } from '@/models/Invoice';
 import type { KcdPackage } from "@/types/kcd-package";
 import { PACKAGE_STATUS_MAP } from "@/lib/tasoko-constants";
 
@@ -305,14 +307,16 @@ export async function sendNewPackageEmail(opts: {
   
   // Try to generate and attach invoice PDF if invoiceId is provided
   const attachments: Array<{ filename: string; path: string; contentType: string }> = [];
+  let invoiceSummaryHtml = '';
   if (invoiceId) {
     try {
       const { dbConnect } = await import('@/lib/db');
       const Invoice = (await import('@/models/Invoice')).default;
       const { generateInvoicePdf } = await import('@/lib/pdfGenerator');
+      const { CurrencyService } = await import('@/lib/currency-service');
       
       await dbConnect();
-      const invoice = await Invoice.findById(invoiceId).lean();
+      const invoice = await Invoice.findById(invoiceId).lean<IInvoice | null>();
       
       if (invoice) {
         const company = {
@@ -337,6 +341,50 @@ export async function sendNewPackageEmail(opts: {
           path: pdfResult.filePath,
           contentType: 'application/pdf',
         });
+
+        const currencyCode = (invoice.currency || 'JMD').toUpperCase();
+        const currencySymbol = CurrencyService.getCurrencyInfo(currencyCode)?.symbol || currencyCode;
+        const formatMoney = (value: number) => `${currencySymbol}${value.toFixed(2)}`;
+        const invoiceItemsRows = (invoice.items || [])
+          .map((item) => {
+            const description = item.description || 'Item';
+            const qty = item.quantity ?? 1;
+            const unit = formatMoney(item.unitPrice || 0);
+            const total = formatMoney(item.total || 0);
+            return `
+              <tr>
+                <td style="padding:8px 10px;border:1px solid #e5e7eb;">${escapeHtml(description)}</td>
+                <td style="padding:8px 10px;border:1px solid #e5e7eb;text-align:right;">${qty}</td>
+                <td style="padding:8px 10px;border:1px solid #e5e7eb;text-align:right;">${unit}</td>
+                <td style="padding:8px 10px;border:1px solid #e5e7eb;text-align:right;">${total}</td>
+              </tr>`;
+          })
+          .join('');
+
+        invoiceSummaryHtml = `
+        <div style="margin:24px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
+          <h3 style="margin-top:0;color:#1e40af;">Invoice Summary</h3>
+          <p style="margin:0 0 8px 0;">Invoice <strong>${invoice.invoiceNumber}</strong> | Due <strong>${format(new Date(invoice.dueDate), 'MMM dd, yyyy')}</strong></p>
+          <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:13px;">
+            <thead>
+              <tr style="background:#eef2ff;color:#1e3a8a;">
+                <th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:left;">Description</th>
+                <th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:right;">Qty</th>
+                <th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:right;">Unit Price</th>
+                <th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${invoiceItemsRows}
+            </tbody>
+          </table>
+          <div style="margin-top:16px;text-align:right;font-size:13px;color:#111;">
+            <p style="margin:4px 0;">Subtotal: <strong>${formatMoney(invoice.subtotal || 0)}</strong></p>
+            <p style="margin:4px 0;">Tax: <strong>${formatMoney(invoice.taxTotal || 0)}</strong></p>
+            <p style="margin:4px 0;">Discount: <strong>${formatMoney(invoice.discountAmount || 0)}</strong></p>
+            <p style="margin:4px 0;font-size:15px;">Total Due: <strong>${formatMoney(invoice.total || 0)}</strong></p>
+          </div>
+        </div>`;
       }
     } catch (pdfError) {
       console.error('Failed to generate invoice PDF for email:', pdfError);
@@ -384,6 +432,7 @@ export async function sendNewPackageEmail(opts: {
     </div>
     ` : ''}
     
+    ${invoiceSummaryHtml}
     ${attachments.length > 0 ? `
     <div style="background:#dbeafe;border:1px solid #3b82f6;border-radius:8px;padding:16px;margin:16px 0;">
       <h4 style="margin:0 0 8px 0;color:#1e40af;">📄 Invoice Attached</h4>
