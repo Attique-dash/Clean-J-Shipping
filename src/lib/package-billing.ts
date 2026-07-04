@@ -78,10 +78,9 @@ export function buildBillingInvoicePayload(
     const currency = getPackagePaymentCurrency(packageData, payment);
     const invoiceCurrency = CurrencyService.isSupported(currency) ? currency : 'JMD';
 
-    const itemValueLocal = asNumber(
-      packageData.itemValueUSD ?? packageData.itemValue ?? packageData.value ?? payment.itemValueUsd
-    );
-    const totalFromPackage = asNumber(packageData.totalAmount ?? payment.totalAmountUsd);
+    // Use parsed payment USD amounts as canonical base values when available
+    const itemValueUsd = asNumber(payment.itemValueUsd);
+    const totalFromPackageUsd = asNumber(payment.totalAmountUsd);
     const weightLbs = asNumber(
       packageData.Weight ?? packageData.weightLbs ?? packageData.weight
     );
@@ -91,18 +90,13 @@ export function buildBillingInvoicePayload(
       asString(packageData.Description || packageData.description) ||
       'Package contents';
 
-    const itemValueUSD =
-      invoiceCurrency === 'USD'
-        ? itemValueLocal
-        : CurrencyService.isSupported(invoiceCurrency)
-          ? CurrencyService.toUSD(itemValueLocal, invoiceCurrency)
-          : itemValueLocal;
-
+    // Convert USD base amounts to invoice-local currency where needed
     const invoiceItems: BillingInvoicePayload['items'] = [];
-    let invoiceTotal = totalFromPackage;
+    let invoiceTotal = 0;
 
     if (invoiceCurrency === 'JMD') {
-      const cost = CurrencyService.calculateTotalPackageCost(itemValueUSD, weightKg, 'JMD');
+      // For JMD, use the currency service helper which expects USD base
+      const cost = CurrencyService.calculateTotalPackageCost(itemValueUsd, weightKg, 'JMD');
 
       if (cost.itemValueJMD > 0) {
         invoiceItems.push({
@@ -128,7 +122,7 @@ export function buildBillingInvoicePayload(
       }
       if (cost.customsDutyJMD > 0) {
         invoiceItems.push({
-          description: `Customs duty (${itemValueUSD > 100 ? '15%' : '0%'} of item value)`,
+          description: `Customs duty (${itemValueUsd > 100 ? '15%' : '0%'} of item value)`,
           quantity: 1,
           unitPrice: cost.customsDutyJMD,
           taxRate: 0,
@@ -137,20 +131,23 @@ export function buildBillingInvoicePayload(
           total: cost.customsDutyJMD,
         });
       }
-      if (invoiceTotal <= 0) invoiceTotal = cost.totalJMD;
+
+      invoiceTotal = cost.totalJMD;
     } else {
-      const shippingUsd = calcShippingCostUsd(weightLbs);
+      // Non-JMD: convert USD base values into local currency for display
+      const shippingUsd = asNumber(payment.shippingCostUsd) || calcShippingCostUsd(weightLbs);
+      const itemLocal = itemValueUsd > 0 ? CurrencyService.fromUSD(itemValueUsd, invoiceCurrency) : 0;
       const shippingLocal = CurrencyService.fromUSD(shippingUsd, invoiceCurrency);
 
-      if (itemValueLocal > 0) {
+      if (itemLocal > 0) {
         invoiceItems.push({
           description: `Item value (${itemDescription})`,
           quantity: 1,
-          unitPrice: itemValueLocal,
+          unitPrice: itemLocal,
           taxRate: 0,
-          amount: itemValueLocal,
+          amount: itemLocal,
           taxAmount: 0,
-          total: itemValueLocal,
+          total: itemLocal,
         });
       }
       if (shippingLocal > 0) {
@@ -164,8 +161,11 @@ export function buildBillingInvoicePayload(
           total: shippingLocal,
         });
       }
-      if (invoiceTotal <= 0) {
-        invoiceTotal = itemValueLocal + shippingLocal;
+
+      if (totalFromPackageUsd > 0) {
+        invoiceTotal = CurrencyService.fromUSD(totalFromPackageUsd, invoiceCurrency);
+      } else {
+        invoiceTotal = itemLocal + shippingLocal;
       }
     }
 
