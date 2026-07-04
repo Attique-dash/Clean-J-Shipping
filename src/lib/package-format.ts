@@ -110,11 +110,24 @@ export function getPackagePaymentCurrency(
   doc?: Record<string, unknown>,
   parsed?: PackagePaymentMeta
 ): string {
-  return (
-    asString(doc?.amountPaidCurrency ?? doc?.paymentCurrency ?? doc?.currency) ||
-    parsed?.currency ||
-    'USD'
-  );
+  const candidates = [
+    doc?.amountPaidCurrency,
+    doc?.paymentCurrency,
+    doc?.pricePaidCurrency,
+    doc?.paymentCurrencyCode,
+    doc?.currencyCode,
+    doc?.currency,
+    parsed?.currency,
+    parsed?.paymentCurrency,
+    parsed?.pricePaidCurrency,
+  ];
+
+  for (const candidate of candidates) {
+    const value = asString(candidate).trim().toUpperCase();
+    if (value) return value;
+  }
+
+  return 'USD';
 }
 
 export function formatPackageAmount(amount: number, currencyCode?: string): string {
@@ -574,9 +587,11 @@ export function buildKcdPackageDocument(
     totalAmount: totalUsd,
     amountPaid: asNumber(body.amountPaid),
     amountPaidCurrency: paymentCurrency,
+    pricePaidCurrency: paymentCurrency,
     paymentStatus: paymentMeta.paymentStatus,
     paymentMethod: paymentMeta.paymentMethod,
     paymentCurrency,
+    currency: paymentCurrency,
     serviceMode: asString(body.serviceMode) || 'air',
     itemDescription: asString(body.itemDescription),
     specialInstructions: asString(body.specialInstructions),

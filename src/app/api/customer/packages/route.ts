@@ -109,6 +109,14 @@ export async function GET(req: NextRequest) {
       let paymentStatus = 'pending';
       let paymentMethod = 'cash';
 
+      const resolveCurrency = (values: Array<string | undefined | null>) => {
+        for (const value of values) {
+          const normalized = String(value || '').trim().toUpperCase();
+          if (normalized) return normalized;
+        }
+        return 'USD';
+      };
+
       // Try PackagePayments as JSON first (KCD format)
       if (typeof paymentStr === 'string' && paymentStr.length > 0) {
         try {
@@ -117,7 +125,7 @@ export async function GET(req: NextRequest) {
           shippingCostUsd = parseFloat(parsed.shippingCostUsd) || 0;
           totalAmountUsd = parseFloat(parsed.totalAmountUsd) || 0;
           amountPaidUsd = parseFloat(parsed.amountPaidUsd) || 0;
-          currency = parsed.currency || 'USD';
+          currency = resolveCurrency([String(parsed.currency || ''), String(parsed.pricePaidCurrency || ''), String(parsed.paymentCurrency || ''), String(parsed.amountPaidCurrency || '')]);
           paymentStatus = parsed.paymentStatus || 'pending';
           paymentMethod = parsed.paymentMethod || 'cash';
         } catch {
@@ -149,7 +157,14 @@ export async function GET(req: NextRequest) {
         amountPaidUsd = parseFloat(String(doc.amountPaid || 0));
       }
       if (currency === 'USD') {
-        currency = doc.pricePaidCurrency || doc.paymentCurrency || doc.amountPaidCurrency || 'USD';
+        currency = resolveCurrency([
+          doc.pricePaidCurrency,
+          doc.paymentCurrency,
+          doc.amountPaidCurrency,
+          doc.currency,
+          doc.currencyCode,
+          doc.paymentCurrencyCode,
+        ]);
       }
       if (paymentStatus === 'pending') {
         paymentStatus = doc.paymentStatus || 'pending';

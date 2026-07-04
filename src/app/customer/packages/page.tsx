@@ -120,6 +120,21 @@ function getStatusClasses(s: string) {
   return "bg-gray-400 text-white";
 }
 
+function formatDisplayAmount(amount: number, currencyCode?: string) {
+  const code = (currencyCode || "USD").toUpperCase();
+  const locale = code === "JMD" ? "en-JM" : "en-US";
+
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: code,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${code} ${amount.toFixed(2)}`;
+  }
+}
+
 function InfoRow({ icon, label, value, mono }: { icon?: React.ReactNode; label: string; value: React.ReactNode; mono?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-2 py-1">
@@ -136,6 +151,10 @@ function PackageDetailModal({ pkg, onClose, onOpenInvoice }: { pkg: UIPackage; o
   const itemValue = pkg.itemValueUsd || pkg.usdValue || 0;
   const balance = Math.max(0, totalAmount - amountPaid);
   const currency = pkg.pricePaidCurrency || "USD";
+  const formattedTotal = formatDisplayAmount(totalAmount, currency);
+  const formattedItemValue = formatDisplayAmount(itemValue, currency);
+  const formattedAmountPaid = formatDisplayAmount(amountPaid, currency);
+  const formattedBalance = formatDisplayAmount(balance, currency);
   const dims = pkg.dimensions || { length: 0, width: 0, height: 0, unit: "cm" };
   const dimStr = `${dims.length || 0} × ${dims.width || 0} × ${dims.height || 0} ${dims.unit || "cm"}`;
   const branchName = pkg.warehouseLocation || pkg.warehouse_location || pkg.branch || "Main Branch";
@@ -148,7 +167,7 @@ function PackageDetailModal({ pkg, onClose, onOpenInvoice }: { pkg: UIPackage; o
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 bg-white border-b border-gray-200 flex items-center justify-between px-6 py-4 z-10">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">AWB/BL: {pkg.houseAwb || pkg.tracking_number}/<span className="text-gray-500 ml-1">${totalAmount.toFixed(2)}</span></h2>
+            <h2 className="text-xl font-bold text-gray-900">AWB/BL: {pkg.houseAwb || pkg.tracking_number}/<span className="text-gray-500 ml-1">{formattedTotal}</span></h2>
             <p className="text-sm text-gray-500 mt-0.5">Package tracking number: {pkg.tracking_number}</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors"><X className="h-5 w-5" /></button>
@@ -168,9 +187,9 @@ function PackageDetailModal({ pkg, onClose, onOpenInvoice }: { pkg: UIPackage; o
               )}
             </div>
             <div className="border border-gray-200 rounded-lg p-4 space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-gray-500">Sub-Total:</span><span className="font-medium">${totalAmount.toFixed(2)}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-green-600">Discount:</span><span className="text-green-600 font-medium">$0.00</span></div>
-              <div className="flex justify-between text-sm font-bold border-t pt-2"><span>Total:</span><span>${totalAmount.toFixed(2)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Sub-Total:</span><span className="font-medium">{formattedTotal}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-green-600">Discount:</span><span className="text-green-600 font-medium">{formatDisplayAmount(0, currency)}</span></div>
+              <div className="flex justify-between text-sm font-bold border-t pt-2"><span>Total:</span><span>{formattedTotal}</span></div>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -203,10 +222,10 @@ function PackageDetailModal({ pkg, onClose, onOpenInvoice }: { pkg: UIPackage; o
               <h3 className="font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">Payment Info</h3>
               <div className="space-y-0.5">
                 <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Currency" value={currency} />
-                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Item Value" value={`$${itemValue.toFixed(2)}`} />
-                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Total Due" value={`$${totalAmount.toFixed(2)}`} />
-                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Amount Paid" value={`$${amountPaid.toFixed(2)}`} />
-                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Balance" value={`$${balance.toFixed(2)}`} />
+                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Item Value" value={formattedItemValue} />
+                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Total Due" value={formattedTotal} />
+                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Amount Paid" value={formattedAmountPaid} />
+                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Balance" value={formattedBalance} />
                 <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Payment Status" value={<span className={`capitalize font-semibold ${pkg.paymentStatus === 'paid' ? 'text-green-600' : pkg.paymentStatus === 'partially_paid' ? 'text-yellow-600' : 'text-orange-600'}`}>{pkg.paymentStatus || "Pending"}</span>} />
                 <InfoRow icon={<CreditCard className="h-3.5 w-3.5" />} label="Payment Method" value={<span className="capitalize">{pkg.paymentMethod || "Cash"}</span>} />
               </div>
@@ -254,7 +273,7 @@ function InvoiceModal({ pkg, onClose, userEmail }: { pkg: UIPackage; onClose: ()
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           subject: `Invoice Request - ${pkg.houseAwb || pkg.tracking_number}`,
-          message: `Please send me the invoice for package ${pkg.houseAwb || pkg.tracking_number}. Invoice amount: $${totalAmount.toFixed(2)}. Email: ${userEmail || "N/A"}`,
+          message: `Please send me the invoice for package ${pkg.houseAwb || pkg.tracking_number}. Invoice amount: ${formatDisplayAmount(totalAmount, pkg.pricePaidCurrency || "USD")}. Email: ${userEmail || "N/A"}`,
         }),
       });
       if (!res.ok) throw new Error("Failed to send");
@@ -309,13 +328,13 @@ function InvoiceModal({ pkg, onClose, userEmail }: { pkg: UIPackage; onClose: ()
                 </td>
                 <td className="px-2 py-3 border border-gray-200 align-top">
                   <p><span className="text-gray-500">Weight:</span> {pkg.weight_kg || pkg.weight || 1} lbs</p>
-                  <p><span className="text-gray-500">USD Value:</span> ${(pkg.itemValueUsd || pkg.usdValue || 0).toFixed(2)}</p>
+                  <p><span className="text-gray-500">Value:</span> {formatDisplayAmount(pkg.itemValueUsd || pkg.usdValue || 0, pkg.pricePaidCurrency || "USD")}</p>
                 </td>
                 <td className="px-2 py-3 border border-gray-200 align-top">
-                  <p><span className="text-gray-500">Freight:</span> ${totalAmount.toFixed(2)}</p>
-                  <p><span className="text-gray-500">Storage:</span> $0.00</p>
+                  <p><span className="text-gray-500">Freight:</span> {formatDisplayAmount(totalAmount, pkg.pricePaidCurrency || "USD")}</p>
+                  <p><span className="text-gray-500">Storage:</span> {formatDisplayAmount(0, pkg.pricePaidCurrency || "USD")}</p>
                 </td>
-                <td className="px-2 py-3 border border-gray-200 align-top text-right font-semibold">${totalAmount.toFixed(2)}</td>
+                <td className="px-2 py-3 border border-gray-200 align-top text-right font-semibold">{formatDisplayAmount(totalAmount, pkg.pricePaidCurrency || "USD")}</td>
               </tr>
             </tbody>
           </table>
@@ -326,12 +345,12 @@ function InvoiceModal({ pkg, onClose, userEmail }: { pkg: UIPackage; onClose: ()
             </div>
             <div className="col-span-1">
               <p className="font-semibold text-gray-800 text-sm mb-1">Payment Details</p>
-              <p className="text-xs text-gray-600">Cash: ${totalAmount.toFixed(2)}</p>
+              <p className="text-xs text-gray-600">Cash: {formatDisplayAmount(totalAmount, pkg.pricePaidCurrency || "USD")}</p>
             </div>
             <div className="col-span-1 text-right">
-              <p className="text-xs text-gray-600">Sub-Total: <span className="font-semibold">${totalAmount.toFixed(2)}</span></p>
-              <p className="text-xs text-gray-600">Total: <span className="font-semibold">${totalAmount.toFixed(2)}</span></p>
-              <p className="text-xs text-gray-600">Balance: <span className="font-semibold text-red-500">$0.00</span></p>
+              <p className="text-xs text-gray-600">Sub-Total: <span className="font-semibold">{formatDisplayAmount(totalAmount, pkg.pricePaidCurrency || "USD")}</span></p>
+              <p className="text-xs text-gray-600">Total: <span className="font-semibold">{formatDisplayAmount(totalAmount, pkg.pricePaidCurrency || "USD")}</span></p>
+              <p className="text-xs text-gray-600">Balance: <span className="font-semibold text-red-500">{formatDisplayAmount(0, pkg.pricePaidCurrency || "USD")}</span></p>
             </div>
           </div>
         </div>
@@ -539,7 +558,7 @@ export default function CustomerPackagesPage() {
                   </div>
                   <div className="flex items-center justify-between px-5 pb-3 text-sm text-gray-700">
                     <div className="flex items-center gap-1"><Scale className="h-4 w-4 text-gray-400" /><span className="font-semibold">{pkg.weight || pkg.weight_kg || 0} lbs</span></div>
-                    <div className="flex items-center gap-1"><DollarSign className="h-4 w-4 text-gray-400" /><span className="font-semibold">${amt.toFixed(2)}</span></div>
+                    <div className="flex items-center gap-1"><DollarSign className="h-4 w-4 text-gray-400" /><span className="font-semibold">{formatDisplayAmount(amt, pkg.pricePaidCurrency || "USD")}</span></div>
                   </div>
                   <div className="px-5 pb-2 text-sm text-gray-700 font-medium">{pkg.merchant || pkg.shipper || "UNKNOWN"}</div>
                   <div className="px-5 pb-4 text-sm text-gray-600">{pkg.description || pkg.itemDescription || "Merchandise"}</div>
