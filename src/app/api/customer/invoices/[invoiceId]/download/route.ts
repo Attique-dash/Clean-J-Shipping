@@ -6,6 +6,31 @@ import Invoice from '@/models/Invoice';
 import Package from '@/models/Package';
 import { Types } from 'mongoose';
 
+function normalizeInvoiceAddress(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (typeof parsed === 'object' && parsed !== null) {
+        return Object.values(parsed)
+          .filter((part) => typeof part === 'string' && part.trim())
+          .join(', ');
+      }
+    } catch {
+      // not JSON
+    }
+    return trimmed;
+  }
+  if (typeof value === 'object') {
+    return Object.values(value)
+      .filter((part) => typeof part === 'string' && part.trim())
+      .join(', ');
+  }
+  return String(value);
+}
+
 interface RouteParams {
   params: Promise<{ invoiceId: string }>;
 }
@@ -88,7 +113,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         customer: {
           name: (invoice as any).customer?.name || `${(invoice as any).userId?.firstName || ''} ${(invoice as any).userId?.lastName || ''}`.trim() || 'N/A',
           email: (invoice as any).customer?.email || (invoice as any).userId?.email || 'N/A',
-          address: (invoice as any).customer?.address || (invoice as any).userId?.address || '',
+          address: normalizeInvoiceAddress((invoice as any).customer?.address || (invoice as any).userId?.address || ''),
           phone: (invoice as any).customer?.phone || (invoice as any).userId?.phone || ''
         },
         items: ((invoice as any).items || []).map((item: any) => ({
@@ -110,7 +135,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           'Customer Name': (invoice as any).customer?.name || `${(invoice as any).userId?.firstName || ''} ${(invoice as any).userId?.lastName || ''}`.trim() || 'N/A',
           'Customer Email': (invoice as any).customer?.email || (invoice as any).userId?.email || 'N/A',
           'Customer Phone': (invoice as any).customer?.phone || (invoice as any).userId?.phone || 'N/A',
-          'Customer Address': (invoice as any).customer?.address || (invoice as any).userId?.address || 'N/A',
+          'Customer Address': normalizeInvoiceAddress((invoice as any).customer?.address || (invoice as any).userId?.address || '') || 'N/A',
           'Tracking Number': trackingNumber || 'N/A',
           'Issue Date': new Date((invoice as any).issueDate || new Date()).toLocaleDateString(),
           'Due Date': new Date((invoice as any).dueDate || new Date()).toLocaleDateString(),

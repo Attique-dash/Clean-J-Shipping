@@ -282,7 +282,6 @@ function InvoiceModal({ pkg, onClose, userEmail }: { pkg: UIPackage; onClose: ()
     }>;
   };
 
-  const totalAmount = pkg.totalAmount || pkg.total_amount || pkg.freight || 0;
   const [invoiceData, setInvoiceData] = useState<InvoicePayload | null>(null);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
@@ -294,8 +293,11 @@ function InvoiceModal({ pkg, onClose, userEmail }: { pkg: UIPackage; onClose: ()
   const invoiceNumber = invoiceData?.invoiceNumber || `INV-${new Date().getFullYear()}-XXXX`;
   const issueDate = invoiceData?.issueDate ? new Date(invoiceData.issueDate) : new Date();
   const dueDate = invoiceData?.dueDate ? new Date(invoiceData.dueDate) : new Date();
+  const invoiceTotalAmount = invoiceData?.total ?? (pkg.totalAmount || pkg.total_amount || pkg.freight || 0);
   const amountPaid = invoiceData?.amountPaid ?? pkg.amountPaid ?? 0;
-  const balanceDue = invoiceData?.balanceDue ?? Math.max(0, totalAmount - amountPaid);
+  const balanceDue = invoiceData?.balanceDue ?? Math.max(0, invoiceTotalAmount - amountPaid);
+  const displayedSubtotal = invoiceData?.subtotal ?? invoiceTotalAmount;
+  const displayedTotal = invoiceData?.total ?? invoiceTotalAmount;
   const paymentMethod = invoiceData?.paymentHistory?.[0]?.method || pkg.paymentMethod || 'Cash';
 
   useEffect(() => {
@@ -359,7 +361,7 @@ function InvoiceModal({ pkg, onClose, userEmail }: { pkg: UIPackage; onClose: ()
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           subject: `Invoice Request - ${pkg.houseAwb || pkg.tracking_number}`,
-          message: `Please send me the invoice for package ${pkg.houseAwb || pkg.tracking_number}. Invoice amount: ${formatMoney(totalAmount)}. Email: ${userEmail || 'N/A'}`,
+          message: `Please send me the invoice for package ${pkg.houseAwb || pkg.tracking_number}. Invoice amount: ${formatMoney(invoiceTotalAmount)}. Email: ${userEmail || 'N/A'}`,
         }),
       });
       if (!res.ok) throw new Error('Failed to send');
@@ -432,10 +434,10 @@ function InvoiceModal({ pkg, onClose, userEmail }: { pkg: UIPackage; onClose: ()
                           <p key={index}><span className="text-gray-500">{item.description}:</span> {formatMoney(item.total)}</p>
                         ))
                       ) : (
-                        <p className="text-gray-500">{formatMoney(totalAmount)}</p>
+                        <p className="text-gray-500">{formatMoney(displayedTotal)}</p>
                       )}
                     </td>
-                    <td className="px-2 py-3 border border-gray-200 align-top text-right font-semibold">{formatMoney(invoiceData?.total ?? totalAmount)}</td>
+                    <td className="px-2 py-3 border border-gray-200 align-top text-right font-semibold">{formatMoney(displayedTotal)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -474,8 +476,8 @@ function InvoiceModal({ pkg, onClose, userEmail }: { pkg: UIPackage; onClose: ()
                   {invoiceData?.notes && <p className="text-xs text-gray-500 mt-1">{invoiceData.notes}</p>}
                 </div>
                 <div className="col-span-1 text-right">
-                  <p className="text-xs text-gray-600">Sub-Total: <span className="font-semibold">{formatMoney(invoiceData?.subtotal ?? totalAmount)}</span></p>
-                  <p className="text-xs text-gray-600">Total: <span className="font-semibold">{formatMoney(invoiceData?.total ?? totalAmount)}</span></p>
+                  <p className="text-xs text-gray-600">Sub-Total: <span className="font-semibold">{formatMoney(displayedSubtotal)}</span></p>
+                  <p className="text-xs text-gray-600">Total: <span className="font-semibold">{formatMoney(displayedTotal)}</span></p>
                   <p className="text-xs text-gray-600">Paid: <span className="font-semibold">{formatMoney(amountPaid)}</span></p>
                   <p className="text-xs">Balance: <span className={`font-semibold ${balanceDue > 0 ? 'text-red-500' : 'text-gray-900'}`}>{formatMoney(balanceDue)}</span></p>
                 </div>

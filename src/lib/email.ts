@@ -166,6 +166,27 @@ function formatAddressObject(obj: Record<string, string>): string {
   return parts.join('\n');
 }
 
+function formatAddress(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (typeof parsed === 'object' && parsed !== null) {
+        return formatAddressObject(parsed as Record<string, string>);
+      }
+    } catch {
+      // Not JSON, fall back to raw string
+    }
+    return trimmed;
+  }
+  if (typeof value === 'object') {
+    return formatAddressObject(value as Record<string, string>);
+  }
+  return String(value);
+}
+
 function formatKcdDate(value?: string): string {
   if (!value) return '-';
   try {
@@ -321,12 +342,12 @@ export async function sendNewPackageEmail(opts: {
       if (invoice) {
         const company = {
           name: APP_NAME,
-          address: "Kingston",
-          city: "Kingston",
-          state: "Kingston",
-          zip: "00000",
-          country: "Jamaica",
-          phone: "+1-876-XXX-XXXX",
+          address: formatAddress(process.env.COMPANY_ADDRESS || process.env.APP_ADDRESS || ''),
+          city: process.env.COMPANY_CITY || process.env.APP_CITY || '',
+          state: process.env.COMPANY_STATE || '',
+          zip: process.env.COMPANY_ZIP || '',
+          country: process.env.COMPANY_COUNTRY || '',
+          phone: process.env.COMPANY_PHONE || '',
           email: ADMIN_EMAIL || "info@cleanjshipping.com",
           website: APP_URL || "https://cleanjshipping.com",
         };

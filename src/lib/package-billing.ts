@@ -20,6 +20,10 @@ function asString(value: unknown): string {
   return '';
 }
 
+function isUsdCurrency(currency: string | undefined): boolean {
+  return typeof currency === 'string' && currency.trim().toUpperCase() === 'USD';
+}
+
 export type BillingInvoicePayload = {
   userId: unknown;
   customer: {
@@ -77,26 +81,27 @@ export function buildBillingInvoicePayload(
     );
     const currency = getPackagePaymentCurrency(packageData, payment);
     const invoiceCurrency = CurrencyService.isSupported(currency) ? currency : 'JMD';
+    const isPackageCurrencyUsd = isUsdCurrency(currency);
 
-    // Use parsed payment USD amounts as canonical base values when available
-    const itemValueUsd = asNumber(payment.itemValueUsd);
-    const totalFromPackageUsd = asNumber(payment.totalAmountUsd);
+    // Use parsed payment values from the package metadata. Those values are
+    // treated as USD only when the package currency is USD.
     const weightLbs = asNumber(
       packageData.Weight ?? packageData.weightLbs ?? packageData.weight
     );
+    const itemValue = asNumber(payment.itemValueUsd);
+    const shippingAmount = asNumber(payment.shippingCostUsd) || calcShippingCostUsd(weightLbs);
+    const totalFromPackage = asNumber(payment.totalAmountUsd) || (itemValue > 0 ? itemValue + shippingAmount : shippingAmount);
     const weightKg = weightLbs > 0 ? weightLbs / 2.20462 : 0;
     const itemDescription =
       asString(packageData.itemDescription) ||
       asString(packageData.Description || packageData.description) ||
       'Package contents';
 
-    // Convert USD base amounts to invoice-local currency where needed
     const invoiceItems: BillingInvoicePayload['items'] = [];
     let invoiceTotal = 0;
 
-    if (invoiceCurrency === 'JMD') {
-      // For JMD, use the currency service helper which expects USD base
-      const cost = CurrencyService.calculateTotalPackageCost(itemValueUsd, weightKg, 'JMD');
+    if (isPackageCurrencyUsd && invoiceCurrency === 'JMD') {
+      const cost = CurrencyService.calculateTotalPackageCost(itemValue, weightKg, 'JMD');
 
       if (cost.itemValueJMD > 0) {
         invoiceItems.push({
@@ -122,7 +127,7 @@ export function buildBillingInvoicePayload(
       }
       if (cost.customsDutyJMD > 0) {
         invoiceItems.push({
-          description: `Customs duty (${itemValueUsd > 100 ? '15%' : '0%'} of item value)`,
+          description: `Customs duty (${itemValue > 100 ? '15%' : '0%'} of item value)`,
           quantity: 1,
           unitPrice: cost.customsDutyJMD,
           taxRate: 0,
@@ -134,10 +139,8 @@ export function buildBillingInvoicePayload(
 
       invoiceTotal = cost.totalJMD;
     } else {
-      // Non-JMD: convert USD base values into local currency for display
-      const shippingUsd = asNumber(payment.shippingCostUsd) || calcShippingCostUsd(weightLbs);
-      const itemLocal = itemValueUsd > 0 ? CurrencyService.fromUSD(itemValueUsd, invoiceCurrency) : 0;
-      const shippingLocal = CurrencyService.fromUSD(shippingUsd, invoiceCurrency);
+      const itemLocal = isPackageCurrencyUsd ? CurrencyService.fromUSD(itemValue, invoiceCurrency) : itemValue;
+      const shippingLocal = isPackageCurrencyUsd ? CurrencyService.fromUSD(shippingAmount, invoiceCurrency) : shippingAmount;
 
       if (itemLocal > 0) {
         invoiceItems.push({
@@ -162,8 +165,8 @@ export function buildBillingInvoicePayload(
         });
       }
 
-      if (totalFromPackageUsd > 0) {
-        invoiceTotal = CurrencyService.fromUSD(totalFromPackageUsd, invoiceCurrency);
+      if (totalFromPackage > 0) {
+        invoiceTotal = isPackageCurrencyUsd ? CurrencyService.fromUSD(totalFromPackage, invoiceCurrency) : totalFromPackage;
       } else {
         invoiceTotal = itemLocal + shippingLocal;
       }
@@ -286,7 +289,13 @@ export async function syncBillingInvoiceForPackage(
     // Determine amount paid in invoice currency using parsed package payments
     const payment = parsePackagePayments(asString(packageDoc.PackagePayments || packageDoc.packagePayments), packageDoc);
     const amountPaidUsd = asNumber(payment.amountPaidUsd);
-    const amountPaidLocal = amountPaidUsd > 0 ? CurrencyService.fromUSD(amountPaidUsd, payload.currency) : asNumber(packageDoc.amountPaid ?? 0);
+    const paymentCurrency = getPackagePaymentCurrency(packageDoc, payment);
+    const isPackageCurrencyUsd = isUsdCurrency(paymentCurrency);
+    const amountPaidLocal = amountPaidUsd > 0
+      ? isPackageCurrencyUsd
+        ? CurrencyService.fromUSD(amountPaidUsd, payload.currency)
+        : amountPaidUsd
+      : asNumber(packageDoc.amountPaid ?? 0);
 
     await Invoice.findByIdAndUpdate(billingId, {
       $set: {

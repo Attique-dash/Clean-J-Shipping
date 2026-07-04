@@ -8,6 +8,31 @@ import { CurrencyService } from '@/lib/currency-service';
 
 const UPLOAD_DIR = '/tmp/invoices';
 
+function formatPdfAddress(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (typeof parsed === 'object' && parsed !== null) {
+        return Object.values(parsed)
+          .filter((part) => typeof part === 'string' && part.trim())
+          .join('\n');
+      }
+    } catch {
+      // Not JSON
+    }
+    return trimmed;
+  }
+  if (typeof value === 'object') {
+    return Object.values(value)
+      .filter((part) => typeof part === 'string' && part.trim())
+      .join('\n');
+  }
+  return String(value);
+}
+
 interface GeneratePdfOptions {
   invoice: IInvoice;
   company: {
@@ -58,9 +83,14 @@ export async function generateInvoicePdf(options: GeneratePdfOptions): Promise<{
   doc.fontSize(10).font('Helvetica-Bold').text(options.company.name, { width: halfWidth, continued: true });
   doc.font('Helvetica').fontSize(10).text(`Invoice #: ${invoice.invoiceNumber}`, { align: 'right', width: halfWidth });
   doc.moveDown(0.2);
-  doc.fontSize(9).text(options.company.address || '', { width: halfWidth, continued: true });
+  const companyAddress = formatPdfAddress(options.company.address);
+  if (companyAddress) {
+    doc.fontSize(9).text(companyAddress, { width: halfWidth });
+  } else {
+    doc.fontSize(9).text('', { width: halfWidth });
+  }
   doc.text(`Issue Date: ${format(new Date(invoice.issueDate), 'MMM dd, yyyy')}`, { align: 'right', width: halfWidth });
-  doc.text(`${options.company.city || ''}${options.company.city ? ', ' : ''}${options.company.state || ''}${options.company.zip ? ' ' + options.company.zip : ''}`, { width: halfWidth, continued: true });
+  doc.text(`${options.company.city || ''}${options.company.city ? ', ' : ''}${options.company.state || ''}${options.company.zip ? ' ' + options.company.zip : ''}`, { width: halfWidth });
   doc.text(`Due Date: ${format(new Date(invoice.dueDate), 'MMM dd, yyyy')}`, { align: 'right', width: halfWidth });
   if (options.company.phone) doc.text(`Phone: ${options.company.phone}`, { width: halfWidth, continued: true });
   if (options.company.email) doc.text(`Email: ${options.company.email}`, { align: 'right', width: halfWidth });
@@ -70,9 +100,10 @@ export async function generateInvoicePdf(options: GeneratePdfOptions): Promise<{
   // Bill to section
   doc.font('Helvetica-Bold').fontSize(12).text('Bill To');
   doc.font('Helvetica').fontSize(10).text(invoice.customer.name);
-  if (invoice.customer.address) doc.text(invoice.customer.address);
-  if (invoice.customer.city || invoice.customer.state || invoice.customer.zipCode) {
-    doc.text(`${invoice.customer.city || ''}${invoice.customer.city ? ', ' : ''}${invoice.customer.state || ''}${invoice.customer.zipCode ? ' ' + invoice.customer.zipCode : ''}`);
+  const customerAddress = formatPdfAddress(invoice.customer.address);
+  if (customerAddress) doc.text(customerAddress);
+  if (invoice.customer.city || invoice.customer.state || (invoice.customer as any).zipCode) {
+    doc.text(`${invoice.customer.city || ''}${invoice.customer.city ? ', ' : ''}${invoice.customer.state || ''}${(invoice.customer as any).zipCode ? ' ' + (invoice.customer as any).zipCode : ''}`);
   }
   if (invoice.customer.country) doc.text(invoice.customer.country);
   if (invoice.customer.phone) doc.text(`Phone: ${invoice.customer.phone}`);
