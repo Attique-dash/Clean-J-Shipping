@@ -87,103 +87,160 @@ export async function generateInvoicePdf(options: GeneratePdfOptions): Promise<{
   const currencySymbol = CurrencyService.getCurrencyInfo(currencyCode)?.symbol || currencyCode;
   const formatMoney = (value: number) => `${currencySymbol}${value.toFixed(2)}`;
 
-  doc.fontSize(18).text('INVOICE', { align: 'center', underline: true });
-  doc.moveDown(0.5);
-
-  // Company + invoice meta
-  const startX = doc.x;
+  const startX = doc.page.margins.left;
   const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const halfWidth = pageWidth / 2;
+  const leftWidth = pageWidth * 0.55;
+  const rightWidth = pageWidth - leftWidth;
+  const headerTop = doc.y;
 
-  doc.fontSize(10).font('Helvetica-Bold').text(options.company.name, { width: halfWidth, continued: true });
-  doc.font('Helvetica').fontSize(10).text(`Invoice #: ${invoice.invoiceNumber}`, { align: 'right', width: halfWidth });
-  doc.moveDown(0.2);
-  const companyAddress = formatPdfAddress(options.company.address);
-  if (companyAddress) {
-    doc.fontSize(9).text(companyAddress, { width: halfWidth });
-  } else {
-    doc.fontSize(9).text('', { width: halfWidth });
-  }
-  doc.text(`Issue Date: ${format(new Date(invoice.issueDate), 'MMM dd, yyyy')}`, { align: 'right', width: halfWidth });
-  doc.text(`${options.company.city || ''}${options.company.city ? ', ' : ''}${options.company.state || ''}${options.company.zip ? ' ' + options.company.zip : ''}`, { width: halfWidth });
-  doc.text(`Due Date: ${format(new Date(invoice.dueDate), 'MMM dd, yyyy')}`, { align: 'right', width: halfWidth });
-  if (options.company.phone) doc.text(`Phone: ${options.company.phone}`, { width: halfWidth, continued: true });
-  if (options.company.email) doc.text(`Email: ${options.company.email}`, { align: 'right', width: halfWidth });
-  if (options.company.website) doc.text(`Website: ${options.company.website}`, { width: halfWidth, continued: true });
+  doc.font('Helvetica-Bold').fontSize(18).text(options.company.name, startX, headerTop, {
+    width: leftWidth,
+  });
+
+  const companyLines = [
+    formatPdfAddress(options.company.address),
+    [options.company.city, options.company.state, options.company.zip].filter(Boolean).join(', '),
+    options.company.country,
+    options.company.phone ? `Phone: ${options.company.phone}` : '',
+    options.company.email ? `Email: ${options.company.email}` : '',
+    options.company.website ? options.company.website : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  doc.font('Helvetica').fontSize(9).text(companyLines, startX, doc.y + 4, {
+    width: leftWidth,
+    lineGap: 3,
+  });
+
+  const rightX = startX + leftWidth;
+  const invoiceTitleTop = headerTop;
+  doc.font('Helvetica-Bold').fontSize(24).text('INVOICE', rightX, invoiceTitleTop, {
+    width: rightWidth,
+    align: 'right',
+  });
+
+  const invoiceMetaTop = doc.y + 4;
+  const invoiceMeta = [
+    `Invoice #: ${invoice.invoiceNumber}`,
+    `Issue Date: ${format(new Date(invoice.issueDate), 'MMM dd, yyyy')}`,
+    `Due Date: ${format(new Date(invoice.dueDate), 'MMM dd, yyyy')}`,
+    invoice.tracking_number ? `Tracking: ${invoice.tracking_number}` : '',
+    invoice.status ? `Status: ${invoice.status}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+  doc.font('Helvetica').fontSize(10).text(invoiceMeta, rightX, invoiceTitleTop + 28, {
+    width: rightWidth,
+    align: 'right',
+    lineGap: 4,
+  });
+
+  doc.moveDown(1);
+  const sectionY = Math.max(doc.y, headerTop + 90);
+  doc.moveTo(startX, sectionY).lineTo(startX + pageWidth, sectionY).lineWidth(1).stroke();
   doc.moveDown(0.5);
 
-  // Bill to section
-  doc.font('Helvetica-Bold').fontSize(12).text('Bill To');
-  doc.font('Helvetica').fontSize(10).text(invoice.customer.name);
-  const customerAddress = formatPdfAddress(invoice.customer.address);
-  if (customerAddress) doc.text(customerAddress);
-  if (invoice.customer.city || invoice.customer.state || (invoice.customer as any).zipCode) {
-    doc.text(`${invoice.customer.city || ''}${invoice.customer.city ? ', ' : ''}${invoice.customer.state || ''}${(invoice.customer as any).zipCode ? ' ' + (invoice.customer as any).zipCode : ''}`);
-  }
-  if (invoice.customer.country) doc.text(invoice.customer.country);
-  if (invoice.customer.phone) doc.text(`Phone: ${invoice.customer.phone}`);
-  if (invoice.customer.email) doc.text(`Email: ${invoice.customer.email}`);
+  // Bill to + invoice summary section
+  const billToTop = doc.y;
+  const customerLines = [
+    invoice.customer.name,
+    formatPdfAddress(invoice.customer.address),
+    [invoice.customer.city, invoice.customer.state, (invoice.customer as any).zipCode].filter(Boolean).join(', '),
+    invoice.customer.country,
+    invoice.customer.phone ? `Phone: ${invoice.customer.phone}` : '',
+    invoice.customer.email ? `Email: ${invoice.customer.email}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
 
-  doc.moveDown(0.5);
-  doc.font('Helvetica-Bold').fontSize(12).text('Invoice Items');
-  doc.moveDown(0.25);
+  doc.font('Helvetica-Bold').fontSize(12).text('Bill To', startX, billToTop, { width: leftWidth });
+  doc.font('Helvetica').fontSize(10).text(customerLines, startX, doc.y + 4, {
+    width: leftWidth,
+    lineGap: 3,
+  });
+
+  const summaryX = startX + leftWidth;
+  const summaryWidth = rightWidth;
+  const paymentSummary = [
+    `Subtotal: ${formatMoney(invoice.subtotal)}`,
+    `Tax: ${formatMoney(invoice.taxTotal)}`,
+    `Discount: ${formatMoney(invoice.discountAmount)}`,
+    `Total: ${formatMoney(invoice.total)}`,
+    `Paid: ${formatMoney(invoice.amountPaid)}`,
+    `Balance: ${formatMoney(invoice.balanceDue)}`,
+  ].join('\n');
+  doc.font('Helvetica-Bold').fontSize(10).text('Summary', summaryX, billToTop, {
+    width: summaryWidth,
+    align: 'right',
+  });
+  doc.font('Helvetica').fontSize(10).text(paymentSummary, summaryX, doc.y + 4, {
+    width: summaryWidth,
+    align: 'right',
+    lineGap: 4,
+  });
+
+  doc.moveDown(1);
 
   // Table header
   const tableTop = doc.y;
-  const descWidth = pageWidth * 0.55;
-  const qtyWidth = 50;
-  const unitWidth = 90;
-  const totalWidth = 90;
-  const qtyX = startX + descWidth + 10;
-  const unitX = qtyX + qtyWidth + 10;
-  const totalX = unitX + unitWidth + 10;
+  const descWidth = pageWidth * 0.4;
+  const infoWidth = pageWidth * 0.25;
+  const feeWidth = pageWidth * 0.15;
+  const govtWidth = pageWidth * 0.1;
+  const dueWidth = pageWidth * 0.1;
 
-  doc.fontSize(10).font('Helvetica-Bold');
-  doc.text('Description', startX, tableTop, { width: descWidth });
-  doc.text('Qty', qtyX, tableTop, { width: qtyWidth, align: 'right' });
-  doc.text('Unit Price', unitX, tableTop, { width: unitWidth, align: 'right' });
-  doc.text('Total', totalX, tableTop, { width: totalWidth, align: 'right' });
-  doc.moveDown(0.35);
+  doc.rect(startX, tableTop - 4, pageWidth, 22).fillOpacity(0.08).fillAndStroke('#000000', '#e0e0e0');
+  doc.fillOpacity(1);
+  doc.fillColor('#000000').font('Helvetica-Bold').fontSize(10);
+  doc.text('House AWB#', startX + 4, tableTop, { width: descWidth - 8 });
+  doc.text('Information', startX + descWidth + 4, tableTop, { width: infoWidth - 8 });
+  doc.text('Our Fees', startX + descWidth + infoWidth + 4, tableTop, { width: feeWidth - 8, align: 'right' });
+  doc.text('Govt Fees', startX + descWidth + infoWidth + feeWidth + 4, tableTop, { width: govtWidth - 8, align: 'right' });
+  doc.text('Due', startX + descWidth + infoWidth + feeWidth + govtWidth + 4, tableTop, { width: dueWidth - 8, align: 'right' });
 
   doc.font('Helvetica').fontSize(10);
-  invoice.items.forEach((item) => {
-    const y = doc.y;
-    const descriptionHeight = doc.heightOfString(item.description, { width: descWidth });
-    const qtyHeight = doc.heightOfString(String(item.quantity), { width: qtyWidth });
-    const unitHeight = doc.heightOfString(formatMoney(item.unitPrice), { width: unitWidth });
-    const totalHeight = doc.heightOfString(formatMoney(item.total), { width: totalWidth });
-    const rowHeight = Math.max(descriptionHeight, qtyHeight, unitHeight, totalHeight) + 6;
+  const rowY = tableTop + 24;
+  const infoLines = [`Weight: ${invoice.items[0]?.quantity || 1} x ${formatMoney(invoice.items[0]?.unitPrice || 0)}`].filter(Boolean).join('\n');
+  let currentY = rowY;
 
-    doc.text(item.description, startX, y, { width: descWidth });
-    doc.text(String(item.quantity), qtyX, y, { width: qtyWidth, align: 'right' });
-    doc.text(formatMoney(item.unitPrice), unitX, y, { width: unitWidth, align: 'right' });
-    doc.text(formatMoney(item.total), totalX, y, { width: totalWidth, align: 'right' });
-    doc.y = y + rowHeight;
+  invoice.items.forEach((item, index) => {
+    const itemDesc = item.description || 'Item';
+    const itemInfo = `Qty: ${item.quantity}`;
+    const itemFee = formatMoney(item.total);
+    const govFee = '$0.00';
+    const dueFee = formatMoney(item.total);
+
+    doc.text(itemDesc, startX + 4, currentY, { width: descWidth - 8 });
+    doc.text(itemInfo, startX + descWidth + 4, currentY, { width: infoWidth - 8 });
+    doc.text(itemFee, startX + descWidth + infoWidth + 4, currentY, { width: feeWidth - 8, align: 'right' });
+    doc.text(govFee, startX + descWidth + infoWidth + feeWidth + 4, currentY, { width: govtWidth - 8, align: 'right' });
+    doc.text(dueFee, startX + descWidth + infoWidth + feeWidth + govtWidth + 4, currentY, { width: dueWidth - 8, align: 'right' });
+    currentY += 18;
   });
 
-  doc.moveDown(0.5);
-  const summaryX = startX + halfWidth * 0.5;
-  doc.font('Helvetica-Bold').fontSize(10);
-  doc.text('Subtotal:', summaryX, doc.y, { width: halfWidth * 0.5, continued: true, align: 'right' });
-  doc.text(formatMoney(invoice.subtotal), { width: halfWidth * 0.5, align: 'right' });
-  doc.moveDown(0.2);
-  doc.font('Helvetica-Bold').fontSize(10).text('Tax:', summaryX, doc.y, { width: halfWidth * 0.5, continued: true, align: 'right' });
-  doc.text(formatMoney(invoice.taxTotal), { width: halfWidth * 0.5, align: 'right' });
-  doc.moveDown(0.2);
-  doc.font('Helvetica-Bold').fontSize(10).text('Discount:', summaryX, doc.y, { width: halfWidth * 0.5, continued: true, align: 'right' });
-  doc.text(formatMoney(invoice.discountAmount), { width: halfWidth * 0.5, align: 'right' });
-  doc.moveDown(0.2);
-  doc.font('Helvetica-Bold').fontSize(11).text('Total:', summaryX, doc.y, { width: halfWidth * 0.5, continued: true, align: 'right' });
-  doc.text(formatMoney(invoice.total), { width: halfWidth * 0.5, align: 'right' });
-  doc.moveDown(0.2);
-  doc.font('Helvetica').fontSize(10).text('Amount Paid:', summaryX, doc.y, { width: halfWidth * 0.5, continued: true, align: 'right' });
-  doc.text(formatMoney(invoice.amountPaid), { width: halfWidth * 0.5, align: 'right' });
-  doc.moveDown(0.2);
-  doc.font('Helvetica-Bold').fontSize(11).text('Balance Due:', summaryX, doc.y, { width: halfWidth * 0.5, continued: true, align: 'right' });
-  doc.text(formatMoney(invoice.balanceDue), { width: halfWidth * 0.5, align: 'right' });
+  doc.moveTo(startX, currentY + 6).lineTo(startX + pageWidth, currentY + 6).stroke('#e0e0e0');
+  doc.y = currentY + 16;
+
+  const bottomTop = doc.y;
+  const columnWidth = pageWidth / 3;
+
+  const thankYou = 'Thank you for your business!\nPlease print or save this for your records.';
+  doc.font('Helvetica-Bold').fontSize(11).text('Thank you for your business!', startX, bottomTop, { width: columnWidth, lineGap: 4 });
+  doc.font('Helvetica').fontSize(9).text('Please print or save this for your records.', startX, doc.y + 4, { width: columnWidth, lineGap: 4 });
+
+  const paymentTitleX = startX + columnWidth;
+  doc.font('Helvetica-Bold').fontSize(11).text('Payment Details', paymentTitleX, bottomTop, { width: columnWidth, align: 'center' });
+  doc.font('Helvetica').fontSize(9).text(`Paid: ${formatMoney(invoice.amountPaid)}`, paymentTitleX, doc.y + 4, { width: columnWidth, align: 'center' });
+  doc.text(`Balance: ${formatMoney(invoice.balanceDue)}`, paymentTitleX, doc.y + 2, { width: columnWidth, align: 'center' });
+
+  const totalsX = startX + columnWidth * 2;
+  doc.font('Helvetica-Bold').fontSize(11).text('Summary', totalsX, bottomTop, { width: columnWidth, align: 'right' });
+  doc.font('Helvetica').fontSize(9).text(`Sub-Total: ${formatMoney(invoice.subtotal)}`, totalsX, doc.y + 4, { width: columnWidth, align: 'right' });
+  doc.text(`Total: ${formatMoney(invoice.total)}`, totalsX, doc.y + 2, { width: columnWidth, align: 'right' });
 
   if (invoice.notes) {
-    doc.moveDown(0.7);
+    doc.moveDown(1.5);
     doc.font('Helvetica-Bold').fontSize(10).text('Notes');
     doc.font('Helvetica').fontSize(9).text(invoice.notes, { paragraphGap: 4 });
   }
