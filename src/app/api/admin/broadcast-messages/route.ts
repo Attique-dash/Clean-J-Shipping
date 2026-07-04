@@ -49,7 +49,10 @@ export async function POST(req: Request) {
 
   const parsed = adminBroadcastCreateSchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    // Convert Zod error into a readable string so the frontend can show it directly
+    const messages = parsed.error.errors.map((e) => e.message).filter(Boolean);
+    const errMsg = messages.length > 0 ? messages.join('; ') : JSON.stringify(parsed.error.flatten());
+    return NextResponse.json({ error: errMsg }, { status: 400 });
   }
 
   const { title, body, channels = ["portal"], scheduled_at, audience = "customer", priority: _priority = "normal" } = parsed.data as {

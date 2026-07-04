@@ -61,18 +61,20 @@ export async function generateInvoicePdf(options: GeneratePdfOptions): Promise<{
   doc.moveDown();
   
   let total = 0;
+  const currency = invoice.currency || 'JMD';
+  const locale = currency === 'JMD' ? 'en-JM' : 'en-US';
   invoice.items.forEach((item) => {
-    doc.fontSize(12).text(`${item.description} - ${new Intl.NumberFormat('en-US', {
+    doc.fontSize(12).text(`${item.description} - ${new Intl.NumberFormat(locale, {
       style: 'currency',
-      currency: invoice.currency || 'USD',
+      currency: currency,
     }).format(item.total)}`);
     total += item.total;
   });
   
   doc.moveDown();
-  doc.fontSize(14).text(`Total: ${new Intl.NumberFormat('en-US', {
+  doc.fontSize(14).text(`Total: ${new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency: invoice.currency || 'USD',
+    currency: currency,
   }).format(total)}`, { align: 'right' });
   
   // Finalize the PDF

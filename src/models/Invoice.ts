@@ -134,7 +134,7 @@ const InvoiceSchema = new Schema<IInvoice>({
   issueDate: { type: Date, required: true, default: Date.now },
   dueDate: { type: Date, required: true },
   paymentTerms: { type: Number, default: 30 },
-  currency: { type: String, default: 'USD' },
+  currency: { type: String, default: 'JMD' },
   exchangeRate: { type: Number, default: 1 },
   subtotal: { type: Number, required: true, default: 0 },
   taxTotal: { type: Number, required: true, default: 0 },
