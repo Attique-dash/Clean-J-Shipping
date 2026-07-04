@@ -20,7 +20,7 @@ import {
   MapPin,
   User,
   Scale,
-  DollarSign,
+  Tag,
   Hash,
   Building,
   Calendar,
@@ -221,11 +221,11 @@ function PackageDetailModal({ pkg, onClose, onOpenInvoice }: { pkg: UIPackage; o
             <div className="border border-gray-200 rounded-lg p-4">
               <h3 className="font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">Payment Info</h3>
               <div className="space-y-0.5">
-                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Currency" value={currency} />
-                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Item Value" value={formattedItemValue} />
-                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Total Due" value={formattedTotal} />
-                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Amount Paid" value={formattedAmountPaid} />
-                <InfoRow icon={<DollarSign className="h-3.5 w-3.5" />} label="Balance" value={formattedBalance} />
+                <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Currency" value={currency} />
+                <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Item Value" value={formattedItemValue} />
+                <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Total Due" value={formattedTotal} />
+                <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Amount Paid" value={formattedAmountPaid} />
+                <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Balance" value={formattedBalance} />
                 <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Payment Status" value={<span className={`capitalize font-semibold ${pkg.paymentStatus === 'paid' ? 'text-green-600' : pkg.paymentStatus === 'partially_paid' ? 'text-yellow-600' : 'text-orange-600'}`}>{pkg.paymentStatus || "Pending"}</span>} />
                 <InfoRow icon={<CreditCard className="h-3.5 w-3.5" />} label="Payment Method" value={<span className="capitalize">{pkg.paymentMethod || "Cash"}</span>} />
               </div>
@@ -542,6 +542,7 @@ export default function CustomerPackagesPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {paginated.map((pkg) => {
               const amt = pkg.totalAmount || pkg.total_amount || pkg.freight || 0;
+              const currencyCode = pkg.pricePaidCurrency || pkg.paymentCurrency || pkg.amountPaidCurrency || pkg.currency || "USD";
               const trackNum = pkg.tracking_number;
               return (
                 <div key={trackNum} className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
@@ -558,7 +559,7 @@ export default function CustomerPackagesPage() {
                   </div>
                   <div className="flex items-center justify-between px-5 pb-3 text-sm text-gray-700">
                     <div className="flex items-center gap-1"><Scale className="h-4 w-4 text-gray-400" /><span className="font-semibold">{pkg.weight || pkg.weight_kg || 0} lbs</span></div>
-                    <div className="flex items-center gap-1"><DollarSign className="h-4 w-4 text-gray-400" /><span className="font-semibold">{formatDisplayAmount(amt, pkg.pricePaidCurrency || "USD")}</span></div>
+                    <div className="font-semibold">{formatDisplayAmount(amt, currencyCode)}</div>
                   </div>
                   <div className="px-5 pb-2 text-sm text-gray-700 font-medium">{pkg.merchant || pkg.shipper || "UNKNOWN"}</div>
                   <div className="px-5 pb-4 text-sm text-gray-600">{pkg.description || pkg.itemDescription || "Merchandise"}</div>
