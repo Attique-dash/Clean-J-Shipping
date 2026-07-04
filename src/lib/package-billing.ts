@@ -24,6 +24,21 @@ function isUsdCurrency(currency: string | undefined): boolean {
   return typeof currency === 'string' && currency.trim().toUpperCase() === 'USD';
 }
 
+function getPackageTotalAmount(packageData: Record<string, unknown>, payment: { totalAmountUsd: number }): number {
+  const totalFromDoc = asNumber(
+    packageData.totalAmount ??
+    packageData.total_amount ??
+    packageData.freight ??
+    packageData.shipping_cost ??
+    packageData.amountDue ??
+    packageData.dueAmount ??
+    packageData.balance ??
+    packageData.balanceDue
+  );
+
+  return totalFromDoc > 0 ? totalFromDoc : payment.totalAmountUsd;
+}
+
 export type BillingInvoicePayload = {
   userId: unknown;
   customer: {
@@ -99,6 +114,7 @@ export function buildBillingInvoicePayload(
 
     const invoiceItems: BillingInvoicePayload['items'] = [];
     let invoiceTotal = 0;
+    const packageTotalAmount = getPackageTotalAmount(packageData, payment);
 
     if (isPackageCurrencyUsd && invoiceCurrency === 'JMD') {
       const cost = CurrencyService.calculateTotalPackageCost(itemValue, weightKg, 'JMD');
@@ -165,11 +181,38 @@ export function buildBillingInvoicePayload(
         });
       }
 
-      if (totalFromPackage > 0) {
-        invoiceTotal = isPackageCurrencyUsd ? CurrencyService.fromUSD(totalFromPackage, invoiceCurrency) : totalFromPackage;
+      const detailTotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
+      invoiceTotal = packageTotalAmount > 0 ? packageTotalAmount : detailTotal;
+    }
+
+    const detailTotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
+    if (packageTotalAmount > 0 && Math.abs(packageTotalAmount - detailTotal) > 0.01) {
+      if (invoiceItems.length === 0) {
+        invoiceItems.push({
+          description: `Package charges (${trackingNumber})`,
+          quantity: 1,
+          unitPrice: packageTotalAmount,
+          taxRate: 0,
+          amount: packageTotalAmount,
+          taxAmount: 0,
+          total: packageTotalAmount,
+        });
       } else {
-        invoiceTotal = itemLocal + shippingLocal;
+        const adjustment = packageTotalAmount - detailTotal;
+        invoiceItems.push({
+          description: adjustment > 0 ? 'Other package charges' : 'Invoice adjustment',
+          quantity: 1,
+          unitPrice: adjustment,
+          taxRate: 0,
+          amount: adjustment,
+          taxAmount: 0,
+          total: adjustment,
+        });
       }
+    }
+
+    if (packageTotalAmount > 0) {
+      invoiceTotal = packageTotalAmount;
     }
 
     if (invoiceTotal <= 0 && invoiceItems.length === 0) {

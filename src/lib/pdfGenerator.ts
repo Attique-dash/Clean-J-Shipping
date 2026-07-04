@@ -9,10 +9,25 @@ import { CurrencyService } from '@/lib/currency-service';
 const UPLOAD_DIR = '/tmp/invoices';
 
 function formatPdfAddress(value: unknown): string {
+  const parsed = parseAddressValue(value);
+  return parsed.replace(/\s*\n\s*/g, '\n');
+}
+
+function parseAddressValue(value: unknown): string {
   if (value === undefined || value === null) return '';
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) return '';
+
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      const withoutBraces = trimmed.slice(1, -1);
+      const parts = withoutBraces
+        .split(/,\s*|\n+/)
+        .map((part) => part.trim().replace(/^['"]?|['"]?$/g, '').replace(/^[^:]+:\s*/, ''))
+        .filter(Boolean);
+      if (parts.length) return parts.join('\n');
+    }
+
     try {
       const parsed = JSON.parse(trimmed);
       if (typeof parsed === 'object' && parsed !== null) {
@@ -21,7 +36,7 @@ function formatPdfAddress(value: unknown): string {
           .join('\n');
       }
     } catch {
-      // Not JSON
+      // not JSON
     }
     return trimmed;
   }
