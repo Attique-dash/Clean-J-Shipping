@@ -60,61 +60,56 @@ export async function POST(req: Request) {
     body: string;
     channels?: ("email" | "portal")[];
     scheduled_at?: string;
-    audience?: "customer" | "staff" | "both";
+    audience?: "all" | "active" | "inactive" | "staff" | "customer" | "both";
     priority?: "low" | "normal" | "high";
   };
 
-  // Determine recipients based on audience
-  let recipients: Array<{ _id: Types.ObjectId; email?: string; userCode?: string; role: string }> = [];
-  
-  if (audience === "staff" || audience === "both") {
-    // Get all staff (admin and warehouse roles)
-    const staffUsers = await User.find({ role: { $in: ["admin", "warehouse"] } })
-      .select("_id email userCode role")
-      .lean();
-    const staffRecipients = staffUsers.map((u: any) => {
-      // Ensure userCode exists - use email or ID as fallback
-      let userCode = u.userCode;
-      if (!userCode || userCode.trim().length === 0) {
-        userCode = u.email || `STAFF-${u._id}`;
-        // Update user with generated userCode for future use
-        User.findByIdAndUpdate(u._id, { $set: { userCode } }, { new: false }).catch(err => 
-          console.error(`Failed to update userCode for user ${u._id}:`, err)
-        );
+  // Determine recipients based on audience and account status
+  const userFilter: Record<string, unknown> = {};
+
+  if (audience === "staff") {
+    userFilter.role = { $in: ["admin", "warehouse"] };
+  } else if (audience === "customer") {
+    userFilter.role = "customer";
+  } else if (audience === "both" || audience === "all") {
+    userFilter.role = { $in: ["admin", "warehouse", "customer"] };
+  }
+
+  if (audience === "active") {
+    userFilter.accountStatus = "active";
+  } else if (audience === "inactive") {
+    userFilter.accountStatus = "inactive";
+  }
+
+  const users = await User.find(userFilter)
+    .select("_id email userCode role accountStatus")
+    .lean();
+
+  const recipients = await Promise.all(
+    users.map(async (u: any) => {
+      let userCode = typeof u.userCode === 'string' ? u.userCode.trim() : '';
+      if (!userCode) {
+        userCode = u.email
+          ? `${u.email.split('@')[0].toUpperCase()}-${String(u._id).slice(-4)}`
+          : `USER-${String(u._id).slice(-6)}`;
+        try {
+          await User.findByIdAndUpdate(u._id, { $set: { userCode } }, { new: false });
+        } catch (err) {
+          console.error(`Failed to update userCode for user ${u._id}:`, err);
+        }
       }
+
       return {
         _id: u._id as Types.ObjectId,
         email: u.email as string | undefined,
-        userCode: userCode as string,
-        role: (u.role || 'admin') as string
+        userCode,
+        role: (u.role || 'customer') as string,
+        accountStatus: u.accountStatus as string | undefined,
       };
-    });
-    recipients = recipients.concat(staffRecipients);
-    console.log(`[Broadcast] Found ${staffUsers.length} staff users, ${staffRecipients.filter(u => u.userCode).length} with userCode`);
-  }
-  
-  if (audience === "customer" || audience === "both") {
-    // Get all customers (no active/inactive filter)
-    const customerUsers = await User.find({ role: "customer" })
-      .select("_id email userCode role")
-      .lean();
-    const customerRecipients = customerUsers.map((u: any) => ({
-      _id: u._id as Types.ObjectId,
-      email: u.email as string | undefined,
-      userCode: u.userCode as string | undefined,
-      role: (u.role || 'customer') as string
-    }));
-    recipients = recipients.concat(customerRecipients);
-    console.log(`[Broadcast] Found ${customerUsers.length} customer users`);
-  }
-  
-  const withUserCode = recipients.filter((u) => typeof u.userCode === "string" && u.userCode.trim().length > 0) as Array<{
-    _id: Types.ObjectId;
-    email?: string;
-    userCode: string;
-    role: string;
-  }>;
-  const totalRecipients = withUserCode.length;
+    })
+  );
+
+  const totalRecipients = recipients.length;
 
   const created = await Broadcast.create({
     title,
@@ -138,7 +133,7 @@ export async function POST(req: Request) {
       broadcastId: Types.ObjectId;
       createdAt: Date;
       updatedAt: Date;
-    }> = withUserCode.map((u) => ({
+    }> = recipients.map((u) => ({
       userCode: u.userCode,
       customer: u._id,
       subject: title,
@@ -185,7 +180,7 @@ export async function POST(req: Request) {
   let emailFailed = 0;
   if (channels.includes("email") && totalRecipients > 0) {
     const emailService = new EmailService();
-    const emailPromises = withUserCode.map(async (u) => {
+    const emailPromises = recipients.map(async (u) => {
       if (!u.email) {
         return { success: false, reason: "No email address" };
       }

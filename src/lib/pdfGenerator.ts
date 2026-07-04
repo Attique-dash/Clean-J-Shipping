@@ -84,21 +84,35 @@ export async function generateInvoicePdf(options: GeneratePdfOptions): Promise<{
 
   // Table header
   const tableTop = doc.y;
+  const descWidth = pageWidth * 0.55;
+  const qtyWidth = 50;
+  const unitWidth = 90;
+  const totalWidth = 90;
+  const qtyX = startX + descWidth + 10;
+  const unitX = qtyX + qtyWidth + 10;
+  const totalX = unitX + unitWidth + 10;
+
   doc.fontSize(10).font('Helvetica-Bold');
-  doc.text('Description', startX, tableTop, { width: halfWidth, continued: true });
-  doc.text('Qty', startX + halfWidth * 0.65, tableTop, { width: halfWidth * 0.15, align: 'right', continued: true });
-  doc.text('Unit Price', startX + halfWidth * 0.82, tableTop, { width: halfWidth * 0.18, align: 'right', continued: true });
-  doc.text('Total', { align: 'right' });
-  doc.moveDown(0.25);
+  doc.text('Description', startX, tableTop, { width: descWidth });
+  doc.text('Qty', qtyX, tableTop, { width: qtyWidth, align: 'right' });
+  doc.text('Unit Price', unitX, tableTop, { width: unitWidth, align: 'right' });
+  doc.text('Total', totalX, tableTop, { width: totalWidth, align: 'right' });
+  doc.moveDown(0.35);
 
   doc.font('Helvetica').fontSize(10);
   invoice.items.forEach((item) => {
-    const rowTop = doc.y;
-    doc.text(item.description, startX, rowTop, { width: halfWidth, continued: true });
-    doc.text(String(item.quantity), startX + halfWidth * 0.65, rowTop, { width: halfWidth * 0.15, align: 'right', continued: true });
-    doc.text(formatMoney(item.unitPrice), startX + halfWidth * 0.82, rowTop, { width: halfWidth * 0.18, align: 'right', continued: true });
-    doc.text(formatMoney(item.total), { align: 'right' });
-    doc.moveDown(0.25);
+    const y = doc.y;
+    const descriptionHeight = doc.heightOfString(item.description, { width: descWidth });
+    const qtyHeight = doc.heightOfString(String(item.quantity), { width: qtyWidth });
+    const unitHeight = doc.heightOfString(formatMoney(item.unitPrice), { width: unitWidth });
+    const totalHeight = doc.heightOfString(formatMoney(item.total), { width: totalWidth });
+    const rowHeight = Math.max(descriptionHeight, qtyHeight, unitHeight, totalHeight) + 6;
+
+    doc.text(item.description, startX, y, { width: descWidth });
+    doc.text(String(item.quantity), qtyX, y, { width: qtyWidth, align: 'right' });
+    doc.text(formatMoney(item.unitPrice), unitX, y, { width: unitWidth, align: 'right' });
+    doc.text(formatMoney(item.total), totalX, y, { width: totalWidth, align: 'right' });
+    doc.y = y + rowHeight;
   });
 
   doc.moveDown(0.5);

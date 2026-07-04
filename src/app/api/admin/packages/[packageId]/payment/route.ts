@@ -120,20 +120,24 @@ export async function POST(
     if (billingInvoiceId) {
       try {
         const Invoice = (await import('@/models/Invoice')).default;
-        const invoiceTotal = totalAmountUsd;
-        const balanceDue = Math.max(0, invoiceTotal - paidAmount);
+        const invoice = (await Invoice.findById(billingInvoiceId).lean()) as any;
+        const invoiceTotal = invoice?.total ?? totalAmountUsd;
+        const invoiceCurrency = (invoice?.currency as string) || current.currency || 'USD';
+        const amountPaidLocal = paidAmount;
+        const balanceDue = Math.max(0, invoiceTotal - amountPaidLocal);
         const invoiceStatus =
-          balanceDue <= 0 ? 'paid' : paidAmount > 0 ? 'partially_paid' : 'unpaid';
+          balanceDue <= 0 ? 'paid' : amountPaidLocal > 0 ? 'partially_paid' : 'unpaid';
+
         await Invoice.findByIdAndUpdate(billingInvoiceId, {
           $set: {
-            amountPaid: paidAmount,
+            amountPaid: amountPaidLocal,
             balanceDue,
             status: invoiceStatus,
             updatedAt: new Date(),
           },
           $push: {
             paymentHistory: {
-              amount: paidAmount,
+              amount: amountPaidLocal,
               date: new Date(),
               method: paymentMethod || 'cash',
               reference: paymentNote || undefined,
