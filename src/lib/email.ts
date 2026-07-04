@@ -439,6 +439,7 @@ export async function sendNewPackageEmail(opts: {
       <p style="margin:0;color:#1e40af;">Your billing invoice has been generated and attached to this email. Please review the invoice and make payment through the customer portal.</p>
     </div>
     ` : ''}
+    ${!invoiceSummaryHtml && attachments.length === 0 ? `
     <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:16px;margin:16px 0;">
       <h4 style="margin:0 0 8px 0;color:#92400e;">📋 Invoice Information Required</h4>
       <p style="margin:0;color:#92400e;">Please provide the invoice value of your goods through the customer portal. This information is required for customs clearance and will help us calculate any applicable duties and taxes.</p>
@@ -448,6 +449,7 @@ export async function sendNewPackageEmail(opts: {
         </a>
       </p>
     </div>
+    ` : ''}
     
     <p style="margin-top:16px;">You can view live tracking updates and manage your package in your customer portal.</p>
     <p style="margin-top:8px;">If you have any questions, please don't hesitate to contact us.</p>

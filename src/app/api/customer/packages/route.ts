@@ -322,6 +322,7 @@ export async function GET(req: NextRequest) {
         // Invoice files
         invoiceFiles: p.invoiceFiles || [],
         invoiceSubmittedAt: p.invoiceSubmittedAt,
+        billingInvoiceId: p.billingInvoiceId ? String(p.billingInvoiceId) : undefined,
 
         // Legacy invoice fields
         invoice_status: p.invoiceStatus || 'pending',

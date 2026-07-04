@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { formatPackageAmount } from "@/lib/package-format";
+import { CurrencyService } from '@/lib/currency-service';
 
 type UIPackage = {
   id?: string;
@@ -79,6 +80,7 @@ type UIPackage = {
   commercialInvoice?: string;
   hsCode?: string;
   collection?: string;
+  billingInvoiceId?: string;
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
@@ -241,18 +243,110 @@ function PackageDetailModal({ pkg, onClose, onOpenInvoice }: { pkg: UIPackage; o
 
 /* ─── Invoice / Receipt Modal ─── */
 function InvoiceModal({ pkg, onClose, userEmail }: { pkg: UIPackage; onClose: () => void; userEmail?: string }) {
+  type InvoiceItem = {
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    taxRate: number;
+    amount: number;
+    taxAmount: number;
+    total: number;
+  };
+
+  type InvoicePayload = {
+    invoiceNumber: string;
+    issueDate: string;
+    dueDate: string;
+    status: string;
+    currency: string;
+    subtotal: number;
+    taxTotal: number;
+    discountAmount: number;
+    total: number;
+    amountPaid: number;
+    balanceDue: number;
+    notes?: string;
+    trackingNumber: string;
+    customer: {
+      name: string;
+      email?: string;
+      address?: string;
+      phone?: string;
+    };
+    items: InvoiceItem[];
+    paymentHistory?: Array<{
+      amount: number;
+      date: string;
+      method: string;
+      reference?: string;
+    }>;
+  };
+
   const totalAmount = pkg.totalAmount || pkg.total_amount || pkg.freight || 0;
-  const today = new Date();
-  const invoiceNumber = Math.floor(400000 + Math.random() * 99999);
+  const [invoiceData, setInvoiceData] = useState<InvoicePayload | null>(null);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
+
+  const currencyCode = invoiceData?.currency || pkg.pricePaidCurrency || pkg.paymentCurrency || pkg.amountPaidCurrency || pkg.currency || 'USD';
+  const formatMoney = (value: number) => CurrencyService.format(value, currencyCode.toUpperCase());
+  const invoiceNumber = invoiceData?.invoiceNumber || `INV-${new Date().getFullYear()}-XXXX`;
+  const issueDate = invoiceData?.issueDate ? new Date(invoiceData.issueDate) : new Date();
+  const dueDate = invoiceData?.dueDate ? new Date(invoiceData.dueDate) : new Date();
+  const amountPaid = invoiceData?.amountPaid ?? pkg.amountPaid ?? 0;
+  const balanceDue = invoiceData?.balanceDue ?? Math.max(0, totalAmount - amountPaid);
+  const paymentMethod = invoiceData?.paymentHistory?.[0]?.method || pkg.paymentMethod || 'Cash';
+
+  useEffect(() => {
+    if (!pkg.billingInvoiceId) {
+      setInvoiceData(null);
+      setInvoiceError('No invoice linked to this package.');
+      setInvoiceLoading(false);
+      return;
+    }
+
+    let canceled = false;
+    setInvoiceLoading(true);
+    setInvoiceError(null);
+    setInvoiceData(null);
+
+    fetch(`/api/customer/invoices/${pkg.billingInvoiceId}/download`, {
+      credentials: 'include',
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (canceled) return;
+        if (data?.invoice) {
+          setInvoiceData(data.invoice as InvoicePayload);
+        } else {
+          setInvoiceError('Failed to load invoice details.');
+        }
+      })
+      .catch((error) => {
+        if (canceled) return;
+        setInvoiceError(error instanceof Error ? error.message : 'Unable to load invoice');
+      })
+      .finally(() => {
+        if (!canceled) setInvoiceLoading(false);
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [pkg.billingInvoiceId]);
 
   const handlePrint = () => {
     const el = invoiceRef.current;
     if (!el) return;
-    const win = window.open("", "_blank");
+    const win = window.open('', '_blank');
     if (!win) return;
-    win.document.write(`<html><head><title>Invoice ${invoiceNumber}</title><style>body{font-family:Arial,sans-serif;padding:20px;font-size:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:left}</style></head><body>${el.innerHTML}</body></html>`);
+    win.document.write(`<html><head><title>Invoice ${invoiceNumber}</title><style>body{font-family:Arial,sans-serif;padding:20px;font-size:12px;color:#111}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:left}h2,h3{margin:0 0 8px 0}</style></head><body>${el.innerHTML}</body></html>`);
     win.document.close();
     win.print();
   };
@@ -260,22 +354,25 @@ function InvoiceModal({ pkg, onClose, userEmail }: { pkg: UIPackage; onClose: ()
   const handleEmail = async () => {
     setSendingEmail(true);
     try {
-      const res = await fetch("/api/support/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/support/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           subject: `Invoice Request - ${pkg.houseAwb || pkg.tracking_number}`,
-          message: `Please send me the invoice for package ${pkg.houseAwb || pkg.tracking_number}. Invoice amount: ${formatDisplayAmount(totalAmount, pkg.pricePaidCurrency || "USD")}. Email: ${userEmail || "N/A"}`,
+          message: `Please send me the invoice for package ${pkg.houseAwb || pkg.tracking_number}. Invoice amount: ${formatMoney(totalAmount)}. Email: ${userEmail || 'N/A'}`,
         }),
       });
-      if (!res.ok) throw new Error("Failed to send");
-      alert("Invoice email request sent successfully!");
+      if (!res.ok) throw new Error('Failed to send');
+      alert('Invoice email request sent successfully!');
     } catch {
-      alert("Failed to send email. Please try again.");
+      alert('Failed to send email. Please try again.');
     } finally {
       setSendingEmail(false);
     }
   };
+
+  const feeItems = invoiceData?.items?.filter((item) => /freight|shipping|storage|duty|customs/i.test(item.description)) || [];
+  const otherItems = invoiceData?.items?.filter((item) => !/freight|shipping|storage|duty|customs/i.test(item.description)) || [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
@@ -299,52 +396,92 @@ function InvoiceModal({ pkg, onClose, userEmail }: { pkg: UIPackage; onClose: ()
             <div className="text-right space-y-1">
               <p className="font-bold text-gray-900 text-base">PACKAGE INVOICE</p>
               <p className="font-semibold text-gray-800">{invoiceNumber}</p>
-              <p className="text-xs text-gray-500">{today.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
-              <p className="text-xs text-gray-500">Branch: {pkg.branch || pkg.warehouseLocation || "Main Branch"}</p>
+              <p className="text-xs text-gray-500">{issueDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+              <p className="text-xs text-gray-500">Due: {dueDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+              <p className="text-xs text-gray-500">Branch: {pkg.branch || pkg.warehouseLocation || 'Main Branch'}</p>
             </div>
           </div>
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="text-left px-2 py-2 text-gray-600 font-semibold border border-gray-200">House AWB#</th>
-                <th className="text-left px-2 py-2 text-gray-600 font-semibold border border-gray-200">Information</th>
-                <th className="text-left px-2 py-2 text-gray-600 font-semibold border border-gray-200">Our Fees</th>
-                <th className="text-right px-2 py-2 text-gray-600 font-semibold border border-gray-200">Due</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="px-2 py-3 border border-gray-200 align-top">
-                  <p className="font-semibold text-gray-900">{pkg.houseAwb || pkg.tracking_number}</p>
-                  <p className="text-gray-500 mt-1">{pkg.merchant || pkg.shipper || "UNKNOWN"}</p>
-                </td>
-                <td className="px-2 py-3 border border-gray-200 align-top">
-                  <p><span className="text-gray-500">Weight:</span> {pkg.weight_kg || pkg.weight || 1} lbs</p>
-                  <p><span className="text-gray-500">Value:</span> {formatDisplayAmount(pkg.itemValueUsd || pkg.usdValue || 0, pkg.pricePaidCurrency || "USD")}</p>
-                </td>
-                <td className="px-2 py-3 border border-gray-200 align-top">
-                  <p><span className="text-gray-500">Freight:</span> {formatDisplayAmount(totalAmount, pkg.pricePaidCurrency || "USD")}</p>
-                  <p><span className="text-gray-500">Storage:</span> {formatDisplayAmount(0, pkg.pricePaidCurrency || "USD")}</p>
-                </td>
-                <td className="px-2 py-3 border border-gray-200 align-top text-right font-semibold">{formatDisplayAmount(totalAmount, pkg.pricePaidCurrency || "USD")}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div className="grid grid-cols-3 gap-4 pt-2">
-            <div className="col-span-1">
-              <p className="font-bold text-gray-900 text-sm">Thank you for your business!</p>
-              <p className="text-xs text-gray-500 mt-1">Please save this for your records</p>
-            </div>
-            <div className="col-span-1">
-              <p className="font-semibold text-gray-800 text-sm mb-1">Payment Details</p>
-              <p className="text-xs text-gray-600">Cash: {formatDisplayAmount(totalAmount, pkg.pricePaidCurrency || "USD")}</p>
-            </div>
-            <div className="col-span-1 text-right">
-              <p className="text-xs text-gray-600">Sub-Total: <span className="font-semibold">{formatDisplayAmount(totalAmount, pkg.pricePaidCurrency || "USD")}</span></p>
-              <p className="text-xs text-gray-600">Total: <span className="font-semibold">{formatDisplayAmount(totalAmount, pkg.pricePaidCurrency || "USD")}</span></p>
-              <p className="text-xs text-gray-600">Balance: <span className="font-semibold text-red-500">{formatDisplayAmount(0, pkg.pricePaidCurrency || "USD")}</span></p>
-            </div>
-          </div>
+          {invoiceLoading ? (
+            <div className="py-12 text-center text-gray-500">Loading invoice details…</div>
+          ) : invoiceError ? (
+            <div className="py-6 px-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">{invoiceError}</div>
+          ) : (
+            <>
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="text-left px-2 py-2 text-gray-600 font-semibold border border-gray-200">House AWB#</th>
+                    <th className="text-left px-2 py-2 text-gray-600 font-semibold border border-gray-200">Information</th>
+                    <th className="text-left px-2 py-2 text-gray-600 font-semibold border border-gray-200">Our Fees</th>
+                    <th className="text-right px-2 py-2 text-gray-600 font-semibold border border-gray-200">Due</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="px-2 py-3 border border-gray-200 align-top">
+                      <p className="font-semibold text-gray-900">{pkg.houseAwb || pkg.tracking_number}</p>
+                      <p className="text-gray-500 mt-1">{pkg.merchant || pkg.shipper || 'UNKNOWN'}</p>
+                    </td>
+                    <td className="px-2 py-3 border border-gray-200 align-top">
+                      <p><span className="text-gray-500">Weight:</span> {pkg.weight_kg || pkg.weight || 0} lbs</p>
+                      <p><span className="text-gray-500">Value:</span> {formatMoney(invoiceData?.items?.find((item) => /item value/i.test(item.description))?.total ?? pkg.itemValueUsd ?? pkg.usdValue ?? 0)}</p>
+                    </td>
+                    <td className="px-2 py-3 border border-gray-200 align-top">
+                      {feeItems.length > 0 ? (
+                        feeItems.map((item, index) => (
+                          <p key={index}><span className="text-gray-500">{item.description}:</span> {formatMoney(item.total)}</p>
+                        ))
+                      ) : (
+                        <p className="text-gray-500">{formatMoney(totalAmount)}</p>
+                      )}
+                    </td>
+                    <td className="px-2 py-3 border border-gray-200 align-top text-right font-semibold">{formatMoney(invoiceData?.total ?? totalAmount)}</td>
+                  </tr>
+                </tbody>
+              </table>
+              {otherItems.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full mt-4 text-xs border-collapse border border-gray-200">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="px-2 py-2 text-left text-gray-600 font-semibold border border-gray-200">Description</th>
+                        <th className="px-2 py-2 text-right text-gray-600 font-semibold border border-gray-200">Qty</th>
+                        <th className="px-2 py-2 text-right text-gray-600 font-semibold border border-gray-200">Unit</th>
+                        <th className="px-2 py-2 text-right text-gray-600 font-semibold border border-gray-200">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {otherItems.map((item, idx) => (
+                        <tr key={idx} className="border-t border-gray-200">
+                          <td className="px-2 py-2 border border-gray-200 text-gray-700">{item.description}</td>
+                          <td className="px-2 py-2 border border-gray-200 text-right">{item.quantity}</td>
+                          <td className="px-2 py-2 border border-gray-200 text-right">{formatMoney(item.unitPrice)}</td>
+                          <td className="px-2 py-2 border border-gray-200 text-right">{formatMoney(item.total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="grid grid-cols-3 gap-4 pt-2">
+                <div className="col-span-1">
+                  <p className="font-bold text-gray-900 text-sm">Thank you for your business!</p>
+                  <p className="text-xs text-gray-500 mt-1">Please save this for your records</p>
+                </div>
+                <div className="col-span-1">
+                  <p className="font-semibold text-gray-800 text-sm mb-1">Payment Details</p>
+                  <p className="text-xs text-gray-600">{paymentMethod}: {formatMoney(amountPaid)}</p>
+                  {invoiceData?.notes && <p className="text-xs text-gray-500 mt-1">{invoiceData.notes}</p>}
+                </div>
+                <div className="col-span-1 text-right">
+                  <p className="text-xs text-gray-600">Sub-Total: <span className="font-semibold">{formatMoney(invoiceData?.subtotal ?? totalAmount)}</span></p>
+                  <p className="text-xs text-gray-600">Total: <span className="font-semibold">{formatMoney(invoiceData?.total ?? totalAmount)}</span></p>
+                  <p className="text-xs text-gray-600">Paid: <span className="font-semibold">{formatMoney(amountPaid)}</span></p>
+                  <p className="text-xs">Balance: <span className={`font-semibold ${balanceDue > 0 ? 'text-red-500' : 'text-gray-900'}`}>{formatMoney(balanceDue)}</span></p>
+                </div>
+              </div>
+            </>
+          )}
         </div>
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
           <button onClick={handleEmail} disabled={sendingEmail} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50">
@@ -423,6 +560,7 @@ export default function CustomerPackagesPage() {
         houseAwb: pkg.houseAwb || pkg.tracking_number || pkg.trackingNumber,
         trackingNum: pkg.trackingNum || pkg.tracking_number || pkg.trackingNumber,
         freight: pkg.freight || pkg.shipping_cost || pkg.totalAmount || pkg.total_amount || 0,
+        billingInvoiceId: pkg.billingInvoiceId,
       }));
       try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: list, timestamp: Date.now() })); } catch {}
       setItems(list);
