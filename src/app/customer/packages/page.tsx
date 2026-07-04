@@ -29,7 +29,6 @@ import {
   Download,
   Printer,
   Mail,
-  Tag,
   RefreshCw,
 } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -58,6 +57,9 @@ type UIPackage = {
   paymentMethod?: string;
   amountPaid?: number;
   pricePaidCurrency?: string;
+  paymentCurrency?: string;
+  amountPaidCurrency?: string;
+  currency?: string;
   shipper?: string;
   merchant?: string;
   dutyPercent?: number;
