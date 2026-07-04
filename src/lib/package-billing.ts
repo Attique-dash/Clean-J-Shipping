@@ -283,12 +283,18 @@ export async function syncBillingInvoiceForPackage(
 
   try {
     const Invoice = (await import('@/models/Invoice')).default;
+    // Determine amount paid in invoice currency using parsed package payments
+    const payment = parsePackagePayments(asString(packageDoc.PackagePayments || packageDoc.packagePayments), packageDoc);
+    const amountPaidUsd = asNumber(payment.amountPaidUsd);
+    const amountPaidLocal = amountPaidUsd > 0 ? CurrencyService.fromUSD(amountPaidUsd, payload.currency) : asNumber(packageDoc.amountPaid ?? 0);
+
     await Invoice.findByIdAndUpdate(billingId, {
       $set: {
         currency: payload.currency,
         subtotal: payload.subtotal,
         total: payload.total,
-        balanceDue: Math.max(0, payload.total - asNumber(packageDoc.amountPaid)),
+        amountPaid: amountPaidLocal,
+        balanceDue: Math.max(0, payload.total - amountPaidLocal),
         items: payload.items,
         updatedAt: new Date(),
       },
