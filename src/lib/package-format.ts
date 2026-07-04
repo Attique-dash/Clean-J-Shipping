@@ -118,8 +118,6 @@ export function getPackagePaymentCurrency(
     doc?.currencyCode,
     doc?.currency,
     parsed?.currency,
-    parsed?.paymentCurrency,
-    parsed?.pricePaidCurrency,
   ];
 
   for (const candidate of candidates) {
