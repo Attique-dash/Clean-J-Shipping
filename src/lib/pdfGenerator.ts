@@ -10,42 +10,72 @@ const UPLOAD_DIR = '/tmp/invoices';
 
 function formatPdfAddress(value: unknown): string {
   const parsed = parseAddressValue(value);
-  return parsed.replace(/\s*\n\s*/g, '\n');
+  return parsed
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
+function cleanAddressPart(part: string): string {
+  return part
+    .trim()
+    .replace(/^['"]+/, '')
+    .replace(/['"]+$/, '')
+    .replace(/^[^:]+:\s*/, '')
+    .replace(/,+$/, '')
+    .trim();
 }
 
 function parseAddressValue(value: unknown): string {
   if (value === undefined || value === null) return '';
+
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) return '';
 
-    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-      const withoutBraces = trimmed.slice(1, -1);
-      const parts = withoutBraces
-        .split(/,\s*|\n+/)
-        .map((part) => part.trim().replace(/^['"]?|['"]?$/g, '').replace(/^[^:]+:\s*/, ''))
-        .filter(Boolean);
-      if (parts.length) return parts.join('\n');
-    }
+    const normalized = trimmed.replace(/\r?\n/g, '\n');
+    const addressBody = normalized.startsWith('{') && normalized.endsWith('}')
+      ? normalized.slice(1, -1)
+      : normalized;
 
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (typeof parsed === 'object' && parsed !== null) {
-        return Object.values(parsed)
-          .filter((part) => typeof part === 'string' && part.trim())
-          .join('\n');
-      }
-    } catch {
-      // not JSON
-    }
-    return trimmed;
+    const parts = addressBody
+      .split(/\n|,/) 
+      .map(cleanAddressPart)
+      .filter(Boolean);
+
+    if (parts.length) return parts.join('\n');
+    return cleanAddressPart(trimmed);
   }
+
   if (typeof value === 'object') {
-    return Object.values(value)
-      .filter((part) => typeof part === 'string' && part.trim())
-      .join('\n');
+    const objectValue = value as Record<string, unknown>;
+    const orderedKeys = [
+      'street',
+      'street1',
+      'address',
+      'address1',
+      'addressLine1',
+      'line1',
+      'city',
+      'state',
+      'zip',
+      'postalCode',
+      'postal_code',
+      'country',
+    ];
+
+    const parts = orderedKeys
+      .filter((key) => key in objectValue)
+      .map((key) => objectValue[key])
+      .concat(Object.values(objectValue))
+      .map((part) => (typeof part === 'string' ? cleanAddressPart(part) : ''))
+      .filter(Boolean);
+
+    return [...new Set(parts)].join('\n');
   }
-  return String(value);
+
+  return String(value).trim();
 }
 
 interface GeneratePdfOptions {
