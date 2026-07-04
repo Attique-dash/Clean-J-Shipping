@@ -17,6 +17,16 @@ function formatPdfAddress(value: unknown): string {
     .join('\n');
 }
 
+function formatPdfAddressSingleLine(value: unknown): string {
+  const parsed = parseAddressValue(value);
+  return parsed
+    .split(/\r?\n|,/) 
+    .map((line) => line.trim())
+    .map(cleanAddressPart)
+    .filter(Boolean)
+    .join(', ');
+}
+
 function cleanAddressPart(part: string): string {
   return part
     .trim()
@@ -114,8 +124,11 @@ export async function generateInvoicePdf(options: GeneratePdfOptions): Promise<{
 
   // Add invoice header
   const currencyCode = (invoice.currency || 'JMD').toUpperCase();
-  const currencySymbol = CurrencyService.getCurrencyInfo(currencyCode)?.symbol || currencyCode;
-  const formatMoney = (value: number) => `${currencySymbol}${value.toFixed(2)}`;
+  const resolvedCurrency = CurrencyService.getCurrencyInfo(currencyCode) || CurrencyService.getCurrencyInfo('JMD');
+  const currencySymbol = resolvedCurrency?.symbol || '$';
+  const sanitizeCurrencySymbol = (symbol: string) =>
+    symbol.replace(/[\u00BC-\u00BE\u2150-\u215E]/g, '').trim();
+  const formatMoney = (value: number) => `${sanitizeCurrencySymbol(currencySymbol)}${value.toFixed(2)}`;
 
   const startX = doc.page.margins.left;
   const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
@@ -173,11 +186,19 @@ export async function generateInvoicePdf(options: GeneratePdfOptions): Promise<{
 
   // Bill to + invoice summary section
   const billToTop = doc.y;
+  const customerAddressLine = [
+    formatPdfAddressSingleLine(invoice.customer.address),
+    invoice.customer.city,
+    invoice.customer.state,
+    (invoice.customer as any).zipCode,
+    invoice.customer.country,
+  ]
+    .filter(Boolean)
+    .join(', ');
+
   const customerLines = [
     invoice.customer.name,
-    formatPdfAddress(invoice.customer.address),
-    [invoice.customer.city, invoice.customer.state, (invoice.customer as any).zipCode].filter(Boolean).join(', '),
-    invoice.customer.country,
+    customerAddressLine,
     invoice.customer.phone ? `Phone: ${invoice.customer.phone}` : '',
     invoice.customer.email ? `Email: ${invoice.customer.email}` : '',
   ]
