@@ -32,6 +32,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { formatPackageAmount } from "@/lib/package-format";
 
 type UIPackage = {
   id?: string;
@@ -123,18 +124,7 @@ function getStatusClasses(s: string) {
 }
 
 function formatDisplayAmount(amount: number, currencyCode?: string) {
-  const code = (currencyCode || "USD").toUpperCase();
-  const locale = code === "JMD" ? "en-JM" : "en-US";
-
-  try {
-    return new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency: code,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  } catch {
-    return `${code} ${amount.toFixed(2)}`;
-  }
+  return formatPackageAmount(amount, currencyCode?.toUpperCase() || "USD");
 }
 
 function InfoRow({ icon, label, value, mono }: { icon?: React.ReactNode; label: string; value: React.ReactNode; mono?: boolean }) {
