@@ -1,7 +1,15 @@
 const mongoose = require('mongoose');
 require('dotenv').config({ path: '.env.local' });
 
-const MONGODB_URI = process.env.MONGODB_URI;
+// Get MongoDB URI from command line argument or environment variable
+const MONGODB_URI = process.argv[2] || process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error('Error: MongoDB URI not provided.');
+  console.error('Usage: node scripts/update-warehouse-addresses-direct.js <mongodb-uri>');
+  console.error('Or set MONGODB_URI in .env.local file');
+  process.exit(1);
+}
 
 async function updateWarehouseAddresses() {
   try {
