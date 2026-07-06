@@ -107,7 +107,7 @@ export async function GET(req: Request) {
       invoiceStatus: pa.status === 'approved' ? 'submitted' : 'pending',
       invoiceUploaded: !!pa.attachmentFile,
       pricePaid: pa.pricePaid || 0,
-      pricePaidCurrency: 'USD',
+      pricePaidCurrency: pa.pricePaidCurrency || 'USD',
       invoiceFiles: pa.attachmentFile ? [pa.attachmentFile] : [],
       invoiceSubmittedAt: pa.createdAt,
       hasInvoice: !!pa.attachmentFile,

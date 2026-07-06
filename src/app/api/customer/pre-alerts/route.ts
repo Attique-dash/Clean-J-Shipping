@@ -162,6 +162,7 @@ export async function POST(req: Request) {
   const notes = body.notes;
   const description = body.description;
   const pricePaid = (body.price_paid || body.pricePaid) ? parseFloat(body.price_paid || body.pricePaid) : undefined;
+  const pricePaidCurrency = body.price_paid_currency || body.pricePaidCurrency || 'USD';
   const overseasCourier = body.overseas_courier || body.overseasCourier;
   const merchant = body.merchant;
   const file = body.file;
@@ -217,6 +218,7 @@ export async function POST(req: Request) {
       notes,
       description,
       pricePaid,
+      pricePaidCurrency,
       overseasCourier,
       merchant,
       attachmentFile,

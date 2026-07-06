@@ -10,9 +10,12 @@ type PreAlert = {
   _id: string;
   trackingNumber: string;
   merchant?: string;
+  carrier?: string;
   description?: string;
   pricePaid?: number;
+  pricePaidCurrency?: string;
   overseasCourier?: string;
+  origin?: string;
   expectedDate?: string;
   status?: "submitted" | "approved" | "rejected";
   createdAt?: string;
@@ -42,6 +45,7 @@ export default function PreAlertsPage() {
     trackingNumber: '',
     description: '',
     pricePaid: '',
+    pricePaidCurrency: 'USD',
     merchant: '',
     overseasCourier: '',
     expectedDate: '',
@@ -76,6 +80,7 @@ export default function PreAlertsPage() {
       formDataObj.append('tracking_number', formData.trackingNumber);
       formDataObj.append('description', formData.description);
       formDataObj.append('price_paid', formData.pricePaid);
+      formDataObj.append('price_paid_currency', formData.pricePaidCurrency);
       formDataObj.append('merchant', formData.merchant);
       formDataObj.append('overseas_courier', formData.overseasCourier);
       formDataObj.append('expected_date', formData.expectedDate);
@@ -111,6 +116,7 @@ export default function PreAlertsPage() {
       const formDataObj = new FormData();
       formDataObj.append('description', formData.description);
       formDataObj.append('price_paid', formData.pricePaid);
+      formDataObj.append('price_paid_currency', formData.pricePaidCurrency);
       formDataObj.append('merchant', formData.merchant);
       formDataObj.append('overseas_courier', formData.overseasCourier);
       formDataObj.append('expected_date', formData.expectedDate);
@@ -223,6 +229,7 @@ export default function PreAlertsPage() {
       trackingNumber: item.trackingNumber,
       description: item.description || '',
       pricePaid: item.pricePaid ? String(item.pricePaid) : '',
+      pricePaidCurrency: item.pricePaidCurrency || 'USD',
       merchant: item.merchant || '',
       overseasCourier: item.overseasCourier || '',
       expectedDate: item.expectedDate ? new Date(item.expectedDate).toISOString().split('T')[0] : '',
@@ -237,6 +244,7 @@ export default function PreAlertsPage() {
       trackingNumber: '',
       description: '',
       pricePaid: '',
+      pricePaidCurrency: 'USD',
       merchant: '',
       overseasCourier: '',
       expectedDate: '',
@@ -335,15 +343,17 @@ export default function PreAlertsPage() {
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span className="text-gray-500">Merchant:</span>
-                          <span className="text-gray-900 font-medium">{item.merchant || 'Not specified'}</span>
+                          <span className="text-gray-900 font-medium">{item.merchant || item.carrier || 'Not specified'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-500">Courier:</span>
-                          <span className="text-gray-900 font-medium">{item.overseasCourier || 'Not specified'}</span>
+                          <span className="text-gray-900 font-medium">{item.overseasCourier || item.origin || 'Not specified'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-500">Price:</span>
-                          <span className="text-gray-900 font-medium">${item.pricePaid ? item.pricePaid.toFixed(2) : '0.00'}</span>
+                          <span className="text-gray-900 font-medium">
+                            {item.pricePaidCurrency || 'USD'} {item.pricePaid ? item.pricePaid.toFixed(2) : '0.00'}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-500">Expected:</span>
@@ -424,14 +434,26 @@ export default function PreAlertsPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Price Paid</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.pricePaid}
-                  onChange={(e) => setFormData({ ...formData, pricePaid: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="0.00"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.pricePaid}
+                    onChange={(e) => setFormData({ ...formData, pricePaid: e.target.value })}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="0.00"
+                  />
+                  <select
+                    value={formData.pricePaidCurrency}
+                    onChange={(e) => setFormData({ ...formData, pricePaidCurrency: e.target.value })}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                    <option value="JMD">JMD</option>
+                  </select>
+                </div>
               </div>
 
               <div>

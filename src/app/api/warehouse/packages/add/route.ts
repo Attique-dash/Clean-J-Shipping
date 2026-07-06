@@ -318,6 +318,7 @@ export async function POST(req: Request) {
         merchant: typeof shipper === "string" ? shipper : "Unknown Merchant",
         overseasCourier: typeof warehouse === "string" ? warehouse : "Unknown Courier",
         pricePaid: value || 0,
+        pricePaidCurrency: 'USD',
       }], { session });
     }
 
