@@ -7454,3 +7454,41 @@ This is an example of my friend own..
 9E890192-0035-4EB5-B21B-B8AF784E14B3.jpeg
 
 (120.66 kB)
+A
+Profile Image
+Me
+
+Jul 04, 11:27 AM
+Hi James,
+
+I’ve fixed the issues you mentioned. The Tasoko API links are now aligned with the correct endpoints, and the customer receipt/invoice is now showing the correct currency and values instead of USD.
+
+Please test it again from your side. If anything still looks off, send me the exact screenshot or example and I’ll fix it right away.
+
+J
+james_1nelly
+
+Jul 06, 8:58 AM
+The correct address is on the system, but the old address is in the email when they receive receipt
+
+
+Attachment_1783353472.jpeg
+
+(3.71 MB)
+
+J
+james_1nelly
+
+Jul 06, 9:55 AM
+I went on the customer portal and trying to add a pree alert for a package, but it’s not saving
+
+
+111CF03C-BA18-4FF2-9C63-73CA0DD813A4.jpeg
+
+(249.42 kB)
+
+J
+james_1nelly
+
+Jul 06, 10:47 AM
+I am not seeing the part for them to upload invoice in the email.. After the pree alert

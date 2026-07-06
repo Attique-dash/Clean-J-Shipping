@@ -76,6 +76,24 @@ export async function POST(req: Request) {
   );
 
   if (customer?.email) {
+    // Get warehouse addresses from database
+    let warehouseAddresses = { airAddress: '', seaAddress: '', chinaAddress: '' };
+    try {
+      const { Warehouse } = await import('@/models/Warehouse');
+      const defaultWarehouse = await Warehouse.findOne({ isActive: true, isDefault: true })
+        .select('airAddress seaAddress chinaAddress address')
+        .lean() as { airAddress?: string; seaAddress?: string; chinaAddress?: string; address?: string } | null;
+      if (defaultWarehouse) {
+        warehouseAddresses = {
+          airAddress: defaultWarehouse.airAddress || defaultWarehouse.address || '',
+          seaAddress: defaultWarehouse.seaAddress || defaultWarehouse.address || '',
+          chinaAddress: defaultWarehouse.chinaAddress || defaultWarehouse.address || ''
+        };
+      }
+    } catch (whError) {
+      console.error('[Admin Receivals] Failed to fetch warehouse addresses:', whError);
+    }
+    
     sendNewPackageEmail({
       to: customer.email,
       firstName: (customer as unknown as { firstName?: string } | null)?.firstName || "",
@@ -86,6 +104,7 @@ export async function POST(req: Request) {
       warehouse,
       receivedBy,
       receivedDate: now,
+      warehouseAddresses,
     }).catch(() => {});
   }
 

@@ -12,6 +12,7 @@ import { Types } from "mongoose";
 import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
+import { sendNewPackageEmail } from "@/lib/email";
 
 type PreAlertLean = Omit<IPreAlert, "_id"> & {
   _id?: { toString(): string };
@@ -232,7 +233,40 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Failed to create pre-alert" }, { status: 500 });
   }
 
-  // TODO: Notify warehouse (email/webhook) - placeholder
+  // Send email notification to customer with invoice upload link
+  try {
+    if (user?.email) {
+      // Get warehouse addresses from database
+      let warehouseAddresses = { airAddress: '', seaAddress: '', chinaAddress: '' };
+      try {
+        const { Warehouse } = await import('@/models/Warehouse');
+        const defaultWarehouse = await Warehouse.findOne({ isActive: true, isDefault: true })
+          .select('airAddress seaAddress chinaAddress address')
+          .lean() as { airAddress?: string; seaAddress?: string; chinaAddress?: string; address?: string } | null;
+        if (defaultWarehouse) {
+          warehouseAddresses = {
+            airAddress: defaultWarehouse.airAddress || defaultWarehouse.address || '',
+            seaAddress: defaultWarehouse.seaAddress || defaultWarehouse.address || '',
+            chinaAddress: defaultWarehouse.chinaAddress || defaultWarehouse.address || ''
+          };
+        }
+      } catch (whError) {
+        console.error('[Pre-alert Create] Failed to fetch warehouse addresses:', whError);
+      }
+      
+      await sendNewPackageEmail({
+        to: user.email,
+        firstName: user.firstName || 'Customer',
+        trackingNumber: tracking_number,
+        status: 'Pre-Alert Submitted',
+        description: description || `Pre-alert for package from ${merchant || 'unknown merchant'}`,
+        warehouseAddresses,
+      });
+    }
+  } catch (emailError) {
+    console.error('[Pre-alert Create] Email notification failed:', emailError);
+    // Don't fail the request if email fails
+  }
 
   return NextResponse.json({
     pre_alert_id: String(created._id),

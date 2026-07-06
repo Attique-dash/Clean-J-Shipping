@@ -228,6 +228,25 @@ export async function GET(req: NextRequest) {
     try {
       if (user.email) {
         const kcdGetPkg = toPublicKcdPackage(createdPackage.toObject());
+        
+        // Get warehouse addresses from database
+        let warehouseAddresses = { airAddress: '', seaAddress: '', chinaAddress: '' };
+        try {
+          const { Warehouse } = await import('@/models/Warehouse');
+          const defaultWarehouse = await Warehouse.findOne({ isActive: true, isDefault: true })
+            .select('airAddress seaAddress chinaAddress address')
+            .lean() as { airAddress?: string; seaAddress?: string; chinaAddress?: string; address?: string } | null;
+          if (defaultWarehouse) {
+            warehouseAddresses = {
+              airAddress: defaultWarehouse.airAddress || defaultWarehouse.address || '',
+              seaAddress: defaultWarehouse.seaAddress || defaultWarehouse.address || '',
+              chinaAddress: defaultWarehouse.chinaAddress || defaultWarehouse.address || ''
+            };
+          }
+        } catch (whError) {
+          console.error(`[Tasoko AddPackage ${requestId}] Failed to fetch warehouse addresses:`, whError);
+        }
+        
         await sendNewPackageEmail({
           to: user.email,
           firstName: user.firstName || "Customer",
@@ -238,6 +257,7 @@ export async function GET(req: NextRequest) {
           warehouse: kcdGetPkg.Branch || "KCD Main Warehouse",
           receivedDate: kcdGetPkg.EntryDate ? new Date(kcdGetPkg.EntryDate) : new Date(),
           description: kcdGetPkg.Description || `Package from ${shipper || 'KCD'}`,
+          warehouseAddresses,
         });
         emailSent = true;
       }

@@ -110,6 +110,24 @@ export async function POST(req: Request) {
       try {
         const user = await User.findById(pkg.userId);
         if (user?.email) {
+          // Get warehouse addresses from database
+          let warehouseAddresses = { airAddress: '', seaAddress: '', chinaAddress: '' };
+          try {
+            const { Warehouse } = await import('@/models/Warehouse');
+            const defaultWarehouse = await Warehouse.findOne({ isActive: true, isDefault: true })
+              .select('airAddress seaAddress chinaAddress address')
+              .lean() as { airAddress?: string; seaAddress?: string; chinaAddress?: string; address?: string } | null;
+            if (defaultWarehouse) {
+              warehouseAddresses = {
+                airAddress: defaultWarehouse.airAddress || defaultWarehouse.address || '',
+                seaAddress: defaultWarehouse.seaAddress || defaultWarehouse.address || '',
+                chinaAddress: defaultWarehouse.chinaAddress || defaultWarehouse.address || ''
+              };
+            }
+          } catch (whError) {
+            console.error(`[KCD Update ${requestId}] Failed to fetch warehouse addresses:`, whError);
+          }
+          
           await sendNewPackageEmail({
             to: user.email,
             firstName: user.firstName || "Customer",
@@ -120,6 +138,7 @@ export async function POST(req: Request) {
             warehouse: pkg.warehouseLocation || "KCD Main Warehouse",
             receivedDate: pkg.dateReceived || new Date(),
             description: pkg.itemDescription || pkg.description,
+            warehouseAddresses,
           });
           emailSent = true;
         }
