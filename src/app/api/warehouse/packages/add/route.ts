@@ -314,6 +314,10 @@ export async function POST(req: Request) {
         status: "approved", // Auto-approved since warehouse received it
         notes: `Package received at warehouse${receivedBy ? ` by ${receivedBy}` : ""}`,
         decidedAt: now,
+        description: description || `Package from ${shipper || 'unknown merchant'}`,
+        merchant: typeof shipper === "string" ? shipper : "Unknown Merchant",
+        overseasCourier: typeof warehouse === "string" ? warehouse : "Unknown Courier",
+        pricePaid: value || 0,
       }], { session });
     }
 

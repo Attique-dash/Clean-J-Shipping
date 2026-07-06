@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
 import Package from "@/models/Package";
+import { PreAlert } from "@/models/PreAlert";
 import { getAuthFromRequest } from "@/lib/rbac";
 import { Types } from "mongoose";
 import { uploadFile, CloudinaryUploadResult } from "@/lib/cloudinary";
@@ -47,6 +48,18 @@ export async function GET(req: Request) {
       ]
     }).sort({ dateReceived: -1 }).lean();
 
+    // Also find pre-alerts that need invoice upload
+    // - Pre-alert is pending or approved
+    // - No attachment file uploaded yet
+    const preAlerts = await PreAlert.find({
+      customer: new Types.ObjectId(userId),
+      status: { $in: ['pending', 'approved'] },
+      $or: [
+        { attachmentFile: { $exists: false } },
+        { attachmentFile: null }
+      ]
+    }).sort({ expectedDate: -1 }).lean();
+
     // Format packages for frontend — use PascalCase (KCD model) with camelCase fallbacks
     const formattedPackages = packages.map(pkg => ({
       id: pkg._id?.toString(),
@@ -77,11 +90,52 @@ export async function GET(req: Request) {
       houseAwb: pkg.TrackingNumber || pkg.trackingNumber || '',
       trackingNum: pkg.TrackingNumber || pkg.trackingNumber || '',
       status: pkg.status || 'received',
+      isPreAlert: false,
     }));
+
+    // Format pre-alerts for frontend
+    const formattedPreAlerts = preAlerts.map(pa => ({
+      id: pa._id?.toString(),
+      trackingNumber: pa.trackingNumber,
+      tracking_number: pa.trackingNumber,
+      shipper: pa.carrier || pa.overseasCourier || 'N/A',
+      merchant: pa.merchant || 'N/A',
+      weight: 0,
+      serviceMode: 'air',
+      dateReceived: pa.expectedDate,
+      received_date: pa.expectedDate?.toISOString?.() || pa.expectedDate,
+      invoiceStatus: pa.status === 'approved' ? 'submitted' : 'pending',
+      invoiceUploaded: !!pa.attachmentFile,
+      pricePaid: pa.pricePaid || 0,
+      pricePaidCurrency: 'USD',
+      invoiceFiles: pa.attachmentFile ? [pa.attachmentFile] : [],
+      invoiceSubmittedAt: pa.createdAt,
+      hasInvoice: !!pa.attachmentFile,
+      description: pa.description || '',
+      itemDescription: pa.description || '',
+      warehouseLocation: pa.origin || '',
+      branch: '',
+      userCode: pa.userCode || '',
+      pieces: 1,
+      freight: 0,
+      totalAmount: pa.pricePaid || 0,
+      total_amount: pa.pricePaid || 0,
+      houseAwb: pa.trackingNumber,
+      trackingNum: pa.trackingNumber,
+      status: pa.status || 'pending',
+      isPreAlert: true,
+    }));
+
+    // Combine packages and pre-alerts
+    const allItems = [...formattedPackages, ...formattedPreAlerts].sort((a, b) => {
+      const dateA = new Date(a.dateReceived || 0).getTime();
+      const dateB = new Date(b.dateReceived || 0).getTime();
+      return dateB - dateA;
+    });
 
     return NextResponse.json({
       success: true,
-      packages: formattedPackages
+      packages: allItems
     });
 
   } catch (error) {
@@ -137,6 +191,103 @@ export async function POST(req: Request) {
 
     for (const upload of uploads) {
       try {
+        // First check if it's a pre-alert
+        const preAlert = await PreAlert.findOne({
+          trackingNumber: upload.tracking_number,
+          customer: new Types.ObjectId(userId),
+          status: { $in: ['pending', 'approved'] }
+        });
+
+        if (preAlert) {
+          // Handle pre-alert invoice upload
+          // Validate files
+          if (!upload.files || upload.files.length === 0) {
+            results.push({
+              tracking_number: upload.tracking_number,
+              success: false,
+              error: "At least one invoice file is required"
+            });
+            continue;
+          }
+
+          // Limit to 3 files
+          const filesToProcess = upload.files.slice(0, 3);
+          
+          // Validate file types and sizes
+          for (const file of filesToProcess) {
+            if (!ALLOWED_TYPES.includes(file.type)) {
+              results.push({
+                tracking_number: upload.tracking_number,
+                success: false,
+                error: `Invalid file type: ${file.name}. Only PDF, JPG, and PNG files are allowed.`
+              });
+              continue;
+            }
+
+            if (file.size > MAX_FILE_SIZE) {
+              results.push({
+                tracking_number: upload.tracking_number,
+                success: false,
+                error: `File too large: ${file.name}. Maximum size is 10MB.`
+              });
+              continue;
+            }
+          }
+
+          // Upload files to Cloudinary
+          const cloudinaryFiles: CloudinaryUploadResult[] = [];
+          
+          for (const file of filesToProcess) {
+            try {
+              const result = await uploadFile(file, {
+                folder: `prealerts/${upload.tracking_number}`,
+                tags: ['prealert', `package:${upload.tracking_number}`, `user:${userId}`],
+              });
+              cloudinaryFiles.push(result);
+              uploadedFiles.push(result);
+            } catch (uploadError) {
+              console.error(`Failed to upload ${file.name} to Cloudinary:`, uploadError);
+              results.push({
+                tracking_number: upload.tracking_number,
+                success: false,
+                error: `Failed to upload file ${file.name}: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`
+              });
+              continue;
+            }
+          }
+
+          if (cloudinaryFiles.length === 0) {
+            results.push({
+              tracking_number: upload.tracking_number,
+              success: false,
+              error: "No files were successfully uploaded"
+            });
+            continue;
+          }
+
+          // Update pre-alert with attachment file (use first file)
+          await PreAlert.findByIdAndUpdate(
+            preAlert._id,
+            { 
+              $set: { 
+                attachmentFile: cloudinaryFiles[0],
+                pricePaid: upload.price_paid || preAlert.pricePaid || 0,
+              }
+            }
+          );
+
+          results.push({
+            tracking_number: upload.tracking_number,
+            success: true,
+            files_uploaded: cloudinaryFiles.length,
+            price_paid: upload.price_paid,
+            currency: upload.currency,
+            invoiceFiles: cloudinaryFiles,
+            isPreAlert: true
+          });
+          continue;
+        }
+
         // Verify package exists and belongs to user
         const pkg = await Package.findOne({ 
           trackingNumber: upload.tracking_number,
