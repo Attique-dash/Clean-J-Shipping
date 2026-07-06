@@ -166,7 +166,7 @@ export async function POST(req: Request) {
   const merchant = body.merchant;
   const file = body.file;
 
-  const user = payload._id ? await User.findById(payload._id).select("_id userCode") : null;
+  const user = payload._id ? await User.findById(payload._id).select("_id userCode email firstName") : null;
   const userCode = user?.userCode || (payload.userCode as string | undefined);
   if (!userCode) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
