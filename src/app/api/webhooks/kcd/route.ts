@@ -158,6 +158,7 @@ export async function POST(req: NextRequest) {
               receivedDate: pkg.dateReceived || new Date(),
               description: pkg.itemDescription || pkg.description,
               warehouseAddresses,
+              userCode: user.userCode,
             });
           } else {
             await sendStatusUpdateEmail({

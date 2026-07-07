@@ -302,6 +302,7 @@ export async function processKcdPackageAdd(
         kcdPackage: emailPackage,
         invoiceId: billingInvoiceId,
         warehouseAddresses,
+        userCode: user.userCode,
       });
       emailSent = true;
     }

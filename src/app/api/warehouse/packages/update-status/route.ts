@@ -139,6 +139,7 @@ export async function POST(req: Request) {
             receivedDate: pkg.dateReceived || new Date(),
             description: pkg.itemDescription || pkg.description,
             warehouseAddresses,
+            userCode: user.userCode,
           });
           emailSent = true;
         }

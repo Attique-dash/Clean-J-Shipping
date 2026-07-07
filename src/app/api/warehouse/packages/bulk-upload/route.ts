@@ -130,6 +130,7 @@ export async function POST(req: Request) {
           weight: item.weight,
           shipper: item.shipper,
           warehouseAddresses,
+          userCode: customer.userCode,
         }).catch(() => {});
       }
 

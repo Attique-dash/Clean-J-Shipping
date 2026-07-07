@@ -495,6 +495,7 @@ export async function POST(req: Request) {
         description: asString(description),
         itemDescription: asString(description),
         warehouseAddresses: warehouseAddresses,
+        userCode: user.userCode,
       });
       console.log(`[Admin Package Create] Customer email result for ${trackingNumber}:`, customerEmailResult);
     } catch (emailError) {

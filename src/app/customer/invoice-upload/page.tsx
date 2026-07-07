@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
+import { CurrencyService } from '@/lib/currency-service';
 import {
   Upload, FileText, X, Loader2, CheckCircle, AlertCircle, RefreshCw,
   Package, DollarSign, Plane, Ship, Truck, Check, Eye, Download, Search,
@@ -360,7 +361,7 @@ export default function CustomerInvoiceUploadPage() {
                   {amt > 0 && (
                     <div className="mx-6 mb-3 p-3 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg text-sm flex items-center justify-between">
                       <span className="text-gray-500 font-medium">Freight:</span>
-                      <span className="font-bold text-gray-900 text-base">${Number(amt).toFixed(2)}</span>
+                      <span className="font-bold text-gray-900 text-base">{CurrencyService.format(amt, pkg.pricePaidCurrency || 'USD')}</span>
                     </div>
                   )}
 
@@ -368,7 +369,7 @@ export default function CustomerInvoiceUploadPage() {
                   {pkg.pricePaid > 0 && (
                     <div className="mx-6 mb-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg text-sm flex items-center justify-between">
                       <span className="text-gray-500 font-medium">Price Paid:</span>
-                      <span className="font-bold text-gray-900 text-base">{pkg.pricePaidCurrency || "USD"} {pkg.pricePaid.toFixed(2)}</span>
+                      <span className="font-bold text-gray-900 text-base">{CurrencyService.format(pkg.pricePaid, pkg.pricePaidCurrency || 'USD')}</span>
                     </div>
                   )}
 

@@ -258,6 +258,7 @@ export async function GET(req: NextRequest) {
           receivedDate: kcdGetPkg.EntryDate ? new Date(kcdGetPkg.EntryDate) : new Date(),
           description: kcdGetPkg.Description || `Package from ${shipper || 'KCD'}`,
           warehouseAddresses,
+          userCode: user.userCode,
         });
         emailSent = true;
       }

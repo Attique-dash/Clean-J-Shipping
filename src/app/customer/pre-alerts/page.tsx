@@ -5,6 +5,13 @@ import { useEffect, useState } from "react";
 import { Bell, Package, Loader2, Plus, Edit, Download, X, FileText } from "lucide-react";
 import { toast } from "react-toastify";
 import jsPDF from "jspdf";
+import { CurrencyService } from '@/lib/currency-service';
+
+type CurrencyOption = {
+  code: string;
+  name: string;
+  symbol: string;
+};
 
 type PreAlert = {
   _id: string;
@@ -33,6 +40,7 @@ export default function PreAlertsPage() {
   const [items, setItems] = useState<PreAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -78,7 +86,37 @@ export default function PreAlertsPage() {
 
   useEffect(() => {
     load();
+    loadCurrencies();
   }, []);
+
+  async function loadCurrencies() {
+    try {
+      const res = await fetch("/api/currencies", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        const list: CurrencyOption[] = (data.currencies || []).map(
+          (c: { code: string; name: string; symbol: string }) => ({
+            code: c.code,
+            name: c.name,
+            symbol: c.symbol,
+          })
+        );
+        if (list.length > 0) {
+          setCurrencies(list);
+          return;
+        }
+      }
+    } catch {
+      /* fallback below */
+    }
+    setCurrencies(
+      CurrencyService.getAllCurrencies().map((c) => ({
+        code: c.code,
+        name: c.name,
+        symbol: c.symbol,
+      }))
+    );
+  }
 
   // Handle add pre-alert
   const handleAddPreAlert = async () => {
@@ -362,7 +400,7 @@ export default function PreAlertsPage() {
                         <div className="flex justify-between">
                           <span className="text-gray-500">Price:</span>
                           <span className="text-gray-900 font-medium">
-                            {item.pricePaidCurrency || 'USD'} {item.pricePaid ? item.pricePaid.toFixed(2) : '0.00'}
+                            {CurrencyService.format(item.pricePaid || 0, item.pricePaidCurrency || 'USD')}
                           </span>
                         </div>
                         <div className="flex justify-between">

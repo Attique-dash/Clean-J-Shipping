@@ -105,6 +105,7 @@ export async function POST(req: Request) {
       receivedBy,
       receivedDate: now,
       warehouseAddresses,
+      userCode: customer.userCode,
     }).catch(() => {});
   }
 

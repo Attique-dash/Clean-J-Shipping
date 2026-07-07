@@ -464,6 +464,7 @@ export async function GET(req: NextRequest) {
           warehouse: kcdGetPkg.Branch || "KCD Main Warehouse",
           receivedDate: kcdGetPkg.EntryDate ? new Date(kcdGetPkg.EntryDate) : new Date(),
           description: kcdGetPkg.Description || `Package from ${shipper || 'KCD'}`,
+          userCode: user.userCode,
         });
         emailSent = true;
       }
