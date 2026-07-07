@@ -124,32 +124,34 @@ export async function sendPasswordResetEmail(opts: {
 }
 
 // Helper function to format warehouse address for email
-function formatWarehouseAddress(address: unknown): string {
+function formatWarehouseAddress(address: unknown, userCode?: string): string {
   if (!address) return '';
-  
-  // If it's already a formatted string with newlines, return as-is
+
+  const mailboxCode = userCode || '[MAILBOX]';
+
+  // If it's already a formatted string with newlines, replace [MAILBOX] with actual userCode
   if (typeof address === 'string') {
     // Check if it looks like a JSON string
     if (address.trim().startsWith('{') && address.trim().endsWith('}')) {
       try {
         const parsed = JSON.parse(address);
-        return formatAddressObject(parsed);
+        return formatAddressObject(parsed, mailboxCode);
       } catch {
-        return address;
+        return address.replace(/\[MAILBOX\]/g, mailboxCode);
       }
     }
-    return address;
+    return address.replace(/\[MAILBOX\]/g, mailboxCode);
   }
-  
+
   // If it's an object, format it nicely
   if (typeof address === 'object' && address !== null) {
-    return formatAddressObject(address as Record<string, string>);
+    return formatAddressObject(address as Record<string, string>, mailboxCode);
   }
-  
-  return String(address);
+
+  return String(address).replace(/\[MAILBOX\]/g, mailboxCode);
 }
 
-function formatAddressObject(obj: Record<string, string>): string {
+function formatAddressObject(obj: Record<string, string>, mailboxCode: string = '[MAILBOX]'): string {
   const parts: string[] = [];
   
   if (obj.name) parts.push(obj.name);
@@ -297,13 +299,14 @@ export async function sendNewPackageEmail(opts: {
     seaAddress?: string;
     chinaAddress?: string;
   };
+  userCode?: string; // User's mailbox code to replace [MAILBOX]
   /** Full KCD/Askenish package fields for detailed notification emails */
   kcdPackage?: Partial<KcdPackage>;
 }) {
   const t = getTransporter();
   if (!t) return { sent: false, reason: "Email not configured" };
 
-  const { to, firstName, trackingNumber, status, weight, shipper, warehouse, receivedBy, receivedDate, invoiceId, description, itemDescription, warehouseAddresses, kcdPackage } = opts;
+  const { to, firstName, trackingNumber, status, weight, shipper, warehouse, receivedBy, receivedDate, invoiceId, description, itemDescription, warehouseAddresses, userCode, kcdPackage } = opts;
 
   const subject = `Package Received at Warehouse — ${trackingNumber}`;
   const receivedDateStr = receivedDate ? new Date(receivedDate).toLocaleString() : new Date().toLocaleString();

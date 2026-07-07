@@ -88,6 +88,7 @@ export async function GET(req: Request) {
       userCode: p.userCode,
       description: p.description || null,
       pricePaid: p.pricePaid || null,
+      pricePaidCurrency: p.pricePaidCurrency || 'USD',
       overseasCourier: p.overseasCourier || null,
       merchant: p.merchant || null,
       attachmentFile: p.attachmentFile || null,
@@ -263,6 +264,7 @@ export async function POST(req: Request) {
         status: 'Pre-Alert Submitted',
         description: description || `Pre-alert for package from ${merchant || 'unknown merchant'}`,
         warehouseAddresses,
+        userCode: userCode,
       });
     }
   } catch (emailError) {

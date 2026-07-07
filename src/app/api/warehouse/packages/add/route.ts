@@ -420,6 +420,7 @@ export async function POST(req: Request) {
         description: typeof description === "string" ? description : undefined,
         itemDescription: typeof itemDescription === "string" ? itemDescription : undefined,
         warehouseAddresses: warehouseAddresses,
+        userCode: customer.userCode,
       }).then((result) => {
         console.log(`[Warehouse Package Add] Customer email result for ${trackingNumber}:`, result);
       }).catch((err) => {

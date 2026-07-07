@@ -34,6 +34,10 @@ export default function PreAlertsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 9;
+
   // Modal states
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -67,6 +71,10 @@ export default function PreAlertsPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    setPage(1);
+  }, [items]);
 
   useEffect(() => {
     load();
@@ -286,7 +294,8 @@ export default function PreAlertsPage() {
           >
             <Plus className="h-5 w-5" />
             Add Alert
-          </button></div>
+          </button>
+        </div>
             </div>
           </div>
         </header>
@@ -306,8 +315,9 @@ export default function PreAlertsPage() {
                 <p className="text-sm text-gray-500 mb-6">Click "Add Alert" to notify us about incoming shipments.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {items.map((item) => (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((item) => (
                   <div 
                     key={item._id} 
                     className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
@@ -400,8 +410,57 @@ export default function PreAlertsPage() {
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {items.length > PAGE_SIZE && (
+                  <div className="flex items-center justify-center gap-2 mt-6 pt-6 border-t border-gray-200">
+                    <button
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    {Array.from({ length: Math.ceil(items.length / PAGE_SIZE) }, (_, i) => i + 1)
+                      .filter(p => p === 1 || p === Math.ceil(items.length / PAGE_SIZE) || Math.abs(p - page) <= 1)
+                      .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                        if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) acc.push('…');
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((p, idx) => (
+                        p === '…' ? (
+                          <span key={idx} className="px-1 text-gray-400 text-sm">…</span>
+                        ) : (
+                          <button
+                            key={p as number}
+                            onClick={() => setPage(p as number)}
+                            className={`h-9 w-9 rounded-lg text-sm font-medium border ${
+                              page === p as number
+                                ? 'bg-[#0f4d8a] text-white border-[#0f4d8a]'
+                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            {p as number}
+                          </button>
+                        )
+                      ))}
+                    <button
+                      onClick={() => setPage(p => Math.min(Math.ceil(items.length / PAGE_SIZE), p + 1))}
+                      disabled={page === Math.ceil(items.length / PAGE_SIZE)}
+                      className="flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
