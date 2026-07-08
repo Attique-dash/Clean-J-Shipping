@@ -545,10 +545,11 @@ export default function PreAlertsPage() {
                     onChange={(e) => setFormData({ ...formData, pricePaidCurrency: e.target.value })}
                     className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
                   >
-                    <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="GBP">GBP</option>
-                    <option value="JMD">JMD</option>
+                    {currencies.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.code} - {c.name} ({c.symbol})
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>

@@ -60,7 +60,7 @@ export async function GET(req: Request) {
 
     type Bill = {
       tracking_number: string;
-      description?: string;
+      description: string;
       invoice_number?: string;
       invoice_date?: string;
       currency?: string;
@@ -244,7 +244,8 @@ export async function GET(req: Request) {
     }
 
     // Create bills from package records (legacy)
-    const packageBills: Bill[] = (pkgs as unknown[]).flatMap((p) => {
+    const packageBills: Bill[] = [];
+    for (const p of pkgs as unknown[]) {
       const pkg = p as IPackage & { 
         invoiceRecords?: Array<{ 
           invoiceNumber?: string; 
@@ -298,7 +299,7 @@ export async function GET(req: Request) {
         
         if (packageAmount > 0) {
           payment_status = "submitted"; // Package has automatic invoice
-          description = `${pkg.itemDescription || pkg.description} (Auto-generated invoice)`;
+          description = `${pkg.itemDescription || pkg.description || 'Package'} (Auto-generated invoice)`;
         } else {
           payment_status = docs.length > 0 ? "submitted" : "none";
           description = pkg.itemDescription || pkg.description || "Invoice pending generation";
@@ -316,79 +317,75 @@ export async function GET(req: Request) {
           }
         }
         
-      return [
-        {
-          tracking_number: pkg.trackingNumber || pkg.TrackingNumber || '',
-          description,
-          invoice_number: invoiceNumber || undefined,
-          invoice_date: pkg.createdAt ? new Date(pkg.createdAt).toISOString() : undefined,
-          amount_due: packageAmount,
-          payment_status,
-          currency: "USD", // Use USD as default, not JMD
-          last_updated: (pkg.updatedAt || pkg.createdAt) ? new Date(pkg.updatedAt || pkg.createdAt).toISOString() : undefined,
-          // Package detail fields
-          packageDetails: {
-            branch: pkg.Branch || pkg.branch || 'Main Branch',
-            manifest: pkg.ManifestCode || pkg.manifestId || '',
-            merchant: pkg.Shipper || pkg.shipper || pkg.description || 'UNKNOWN',
-            weight: pkg.Weight || pkg.weight || 0,
-            description: pkg.Description || pkg.description || pkg.itemDescription || 'Merchandise',
-            hsCode: pkg.HSCode || pkg.hsCode || '',
-            userCode: pkg.UserCode || pkg.userCode || '',
-            pieces: pkg.Pieces || pkg.pieces || 1,
-            dimensions: { length: pkg.Length || pkg.length || 0, width: pkg.Width || pkg.width || 0, height: pkg.Height || pkg.height || 0 },
-            entryDate: pkg.EntryDate || pkg.entryDate || pkg.createdAt || '',
-            serviceMode: pkg.ServiceTypeID || pkg.serviceMode || 'air',
-            itemValue: pkg.itemValueUsd || pkg.usdValue || 0,
-            freight: pkg.freight || pkg.shippingCost || pkg.totalAmount || packageAmount,
-            processingFee: pkg.processingFee || 0,
-            storageFee: pkg.storageFee || 0,
-            dutyPercent: pkg.dutyPercent || 20,
-            gctPercent: pkg.gctPercent || 15,
-            warehouseLocation: pkg.warehouseLocation || pkg.Branch || pkg.branch || 'Main Branch',
-            rateGroup: pkg.rateGroup || 'Standard Rate',
-            commercialInvoice: pkg.commercialInvoice || 'NO',
-            houseAwb: pkg.houseAwb || pkg.trackingNumber || pkg.TrackingNumber || '',
-            trackingNum: pkg.trackingNum || pkg.trackingNumber || pkg.TrackingNumber || '',
-            collection: pkg.collection || pkg.CollectionCode || '',
-            customerName: pkg.customerName || '',
-            customerEmail: pkg.customerEmail || '',
-            customerPhone: pkg.customerPhone || '',
-          },
+      packageBills.push({
+        tracking_number: pkg.trackingNumber || pkg.TrackingNumber || '',
+        description,
+        invoice_number: invoiceNumber || undefined,
+        invoice_date: pkg.createdAt ? new Date(pkg.createdAt).toISOString() : undefined,
+        amount_due: packageAmount,
+        payment_status,
+        currency: (pkg as any).pricePaidCurrency || (pkg as any).currency || "USD",
+        last_updated: (pkg.updatedAt || pkg.createdAt) ? new Date(pkg.updatedAt || pkg.createdAt).toISOString() : undefined,
+        // Package detail fields
+        packageDetails: {
+          branch: pkg.Branch || pkg.branch || 'Main Branch',
+          manifest: pkg.ManifestCode || pkg.manifestId || '',
+          merchant: pkg.Shipper || pkg.shipper || pkg.description || 'UNKNOWN',
+          weight: pkg.Weight || pkg.weight || 0,
+          description: pkg.Description || pkg.description || pkg.itemDescription || 'Merchandise',
+          hsCode: pkg.HSCode || pkg.hsCode || '',
+          userCode: pkg.UserCode || pkg.userCode || '',
+          pieces: pkg.Pieces || pkg.pieces || 1,
+          dimensions: { length: pkg.Length || pkg.length || 0, width: pkg.Width || pkg.width || 0, height: pkg.Height || pkg.height || 0 },
+          entryDate: pkg.EntryDate || pkg.entryDate || pkg.createdAt || '',
+          serviceMode: pkg.ServiceTypeID || pkg.serviceMode || 'air',
+          itemValue: pkg.itemValueUsd || pkg.usdValue || 0,
+          freight: pkg.freight || pkg.shippingCost || pkg.totalAmount || packageAmount,
+          processingFee: pkg.processingFee || 0,
+          storageFee: pkg.storageFee || 0,
+          dutyPercent: pkg.dutyPercent || 20,
+          gctPercent: pkg.gctPercent || 15,
+          warehouseLocation: pkg.warehouseLocation || pkg.Branch || pkg.branch || 'Main Branch',
+          rateGroup: pkg.rateGroup || 'Standard Rate',
+          commercialInvoice: pkg.commercialInvoice || 'NO',
+          houseAwb: pkg.houseAwb || pkg.trackingNumber || pkg.TrackingNumber || '',
+          trackingNum: pkg.trackingNum || pkg.trackingNumber || pkg.TrackingNumber || '',
+          collection: pkg.collection || pkg.CollectionCode || '',
+          customerName: pkg.customerName || '',
+          customerEmail: pkg.customerEmail || '',
+          customerPhone: pkg.customerPhone || '',
         },
-      ];
-      }
-      
-      // Get the most recent invoice record
-      const latest = recs[recs.length - 1];
-      const totalAmount = typeof latest.totalValue === "number" ? latest.totalValue : packageAmount;
-      const amountPaid = typeof latest.amountPaid === "number" ? latest.amountPaid : 0;
-      
-      // Determine payment status and amount due
-      let paymentStatus: Bill["payment_status"];
-      let amountDue: number;
-      
-      if (latest.status === "paid" || amountPaid >= totalAmount) {
-        paymentStatus = "paid";
-        amountDue = 0;
-      } else if (latest.status === "overdue") {
-        paymentStatus = "overdue";
-        amountDue = Math.max(0, totalAmount - amountPaid);
-      } else if (amountPaid > 0) {
-        paymentStatus = "partially_paid";
-        amountDue = Math.max(0, totalAmount - amountPaid);
+      });
       } else {
-        paymentStatus = (latest.status as Bill["payment_status"]) || "submitted";
-        amountDue = totalAmount;
-      }
-      
-      // Get actual invoice number from Invoice model if available
-      const actualInvoiceNumber = invoiceNumberMap.get(pkg.trackingNumber || pkg.TrackingNumber || '') || latest.invoiceNumber || null;
-      
-      return [
-        {
+        // Get the most recent invoice record
+        const latest = recs[recs.length - 1];
+        const totalAmount = typeof latest.totalValue === "number" ? latest.totalValue : packageAmount;
+        const amountPaid = typeof latest.amountPaid === "number" ? latest.amountPaid : 0;
+        
+        // Determine payment status and amount due
+        let paymentStatus: Bill["payment_status"];
+        let amountDue: number;
+        
+        if (latest.status === "paid" || amountPaid >= totalAmount) {
+          paymentStatus = "paid";
+          amountDue = 0;
+        } else if (latest.status === "overdue") {
+          paymentStatus = "overdue";
+          amountDue = Math.max(0, totalAmount - amountPaid);
+        } else if (amountPaid > 0) {
+          paymentStatus = "partially_paid";
+          amountDue = Math.max(0, totalAmount - amountPaid);
+        } else {
+          paymentStatus = (latest.status as Bill["payment_status"]) || "submitted";
+          amountDue = totalAmount;
+        }
+        
+        // Get actual invoice number from Invoice model if available
+        const actualInvoiceNumber = invoiceNumberMap.get(pkg.trackingNumber || pkg.TrackingNumber || '') || latest.invoiceNumber || null;
+        
+        packageBills.push({
           tracking_number: pkg.trackingNumber || pkg.TrackingNumber || '',
-          description: pkg.itemDescription || pkg.description,
+          description: pkg.itemDescription || pkg.description || 'Merchandise',
           invoice_number: actualInvoiceNumber || undefined, // Only show real invoice numbers
           invoice_date: latest.invoiceDate ? new Date(latest.invoiceDate).toISOString() : 
                        pkg.createdAt ? new Date(pkg.createdAt).toISOString() : undefined,
@@ -425,9 +422,9 @@ export async function GET(req: Request) {
             customerEmail: pkg.customerEmail || '',
             customerPhone: pkg.customerPhone || '',
           },
-        },
-      ];
-    });
+        });
+      }
+    }
 
     // Combine both types of bills, with admin invoices taking precedence
     // Create a map keyed by invoice_number to prevent duplicates

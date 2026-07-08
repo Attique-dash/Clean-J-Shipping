@@ -51,9 +51,12 @@ export async function GET(req: Request) {
     // Also find pre-alerts that need invoice upload
     // - Pre-alert is pending or approved
     // - No attachment file uploaded yet
+    // - Exclude pre-alerts that have already been converted to packages (tracking number exists in packages)
+    const packageTrackingNumbers = packages.map(p => p.TrackingNumber || p.trackingNumber || p.TrackingNumber);
     const preAlerts = await PreAlert.find({
       customer: new Types.ObjectId(userId),
       status: { $in: ['pending', 'approved'] },
+      trackingNumber: { $nin: packageTrackingNumbers },
       $or: [
         { attachmentFile: { $exists: false } },
         { attachmentFile: null }

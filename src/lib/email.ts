@@ -438,19 +438,19 @@ export async function sendNewPackageEmail(opts: {
       ${warehouseAddresses.airAddress ? `
       <div style="background:white;border:1px solid #bfdbfe;border-radius:6px;padding:12px;margin-bottom:8px;">
         <p style="margin:0 0 4px 0;color:#1e40af;font-weight:600;font-size:13px;">✈️ Air Shipments</p>
-        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${formatWarehouseAddress(warehouseAddresses.airAddress)}</p>
+        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${formatWarehouseAddress(warehouseAddresses.airAddress, userCode)}</p>
       </div>
       ` : ''}
       ${warehouseAddresses.seaAddress ? `
       <div style="background:white;border:1px solid #bfdbfe;border-radius:6px;padding:12px;margin-bottom:8px;">
         <p style="margin:0 0 4px 0;color:#0369a1;font-weight:600;font-size:13px;">🚢 Sea Shipments</p>
-        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${formatWarehouseAddress(warehouseAddresses.seaAddress)}</p>
+        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${formatWarehouseAddress(warehouseAddresses.seaAddress, userCode)}</p>
       </div>
       ` : ''}
       ${warehouseAddresses.chinaAddress ? `
       <div style="background:white;border:1px solid #bfdbfe;border-radius:6px;padding:12px;">
         <p style="margin:0 0 4px 0;color:#dc2626;font-weight:600;font-size:13px;">🇨🇳 China Warehouse</p>
-        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${formatWarehouseAddress(warehouseAddresses.chinaAddress)}</p>
+        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${formatWarehouseAddress(warehouseAddresses.chinaAddress, userCode)}</p>
       </div>
       ` : ''}
     </div>

@@ -118,7 +118,11 @@ function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () =
                 <input type="number" step="0.01" min="0" placeholder="0.00" value={price} onChange={e=>setPrice(e.target.value)} className="w-full pl-9 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0f4d8a] focus:border-transparent text-sm"/>
               </div>
               <select value={currency} onChange={e=>setCurrency(e.target.value)} className="px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0f4d8a] text-sm bg-white">
-                <option>USD</option><option>EUR</option><option>GBP</option><option>JMD</option>
+                {CurrencyService.getAllCurrencies().map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} - {c.name} ({c.symbol})
+                  </option>
+                ))}
               </select>
             </div>
           </div>

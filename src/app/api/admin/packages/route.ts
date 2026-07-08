@@ -426,6 +426,10 @@ export async function POST(req: Request) {
           status: "approved", // Auto-approved since admin created it
           notes: `Package added by admin${payload?.name ? ` (${payload.name})` : ""}`,
           decidedAt: new Date(),
+          description: description || `Package from ${shipper || 'unknown merchant'}`,
+          merchant: typeof shipper === "string" ? shipper : "Unknown Merchant",
+          pricePaid: body.itemValueUSD ?? body.itemValue ?? body.value ?? 0,
+          pricePaidCurrency: 'USD',
         });
         console.log(`Pre-alert created for admin package ${asString(trackingNumber)}`);
       }
