@@ -74,6 +74,24 @@ export async function GET(req: Request) {
     .limit(10)
     .lean();
   
+  // Helper function to resolve currency from multiple possible fields
+  const resolveCurrency = (doc: any): string => {
+    const values = [
+      doc.pricePaidCurrency,
+      doc.paymentCurrency,
+      doc.amountPaidCurrency,
+      doc.currency,
+      doc.currencyCode,
+      doc.paymentCurrencyCode,
+    ];
+    for (const value of values) {
+      if (value && typeof value === 'string' && value.trim()) {
+        return value.trim().toUpperCase();
+      }
+    }
+    return 'USD';
+  };
+
   return NextResponse.json({
     pre_alerts: preAlerts.map((p: any) => ({
       _id: p._id?.toString() || "",
@@ -88,7 +106,7 @@ export async function GET(req: Request) {
       userCode: p.userCode,
       description: p.description || null,
       pricePaid: p.pricePaid || null,
-      pricePaidCurrency: p.pricePaidCurrency || 'USD',
+      pricePaidCurrency: resolveCurrency(p),
       overseasCourier: p.overseasCourier || null,
       merchant: p.merchant || null,
       attachmentFile: p.attachmentFile || null,

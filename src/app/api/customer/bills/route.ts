@@ -110,6 +110,24 @@ export async function GET(req: Request) {
       if (tn) pkgByTracking.set(tn, pkg);
     });
 
+    // Helper function to resolve currency from multiple possible fields
+    const resolveCurrency = (doc: any): string => {
+      const values = [
+        doc.pricePaidCurrency,
+        doc.paymentCurrency,
+        doc.amountPaidCurrency,
+        doc.currency,
+        doc.currencyCode,
+        doc.paymentCurrencyCode,
+      ];
+      for (const value of values) {
+        if (value && typeof value === 'string' && value.trim()) {
+          return value.trim().toUpperCase();
+        }
+      }
+      return 'USD';
+    };
+
     // Create bills from admin invoices
     const invoiceBills: Bill[] = invoices.map((inv: {
       _id?: string;
@@ -191,7 +209,7 @@ export async function GET(req: Request) {
         description: inv.items?.[0]?.description || inv.notes || `Invoice ${inv.invoiceNumber}`,
         invoice_number: inv.invoiceNumber,
         invoice_date: inv.issueDate ? new Date(inv.issueDate).toISOString() : (inv.createdAt ? new Date(inv.createdAt).toISOString() : undefined),
-        currency: inv.currency || "USD",
+        currency: resolveCurrency(inv) || "USD",
         amount_due: balanceDue, // Use calculated balanceDue to match admin view
         payment_status: paymentStatus,
         last_updated: inv.updatedAt ? new Date(inv.updatedAt).toISOString() : (inv.createdAt ? new Date(inv.createdAt).toISOString() : undefined),
@@ -324,7 +342,7 @@ export async function GET(req: Request) {
         invoice_date: pkg.createdAt ? new Date(pkg.createdAt).toISOString() : undefined,
         amount_due: packageAmount,
         payment_status,
-        currency: (pkg as any).pricePaidCurrency || (pkg as any).currency || "USD",
+        currency: resolveCurrency(pkg),
         last_updated: (pkg.updatedAt || pkg.createdAt) ? new Date(pkg.updatedAt || pkg.createdAt).toISOString() : undefined,
         // Package detail fields
         packageDetails: {
@@ -389,7 +407,7 @@ export async function GET(req: Request) {
           invoice_number: actualInvoiceNumber || undefined, // Only show real invoice numbers
           invoice_date: latest.invoiceDate ? new Date(latest.invoiceDate).toISOString() : 
                        pkg.createdAt ? new Date(pkg.createdAt).toISOString() : undefined,
-          currency: latest.currency || "USD", // Use USD as default
+          currency: resolveCurrency(latest) || resolveCurrency(pkg) || "USD",
           amount_due: amountDue,
           payment_status: paymentStatus,
           last_updated: (pkg.updatedAt || pkg.createdAt) ? new Date(pkg.updatedAt || pkg.createdAt).toISOString() : undefined,

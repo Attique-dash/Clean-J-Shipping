@@ -63,6 +63,24 @@ export async function GET(req: Request) {
       ]
     }).sort({ expectedDate: -1 }).lean();
 
+    // Helper function to resolve currency from multiple possible fields
+    const resolveCurrency = (doc: any): string => {
+      const values = [
+        doc.pricePaidCurrency,
+        doc.paymentCurrency,
+        doc.amountPaidCurrency,
+        doc.currency,
+        doc.currencyCode,
+        doc.paymentCurrencyCode,
+      ];
+      for (const value of values) {
+        if (value && typeof value === 'string' && value.trim()) {
+          return value.trim().toUpperCase();
+        }
+      }
+      return 'USD';
+    };
+
     // Format packages for frontend — use PascalCase (KCD model) with camelCase fallbacks
     const formattedPackages = packages.map(pkg => ({
       id: pkg._id?.toString(),
@@ -77,7 +95,7 @@ export async function GET(req: Request) {
       invoiceStatus: pkg.invoiceStatus || 'pending',
       invoiceUploaded: pkg.invoiceUploaded || false,
       pricePaid: pkg.pricePaid || 0,
-      pricePaidCurrency: pkg.pricePaidCurrency || 'USD',
+      pricePaidCurrency: resolveCurrency(pkg),
       invoiceFiles: pkg.invoiceFiles || [],
       invoiceSubmittedAt: pkg.invoiceSubmittedAt,
       hasInvoice: pkg.invoiceUploaded === true,
@@ -110,7 +128,7 @@ export async function GET(req: Request) {
       invoiceStatus: pa.status === 'approved' ? 'submitted' : 'pending',
       invoiceUploaded: !!pa.attachmentFile,
       pricePaid: pa.pricePaid || 0,
-      pricePaidCurrency: pa.pricePaidCurrency || 'USD',
+      pricePaidCurrency: resolveCurrency(pa),
       invoiceFiles: pa.attachmentFile ? [pa.attachmentFile] : [],
       invoiceSubmittedAt: pa.createdAt,
       hasInvoice: !!pa.attachmentFile,
