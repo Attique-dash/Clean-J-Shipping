@@ -7492,3 +7492,49 @@ james_1nelly
 
 Jul 06, 10:47 AM
 I am not seeing the part for them to upload invoice in the email.. After the pree alert
+A
+Profile Image
+Me
+
+Jul 08, 2:46 AM
+Hi James,
+
+Thanks for the feedback. I see 3 issues to fix:
+
+1. Email showing old address - I'll update the email template to use the correct warehouse address from the system.
+
+2. Pre-alert not saving - I'll check the customer portal and fix the save issue.
+
+3. Invoice upload missing from email - I'll add the invoice upload link to the pre-alert email.
+
+I'll fix these now and let you know when done.
+
+Thanks!
+
+J
+james_1nelly
+
+Jul 08, 9:33 AM
+No problem
+
+J
+james_1nelly
+
+Jul 08, 9:33 AM
+Thanks
+J
+james_1nelly
+
+Jul 12, 11:48 PM
+When I change the status, it now showering change on our end
+
+
+EE9558EA-BC41-43A9-A984-545A1F387C90.png
+
+(1.02 MB)
+
+J
+james_1nelly
+
+Jul 12, 11:48 PM
+I clicked delivered for them, but still showing pending

@@ -209,8 +209,8 @@ export async function GET(req: NextRequest) {
       // Resolve entry/received date
       const dateReceived = getVal(p, 'dateReceived', 'EntryDate', 'entryDate', 'createdAt');
 
-      // Resolve status
-      const status = getVal(p, 'status') || (() => {
+      // Resolve status - prioritize PackageStatus (numeric) over legacy status string
+      const status = (() => {
         const ps = p.PackageStatus ?? 0;
         if (ps >= 4) return 'delivered';
         if (ps === 3) return 'in_transit';
