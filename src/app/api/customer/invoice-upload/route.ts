@@ -36,11 +36,11 @@ export async function GET(req: Request) {
     await dbConnect();
 
     // Find packages that need invoice upload
-    // - Package is received or in processing
+    // - Package is received or in processing or at warehouse
     // - Invoice not yet uploaded or pending
     const packages = await Package.find({
       userId: new Types.ObjectId(userId),
-      status: { $in: ['received', 'in_processing', 'pending', 'processing', 'customs_pending'] },
+      status: { $in: ['received', 'in_processing', 'pending', 'processing', 'customs_pending', 'AT WAREHOUSE', 'At Warehouse', 'at warehouse'] },
       $or: [
         { invoiceUploaded: { $exists: false } },
         { invoiceUploaded: false },
