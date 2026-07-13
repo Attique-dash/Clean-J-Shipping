@@ -244,7 +244,10 @@ export default function PreAlertsPage() {
     doc.text(`Description: ${item.description || 'Not specified'}`, 20, yPosition);
     yPosition += lineHeight;
     
-    doc.text(`Price Paid: $${item.pricePaid ? item.pricePaid.toFixed(2) : '0.00'}`, 20, yPosition);
+    const currencyCode = item.pricePaidCurrency || 'USD';
+    const { CurrencyService } = require('@/lib/currency-service');
+    const currencySymbol = CurrencyService.getCurrencyInfo(currencyCode)?.symbol || currencyCode;
+    doc.text(`Price Paid: ${currencySymbol}${item.pricePaid ? item.pricePaid.toFixed(2) : '0.00'} ${currencyCode}`, 20, yPosition);
     yPosition += lineHeight;
     
     doc.text(`Overseas Courier: ${item.overseasCourier || 'Not specified'}`, 20, yPosition);

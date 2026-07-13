@@ -411,61 +411,59 @@ export async function POST(req: Request) {
       );
     }
 
-    // Create pre-alert automatically when package is added
-    try {
-      const { PreAlert } = await import('@/models/PreAlert');
-      const existingPreAlert = await PreAlert.findOne({ trackingNumber: asString(trackingNumber) });
-      if (!existingPreAlert) {
-        await PreAlert.create({
-          userCode: user.userCode,
-          customer: user._id,
-          trackingNumber: asString(trackingNumber),
-          carrier: typeof shipper === "string" ? shipper : "Unknown Carrier",
-          origin: typeof branch === "string" ? branch : "Main Warehouse",
-          expectedDate: new Date(),
-          status: "approved", // Auto-approved since admin created it
-          notes: `Package added by admin${payload?.name ? ` (${payload.name})` : ""}`,
-          decidedAt: new Date(),
-          description: description || `Package from ${shipper || 'unknown merchant'}`,
-          merchant: typeof shipper === "string" ? shipper : "Unknown Merchant",
-          pricePaid: body.itemValueUSD ?? body.itemValue ?? body.value ?? 0,
-          pricePaidCurrency: 'USD',
-        });
-        console.log(`Pre-alert created for admin package ${asString(trackingNumber)}`);
-      }
-    } catch (preAlertError) {
-      console.error('Failed to create pre-alert for admin package:', preAlertError);
-      // Don't fail package creation if pre-alert creation fails
-    }
+    // DISABLED: Do not auto-create pre-alert when package is added by admin
+    // Pre-alerts should only be created by customers via the customer portal
+    // try {
+    //   const { PreAlert } = await import('@/models/PreAlert');
+    //   const existingPreAlert = await PreAlert.findOne({ trackingNumber: asString(trackingNumber) });
+    //   if (!existingPreAlert) {
+    //     await PreAlert.create({
+    //       userCode: user.userCode,
+    //       customer: user._id,
+    //       trackingNumber: asString(trackingNumber),
+    //       carrier: typeof shipper === "string" ? shipper : "Unknown Carrier",
+    //       origin: typeof branch === "string" ? branch : "Main Warehouse",
+    //       expectedDate: new Date(),
+    //       status: "approved",
+    //       notes: `Package added by admin${payload?.name ? ` (${payload.name})` : ""}`,
+    //       decidedAt: new Date(),
+    //       description: description || `Package from ${shipper || 'unknown merchant'}`,
+    //       merchant: typeof shipper === "string" ? shipper : "Unknown Merchant",
+    //       pricePaid: body.itemValueUSD ?? body.itemValue ?? body.value ?? 0,
+    //       pricePaidCurrency: 'USD',
+    //     });
+    //     console.log(`Pre-alert created for admin package ${asString(trackingNumber)}`);
+    //   }
+    // } catch (preAlertError) {
+    //   console.error('Failed to create pre-alert for admin package:', preAlertError);
+    // }
 
-    // FIXED: Create proper billing invoice automatically
-    let billingInvoice: { _id: any } | null = null;
-    try {
-      billingInvoice = await createBillingInvoice(
-        created.toObject() as Record<string, unknown> & { _id: unknown },
-        user,
-        asString(trackingNumber)
-      );
-      if (billingInvoice) {
-        // Link invoice to package - keep invoiceStatus as pending so customer can upload their purchase invoice
-        await Package.findByIdAndUpdate(created._id, {
-          $set: { 
-            billingInvoiceId: billingInvoice._id,
-            invoiceStatus: 'pending', // Customer needs to upload their purchase invoice first
-            invoiceUploaded: false
-          }
-        });
-      }
-    } catch (invoiceError) {
-      console.error('Failed to create billing invoice:', invoiceError);
-      // Don't fail package creation if invoice creation fails
-    }
+    // DISABLED: Do not auto-create billing invoice when package is added
+    // Invoices should only be created after customer uploads their purchase invoice
+    // let billingInvoice: { _id: any } | null = null;
+    // try {
+    //   billingInvoice = await createBillingInvoice(
+    //     created.toObject() as Record<string, unknown> & { _id: unknown },
+    //     user,
+    //     asString(trackingNumber)
+    //   );
+    //   if (billingInvoice) {
+    //     await Package.findByIdAndUpdate(created._id, {
+    //       $set: { 
+    //         billingInvoiceId: billingInvoice._id,
+    //         invoiceStatus: 'pending',
+    //         invoiceUploaded: false
+    //       }
+    //     });
+    //   }
+    // } catch (invoiceError) {
+    //   console.error('Failed to create billing invoice:', invoiceError);
+    // }
 
-    // Send email notification to customer with invoice PDF attachment
+    // Send email notification to customer (without invoice PDF since no billing invoice created yet)
     let customerEmailResult: { sent: boolean; reason?: string } | undefined;
     try {
       const { sendNewPackageEmail } = await import('@/lib/email');
-      const invoiceId: string = billingInvoice?._id?.toString() || '';
       
       // Get warehouse addresses from default warehouse
       let warehouseAddresses = { airAddress: '', seaAddress: '', chinaAddress: '' };
@@ -495,11 +493,12 @@ export async function POST(req: Request) {
         warehouse: asString(branch) || 'Main Warehouse',
         receivedBy: payload?.name || 'Admin',
         receivedDate: new Date(),
-        invoiceId: invoiceId, // Attach invoice PDF if available
+        // No invoiceId since we're not creating billing invoices automatically
         description: asString(description),
         itemDescription: asString(description),
         warehouseAddresses: warehouseAddresses,
         userCode: user.userCode,
+        kcdPackage: created.toObject(),
       });
       console.log(`[Admin Package Create] Customer email result for ${trackingNumber}:`, customerEmailResult);
     } catch (emailError) {

@@ -260,6 +260,15 @@ function buildPackageInfoTableRows(opts: {
   );
   if (pkg?.EntryStaff) rows.push(['Received By', pkg.EntryStaff]);
   rows.push(['Received Date', receivedDisplay]);
+  
+  // Add item value if available from package data
+  const itemValue = (pkg as any)?.itemValueUsd || (pkg as any)?.usdValue || (pkg as any)?.itemValue || 0;
+  if (itemValue > 0) {
+    const currencyCode = ((pkg as any)?.paymentCurrency || (pkg as any)?.pricePaidCurrency || (pkg as any)?.currency || 'USD').toUpperCase();
+    const { CurrencyService } = require('./currency-service');
+    const currencySymbol = CurrencyService.getCurrencyInfo(currencyCode)?.symbol || currencyCode;
+    rows.push(['Item Value', `${currencySymbol}${itemValue.toFixed(2)} ${currencyCode}`]);
+  }
 
   if (pkg?.Length || pkg?.Width || pkg?.Height) {
     rows.push([
