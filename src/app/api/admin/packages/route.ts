@@ -438,29 +438,28 @@ export async function POST(req: Request) {
     //   console.error('Failed to create pre-alert for admin package:', preAlertError);
     // }
 
-    // DISABLED: Do not auto-create billing invoice when package is added
-    // Invoices should only be created after customer uploads their purchase invoice
-    // let billingInvoice: { _id: any } | null = null;
-    // try {
-    //   billingInvoice = await createBillingInvoice(
-    //     created.toObject() as Record<string, unknown> & { _id: unknown },
-    //     user,
-    //     asString(trackingNumber)
-    //   );
-    //   if (billingInvoice) {
-    //     await Package.findByIdAndUpdate(created._id, {
-    //       $set: { 
-    //         billingInvoiceId: billingInvoice._id,
-    //         invoiceStatus: 'pending',
-    //         invoiceUploaded: false
-    //       }
-    //     });
-    //   }
-    // } catch (invoiceError) {
-    //   console.error('Failed to create billing invoice:', invoiceError);
-    // }
+    // Create billing invoice automatically when package is added
+    let billingInvoice: { _id: any } | null = null;
+    try {
+      billingInvoice = await createBillingInvoice(
+        created.toObject() as Record<string, unknown> & { _id: unknown },
+        user,
+        asString(trackingNumber)
+      );
+      if (billingInvoice) {
+        await Package.findByIdAndUpdate(created._id, {
+          $set: {
+            billingInvoiceId: billingInvoice._id,
+            invoiceStatus: 'pending',
+            invoiceUploaded: false
+          }
+        });
+      }
+    } catch (invoiceError) {
+      console.error('Failed to create billing invoice:', invoiceError);
+    }
 
-    // Send email notification to customer (without invoice PDF since no billing invoice created yet)
+    // Send email notification to customer with invoice PDF if billing invoice was created
     let customerEmailResult: { sent: boolean; reason?: string } | undefined;
     try {
       const { sendNewPackageEmail } = await import('@/lib/email');
@@ -493,7 +492,7 @@ export async function POST(req: Request) {
         warehouse: asString(branch) || 'Main Warehouse',
         receivedBy: payload?.name || 'Admin',
         receivedDate: new Date(),
-        // No invoiceId since we're not creating billing invoices automatically
+        invoiceId: billingInvoice?._id?.toString(),
         description: asString(description),
         itemDescription: asString(description),
         warehouseAddresses: warehouseAddresses,
