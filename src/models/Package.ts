@@ -41,6 +41,22 @@ export interface IPackage extends Document {
   PackageStatus?: number;
   PackagePayments?: string;
 
+  /** Invoice-related fields for customer invoice upload system */
+  invoiceUploaded?: boolean;
+  invoiceStatus?: 'pending' | 'submitted' | 'approved' | 'rejected' | 'billed';
+  invoiceFiles?: Array<{
+    url?: string;
+    publicId?: string;
+    filename?: string;
+    size?: number;
+    type?: string;
+    path?: string;
+  }>;
+  invoiceSubmittedAt?: Date;
+  pricePaid?: number;
+  pricePaidCurrency?: string;
+  billingInvoiceId?: Types.ObjectId;
+
   /** Internal relations — not part of KCD webhook payload */
   userId?: Types.ObjectId;
   customer?: Types.ObjectId;
@@ -145,6 +161,26 @@ const PackageSchema = new Schema<IPackage>(
     ColoadIndicator: { type: String, trim: true },
     PackageStatus: { type: Number, default: 0 },
     PackagePayments: { type: String, trim: true, default: '' },
+
+    // Invoice-related fields for customer invoice upload system
+    invoiceUploaded: { type: Boolean, default: false },
+    invoiceStatus: { 
+      type: String, 
+      enum: ['pending', 'submitted', 'approved', 'rejected', 'billed'],
+      default: 'pending'
+    },
+    invoiceFiles: [{
+      url: { type: String, trim: true },
+      publicId: { type: String, trim: true },
+      filename: { type: String, trim: true },
+      size: { type: Number, min: 0 },
+      type: { type: String, trim: true },
+      path: { type: String, trim: true }
+    }],
+    invoiceSubmittedAt: { type: Date },
+    pricePaid: { type: Number, min: 0, default: 0 },
+    pricePaidCurrency: { type: String, trim: true, default: 'USD' },
+    billingInvoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice' },
 
     userId: { type: Schema.Types.ObjectId, ref: 'User' },
     customer: { type: Schema.Types.ObjectId, ref: 'User' },

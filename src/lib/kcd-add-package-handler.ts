@@ -185,51 +185,55 @@ export async function processKcdPackageAdd(
   }
   const weightKg = weight; // Now weight is already a number
 
-  let invoiceCreated = false;
-  let billingInvoiceId: string | undefined;
-  try {
-    const { createBillingInvoiceForPackage } = await import('@/lib/package-billing');
-    const billingInvoice = await createBillingInvoiceForPackage(
-      createdPackage.toObject() as Record<string, unknown> & { _id: unknown },
-      user,
-      trackingNumber
-    );
-    if (billingInvoice) {
-      invoiceCreated = true;
-      billingInvoiceId = String(billingInvoice._id);
-      await Package.findByIdAndUpdate(createdPackage._id, {
-        $set: {
-          billingInvoiceId: billingInvoice._id,
-          invoiceStatus: 'pending',
-          invoiceUploaded: false,
-        },
-      });
-    }
-  } catch (invoiceError) {
-    console.error(`[KCD Add ${requestId}] Invoice error:`, invoiceError);
-  }
+  // DISABLED: Do not auto-create billing invoice when package is added via KCD webhook
+  // Invoices should only be created after customer uploads their purchase invoice
+  // let invoiceCreated = false;
+  // let billingInvoiceId: string | undefined;
+  // try {
+  //   const { createBillingInvoiceForPackage } = await import('@/lib/package-billing');
+  //   const billingInvoice = await createBillingInvoiceForPackage(
+  //     createdPackage.toObject() as Record<string, unknown> & { _id: unknown },
+  //     user,
+  //     trackingNumber
+  //   );
+  //   if (billingInvoice) {
+  //     invoiceCreated = true;
+  //     billingInvoiceId = String(billingInvoice._id);
+  //     await Package.findByIdAndUpdate(createdPackage._id, {
+  //       $set: {
+  //         billingInvoiceId: billingInvoice._id,
+  //         invoiceStatus: 'pending',
+  //         invoiceUploaded: false,
+  //       },
+  //     });
+  //   }
+  // } catch (invoiceError) {
+  //   console.error(`[KCD Add ${requestId}] Invoice error:`, invoiceError);
+  // }
 
-  let preAlertCreated = false;
-  try {
-    const { PreAlert } = await import('@/models/PreAlert');
-    const existingPreAlert = await PreAlert.findOne({ trackingNumber });
-    if (!existingPreAlert) {
-      await PreAlert.create({
-        userCode: user.userCode,
-        customer: user._id,
-        trackingNumber,
-        carrier: shipper || 'Unknown Carrier',
-        origin: 'KCD Warehouse',
-        expectedDate: receivedDate,
-        status: 'approved',
-        notes: 'Auto-created from KCD webhook',
-        decidedAt: new Date(),
-      });
-      preAlertCreated = true;
-    }
-  } catch (preAlertError) {
-    console.error(`[KCD Add ${requestId}] Pre-alert error:`, preAlertError);
-  }
+  // DISABLED: Do not auto-create pre-alert when package is added via KCD webhook
+  // Pre-alerts should only be created by customers via the customer portal
+  // let preAlertCreated = false;
+  // try {
+  //   const { PreAlert } = await import('@/models/PreAlert');
+  //   const existingPreAlert = await PreAlert.findOne({ trackingNumber });
+  //   if (!existingPreAlert) {
+  //     await PreAlert.create({
+  //       userCode: user.userCode,
+  //       customer: user._id,
+  //       trackingNumber,
+  //       carrier: shipper || 'Unknown Carrier',
+  //       origin: 'KCD Warehouse',
+  //       expectedDate: receivedDate,
+  //       status: 'approved',
+  //       notes: 'Auto-created from KCD webhook',
+  //       decidedAt: new Date(),
+  //     });
+  //     preAlertCreated = true;
+  //   }
+  // } catch (preAlertError) {
+  //   console.error(`[KCD Add ${requestId}] Pre-alert error:`, preAlertError);
+  // }
 
   let emailSent = false;
   try {
@@ -300,7 +304,7 @@ export async function processKcdPackageAdd(
             : receivedDate,
         description: emailPackage.Description,
         kcdPackage: emailPackage,
-        invoiceId: billingInvoiceId,
+        // No invoiceId since we're not creating billing invoices automatically
         warehouseAddresses,
         userCode: user.userCode,
       });
@@ -313,6 +317,6 @@ export async function processKcdPackageAdd(
   return {
     ok: true,
     package: toPublicKcdPackage(createdPackage.toObject()),
-    notifications: { preAlertCreated, emailSent, invoiceCreated },
+    notifications: { preAlertCreated: false, emailSent, invoiceCreated: false },
   };
 }
