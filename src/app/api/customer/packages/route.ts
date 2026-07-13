@@ -12,6 +12,7 @@ import { dbConnect } from '@/lib/db';
 import { Package } from '@/models/Package';
 import { User } from '@/models/User';
 import { Types } from 'mongoose';
+import { getExternalStatusLabel } from '@/lib/mappings';
 
 export const dynamic = 'force-dynamic';
 
@@ -209,15 +210,9 @@ export async function GET(req: NextRequest) {
       // Resolve entry/received date
       const dateReceived = getVal(p, 'dateReceived', 'EntryDate', 'entryDate', 'createdAt');
 
-      // Resolve status - prioritize PackageStatus (numeric) over legacy status string
-      const status = (() => {
-        const ps = p.PackageStatus ?? 0;
-        if (ps >= 4) return 'delivered';
-        if (ps === 3) return 'in_transit';
-        if (ps === 2) return 'shipped';
-        if (ps === 1) return 'ready_to_ship';
-        return 'received';
-      })();
+      // Resolve status - use warehouse/transit labels (AT WAREHOUSE, AT LOCAL SORTING, etc.)
+      // PackageStatus should show warehouse location/transit status, NOT pending/received
+      const status = getExternalStatusLabel(p.PackageStatus ?? 0);
 
       // Resolve service mode
       const serviceMode = getVal(p, 'serviceMode') || 'air';

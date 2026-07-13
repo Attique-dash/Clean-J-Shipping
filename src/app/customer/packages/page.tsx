@@ -111,6 +111,12 @@ function statusLabel(s: string): string {
     delivered: "Delivered",
     "at local sorting area": "At Local Sorting Area",
     at_local_sorting_area: "At Local Sorting Area",
+    // Warehouse/transit status labels from API
+    "AT WAREHOUSE": "AT WAREHOUSE",
+    "DELIVERED TO AIRPORT": "DELIVERED TO AIRPORT",
+    "IN TRANSIT TO LOCAL PORT": "IN TRANSIT TO LOCAL PORT",
+    "AT LOCAL PORT": "AT LOCAL PORT",
+    "AT LOCAL SORTING": "AT LOCAL SORTING",
   };
   return map[s] || (s ? String(s).replace(/_/g, " ") : "Unknown");
 }
@@ -118,10 +124,11 @@ function statusLabel(s: string): string {
 function getStatusClasses(s: string) {
   const key = (s || "").toLowerCase();
   if (key === "collected" || key === "delivered") return "bg-green-500 text-white";
-  if (key === "at local sorting area" || key === "at_local_sorting_area") return "bg-orange-400 text-white";
-  if (key === "in_transit" || key === "shipped") return "bg-blue-500 text-white";
+  if (key === "at local sorting area" || key === "at_local_sorting_area" || key === "at local sorting") return "bg-orange-400 text-white";
+  if (key === "in_transit" || key === "shipped" || key === "in transit to local port" || key === "delivered to airport") return "bg-blue-500 text-white";
   if (key === "ready_for_pickup" || key === "ready_for_delivery") return "bg-orange-500 text-white";
   if (key === "processing") return "bg-yellow-500 text-white";
+  if (key === "at warehouse" || key === "at local port") return "bg-gray-500 text-white";
   return "bg-gray-400 text-white";
 }
 
@@ -220,6 +227,7 @@ function PackageDetailModal({ pkg, onClose, onOpenInvoice }: { pkg: UIPackage; o
                 <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Total Due" value={formattedTotal} />
                 <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Amount Paid" value={formattedAmountPaid} />
                 <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Balance" value={formattedBalance} />
+                <InfoRow icon={<Receipt className="h-3.5 w-3.5" />} label="Invoice Status" value={<span className={`capitalize font-semibold ${pkg.invoiceStatus === 'submitted' || pkg.invoiceStatus === 'approved' ? 'text-green-600' : pkg.invoiceStatus === 'rejected' ? 'text-red-600' : 'text-orange-600'}`}>{pkg.invoiceStatus || pkg.invoice_status || "Pending"}</span>} />
                 <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Payment Status" value={<span className={`capitalize font-semibold ${pkg.paymentStatus === 'paid' ? 'text-green-600' : pkg.paymentStatus === 'partially_paid' ? 'text-yellow-600' : 'text-orange-600'}`}>{pkg.paymentStatus || "Pending"}</span>} />
                 <InfoRow icon={<CreditCard className="h-3.5 w-3.5" />} label="Payment Method" value={<span className="capitalize">{pkg.paymentMethod || "Cash"}</span>} />
               </div>
