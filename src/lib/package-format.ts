@@ -74,6 +74,12 @@ export function getPackageStatusLabel(pkg: KcdPackage): string {
 
 /** Form status string → KCD PackageStatus number */
 export function formStatusToPackageStatus(status: string): number {
+  // Handle new numeric string values (warehouse status)
+  const num = Number(status);
+  if (!Number.isNaN(num) && num >= 0 && num <= 4) {
+    return num;
+  }
+  // Fallback to legacy status mapping
   return legacyStatusToPackageStatus(status);
 }
 
@@ -82,6 +88,11 @@ export function packageStatusToFormStatus(
   packageStatus: number,
   legacyStatus?: string
 ): string {
+  // Return numeric string for warehouse status
+  if (packageStatus >= 0 && packageStatus <= 4) {
+    return String(packageStatus);
+  }
+  // Fallback to legacy status
   const legacy = asString(legacyStatus).toLowerCase();
   const known = [
     'received',
@@ -97,13 +108,13 @@ export function packageStatusToFormStatus(
   if (legacy && known.includes(legacy)) return legacy;
 
   const fromNumeric: Record<number, string> = {
-    0: 'received',
-    1: 'ready_to_ship',
-    2: 'shipped',
-    3: 'customs_cleared',
-    4: 'delivered',
+    0: '0',
+    1: '1',
+    2: '2',
+    3: '3',
+    4: '4',
   };
-  return fromNumeric[packageStatus] ?? 'received';
+  return fromNumeric[packageStatus] ?? '0';
 }
 
 export function getPackagePaymentCurrency(

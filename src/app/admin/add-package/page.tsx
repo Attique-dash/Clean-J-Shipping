@@ -70,7 +70,7 @@ const initialForm: FormState = {
   description: "",
   itemDescription: "",
   entryDate: new Date().toISOString().slice(0, 10),
-  status: "received",
+  status: "0",
   serviceMode: "air",
   dimensions: {
     length: "",
@@ -1015,7 +1015,7 @@ function AdminAddPackagePageContent() {
               {/* Status */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status
+                  Package Status (Warehouse Location)
                 </label>
                 <div className="relative">
                   <select
@@ -1025,15 +1025,11 @@ function AdminAddPackagePageContent() {
                       setForm({ ...form, status: e.target.value })
                     }
                   >
-                    <option value="received">Received</option>
-                    <option value="in_processing">In Processing</option>
-                    <option value="customs_pending">Customs Pending</option>
-                    <option value="customs_cleared">Customs Cleared</option>
-                    <option value="ready_to_ship">Ready to Ship</option>
-                    <option value="shipped">Shipped</option>
-                    <option value="in_transit">In Transit</option>
-                    <option value="out_for_delivery">Out for Delivery</option>
-                    <option value="delivered">Delivered</option>
+                    <option value="0">AT WAREHOUSE</option>
+                    <option value="1">DELIVERED TO AIRPORT</option>
+                    <option value="2">IN TRANSIT TO LOCAL PORT</option>
+                    <option value="3">AT LOCAL PORT</option>
+                    <option value="4">AT LOCAL SORTING</option>
                   </select>
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                     <ChevronDown className="h-5 w-5 text-gray-400" />
@@ -1042,9 +1038,11 @@ function AdminAddPackagePageContent() {
                 <p className="mt-1 text-xs text-gray-500">
                   Current:{" "}
                   <span className="font-semibold text-blue-600">
-                    {form.status
-                      .replace(/_/g, " ")
-                      .replace(/\b\w/g, (l) => l.toUpperCase())}
+                    {form.status === '0' ? 'AT WAREHOUSE' :
+                     form.status === '1' ? 'DELIVERED TO AIRPORT' :
+                     form.status === '2' ? 'IN TRANSIT TO LOCAL PORT' :
+                     form.status === '3' ? 'AT LOCAL PORT' :
+                     form.status === '4' ? 'AT LOCAL SORTING' : form.status}
                   </span>
                 </p>
               </div>
