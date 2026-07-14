@@ -111,7 +111,13 @@ export async function GET(req: Request) {
     });
 
     // Helper function to resolve currency from multiple possible fields
-    const resolveCurrency = (doc: any): string => {
+    // FIXED: Prioritize invoice currency over package currency to avoid wrong symbols
+    const resolveCurrency = (doc: any, fallbackToInvoiceCurrency?: string): string => {
+      // If invoice currency is provided (from Invoice model), use it first
+      if (fallbackToInvoiceCurrency && typeof fallbackToInvoiceCurrency === 'string' && fallbackToInvoiceCurrency.trim()) {
+        return fallbackToInvoiceCurrency.trim().toUpperCase();
+      }
+      
       const values = [
         doc.pricePaidCurrency,
         doc.paymentCurrency,
@@ -209,7 +215,7 @@ export async function GET(req: Request) {
         description: inv.items?.[0]?.description || inv.notes || `Invoice ${inv.invoiceNumber}`,
         invoice_number: inv.invoiceNumber,
         invoice_date: inv.issueDate ? new Date(inv.issueDate).toISOString() : (inv.createdAt ? new Date(inv.createdAt).toISOString() : undefined),
-        currency: resolveCurrency(inv) || "USD",
+        currency: resolveCurrency(inv, inv.currency) || "USD", // FIXED: Use invoice currency first
         amount_due: balanceDue, // Use calculated balanceDue to match admin view
         payment_status: paymentStatus,
         last_updated: inv.updatedAt ? new Date(inv.updatedAt).toISOString() : (inv.createdAt ? new Date(inv.createdAt).toISOString() : undefined),
@@ -445,16 +451,19 @@ export async function GET(req: Request) {
     }
 
     // Combine both types of bills, with admin invoices taking precedence
-    // Create a map keyed by invoice_number to prevent duplicates
+    // FIXED: Improved deduplication logic to prevent duplicate bills
     const billMap = new Map<string, Bill>();
     
     // Track which tracking numbers have real invoices from Invoice model
     const trackingNumbersWithRealInvoices = new Set<string>();
+    const invoiceNumbersSet = new Set<string>();
+    
     invoiceBills.forEach(bill => {
       if (bill.invoice_number && bill.invoice_number.startsWith('INV-')) {
         // Skip auto-generated invoices like "INV-1768063947790" - these are temporary
         if (!bill.invoice_number.match(/^INV-\d{13}$/)) {
           billMap.set(bill.invoice_number, bill);
+          invoiceNumbersSet.add(bill.invoice_number);
           if (bill.tracking_number) {
             trackingNumbersWithRealInvoices.add(bill.tracking_number);
           }
@@ -466,6 +475,13 @@ export async function GET(req: Request) {
     packageBills.forEach(bill => {
       // Skip if there's already a real invoice for this tracking number
       if (bill.tracking_number && trackingNumbersWithRealInvoices.has(bill.tracking_number)) {
+        console.log(`[Bills API] Skipping duplicate package bill for tracking ${bill.tracking_number} - invoice already exists`);
+        return;
+      }
+      
+      // Skip if this exact invoice number already exists
+      if (bill.invoice_number && invoiceNumbersSet.has(bill.invoice_number)) {
+        console.log(`[Bills API] Skipping duplicate bill with invoice number ${bill.invoice_number}`);
         return;
       }
       
@@ -479,6 +495,7 @@ export async function GET(req: Request) {
           !b.invoice_number.match(/^INV-\d{13}$/)
         );
         if (hasBetterInvoice) {
+          console.log(`[Bills API] Skipping auto-generated invoice ${bill.invoice_number} - better invoice exists`);
           return;
         }
       }
@@ -487,6 +504,7 @@ export async function GET(req: Request) {
       const key = bill.invoice_number || `${bill.tracking_number}-package`;
       if (!billMap.has(key)) {
         billMap.set(key, bill);
+        console.log(`[Bills API] Added package bill: ${key} for tracking ${bill.tracking_number}`);
       }
     });
     
@@ -497,6 +515,8 @@ export async function GET(req: Request) {
         const dateB = new Date(b.last_updated || b.invoice_date || 0).getTime();
         return dateB - dateA;
       });
+
+    console.log(`[Bills API] Returning ${bills.length} bills for user ${userId}`);
 
     // Fetch payment information for paid bills to populate Bills History
     const billTrackingNumbers = bills.map(b => b.tracking_number);
