@@ -109,7 +109,9 @@ export async function POST(req: Request) {
 
       await invoice.save();
       invoiceNumber = invoice.invoiceNumber;
-      console.log(`[Payment] Created new invoice: ${invoiceNumber} for tracking ${trackingNumber}`);
+      console.log(`[Payment] Invoice created: ${invoiceNumber}`);
+      console.log(`[Payment] Invoice status: ${invoice.status}`);
+      console.log(`[Payment] Invoice saved successfully`);
     }
 
     // Update existing invoice with payment
