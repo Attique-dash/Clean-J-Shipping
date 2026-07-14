@@ -332,14 +332,16 @@ export async function createBillingInvoiceForPackage(
       dueDate: new Date(payload.dueDate),
       status: 'sent',
     });
+    
+    // CRITICAL: Set userId before saving
+    invoice.userId = payload.userId;
+    invoice.status = 'sent'; // Must be 'sent' not 'draft'
+    invoice.invoiceType = 'billing';
+
     await invoice.save();
-    console.log('[createBillingInvoiceForPackage] Successfully created invoice:', {
-      invoiceNumber: invoice.invoiceNumber,
-      invoiceId: invoice._id,
-      trackingNumber,
-      total: payload.total,
-      currency: payload.currency
-    });
+    console.log(`[Invoice Created] ${invoice.invoiceNumber}`);
+    console.log(`[Invoice Saved] userId: ${invoice.userId}, status: ${invoice.status}`);
+    
     return { _id: invoice._id, invoiceNumber: invoice.invoiceNumber };
   } catch (error) {
     console.error('[createBillingInvoiceForPackage] Error creating invoice for package:', trackingNumber, error);

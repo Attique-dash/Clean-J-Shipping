@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useMemo } from "react";
 import { Package, ArrowLeft, Save, Loader2, ChevronDown, AlertCircle, RefreshCw, Check } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -106,9 +106,23 @@ function AdminAddPackagePageContent() {
   const [trackingSuccess, setTrackingSuccess] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customerSearch, setCustomerSearch] = useState('');
 
   // ─── FIX 3: isEditing derives from editId, no lazy-init needed ───────────────
   const isEditing = !!editId;
+
+  // Filter customers based on search
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch.trim()) return customers; // Show all if empty
+    
+    const search = customerSearch.toLowerCase();
+    return customers.filter(customer => 
+      customer.firstName?.toLowerCase().includes(search) ||
+      customer.lastName?.toLowerCase().includes(search) ||
+      customer.userCode?.toLowerCase().includes(search) ||
+      customer.email?.toLowerCase().includes(search)
+    );
+  }, [customers, customerSearch]);
 
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<FormState>(initialForm);

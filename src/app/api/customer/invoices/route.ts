@@ -24,27 +24,37 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Query invoices - ensure we're checking for invoiceType
+    // Query invoices - FIXED: More lenient matching for customer invoices
     const invoices = await Invoice.find({
       $or: [
         { userId: new Types.ObjectId(userId) },
-        { 'customer.id': userId }
-      ],
-      // IMPORTANT: Only show invoices that are NOT draft and NOT cancelled
-      status: { $in: ['sent', 'paid', 'unpaid', 'overdue'] },
-      // Optional: filter by invoiceType
-      invoiceType: { $in: ['billing', 'commercial'] }
+        { userId: userId }, // Try string match too
+        { 'customer.id': userId },
+        { 'customer.id': new Types.ObjectId(userId) }
+      ]
     })
+      .where('status').ne('draft').ne('cancelled')
+      .where('invoiceType').in(['billing', 'commercial', 'system'])
       .populate('package', 'trackingNumber')
       .sort({ createdAt: -1 })
       .limit(500)
       .lean();
 
-    console.log(`[Customer Invoices API] Found ${invoices.length} invoices for user ${userId}`);
-    
+    console.log(`[Customer Invoices API] Query userId: ${userId}`);
+    console.log(`[Customer Invoices API] Found ${invoices.length} invoices`);
+
     if (invoices.length === 0) {
-      console.log(`[Customer Invoices API] No invoices found. User ID: ${userId}`);
-      console.log(`[Customer Invoices API] Query filter applied for status and invoiceType`);
+      // Debug: Check what invoices exist in database
+      const allInvoices = await Invoice.find({}).limit(5).lean();
+      console.log(`[Customer Invoices API] DEBUG - Total invoices in DB: ${allInvoices.length}`);
+      if (allInvoices.length > 0) {
+        console.log(`[Customer Invoices API] DEBUG - Sample invoice:`, {
+          userId: allInvoices[0].userId,
+          customerId: allInvoices[0]['customer.id'],
+          status: allInvoices[0].status,
+          invoiceType: allInvoices[0].invoiceType
+        });
+      }
     }
 
     // Transform invoices for customer view

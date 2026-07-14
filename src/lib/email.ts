@@ -375,9 +375,30 @@ export async function sendNewPackageEmail(opts: {
           contentType: 'application/pdf',
         });
 
+        // Get correct currency from invoice
         const currencyCode = (invoice.currency || 'JMD').toUpperCase();
-        const currencySymbol = CurrencyService.getCurrencyInfo(currencyCode)?.symbol || currencyCode;
-        const formatMoney = (value: number) => `${currencySymbol}${value.toFixed(2)}`;
+        console.log(`[Email Invoice] Currency code: ${currencyCode}`);
+
+        const currencyInfo = CurrencyService.getCurrencyInfo(currencyCode);
+        const currencySymbol = currencyInfo?.symbol || getCurrencySymbolFallback(currencyCode);
+
+        console.log(`[Email Invoice] Currency symbol: ${currencySymbol}`);
+
+        const formatMoney = (value: number) => {
+          const formatted = `${currencySymbol}${value.toFixed(2)}`;
+          console.log(`[Email Invoice] Format ${value} to ${formatted}`);
+          return formatted;
+        };
+
+        // Add fallback for unknown currencies
+        function getCurrencySymbolFallback(code: string): string {
+          const symbols: Record<string, string> = {
+            'USD': '$', 'EUR': '€', 'GBP': '£', 'JMD': 'J$',
+            'CHF': 'CHF', 'GHC': 'GH₵', 'INR': '₹', 'PKR': 'Rs',
+            'CAD': 'C$', 'AUD': 'A$', 'SGD': 'S$'
+          };
+          return symbols[code] || code;
+        }
         const invoiceItemsRows = (invoice.items || [])
           .map((item) => {
             const description = item.description || 'Item';
