@@ -191,23 +191,35 @@ export function buildBillingInvoicePayload(
         invoiceItems.push({
           description: `Package charges (${trackingNumber})`,
           quantity: 1,
-          unitPrice: packageTotalAmount,
+          unitPrice: Math.max(0, packageTotalAmount),
           taxRate: 0,
-          amount: packageTotalAmount,
+          amount: Math.max(0, packageTotalAmount),
           taxAmount: 0,
-          total: packageTotalAmount,
+          total: Math.max(0, packageTotalAmount),
         });
       } else {
         const adjustment = packageTotalAmount - detailTotal;
-        invoiceItems.push({
-          description: adjustment > 0 ? 'Other package charges' : 'Invoice adjustment',
-          quantity: 1,
-          unitPrice: adjustment,
-          taxRate: 0,
-          amount: adjustment,
-          taxAmount: 0,
-          total: adjustment,
-        });
+        
+        // Only add adjustment if it's positive (never negative)
+        if (adjustment > 0.01) {
+          invoiceItems.push({
+            description: 'Other package charges',
+            quantity: 1,
+            unitPrice: Math.max(0, adjustment),
+            taxRate: 0,
+            amount: Math.max(0, adjustment),
+            taxAmount: 0,
+            total: Math.max(0, adjustment),
+          });
+        }
+        // If adjustment is negative, reduce the last item instead of creating negative charge
+        else if (adjustment < -0.01 && invoiceItems.length > 0) {
+          const lastItem = invoiceItems[invoiceItems.length - 1];
+          const newTotal = Math.max(0, lastItem.total + adjustment);
+          lastItem.total = newTotal;
+          lastItem.amount = newTotal;
+          lastItem.unitPrice = Math.max(0, lastItem.unitPrice + adjustment);
+        }
       }
     }
 
@@ -228,6 +240,14 @@ export function buildBillingInvoicePayload(
         currency,
         invoiceCurrency
       });
+      return null;
+    }
+
+    // Validate all items have positive unitPrice
+    const hasNegativePrice = invoiceItems.some(item => item.unitPrice < 0);
+    if (hasNegativePrice) {
+      console.error('[buildBillingInvoicePayload] ERROR: Invoice has negative unitPrice items. Aborting invoice creation.');
+      console.error('[buildBillingInvoicePayload] Items:', invoiceItems);
       return null;
     }
 
@@ -257,11 +277,11 @@ export function buildBillingInvoicePayload(
         {
           description: `Package charges (${trackingNumber})`,
           quantity: 1,
-          unitPrice: invoiceTotal,
+          unitPrice: Math.max(0, invoiceTotal),
           taxRate: 0,
-          amount: invoiceTotal,
+          amount: Math.max(0, invoiceTotal),
           taxAmount: 0,
-          total: invoiceTotal,
+          total: Math.max(0, invoiceTotal),
         },
       ],
       notes: `Auto-generated billing invoice for package ${trackingNumber}`,
