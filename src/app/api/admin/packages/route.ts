@@ -665,7 +665,27 @@ export async function PUT(req: Request) {
     const updateData: Record<string, unknown> = {};
     const changedFields: string[] = [];
 
-    if (status !== undefined && status !== currentPackage.status) {
+    if (status !== undefined && status !== null && status !== currentPackage.status) {
+      // Sync both status fields: PackageStatus (numeric for KCD) and status (string for customer portal)
+      const statusMap: Record<string, number> = {
+        '0': 0,
+        '1': 1,
+        '2': 2,
+        '3': 3,
+        '4': 4,
+        'received': 0,
+        'in_transit': 1,
+        'at_local_port': 2,
+        'customs_cleared': 3,
+        'delivered': 4,
+      };
+      
+      const numericStatus = statusMap[String(status)] ?? Number(status);
+      if (!Number.isNaN(numericStatus)) {
+        updateData.PackageStatus = numericStatus;
+        changedFields.push('PackageStatus');
+      }
+      
       updateData.status = status;
       changedFields.push('status');
     }
