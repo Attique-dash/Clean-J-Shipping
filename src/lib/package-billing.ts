@@ -216,6 +216,18 @@ export function buildBillingInvoicePayload(
     }
 
     if (invoiceTotal <= 0 && invoiceItems.length === 0) {
+      console.error('[buildBillingInvoicePayload] Cannot create invoice: invoiceTotal <= 0 and no items', {
+        trackingNumber,
+        invoiceTotal,
+        invoiceItemsLength: invoiceItems.length,
+        packageTotalAmount,
+        itemValue,
+        shippingAmount,
+        totalFromPackage,
+        weightLbs,
+        currency,
+        invoiceCurrency
+      });
       return null;
     }
 
@@ -274,7 +286,10 @@ export async function createBillingInvoiceForPackage(
   trackingNumber: string
 ): Promise<{ _id: unknown; invoiceNumber: string } | null> {
   const payload = buildBillingInvoicePayload(packageDoc, user, trackingNumber);
-  if (!payload) return null;
+  if (!payload) {
+    console.error('[createBillingInvoiceForPackage] Failed to build invoice payload for package:', trackingNumber);
+    return null;
+  }
 
   try {
     const Invoice = (await import('@/models/Invoice')).default;
@@ -298,9 +313,16 @@ export async function createBillingInvoiceForPackage(
       status: 'sent',
     });
     await invoice.save();
+    console.log('[createBillingInvoiceForPackage] Successfully created invoice:', {
+      invoiceNumber: invoice.invoiceNumber,
+      invoiceId: invoice._id,
+      trackingNumber,
+      total: payload.total,
+      currency: payload.currency
+    });
     return { _id: invoice._id, invoiceNumber: invoice.invoiceNumber };
   } catch (error) {
-    console.error('createBillingInvoiceForPackage error:', error);
+    console.error('[createBillingInvoiceForPackage] Error creating invoice for package:', trackingNumber, error);
     return null;
   }
 }
