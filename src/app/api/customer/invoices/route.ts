@@ -4,6 +4,8 @@ import Invoice from "@/models/Invoice";
 import { getAuthFromRequest } from "@/lib/rbac";
 import { Types } from "mongoose";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   try {
     const payload = await getAuthFromRequest(req);
