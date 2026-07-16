@@ -41,13 +41,17 @@ type StatusOption = {
 };
 
 const STATUS_OPTIONS: StatusOption[] = [
-  { value: '0', label: 'AT WAREHOUSE' },
-  { value: '1', label: 'DELIVERED TO AIRPORT' },
-  { value: '2', label: 'IN TRANSIT TO LOCAL PORT' },
-  { value: '3', label: 'AT LOCAL PORT' },
-  { value: '4', label: 'AT LOCAL SORTING' },
-  { value: 'delivered', label: 'DELIVERED TO CUSTOMER' },
-  { value: 'picked_up', label: 'PICKED UP BY CUSTOMER' },
+  { value: '0', label: 'Package Received' },
+  { value: '1', label: 'At Warehouse' },
+  { value: '2', label: 'Processing' },
+  { value: '3', label: 'Ready for Shipment' },
+  { value: '4', label: 'In Transit' },
+  { value: '5', label: 'Arrived at Destination' },
+  { value: '6', label: 'Customs Clearance' },
+  { value: '7', label: 'Ready for Pickup / Delivery' },
+  { value: '8', label: 'Out for Delivery' },
+  { value: '9', label: 'Delivered' },
+  { value: '10', label: 'Picked Up' },
 ];
 
 export default function AdminPackagesPage() {

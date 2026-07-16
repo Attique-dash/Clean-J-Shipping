@@ -13,11 +13,17 @@ export function getServiceTypeName(id?: string | null): string {
 
 // External manifest/package status labels
 export const EXTERNAL_STATUS_LABELS: Record<number, string> = {
-  0: "AT WAREHOUSE",
-  1: "DELIVERED TO AIRPORT",
-  2: "IN TRANSIT TO LOCAL PORT",
-  3: "AT LOCAL PORT",
-  4: "AT LOCAL SORTING",
+  0: "Package Received",
+  1: "At Warehouse",
+  2: "Processing",
+  3: "Ready for Shipment",
+  4: "In Transit",
+  5: "Arrived at Destination",
+  6: "Customs Clearance",
+  7: "Ready for Pickup / Delivery",
+  8: "Out for Delivery",
+  9: "Delivered",
+  10: "Picked Up",
 };
 
 // Map external numeric statuses into our internal PackageStatus enum

@@ -1039,13 +1039,17 @@ function AdminAddPackagePageContent() {
                       setForm({ ...form, status: e.target.value })
                     }
                   >
-                    <option value="0">AT WAREHOUSE</option>
-                    <option value="1">DELIVERED TO AIRPORT</option>
-                    <option value="2">IN TRANSIT TO LOCAL PORT</option>
-                    <option value="3">AT LOCAL PORT</option>
-                    <option value="4">AT LOCAL SORTING</option>
-                    <option value="delivered">DELIVERED TO CUSTOMER</option>
-                    <option value="picked_up">PICKED UP BY CUSTOMER</option>
+                    <option value="0">Package Received</option>
+                    <option value="1">At Warehouse</option>
+                    <option value="2">Processing</option>
+                    <option value="3">Ready for Shipment</option>
+                    <option value="4">In Transit</option>
+                    <option value="5">Arrived at Destination</option>
+                    <option value="6">Customs Clearance</option>
+                    <option value="7">Ready for Pickup / Delivery</option>
+                    <option value="8">Out for Delivery</option>
+                    <option value="9">Delivered</option>
+                    <option value="10">Picked Up</option>
                   </select>
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                     <ChevronDown className="h-5 w-5 text-gray-400" />
@@ -1054,13 +1058,17 @@ function AdminAddPackagePageContent() {
                 <p className="mt-1 text-xs text-gray-500">
                   Current:{" "}
                   <span className="font-semibold text-blue-600">
-                    {form.status === '0' ? 'AT WAREHOUSE' :
-                     form.status === '1' ? 'DELIVERED TO AIRPORT' :
-                     form.status === '2' ? 'IN TRANSIT TO LOCAL PORT' :
-                     form.status === '3' ? 'AT LOCAL PORT' :
-                     form.status === '4' ? 'AT LOCAL SORTING' :
-                     form.status === 'delivered' ? 'DELIVERED TO CUSTOMER' :
-                     form.status === 'picked_up' ? 'PICKED UP BY CUSTOMER' : form.status}
+                    {form.status === '0' ? 'Package Received' :
+                     form.status === '1' ? 'At Warehouse' :
+                     form.status === '2' ? 'Processing' :
+                     form.status === '3' ? 'Ready for Shipment' :
+                     form.status === '4' ? 'In Transit' :
+                     form.status === '5' ? 'Arrived at Destination' :
+                     form.status === '6' ? 'Customs Clearance' :
+                     form.status === '7' ? 'Ready for Pickup / Delivery' :
+                     form.status === '8' ? 'Out for Delivery' :
+                     form.status === '9' ? 'Delivered' :
+                     form.status === '10' ? 'Picked Up' : form.status}
                   </span>
                 </p>
               </div>

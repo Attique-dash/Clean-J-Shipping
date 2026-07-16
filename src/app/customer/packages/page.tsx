@@ -99,40 +99,64 @@ const PAGE_SIZE = 8;
 
 function statusLabel(s: string): string {
   const map: Record<string, string> = {
-    received: "Received",
-    processing: "Processing",
+    // Legacy status labels (for backward compatibility)
+    received: "Package Received",
     pending: "Pending",
-    in_transit: "In Transit",
-    shipped: "Shipped",
-    ready_for_pickup: "Ready for Pickup",
-    ready_for_delivery: "Ready for Delivery",
+    shipped: "In Transit",
     collected: "Collected",
     Collected: "Collected",
-    delivered: "Delivered",
     "at local sorting area": "At Local Sorting Area",
     at_local_sorting_area: "At Local Sorting Area",
     // Warehouse/transit status labels from API
-    "AT WAREHOUSE": "AT WAREHOUSE",
-    "DELIVERED TO AIRPORT": "DELIVERED TO AIRPORT",
-    "IN TRANSIT TO LOCAL PORT": "IN TRANSIT TO LOCAL PORT",
-    "AT LOCAL PORT": "AT LOCAL PORT",
-    "AT LOCAL SORTING": "AT LOCAL SORTING",
-    "DELIVERED TO CUSTOMER": "Delivered to Customer",
-    "delivered_to_customer": "Delivered to Customer",
-    "PICKED UP BY CUSTOMER": "Picked Up by Customer",
-    "picked_up": "Picked Up by Customer",
+    "0": "Package Received",
+    "1": "At Warehouse",
+    "2": "Processing",
+    "3": "Ready for Shipment",
+    "4": "In Transit",
+    "5": "Arrived at Destination",
+    "6": "Customs Clearance",
+    "7": "Ready for Pickup / Delivery",
+    "8": "Out for Delivery",
+    "9": "Delivered",
+    "10": "Picked Up",
+    "package_received": "Package Received",
+    "at_warehouse": "At Warehouse",
+    "processing": "Processing",
+    "ready_for_shipment": "Ready for Shipment",
+    "in_transit": "In Transit",
+    "arrived_at_destination": "Arrived at Destination",
+    "customs_clearance": "Customs Clearance",
+    "ready_for_pickup": "Ready for Pickup / Delivery",
+    "ready_for_delivery": "Ready for Pickup / Delivery",
+    "out_for_delivery": "Out for Delivery",
+    "delivered": "Delivered",
+    "delivered_to_customer": "Delivered",
+    "picked_up": "Picked Up",
+    "picked_up_by_customer": "Picked Up",
   };
   return map[s] || (s ? String(s).replace(/_/g, " ") : "Unknown");
 }
 
 function getStatusClasses(s: string) {
   const key = (s || "").toLowerCase();
-  if (key === "collected" || key === "delivered" || key === "delivered_to_customer" || key === "picked_up" || key === "picked_up_by_customer") return "bg-green-500 text-white";
-  if (key === "at local sorting area" || key === "at_local_sorting_area" || key === "at local sorting") return "bg-orange-400 text-white";
-  if (key === "in_transit" || key === "shipped" || key === "in transit to local port" || key === "delivered to airport") return "bg-blue-500 text-white";
-  if (key === "ready_for_pickup" || key === "ready_for_delivery") return "bg-orange-500 text-white";
-  if (key === "processing") return "bg-yellow-500 text-white";
-  if (key === "at warehouse" || key === "at local port") return "bg-gray-500 text-white";
+  // Delivered/Picked Up - Green
+  if (key === "9" || key === "10" || key === "delivered" || key === "delivered_to_customer" || key === "picked_up" || key === "picked_up_by_customer") return "bg-green-500 text-white";
+  // Out for Delivery - Orange
+  if (key === "8" || key === "out_for_delivery") return "bg-orange-500 text-white";
+  // Ready for Pickup/Delivery - Orange
+  if (key === "7" || key === "ready_for_pickup" || key === "ready_for_delivery") return "bg-orange-400 text-white";
+  // In Transit - Blue
+  if (key === "4" || key === "in_transit" || key === "shipped" || key === "in transit to local port" || key === "delivered to airport") return "bg-blue-500 text-white";
+  // Arrived at Destination - Blue
+  if (key === "5" || key === "arrived_at_destination") return "bg-blue-400 text-white";
+  // Customs Clearance - Purple
+  if (key === "6" || key === "customs_clearance") return "bg-purple-500 text-white";
+  // Processing - Yellow
+  if (key === "2" || key === "processing") return "bg-yellow-500 text-white";
+  // At Warehouse - Gray
+  if (key === "1" || key === "at warehouse" || key === "at local port") return "bg-gray-500 text-white";
+  // Package Received - Gray
+  if (key === "0" || key === "package_received") return "bg-gray-400 text-white";
   return "bg-gray-400 text-white";
 }
 

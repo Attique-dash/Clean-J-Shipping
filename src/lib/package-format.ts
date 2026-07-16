@@ -74,15 +74,24 @@ export function getPackageStatusLabel(pkg: KcdPackage): string {
 
 /** Form status string → KCD PackageStatus number */
 export function formStatusToPackageStatus(status: string): number {
-  // Handle new numeric string values (warehouse status)
+  // Handle new numeric string values (0-10)
   const num = Number(status);
-  if (!Number.isNaN(num) && num >= 0 && num <= 4) {
+  if (!Number.isNaN(num) && num >= 0 && num <= 10) {
     return num;
   }
-  // Handle new delivery status values
+  // Handle string status values
   const s = status.toLowerCase();
-  if (s === 'delivered' || s === 'delivered_to_customer') return 4;
-  if (s === 'picked_up' || s === 'picked_up_by_customer') return 5;
+  if (s === 'package_received') return 0;
+  if (s === 'at_warehouse') return 1;
+  if (s === 'processing') return 2;
+  if (s === 'ready_for_shipment') return 3;
+  if (s === 'in_transit') return 4;
+  if (s === 'arrived_at_destination') return 5;
+  if (s === 'customs_clearance') return 6;
+  if (s === 'ready_for_pickup' || s === 'ready_for_delivery') return 7;
+  if (s === 'out_for_delivery') return 8;
+  if (s === 'delivered' || s === 'delivered_to_customer') return 9;
+  if (s === 'picked_up' || s === 'picked_up_by_customer') return 10;
   // Fallback to legacy status mapping
   return legacyStatusToPackageStatus(status);
 }
@@ -92,8 +101,8 @@ export function packageStatusToFormStatus(
   packageStatus: number,
   legacyStatus?: string
 ): string {
-  // Return numeric string for warehouse status
-  if (packageStatus >= 0 && packageStatus <= 4) {
+  // Return numeric string for new 11 status model (0-10)
+  if (packageStatus >= 0 && packageStatus <= 10) {
     return String(packageStatus);
   }
   // Fallback to legacy status
@@ -117,6 +126,12 @@ export function packageStatusToFormStatus(
     2: '2',
     3: '3',
     4: '4',
+    5: '5',
+    6: '6',
+    7: '7',
+    8: '8',
+    9: '9',
+    10: '10',
   };
   return fromNumeric[packageStatus] ?? '0';
 }
@@ -474,11 +489,17 @@ export function enrichKcdPackageRecord(
 /** Map legacy string status to KCD numeric PackageStatus */
 function legacyStatusToPackageStatus(status: string): number {
   const s = status.toLowerCase();
-  if (s === 'delivered') return 4;
-  if (s === 'at local port' || s === 'customs_cleared') return 3;
-  if (s === 'in_transit' || s === 'shipped' || s === 'in_transit_to_local_port') return 2;
-  if (s === 'ready_to_ship' || s === 'delivered_to_airport') return 1;
-  if (s === 'received' || s === 'at warehouse' || s === 'in_storage') return 0;
+  if (s === 'delivered' || s === 'delivered_to_customer') return 9;
+  if (s === 'picked_up' || s === 'picked_up_by_customer') return 10;
+  if (s === 'out_for_delivery') return 8;
+  if (s === 'ready_for_pickup' || s === 'ready_for_delivery') return 7;
+  if (s === 'customs_clearance' || s === 'customs_cleared' || s === 'at local port') return 6;
+  if (s === 'arrived_at_destination') return 5;
+  if (s === 'in_transit' || s === 'shipped' || s === 'in_transit_to_local_port') return 4;
+  if (s === 'ready_for_shipment' || s === 'ready_to_ship' || s === 'delivered_to_airport') return 3;
+  if (s === 'processing' || s === 'in_processing') return 2;
+  if (s === 'at_warehouse' || s === 'at warehouse') return 1;
+  if (s === 'received' || s === 'package_received' || s === 'in_storage') return 0;
   return 0;
 }
 
