@@ -117,13 +117,17 @@ function statusLabel(s: string): string {
     "IN TRANSIT TO LOCAL PORT": "IN TRANSIT TO LOCAL PORT",
     "AT LOCAL PORT": "AT LOCAL PORT",
     "AT LOCAL SORTING": "AT LOCAL SORTING",
+    "DELIVERED TO CUSTOMER": "Delivered to Customer",
+    "delivered_to_customer": "Delivered to Customer",
+    "PICKED UP BY CUSTOMER": "Picked Up by Customer",
+    "picked_up": "Picked Up by Customer",
   };
   return map[s] || (s ? String(s).replace(/_/g, " ") : "Unknown");
 }
 
 function getStatusClasses(s: string) {
   const key = (s || "").toLowerCase();
-  if (key === "collected" || key === "delivered") return "bg-green-500 text-white";
+  if (key === "collected" || key === "delivered" || key === "delivered_to_customer" || key === "picked_up" || key === "picked_up_by_customer") return "bg-green-500 text-white";
   if (key === "at local sorting area" || key === "at_local_sorting_area" || key === "at local sorting") return "bg-orange-400 text-white";
   if (key === "in_transit" || key === "shipped" || key === "in transit to local port" || key === "delivered to airport") return "bg-blue-500 text-white";
   if (key === "ready_for_pickup" || key === "ready_for_delivery") return "bg-orange-500 text-white";

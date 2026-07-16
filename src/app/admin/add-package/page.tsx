@@ -1044,6 +1044,8 @@ function AdminAddPackagePageContent() {
                     <option value="2">IN TRANSIT TO LOCAL PORT</option>
                     <option value="3">AT LOCAL PORT</option>
                     <option value="4">AT LOCAL SORTING</option>
+                    <option value="delivered">DELIVERED TO CUSTOMER</option>
+                    <option value="picked_up">PICKED UP BY CUSTOMER</option>
                   </select>
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                     <ChevronDown className="h-5 w-5 text-gray-400" />
@@ -1056,7 +1058,9 @@ function AdminAddPackagePageContent() {
                      form.status === '1' ? 'DELIVERED TO AIRPORT' :
                      form.status === '2' ? 'IN TRANSIT TO LOCAL PORT' :
                      form.status === '3' ? 'AT LOCAL PORT' :
-                     form.status === '4' ? 'AT LOCAL SORTING' : form.status}
+                     form.status === '4' ? 'AT LOCAL SORTING' :
+                     form.status === 'delivered' ? 'DELIVERED TO CUSTOMER' :
+                     form.status === 'picked_up' ? 'PICKED UP BY CUSTOMER' : form.status}
                   </span>
                 </p>
               </div>

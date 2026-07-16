@@ -79,6 +79,10 @@ export function formStatusToPackageStatus(status: string): number {
   if (!Number.isNaN(num) && num >= 0 && num <= 4) {
     return num;
   }
+  // Handle new delivery status values
+  const s = status.toLowerCase();
+  if (s === 'delivered' || s === 'delivered_to_customer') return 4;
+  if (s === 'picked_up' || s === 'picked_up_by_customer') return 5;
   // Fallback to legacy status mapping
   return legacyStatusToPackageStatus(status);
 }
