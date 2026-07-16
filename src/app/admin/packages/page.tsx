@@ -46,6 +46,8 @@ const STATUS_OPTIONS: StatusOption[] = [
   { value: '2', label: 'IN TRANSIT TO LOCAL PORT' },
   { value: '3', label: 'AT LOCAL PORT' },
   { value: '4', label: 'AT LOCAL SORTING' },
+  { value: 'delivered', label: 'DELIVERED TO CUSTOMER' },
+  { value: 'picked_up', label: 'PICKED UP BY CUSTOMER' },
 ];
 
 export default function AdminPackagesPage() {

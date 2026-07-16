@@ -7538,4 +7538,32 @@ james_1nelly
 
 Jul 12, 11:48 PM
 I clicked delivered for them, but still showing pending
+A
+Profile Image
+Me
 
+Jul 14, 10:51 PM
+Hi James,
+
+Found the issue! When you change status to "Delivered", the system wasn't syncing it to the customer portal. I've fixed the code so both statuses update together now.
+
+Let me know if it works!
+
+Thanks
+
+J
+james_1nelly
+
+Jul 16, 4:40 AM
+Alright I will give it a check soon
+
+J
+james_1nelly
+
+Jul 16, 5:15 PM
+I don’t see the option that show delivered to customers or pick up by customer
+
+
+BC1CC7C3-2DD4-4584-9CAF-D825E50A4204.jpeg
+
+(142.39 kB)

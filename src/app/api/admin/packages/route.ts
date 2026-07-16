@@ -678,6 +678,9 @@ export async function PUT(req: Request) {
         'at_local_port': 2,
         'customs_cleared': 3,
         'delivered': 4,
+        'delivered_to_customer': 4,
+        'picked_up': 5,
+        'picked_up_by_customer': 5,
       };
       
       const numericStatus = statusMap[String(status)] ?? Number(status);
