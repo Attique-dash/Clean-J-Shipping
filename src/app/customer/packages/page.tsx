@@ -139,24 +139,28 @@ function statusLabel(s: string): string {
 
 function getStatusClasses(s: string) {
   const key = (s || "").toLowerCase();
-  // Delivered/Picked Up - Green
-  if (key === "9" || key === "10" || key === "delivered" || key === "delivered_to_customer" || key === "picked_up" || key === "picked_up_by_customer") return "bg-green-500 text-white";
-  // Out for Delivery - Orange
-  if (key === "8" || key === "out_for_delivery") return "bg-orange-500 text-white";
-  // Ready for Pickup/Delivery - Orange
-  if (key === "7" || key === "ready_for_pickup" || key === "ready_for_delivery") return "bg-orange-400 text-white";
-  // In Transit - Blue
-  if (key === "4" || key === "in_transit" || key === "shipped" || key === "in transit to local port" || key === "delivered to airport") return "bg-blue-500 text-white";
-  // Arrived at Destination - Blue
-  if (key === "5" || key === "arrived_at_destination") return "bg-blue-400 text-white";
-  // Customs Clearance - Purple
-  if (key === "6" || key === "customs_clearance") return "bg-purple-500 text-white";
-  // Processing - Yellow
-  if (key === "2" || key === "processing") return "bg-yellow-500 text-white";
-  // At Warehouse - Gray
-  if (key === "1" || key === "at warehouse" || key === "at local port") return "bg-gray-500 text-white";
-  // Package Received - Gray
+  // 0: Package Received - Light Gray
   if (key === "0" || key === "package_received") return "bg-gray-400 text-white";
+  // 1: At Warehouse - Medium Gray
+  if (key === "1" || key === "at_warehouse" || key === "at warehouse") return "bg-gray-500 text-white";
+  // 2: Processing - Yellow
+  if (key === "2" || key === "processing" || key === "in_processing") return "bg-yellow-500 text-white";
+  // 3: Ready for Shipment - Cyan
+  if (key === "3" || key === "ready_for_shipment" || key === "ready_to_ship") return "bg-cyan-500 text-white";
+  // 4: In Transit - Blue
+  if (key === "4" || key === "in_transit" || key === "shipped" || key === "in transit to local port" || key === "delivered to airport") return "bg-blue-500 text-white";
+  // 5: Arrived at Destination - Indigo
+  if (key === "5" || key === "arrived_at_destination") return "bg-indigo-500 text-white";
+  // 6: Customs Clearance - Purple
+  if (key === "6" || key === "customs_clearance" || key === "customs_cleared" || key === "at local port") return "bg-purple-500 text-white";
+  // 7: Ready for Pickup/Delivery - Orange
+  if (key === "7" || key === "ready_for_pickup" || key === "ready_for_delivery") return "bg-orange-400 text-white";
+  // 8: Out for Delivery - Darker Orange
+  if (key === "8" || key === "out_for_delivery") return "bg-orange-500 text-white";
+  // 9: Delivered - Green
+  if (key === "9" || key === "delivered" || key === "delivered_to_customer") return "bg-green-500 text-white";
+  // 10: Picked Up - Emerald
+  if (key === "10" || key === "picked_up" || key === "picked_up_by_customer" || key === "collected") return "bg-emerald-600 text-white";
   return "bg-gray-400 text-white";
 }
 
