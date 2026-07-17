@@ -114,7 +114,6 @@ export default function AdminPackagesPage() {
       // Fetch all packages without pagination
       params.set('per_page', 'all');
 
-      alert(`[DEBUG] Fetching packages with params: ${params.toString()}`);
       const res = await fetch(`/api/admin/packages?${params.toString()}`, {
         credentials: 'include',
         cache: 'no-store',
@@ -124,14 +123,8 @@ export default function AdminPackagesPage() {
         }
       });
       const data = await res.json();
-      alert(`[DEBUG] API Response packages count: ${data.packages?.length || 0}`);
       if (res.ok) {
         const list: KcdPackageRecord[] = data.packages || [];
-        // Find the updated package and show its payment data
-        const updatedPkg = list.find(p => p._id === packageToUpdatePayment?._id);
-        if (updatedPkg) {
-          alert(`[DEBUG] Updated package payment data:\nStatus: ${updatedPkg.paymentStatus}\nAmount Paid: ${updatedPkg.amountPaid}\nTotal: ${updatedPkg.totalAmount}\nMethod: ${updatedPkg.paymentMethod}`);
-        }
         setPackages(list);
         logKcdPackages('Admin Packages Panel', list);
         setSelectedIds(new Set());
@@ -143,7 +136,6 @@ export default function AdminPackagesPage() {
     } catch (error) {
       console.error('Error loading packages:', error);
       toast.error('Failed to load packages');
-      alert(`[DEBUG] Error loading packages: ${error}`);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -400,8 +392,6 @@ export default function AdminPackagesPage() {
 
     setUpdatingPayment(true);
     try {
-      alert(`[DEBUG] Starting payment update for package: ${packageToUpdatePayment._id}\nStatus: ${paymentFormData.paymentStatus}\nAmount: ${paymentFormData.amountPaid}`);
-
       const res = await fetch(`/api/admin/packages/${packageToUpdatePayment._id}/payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -415,14 +405,11 @@ export default function AdminPackagesPage() {
       });
 
       const data = await res.json();
-      alert(`[DEBUG] API Response: ${JSON.stringify(data, null, 2)}`);
 
       if (res.ok) {
         toast.success(`Payment status updated to ${getPaymentStatusLabel(paymentFormData.paymentStatus)}`);
-        alert('[DEBUG] Refreshing packages list...');
         // Refresh packages list to get updated data from backend
         await fetchPackages();
-        alert(`[DEBUG] Packages refreshed. Total: ${packages.length}`);
         // Also trigger refresh token to ensure full reload
         setRefreshToken((v) => v + 1);
         setPaymentModalOpen(false);
@@ -433,7 +420,6 @@ export default function AdminPackagesPage() {
     } catch (error) {
       console.error('Error updating payment:', error);
       toast.error('Error updating payment status');
-      alert(`[DEBUG] Error: ${error}`);
     } finally {
       setUpdatingPayment(false);
     }

@@ -260,7 +260,7 @@ export async function GET(req: Request) {
     const packageQuery = Package.find(filter)
       .populate('userId', 'firstName lastName email phone userCode address')
       .sort({ createdAt: -1 });
-    
+
     // Only apply pagination if not showing all
     if (!showAll) {
       packageQuery.skip((page - 1) * (per_page as number)).limit(per_page as number);
@@ -275,13 +275,16 @@ export async function GET(req: Request) {
       ]),
     ]);
 
+    // Log raw package data to check if payment fields exist
+    console.log('[Admin Packages API] Raw package data sample:', JSON.stringify(packages[0] || {}, null, 2));
+
     const statusCountsMap = status_counts.reduce((acc, curr) => {
       acc[String(curr._id ?? 0)] = curr.count;
       return acc;
     }, {} as Record<string, number>);
 
     const kcdPackages = toKcdPackageArray(packages as Array<Record<string, unknown>>);
-    console.log('[Admin Packages API] KCD format response:', JSON.stringify(kcdPackages, null, 2));
+    console.log('[Admin Packages API] KCD format response sample:', JSON.stringify(kcdPackages[0] || {}, null, 2));
 
     return NextResponse.json({
       packages: kcdPackages,
