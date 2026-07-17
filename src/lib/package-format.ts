@@ -254,6 +254,10 @@ export function toKcdPackage(
     ColoadIndicator: asString(doc.ColoadIndicator || doc.coloadIndicator),
     PackageStatus: packageStatus,
     PackagePayments: asString(doc.PackagePayments || doc.packagePayments),
+    paymentStatus: asString(doc.paymentStatus),
+    amountPaid: asNumber(doc.amountPaid),
+    paymentMethod: asString(doc.paymentMethod),
+    totalAmount: asNumber(doc.totalAmount),
   };
 
   if (options?.includeMeta !== false) {
