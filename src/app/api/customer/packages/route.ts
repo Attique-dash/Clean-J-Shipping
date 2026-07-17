@@ -147,7 +147,22 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Fall back to direct fields if PackagePayments didn't have them
+      // Always prioritize direct database fields over PackagePayments string
+      // This ensures payment updates are reflected immediately
+      if (doc.amountPaid !== undefined && doc.amountPaid !== null) {
+        amountPaidUsd = parseFloat(String(doc.amountPaid));
+      }
+      if (doc.totalAmount !== undefined && doc.totalAmount !== null) {
+        totalAmountUsd = parseFloat(String(doc.totalAmount));
+      }
+      if (doc.paymentStatus !== undefined && doc.paymentStatus !== null) {
+        paymentStatus = doc.paymentStatus;
+      }
+      if (doc.paymentMethod !== undefined && doc.paymentMethod !== null) {
+        paymentMethod = doc.paymentMethod;
+      }
+
+      // Fall back to PackagePayments parsing if direct fields are missing
       if (itemValueUsd === 0) {
         itemValueUsd = parseFloat(String(doc.itemValueUSD || doc.itemValueUsd || doc.itemValue || doc.value || doc.pricePaid || 0));
       }
@@ -166,12 +181,6 @@ export async function GET(req: NextRequest) {
           doc.currencyCode,
           doc.paymentCurrencyCode,
         ]);
-      }
-      if (paymentStatus === 'pending') {
-        paymentStatus = doc.paymentStatus || 'pending';
-      }
-      if (paymentMethod === 'cash') {
-        paymentMethod = doc.paymentMethod || 'cash';
       }
 
       return { itemValueUsd, shippingCostUsd, totalAmountUsd, amountPaidUsd, currency, paymentStatus, paymentMethod };
