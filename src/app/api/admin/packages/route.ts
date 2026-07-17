@@ -259,6 +259,27 @@ export async function GET(req: Request) {
 
     const packageQuery = Package.find(filter)
       .populate('userId', 'firstName lastName email phone userCode address')
+      .select([
+        // All standard fields
+        '_id', 'PackageID', 'CourierID', 'ManifestID', 'CollectionID',
+        'TrackingNumber', 'ControlNumber', 'FirstName', 'LastName',
+        'UserCode', 'Weight', 'Shipper', 'EntryStaff', 'EntryDate',
+        'EntryDateTime', 'Branch', 'Claimed', 'APIToken', 'ShowControls',
+        'ManifestCode', 'CollectionCode', 'Description', 'HSCode',
+        'Unknown', 'AIProcessed', 'OriginalHouseNumber', 'Cubes',
+        'Length', 'Width', 'Height', 'Pieces', 'Discrepancy',
+        'DiscrepancyDescription', 'ServiceTypeID', 'HazmatCodeID',
+        'Coloaded', 'ColoadIndicator', 'PackageStatus', 'PackagePayments',
+        // Payment fields - explicitly select to ensure they're returned
+        'paymentStatus', 'amountPaid', 'paymentMethod', 'totalAmount',
+        // Other fields
+        'createdAt', 'updatedAt', 'weightLbs', 'itemValueUsd', 'pricePaid',
+        'pricePaidCurrency', 'customerEmail', 'customerPhone', 'dateReceived',
+        'daysInStorage', 'serviceMode', 'invoiceStatus', 'itemDescription',
+        'specialInstructions', 'dimensionUnit', 'senderName', 'senderEmail',
+        'senderPhone', 'senderAddress', 'senderCity', 'senderState',
+        'senderZipCode', 'senderCountry', 'userId'
+      ].join(' '))
       .sort({ createdAt: -1 });
 
     // Only apply pagination if not showing all
