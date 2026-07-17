@@ -114,7 +114,7 @@ export default function AdminPackagesPage() {
       // Fetch all packages without pagination
       params.set('per_page', 'all');
 
-      console.log('[Fetch Packages] Fetching packages with params:', params.toString());
+      alert(`[DEBUG] Fetching packages with params: ${params.toString()}`);
       const res = await fetch(`/api/admin/packages?${params.toString()}`, {
         credentials: 'include',
         cache: 'no-store',
@@ -124,19 +124,14 @@ export default function AdminPackagesPage() {
         }
       });
       const data = await res.json();
-      console.log('[Fetch Packages] API Response:', data);
+      alert(`[DEBUG] API Response packages count: ${data.packages?.length || 0}`);
       if (res.ok) {
         const list: KcdPackageRecord[] = data.packages || [];
-        console.log('[Fetch Packages] Packages list received:', list.length);
-        // Log payment data for debugging
-        list.forEach(pkg => {
-          console.log(`[Fetch Packages] Package ${pkg._id}:`, {
-            paymentStatus: pkg.paymentStatus,
-            amountPaid: pkg.amountPaid,
-            totalAmount: pkg.totalAmount,
-            paymentMethod: pkg.paymentMethod
-          });
-        });
+        // Find the updated package and show its payment data
+        const updatedPkg = list.find(p => p._id === packageToUpdatePayment?._id);
+        if (updatedPkg) {
+          alert(`[DEBUG] Updated package payment data:\nStatus: ${updatedPkg.paymentStatus}\nAmount Paid: ${updatedPkg.amountPaid}\nTotal: ${updatedPkg.totalAmount}\nMethod: ${updatedPkg.paymentMethod}`);
+        }
         setPackages(list);
         logKcdPackages('Admin Packages Panel', list);
         setSelectedIds(new Set());
@@ -148,6 +143,7 @@ export default function AdminPackagesPage() {
     } catch (error) {
       console.error('Error loading packages:', error);
       toast.error('Failed to load packages');
+      alert(`[DEBUG] Error loading packages: ${error}`);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -404,13 +400,7 @@ export default function AdminPackagesPage() {
 
     setUpdatingPayment(true);
     try {
-      console.log('[Payment Update] Starting payment update for package:', packageToUpdatePayment._id);
-      console.log('[Payment Update] Request data:', {
-        paymentStatus: paymentFormData.paymentStatus,
-        paymentMethod: paymentFormData.paymentMethod,
-        amountPaid: paymentFormData.amountPaid,
-        paymentNote: paymentFormData.paymentNote
-      });
+      alert(`[DEBUG] Starting payment update for package: ${packageToUpdatePayment._id}\nStatus: ${paymentFormData.paymentStatus}\nAmount: ${paymentFormData.amountPaid}`);
 
       const res = await fetch(`/api/admin/packages/${packageToUpdatePayment._id}/payment`, {
         method: 'POST',
@@ -425,14 +415,14 @@ export default function AdminPackagesPage() {
       });
 
       const data = await res.json();
-      console.log('[Payment Update] API Response:', data);
+      alert(`[DEBUG] API Response: ${JSON.stringify(data, null, 2)}`);
 
       if (res.ok) {
         toast.success(`Payment status updated to ${getPaymentStatusLabel(paymentFormData.paymentStatus)}`);
-        console.log('[Payment Update] Refreshing packages list...');
+        alert('[DEBUG] Refreshing packages list...');
         // Refresh packages list to get updated data from backend
         await fetchPackages();
-        console.log('[Payment Update] Packages refreshed. Current packages:', packages);
+        alert(`[DEBUG] Packages refreshed. Total: ${packages.length}`);
         // Also trigger refresh token to ensure full reload
         setRefreshToken((v) => v + 1);
         setPaymentModalOpen(false);
@@ -443,6 +433,7 @@ export default function AdminPackagesPage() {
     } catch (error) {
       console.error('Error updating payment:', error);
       toast.error('Error updating payment status');
+      alert(`[DEBUG] Error: ${error}`);
     } finally {
       setUpdatingPayment(false);
     }
