@@ -41,6 +41,22 @@ export interface IPackage extends Document {
   PackageStatus?: number;
   PackagePayments?: string;
 
+  /** Payment-related fields */
+  paymentStatus?: 'pending' | 'paid' | 'partially_paid';
+  amountPaid?: number;
+  paymentMethod?: 'cash' | 'card' | 'paypal' | 'bank_transfer';
+  totalAmount?: number;
+  paidAt?: Date;
+  paidBy?: string;
+  paymentHistory?: Array<{
+    timestamp: Date;
+    status: string;
+    amountPaid: number;
+    paymentMethod: string;
+    note?: string;
+    updatedBy: string;
+  }>;
+
   /** Invoice-related fields for customer invoice upload system */
   invoiceUploaded?: boolean;
   invoiceStatus?: 'pending' | 'submitted' | 'approved' | 'rejected' | 'billed';
@@ -161,6 +177,30 @@ const PackageSchema = new Schema<IPackage>(
     ColoadIndicator: { type: String, trim: true },
     PackageStatus: { type: Number, default: 0 },
     PackagePayments: { type: String, trim: true, default: '' },
+
+    // Payment-related fields
+    paymentStatus: {
+      type: String,
+      enum: ['pending', 'paid', 'partially_paid'],
+      default: 'pending'
+    },
+    amountPaid: { type: Number, min: 0, default: 0 },
+    paymentMethod: {
+      type: String,
+      enum: ['cash', 'card', 'paypal', 'bank_transfer'],
+      default: 'cash'
+    },
+    totalAmount: { type: Number, min: 0, default: 0 },
+    paidAt: { type: Date },
+    paidBy: { type: String, trim: true },
+    paymentHistory: [{
+      timestamp: { type: Date, default: Date.now },
+      status: { type: String },
+      amountPaid: { type: Number },
+      paymentMethod: { type: String },
+      note: { type: String },
+      updatedBy: { type: String }
+    }],
 
     // Invoice-related fields for customer invoice upload system
     invoiceUploaded: { type: Boolean, default: false },
