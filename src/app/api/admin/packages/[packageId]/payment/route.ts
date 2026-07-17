@@ -115,7 +115,7 @@ export async function POST(
         $set: updateData,
         $push: { paymentHistory: paymentHistoryEntry },
       },
-      { new: true, runValidators: true }
+      { new: true }
     );
 
     const updatedDoc = updatedPackage!.toObject() as Record<string, unknown>;
