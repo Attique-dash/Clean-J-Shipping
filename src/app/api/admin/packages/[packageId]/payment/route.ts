@@ -65,11 +65,14 @@ export async function POST(
       totalAmountUsd = current.itemValueUsd + current.shippingCostUsd;
     }
 
-    const paidAmount =
-      paymentStatus === "paid"
-        ? amountPaid ?? totalAmountUsd
+    // Use the explicitly provided amountPaid if it's a valid number
+    // Only fall back to calculated values if amountPaid is not provided
+    const paidAmount = amountPaid !== undefined && amountPaid !== null && !Number.isNaN(amountPaid)
+      ? amountPaid
+      : paymentStatus === "paid"
+        ? totalAmountUsd
         : paymentStatus === "partially_paid"
-          ? amountPaid ?? current.amountPaidUsd
+          ? current.amountPaidUsd
           : current.amountPaidUsd;
 
     const paymentMeta = {

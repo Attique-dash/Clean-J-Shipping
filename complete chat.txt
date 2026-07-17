@@ -7567,3 +7567,55 @@ I don’t see the option that show delivered to customers or pick up by customer
 BC1CC7C3-2DD4-4584-9CAF-D825E50A4204.jpeg
 
 (142.39 kB)
+A
+Profile Image
+Me
+
+Jul 17, 1:36 AM
+Hi James,
+
+﻿
+
+I've fixed the status update issue and updated the complete status model to 11 statuses as requested:
+
+﻿
+
+Package Received
+
+At Warehouse
+
+Processing
+
+Ready for Shipment
+
+In Transit
+
+Arrived at Destination
+
+Customs Clearance
+
+Ready for Pickup / Delivery
+
+Out for Delivery
+
+Delivered
+
+Picked Up
+
+Let me know if everything works as expected!
+
+﻿
+
+Thanks!
+
+
+J
+james_1nelly
+
+Jul 17, 5:32 AM
+When you enter the amount and updating the payment that received.. It’s not updating
+
+
+Attachment_1784248195.jpeg
+
+(3.56 MB)
