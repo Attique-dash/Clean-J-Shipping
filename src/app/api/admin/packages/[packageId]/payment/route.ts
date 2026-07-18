@@ -159,6 +159,13 @@ export async function POST(
       message: `Package payment status updated to ${paymentStatus}`,
       package: kcd,
       paymentUpdate: paymentHistoryEntry,
+      // Explicit payment fields for verification in Network tab
+      paymentData: {
+        paymentStatus: updatedDoc.paymentStatus,
+        amountPaid: updatedDoc.amountPaid,
+        totalAmount: updatedDoc.totalAmount,
+        paymentMethod: updatedDoc.paymentMethod,
+      },
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to update payment status";

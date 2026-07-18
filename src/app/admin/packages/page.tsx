@@ -424,11 +424,19 @@ export default function AdminPackagesPage() {
 
         // Directly update the local packages state with the updated payment data
         // This ensures UI updates immediately without needing to fetch all packages
-        if (data.package) {
+        if (data.package && data.paymentData) {
           setPackages(prevPackages =>
             prevPackages.map(pkg =>
               pkg._id === data.package._id
-                ? { ...pkg, ...data.package }
+                ? {
+                    ...pkg,
+                    ...data.package,
+                    // Explicitly update payment fields from paymentData
+                    paymentStatus: data.paymentData.paymentStatus,
+                    amountPaid: data.paymentData.amountPaid,
+                    totalAmount: data.paymentData.totalAmount,
+                    paymentMethod: data.paymentData.paymentMethod,
+                  }
                 : pkg
             )
           );
