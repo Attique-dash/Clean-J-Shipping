@@ -421,9 +421,20 @@ export default function AdminPackagesPage() {
 
       if (res.ok) {
         toast.success(`Payment status updated to ${getPaymentStatusLabel(paymentFormData.paymentStatus)}`);
-        // Refresh packages list to get updated data from backend
-        await fetchPackages();
-        // Also trigger refresh token to ensure full reload
+
+        // Directly update the local packages state with the updated payment data
+        // This ensures UI updates immediately without needing to fetch all packages
+        if (data.package) {
+          setPackages(prevPackages =>
+            prevPackages.map(pkg =>
+              pkg._id === data.package._id
+                ? { ...pkg, ...data.package }
+                : pkg
+            )
+          );
+        }
+
+        // Also trigger refresh token to ensure consistency
         setRefreshToken((v) => v + 1);
         setPaymentModalOpen(false);
         setPackageToUpdatePayment(null);
