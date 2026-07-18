@@ -123,8 +123,21 @@ export default function AdminPackagesPage() {
         }
       });
       const data = await res.json();
+      console.log('[Admin Frontend] Fetch packages response:', data);
       if (res.ok) {
         const list: KcdPackageRecord[] = data.packages || [];
+        console.log('[Admin Frontend] Packages count:', list.length);
+        // Log payment data for the updated package
+        if (packageToUpdatePayment) {
+          const updatedPkg = list.find(p => p._id === packageToUpdatePayment._id);
+          console.log('[Admin Frontend] Updated package from fetch:', updatedPkg ? {
+            _id: updatedPkg._id,
+            paymentStatus: updatedPkg.paymentStatus,
+            amountPaid: updatedPkg.amountPaid,
+            totalAmount: updatedPkg.totalAmount,
+            paymentMethod: updatedPkg.paymentMethod
+          } : 'Not found');
+        }
         setPackages(list);
         logKcdPackages('Admin Packages Panel', list);
         setSelectedIds(new Set());
