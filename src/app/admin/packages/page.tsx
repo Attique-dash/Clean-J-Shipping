@@ -421,31 +421,10 @@ export default function AdminPackagesPage() {
 
       if (res.ok) {
         toast.success(`Payment status updated to ${getPaymentStatusLabel(paymentFormData.paymentStatus)}`);
-
-        // Directly update the local packages state with the updated payment data
-        // This ensures UI updates immediately without needing to fetch all packages
-        if (data.package && data.paymentData) {
-          setPackages(prevPackages =>
-            prevPackages.map(pkg =>
-              pkg._id === data.package._id
-                ? {
-                    ...pkg,
-                    ...data.package,
-                    // Explicitly update payment fields from paymentData
-                    paymentStatus: data.paymentData.paymentStatus,
-                    amountPaid: data.paymentData.amountPaid,
-                    totalAmount: data.paymentData.totalAmount,
-                    paymentMethod: data.paymentData.paymentMethod,
-                  }
-                : pkg
-            )
-          );
-        }
-
-        // Also trigger refresh token to ensure consistency
-        setRefreshToken((v) => v + 1);
         setPaymentModalOpen(false);
         setPackageToUpdatePayment(null);
+        // Force full page refresh to ensure UI shows updated data
+        window.location.reload();
       } else {
         toast.error(data.error || data.message || 'Failed to update payment status');
       }
@@ -745,6 +724,10 @@ export default function AdminPackagesPage() {
                           <span className="font-medium text-gray-900">{formatPkgAmount(pkg, pkg.totalAmount || 0)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Amount Paid:</span>
+                          <span className="font-medium text-green-600">{formatPkgAmount(pkg, pkg.amountPaid || 0)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Payment:</span>
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${getPaymentStatusBadge(pkg.paymentStatus)}`}>
                             {getPaymentStatusLabel(pkg.paymentStatus)}
@@ -799,6 +782,7 @@ export default function AdminPackagesPage() {
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Weight (lbs)</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Total Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Amount Paid</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Invoice Status</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Payment Status</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date Received</th>
@@ -853,6 +837,7 @@ export default function AdminPackagesPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatPkgAmount(pkg, pkg.totalAmount || 0)}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-green-600">{formatPkgAmount(pkg, pkg.amountPaid || 0)}</td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getInvoiceStatusBadge(pkg.invoiceStatus)}`}>
                           {getInvoiceStatusLabel(pkg.invoiceStatus)}
