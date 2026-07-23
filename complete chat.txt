@@ -7619,3 +7619,44 @@ When you enter the amount and updating the payment that received.. It’s not up
 Attachment_1784248195.jpeg
 
 (3.56 MB)
+A
+Profile Image
+Me
+
+Jul 19, 5:35 AM
+Hi James,
+
+﻿
+
+Great news! The payment update is now working correctly. The Amount Paid column shows the updated amount after the payment update. The issue is fixed.
+
+﻿
+
+Thanks!
+
+
+J
+james_1nelly
+
+Jul 23, 11:07 PM
+Ok good
+
+J
+james_1nelly
+
+Jul 23, 11:07 PM
+Is the packages automatically updating now?
+A
+Profile Image
+Me
+
+Jul 24, 1:42 AM
+Hi James,
+
+﻿
+
+Yes, package status updates are automatically syncing between admin and customer portal. When you change a status in admin, it updates in both systems automatically.
+
+﻿
+
+Thanks!
