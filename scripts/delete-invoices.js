@@ -24,41 +24,54 @@ if (!MONGODB_URI) {
   process.exit(1);
 }
 
-// Use MongoDB Node.js driver directly (no mongoose dependency)
-const { MongoClient } = require('mongodb');
-
 async function deleteInvoices() {
-  const client = new MongoClient(MONGODB_URI);
+  const userCode = process.argv[2];
   
-  try {
-    await client.connect();
-    console.log('✅ Connected to MongoDB');
-    
-    const db = client.db();
-    const invoices = db.collection('invoices');
-    
-    const trackingNumber = process.argv[2];
-
-    if (trackingNumber) {
-      // Delete invoices for specific tracking number
-      const result = await invoices.deleteMany({ 
-        tracking_number: trackingNumber 
-      });
-      console.log(`✅ Deleted ${result.deletedCount} invoice(s) for tracking number: ${trackingNumber}`);
-    } else {
-      // Delete all invoices
-      const result = await invoices.deleteMany({});
-      console.log(`✅ Deleted ${result.deletedCount} invoice(s) from database`);
-    }
-
-    await client.close();
-    console.log('✅ Disconnected from MongoDB');
-    process.exit(0);
-  } catch (error) {
-    console.error('❌ Error:', error.message);
-    await client.close();
-    process.exit(1);
+  console.log('='.repeat(60));
+  console.log('MONGODB INVOICE DELETION');
+  console.log('='.repeat(60));
+  console.log('');
+  console.log('MongoDB URI:', MONGODB_URI);
+  console.log('');
+  
+  if (userCode) {
+    console.log(`Delete invoices for user code: ${userCode}`);
+    console.log('');
+    console.log('Option 1: Use MongoDB Atlas Web Console');
+    console.log('  1. Go to https://cloud.mongodb.com');
+    console.log('  2. Navigate to your cluster and database');
+    console.log('  3. First, find the user ID in "users" collection:');
+    console.log(`     { "userCode": "${userCode}" }`);
+    console.log('  4. Copy the user\'s _id');
+    console.log('  5. Go to the "invoices" collection');
+    console.log('  6. Run this query in the filter (replace USER_ID with actual _id):');
+    console.log(`     { "userId": ObjectId("USER_ID") }`);
+    console.log('     OR');
+    console.log(`     { "customer.id": "USER_ID" }`);
+    console.log('  7. Select all matching documents and delete them');
+    console.log('');
+    console.log('Option 2: Use mongosh (if installed)');
+    console.log(`  mongosh "${MONGODB_URI}"`);
+    console.log(`  // First find the user ID`);
+    console.log(`  var user = db.users.findOne({ "userCode": "${userCode}" })`);
+    console.log(`  // Then delete invoices for that user`);
+    console.log(`  db.invoices.deleteMany({ "userId": user._id })`);
+    console.log(`  db.invoices.deleteMany({ "customer.id": user._id.toString() })`);
+  } else {
+    console.log('Delete ALL invoices from database');
+    console.log('');
+    console.log('Option 1: Use MongoDB Atlas Web Console');
+    console.log('  1. Go to https://cloud.mongodb.com');
+    console.log('  2. Navigate to your cluster and database');
+    console.log('  3. Go to the "invoices" collection');
+    console.log('  4. Click "Drop Collection" to delete all invoices');
+    console.log('');
+    console.log('Option 2: Use mongosh (if installed)');
+    console.log(`  mongosh "${MONGODB_URI}"`);
+    console.log('  db.invoices.deleteMany({})');
   }
+  console.log('');
+  console.log('='.repeat(60));
 }
 
 deleteInvoices();
