@@ -7660,3 +7660,37 @@ Yes, package status updates are automatically syncing between admin and customer
 ﻿
 
 Thanks!
+J
+james_1nelly
+
+Jul 24, 2:15 AM
+I am talking from the Ashenish system to our system?
+A
+Profile Image
+Me
+
+Jul 25, 1:12 AM
+Replied
+
+james_1nelly
+
+Jul 24, 2:15 AM
+
+I am talking from the Ashenish system to our system?
+
+Hi James,
+
+﻿
+
+No, Ashenish is not automatically sending package updates to our system yet. The test button works, but automatic sending requires Ashenish to configure their webhook to point to your API endpoint. Other couriers work because they configured this setting in Ashenish's system.
+
+﻿
+
+Thanks!
+
+
+J
+james_1nelly
+
+Jul 28, 5:18 PM
+Also, can the invoice of the amount that customer must pay send when I get the package and processed it myself..
