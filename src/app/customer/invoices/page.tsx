@@ -273,7 +273,7 @@ export default function CustomerInvoicesPage() {
           <div className="flex items-center justify-center gap-2">
             <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={curPage===1} className="flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-40"><ChevronLeft className="h-4 w-4"/></button>
             {Array.from({length:totalPages},(_,i)=>i+1).filter(p=>p===1||p===totalPages||Math.abs(p-curPage)<=1).reduce<(number|"…")[]>((acc,p,idx,arr)=>{if(idx>0&&p-(arr[idx-1] as number)>1) acc.push("…"); acc.push(p); return acc;},[]).map((p,idx)=><span key={idx}>{p==="…" ? <span className="px-1 text-gray-400 text-sm">…</span> : <button key={p as number} onClick={()=>setPage(p as number)} className={`h-9 w-9 rounded-lg text-sm font-medium border ${curPage===p?"bg-[#0f4d8a] text-white border-[#0f4d8a]":"bg-white text-gray-600 border-gray-200 hover:bg-gray-50"}`}>{p}</button>}</span>)}
-            <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={curPage===totalPage} className="flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-40"><ChevronRight className="h-4 w-4"/></button>
+            <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={curPage===totalPages} className="flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-40"><ChevronRight className="h-4 w-4"/></button>
           </div>
         )}
       </div>
