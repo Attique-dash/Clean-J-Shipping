@@ -4,7 +4,8 @@ import { Package } from "@/models/Package";
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth';
 import { User } from '@/models/User';
-import { syncBillingInvoiceForPackage } from '@/lib/package-billing';
+import { syncBillingInvoiceForPackage, createBillingInvoiceForPackage } from '@/lib/package-billing';
+import { EmailService } from '@/lib/email-service';
 import {
   toKcdPackage,
   formStatusToPackageStatus,
@@ -244,28 +245,63 @@ export async function PUT(
     const tracking = asString(updatedDoc.TrackingNumber || updatedDoc.trackingNumber);
     const userId = updatedDoc.userId || updatedDoc.customer;
 
-    if (userId && updatedDoc.billingInvoiceId) {
+    if (userId) {
       try {
         const user = await User.findById(userId).lean();
         if (user) {
-          await syncBillingInvoiceForPackage(
-            updatedDoc,
-            user as unknown as {
-              _id: unknown;
-              userCode?: string;
-              firstName?: string;
-              lastName?: string;
-              email: string;
-              phone?: string;
-              address?: string;
-              city?: string;
-              country?: string;
-            },
-            tracking
-          );
+          const userData = user as unknown as {
+            _id: unknown;
+            userCode?: string;
+            firstName?: string;
+            lastName?: string;
+            email: string;
+            phone?: string;
+            address?: string;
+            city?: string;
+            country?: string;
+          };
+          
+          // Check if package needs a new invoice (no existing invoice)
+          if (!updatedDoc.billingInvoiceId) {
+            const invoiceResult = await createBillingInvoiceForPackage(
+              updatedDoc as Record<string, unknown> & { _id: unknown },
+              userData,
+              tracking
+            );
+
+            if (invoiceResult) {
+              // Link invoice to package
+              await Package.findByIdAndUpdate(packageId, {
+                billingInvoiceId: invoiceResult._id
+              });
+
+              // Send invoice email
+              const emailService = new EmailService();
+              const paymentLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/customer/bills`;
+
+              await emailService.sendInvoiceEmail({
+                to: userData.email,
+                customerName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.email,
+                invoiceNumber: invoiceResult.invoiceNumber,
+                trackingNumber: tracking,
+                totalAmount: asNumber(updatedDoc.totalAmount),
+                paymentLink,
+                items: []
+              });
+
+              console.log(`[Admin Package Update] Invoice ${invoiceResult.invoiceNumber} created and email sent to ${userData.email}`);
+            }
+          } else {
+            // Sync existing invoice
+            await syncBillingInvoiceForPackage(
+              updatedDoc,
+              userData,
+              tracking
+            );
+          }
         }
       } catch (invoiceErr) {
-        console.error('Failed to sync billing invoice on package update:', invoiceErr);
+        console.error('Failed to handle billing invoice on package update:', invoiceErr);
       }
     }
 
