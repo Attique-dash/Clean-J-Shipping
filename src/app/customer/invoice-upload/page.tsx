@@ -426,13 +426,25 @@ export default function CustomerInvoiceUploadPage() {
                   {/* Action button */}
                   <div className="border-t border-gray-100 px-6 py-4 flex items-center gap-3 bg-gray-50 mt-auto">
                     {cs ? (
-                      <button onClick={()=>setUploadPkg(pkg)} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-xl font-semibold hover:shadow-lg text-sm transition-all">
-                        <Upload className="h-4 w-4"/>Upload Invoice
-                      </button>
+                      <>
+                        <button onClick={()=>setUploadPkg(pkg)} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-[#0f4d8a] to-[#1e6bb8] text-white rounded-xl font-semibold hover:shadow-lg text-sm transition-all">
+                          <Upload className="h-4 w-4"/>Upload Invoice
+                        </button>
+                        {(pkg.invoiceUploaded || pkg.invoiceFiles && pkg.invoiceFiles.length > 0) && (
+                          <button 
+                            onClick={() => handleDeleteInvoice(pkg)}
+                            disabled={deleting}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Delete Invoice"
+                          >
+                            <Trash2 className="h-4 w-4"/>
+                          </button>
+                        )}
+                      </>
                     ) : (
                       <>
                         <div className="flex-1 text-center text-sm text-green-600 font-semibold flex items-center justify-center gap-2 py-2"><CheckCircle className="h-5 w-5"/>{statusLabel(pkg.invoiceStatus)}</div>
-                        {(pkg.invoiceFiles && pkg.invoiceFiles.length > 0) && (
+                        {(pkg.invoiceUploaded || pkg.invoiceFiles && pkg.invoiceFiles.length > 0) && (
                           <button 
                             onClick={() => handleDeleteInvoice(pkg)}
                             disabled={deleting}
