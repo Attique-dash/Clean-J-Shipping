@@ -8,6 +8,7 @@ import {
   Upload, FileText, X, Loader2, CheckCircle, AlertCircle, RefreshCw,
   Package, DollarSign, Plane, Ship, Truck, Check, Eye, Download, Search,
   ChevronLeft, ChevronRight, Clock, Tag, Scale, MapPin, Building, User,
+  Trash2,
 } from "lucide-react";
 import Loading from "@/components/Loading";
 
@@ -180,6 +181,33 @@ export default function CustomerInvoiceUploadPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [uploadPkg, setUploadPkg] = useState<PackageData | null>(null);
+  const [deletePkg, setDeletePkg] = useState<PackageData | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteInvoice = async (pkg: PackageData) => {
+    if (!confirm(`Are you sure you want to delete the invoice for ${getTrack(pkg)}? This action cannot be undone.`)) {
+      return;
+    }
+    
+    setDeleting(true);
+    try {
+      const tn = getTrack(pkg);
+      const res = await fetch("/api/customer/invoice-upload", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ tracking_number: tn }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to delete invoice");
+      toast.success("Invoice deleted successfully!");
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete invoice");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   async function load() {
     try {
@@ -402,7 +430,19 @@ export default function CustomerInvoiceUploadPage() {
                         <Upload className="h-4 w-4"/>Upload Invoice
                       </button>
                     ) : (
-                      <div className="flex-1 text-center text-sm text-green-600 font-semibold flex items-center justify-center gap-2 py-2"><CheckCircle className="h-5 w-5"/>{statusLabel(pkg.invoiceStatus)}</div>
+                      <>
+                        <div className="flex-1 text-center text-sm text-green-600 font-semibold flex items-center justify-center gap-2 py-2"><CheckCircle className="h-5 w-5"/>{statusLabel(pkg.invoiceStatus)}</div>
+                        {(pkg.invoiceFiles && pkg.invoiceFiles.length > 0) && (
+                          <button 
+                            onClick={() => handleDeleteInvoice(pkg)}
+                            disabled={deleting}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Delete Invoice"
+                          >
+                            <Trash2 className="h-4 w-4"/>
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

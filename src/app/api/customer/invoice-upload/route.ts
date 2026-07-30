@@ -511,3 +511,103 @@ export async function POST(req: Request) {
     );
   }
 }
+
+// DELETE - Delete invoice upload data for a package
+export async function DELETE(req: Request) {
+  try {
+    const payload = await getAuthFromRequest(req);
+    if (!payload || (payload.role !== "customer" && payload.role !== "admin")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const userId = (payload as { id?: string; _id?: string; uid?: string }).id || 
+                  (payload as { id?: string; _id?: string; uid?: string })._id;
+    
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { tracking_number } = body;
+
+    if (!tracking_number) {
+      return NextResponse.json({ error: "Tracking number is required" }, { status: 400 });
+    }
+
+    await dbConnect();
+
+    // Check if it's a pre-alert
+    const preAlert = await PreAlert.findOne({
+      trackingNumber: tracking_number,
+      customer: new Types.ObjectId(userId),
+    });
+
+    if (preAlert) {
+      // Delete invoice from pre-alert
+      await PreAlert.findByIdAndUpdate(
+        preAlert._id,
+        {
+          $unset: { attachmentFile: 1, pricePaid: 1 },
+        }
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: "Invoice deleted successfully from pre-alert"
+      });
+    }
+
+    // Find the package
+    const pkg = await Package.findOne({
+      trackingNumber: tracking_number,
+      userId: new Types.ObjectId(userId),
+    });
+
+    if (!pkg) {
+      return NextResponse.json({ error: "Package not found or doesn't belong to user" }, { status: 404 });
+    }
+
+    // Delete invoice files from Cloudinary
+    if (pkg.invoiceFiles && Array.isArray(pkg.invoiceFiles)) {
+      const { deleteFile } = await import("@/lib/cloudinary");
+      for (const file of pkg.invoiceFiles) {
+        if (typeof file === 'object' && file.publicId) {
+          try {
+            await deleteFile(file.publicId);
+          } catch (deleteError) {
+            console.error(`Failed to delete file ${file.publicId}:`, deleteError);
+          }
+        }
+      }
+    }
+
+    // Clear invoice upload data from package
+    await Package.findByIdAndUpdate(
+      pkg._id,
+      {
+        $unset: {
+          invoiceFiles: 1,
+          invoiceUploaded: 1,
+          pricePaid: 1,
+          pricePaidCurrency: 1,
+          invoiceSubmittedAt: 1,
+        },
+        $set: {
+          invoiceStatus: 'pending'
+        }
+      }
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: "Invoice deleted successfully"
+    });
+
+  } catch (error) {
+    console.error("Invoice delete error:", error);
+    return NextResponse.json(
+      { error: "Failed to delete invoice" },
+      { status: 500 }
+    );
+  }
+}
