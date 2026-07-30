@@ -33,6 +33,7 @@ export default function CustomerLayout({
   const navItems = [
     { href: "/customer/dashboard", label: "Dashboard", icon: Home, description: "Customer dashboard overview", color: "from-blue-500 to-blue-600" },
     { href: "/customer/packages", label: "Packages", icon: Package, description: "Track and manage packages", color: "from-indigo-500 to-indigo-600" },
+    { href: "/customer/invoices", label: "My Invoices", icon: FileText, description: "View system-generated invoices", color: "from-violet-500 to-violet-600" },
     { href: "/customer/invoice-upload", label: "Package Invoices", icon: Upload, description: "Upload package invoices", color: "from-purple-500 to-purple-600" },
     { href: "/customer/bills", label: "Bills", icon: Receipt, description: "View and pay bills", color: "from-cyan-500 to-cyan-600" },
     { href: "/customer/payments", label: "Payments", icon: CreditCard, description: "Payment history", color: "from-green-500 to-green-600" },

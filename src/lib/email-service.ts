@@ -160,6 +160,33 @@ export class EmailService {
     });
   }
 
+  private getPaymentConfirmationTemplate(data: {
+    customerName: string;
+    amount: number;
+    currency: string;
+    transactionId: string;
+    date: Date;
+  }): string {
+    const { CurrencyService } = require('./currency-service');
+    const formattedAmount = CurrencyService.format(data.amount, data.currency);
+    
+    return this.getEmailWrapper(`
+      <h2>💳 Payment Confirmation</h2>
+      <p>Dear ${data.customerName},</p>
+      <p>We have successfully received your payment.</p>
+      
+      <div class="info-box">
+        <p><strong>Transaction ID:</strong> <span class="highlight">${data.transactionId}</span></p>
+        <p><strong>Amount:</strong> ${formattedAmount}</p>
+        <p><strong>Date:</strong> ${data.date.toLocaleString()}</p>
+      </div>
+
+      <p>Your payment has been processed and your account has been updated.</p>
+      
+      <p>Thank you for your business!</p>
+    `);
+  }
+
   /**
    * Send invoice submission confirmation
    */
@@ -363,36 +390,17 @@ export class EmailService {
     `);
   }
 
-  private getPaymentConfirmationTemplate(data: {
-    customerName: string;
-    amount: number;
-    currency: string;
-    transactionId: string;
-    date: Date;
-  }): string {
-    return this.getEmailWrapper(`
-      <h2>💳 Payment Confirmation</h2>
-      <p>Dear ${data.customerName},</p>
-      <p>We have successfully received your payment.</p>
-      
-      <div class="info-box">
-        <p><strong>Transaction ID:</strong> <span class="highlight">${data.transactionId}</span></p>
-        <p><strong>Amount:</strong> ${data.currency} ${data.amount.toFixed(2)}</p>
-        <p><strong>Date:</strong> ${data.date.toLocaleString()}</p>
-      </div>
-
-      <p>Your payment has been processed and your account has been updated.</p>
-      
-      <p>Thank you for your business!</p>
-    `);
-  }
-
   private getInvoiceSubmissionTemplate(data: {
     customerName: string;
     trackingNumber: string;
     invoiceNumber: string;
     totalValue: number;
+    currency?: string;
   }): string {
+    const { CurrencyService } = require('./currency-service');
+    const currencyCode = data.currency || 'USD';
+    const formattedValue = CurrencyService.format(data.totalValue, currencyCode);
+    
     return this.getEmailWrapper(`
       <h2>📄 Invoice Submission Received</h2>
       <p>Dear ${data.customerName},</p>
@@ -401,7 +409,7 @@ export class EmailService {
       <div class="info-box">
         <p><strong>Tracking Number:</strong> <span class="highlight">${data.trackingNumber}</span></p>
         <p><strong>Invoice Number:</strong> ${data.invoiceNumber}</p>
-        <p><strong>Total Value:</strong> $${data.totalValue.toFixed(2)}</p>
+        <p><strong>Total Value:</strong> ${formattedValue}</p>
       </div>
 
       <p>Our team will review your invoice within 24-48 hours. You'll receive a notification once the review is complete.</p>
@@ -594,7 +602,12 @@ export class EmailService {
     additionalFees: Array<{label: string, amount: number}>;
     totalAmount: number;
     paymentLink: string;
+    currency?: string;
   }): string {
+    const { CurrencyService } = require('./currency-service');
+    const currencyCode = data.currency || 'USD';
+    const formatMoney = (value: number) => CurrencyService.format(value, currencyCode);
+    
     // Format packages table rows with content/description
     const packagesRows = (data.packages as Array<{
       trackingNumber: string;
@@ -626,9 +639,9 @@ export class EmailService {
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: left;">${pkg.shipper}</td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: left; max-width: 200px; word-wrap: break-word;">${packageContent}</td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: center;">${pkg.weight} kg</td>
-        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">$${pkg.itemValue.toFixed(2)}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">$${pkg.shippingFee.toFixed(2)}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">$${pkg.total.toFixed(2)}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatMoney(pkg.itemValue)}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatMoney(pkg.shippingFee)}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatMoney(pkg.total)}</td>
       </tr>`
     }).join('');
 
@@ -637,7 +650,7 @@ export class EmailService {
       ? data.additionalFees.map(fee => 
           `<div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #e5e7eb;">
             <span style="color: #6b7280;">${fee.label}</span>
-            <span style="font-weight: 500;">$${fee.amount.toFixed(2)}</span>
+            <span style="font-weight: 500;">${formatMoney(fee.amount)}</span>
           </div>`
         ).join('')
       : '';
@@ -651,7 +664,7 @@ export class EmailService {
       <div class="info-box" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left-color: #0f4d8a;">
         <p style="margin: 0 0 8px 0;"><strong style="color: #0f4d8a;">Bill Number:</strong> <span style="font-size: 18px; font-weight: bold; color: #0f4d8a;">${data.billNumber}</span></p>
         <p style="margin: 0 0 8px 0;"><strong>Total Packages:</strong> ${data.packages.length}</p>
-        <p style="margin: 0;"><strong>Total Amount Due:</strong> <span style="color: #dc2626; font-weight: bold; font-size: 20px;">$${data.totalAmount.toFixed(2)}</span></p>
+        <p style="margin: 0;"><strong>Total Amount Due:</strong> <span style="color: #dc2626; font-weight: bold; font-size: 20px;">${formatMoney(data.totalAmount)}</span></p>
       </div>
 
       <h3 style="color: #374151; margin-top: 24px;">📦 Package Details:</h3>
@@ -676,20 +689,20 @@ export class EmailService {
       <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #e5e7eb;">
           <span style="color: #6b7280;">Item Total</span>
-          <span style="font-weight: 500;">$${data.itemTotal.toFixed(2)}</span>
+          <span style="font-weight: 500;">${formatMoney(data.itemTotal)}</span>
         </div>
         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #e5e7eb;">
           <span style="color: #6b7280;">Shipping Fee</span>
-          <span style="font-weight: 500;">$${data.shippingFee.toFixed(2)}</span>
+          <span style="font-weight: 500;">${formatMoney(data.shippingFee)}</span>
         </div>
         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #e5e7eb;">
           <span style="color: #6b7280;">Customs/Duty Fee</span>
-          <span style="font-weight: 500;">$${data.customsFee.toFixed(2)}</span>
+          <span style="font-weight: 500;">${formatMoney(data.customsFee)}</span>
         </div>
         ${additionalFeesRows}
         <div style="display: flex; justify-content: space-between; padding: 12px 0 0 0; margin-top: 8px; border-top: 2px solid #0f4d8a;">
           <span style="font-weight: bold; color: #0f4d8a; font-size: 16px;">Total Due</span>
-          <span style="font-weight: bold; color: #dc2626; font-size: 18px;">$${data.totalAmount.toFixed(2)}</span>
+          <span style="font-weight: bold; color: #dc2626; font-size: 18px;">${formatMoney(data.totalAmount)}</span>
         </div>
       </div>
 
@@ -733,13 +746,18 @@ export class EmailService {
       quantity: number;
       total: number;
     }>;
+    currency?: string;
   }): string {
+    const { CurrencyService } = require('./currency-service');
+    const currencyCode = data.currency || 'JMD';
+    const formatMoney = (value: number) => CurrencyService.format(value, currencyCode);
+    
     // Format items for email
     const itemsList = data.items.map(item => 
       `<tr>
         <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.description}</td>
         <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">JMD ${item.total.toFixed(2)}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${formatMoney(item.total)}</td>
       </tr>`
     ).join('');
 
@@ -752,7 +770,7 @@ export class EmailService {
       <div class="info-box">
         <p><strong>Invoice Number:</strong> <span class="highlight">${data.invoiceNumber}</span></p>
         <p><strong>Tracking Number:</strong> <span class="highlight">${data.trackingNumber}</span></p>
-        <p><strong>Total Amount Due:</strong> <span style="color: #dc2626; font-weight: bold; font-size: 18px;">JMD ${data.totalAmount.toFixed(2)}</span></p>
+        <p><strong>Total Amount Due:</strong> <span style="color: #dc2626; font-weight: bold; font-size: 18px;">${formatMoney(data.totalAmount)}</span></p>
       </div>
 
       <h3>📋 Invoice Details:</h3>
