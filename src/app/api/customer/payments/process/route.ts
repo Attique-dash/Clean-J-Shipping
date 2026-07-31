@@ -109,9 +109,19 @@ export async function POST(req: Request) {
 
       await invoice.save();
       invoiceNumber = invoice.invoiceNumber;
+      
+      // Link invoice to package
+      await Package.findByIdAndUpdate(pkg._id, {
+        $set: {
+          billingInvoiceId: invoice._id,
+          invoiceStatus: 'billed',
+          updatedAt: new Date()
+        }
+      });
+      
       console.log(`[Payment] Invoice created: ${invoiceNumber}`);
       console.log(`[Payment] Invoice status: ${invoice.status}`);
-      console.log(`[Payment] Invoice saved successfully`);
+      console.log(`[Payment] Invoice saved successfully and linked to package`);
     }
 
     // Update existing invoice with payment
@@ -163,6 +173,8 @@ export async function POST(req: Request) {
       await Package.findByIdAndUpdate(pkg._id, {
         $set: {
           invoiceRecords,
+          amountPaid: newAmountPaid,
+          paymentStatus: newAmountPaid >= totalValue ? "paid" : "partially_paid",
           updatedAt: new Date(),
         },
         $push: {
@@ -174,7 +186,26 @@ export async function POST(req: Request) {
         },
       });
       
-      console.log(`[Payment] Updated package ${trackingNumber} invoice records`);
+      console.log(`[Payment] Updated package ${trackingNumber} invoice records and payment status`);
+    } else {
+      // If no invoice records exist, update package payment fields directly
+      await Package.findByIdAndUpdate(pkg._id, {
+        $set: {
+          amountPaid: paymentAmount,
+          paymentStatus: "partially_paid",
+          paymentMethod: paymentMethod,
+          updatedAt: new Date(),
+        },
+        $push: {
+          history: {
+            status: pkg.status,
+            at: new Date(),
+            note: `Payment received: ${paymentAmount} ${paymentCurrency} via ${paymentMethod}`,
+          },
+        },
+      });
+      
+      console.log(`[Payment] Updated package ${trackingNumber} payment fields directly`);
     }
 
     // Record transaction in Payment model for Bills History

@@ -487,10 +487,11 @@ export async function POST(req: Request) {
         await Package.findByIdAndUpdate(created._id, {
           $set: {
             billingInvoiceId: billingInvoice._id,
-            invoiceStatus: 'pending',
+            invoiceStatus: 'billed',
             invoiceUploaded: false
           }
         });
+        console.log(`[Admin Package Create] Billing invoice ${billingInvoice._id} created and linked to package ${created._id}`);
       }
     } catch (invoiceError) {
       console.error('Failed to create billing invoice:', invoiceError);

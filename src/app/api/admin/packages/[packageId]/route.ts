@@ -293,11 +293,33 @@ export async function PUT(
             }
           } else {
             // Sync existing invoice
-            await syncBillingInvoiceForPackage(
+            const syncResult = await syncBillingInvoiceForPackage(
               updatedDoc,
               userData,
               tracking
             );
+            
+            // Send invoice email notification about the update
+            if (syncResult) {
+              try {
+                const emailService = new EmailService();
+                const paymentLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/customer/bills`;
+
+                await emailService.sendInvoiceEmail({
+                  to: userData.email,
+                  customerName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.email,
+                  invoiceNumber: `INV-${tracking}`, // Use tracking number as reference
+                  trackingNumber: tracking,
+                  totalAmount: asNumber(updatedDoc.totalAmount),
+                  paymentLink,
+                  items: []
+                });
+
+                console.log(`[Admin Package Update] Invoice update email sent to ${userData.email}`);
+              } catch (emailErr) {
+                console.error('[Admin Package Update] Failed to send invoice update email:', emailErr);
+              }
+            }
           }
         }
       } catch (invoiceErr) {
