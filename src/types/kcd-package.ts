@@ -72,4 +72,7 @@ export interface KcdPackageRecord extends KcdPackage {
   senderCountry?: string;
   dimensionUnit?: string;
   billingInvoiceId?: string;
+  regularCharge?: number;
+  customCharge?: number;
+  chargeCurrency?: string;
 }

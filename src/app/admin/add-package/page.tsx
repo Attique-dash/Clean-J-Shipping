@@ -56,6 +56,9 @@ interface FormState {
   branch: string;
   pieces: string;
   specialInstructions: string;
+  regularCharge: string;
+  customCharge: string;
+  chargeCurrency: string;
 }
 
 type CurrencyOption = {
@@ -92,6 +95,9 @@ const initialForm: FormState = {
   branch: "KCD Main Warehouse",
   pieces: "1",
   specialInstructions: "",
+  regularCharge: "",
+  customCharge: "",
+  chargeCurrency: "JMD",
 };
 
 function AdminAddPackagePageContent() {
@@ -321,6 +327,12 @@ function AdminAddPackagePageContent() {
               packageData.paymentCurrency ||
               "USD",
             specialInstructions: packageData.specialInstructions || "",
+            regularCharge:
+              packageData.regularCharge?.toString() || "",
+            customCharge:
+              packageData.customCharge?.toString() || "",
+            chargeCurrency:
+              packageData.chargeCurrency || "JMD",
           });
 
           if (
@@ -488,6 +500,9 @@ function AdminAddPackagePageContent() {
           : 0,
         paymentMethod: "cash",
         receivedAt: new Date(),
+        regularCharge: form.regularCharge ? Number(form.regularCharge) : 0,
+        customCharge: form.customCharge ? Number(form.customCharge) : 0,
+        chargeCurrency: form.chargeCurrency || "JMD",
       };
 
       const url = editId
@@ -935,6 +950,83 @@ function AdminAddPackagePageContent() {
                   </div>
                 </div>
               )}
+
+              {/* Manual Charges Section */}
+              <div className="rounded-xl border-2 border-orange-100 bg-orange-50/50 p-4 space-y-4">
+                <h4 className="text-sm font-semibold text-gray-900">Manual Charges (Invoice Calculation)</h4>
+                <p className="text-xs text-gray-600">
+                  Total Invoice = Regular Charge + Custom Charge
+                </p>
+                
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Regular Charge
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      placeholder="0.00"
+                      value={form.regularCharge}
+                      onChange={(e) =>
+                        setForm({ ...form, regularCharge: e.target.value })
+                      }
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Custom Charge
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      placeholder="0.00"
+                      value={form.customCharge}
+                      onChange={(e) =>
+                        setForm({ ...form, customCharge: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Charge Currency
+                  </label>
+                  <div className="relative">
+                    <select
+                      className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none bg-white"
+                      value={form.chargeCurrency}
+                      onChange={(e) =>
+                        setForm({ ...form, chargeCurrency: e.target.value })
+                      }
+                    >
+                      {currencies.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.name} ({c.code}) — {c.symbol}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                      <ChevronDown className="h-5 w-5 text-gray-400" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Currency for manual charges (default: JMD)
+                  </p>
+                </div>
+
+                <div className="p-3 bg-white rounded-lg border border-orange-200">
+                  <p className="text-sm font-medium text-gray-900">
+                    Total Invoice: {(Number(form.regularCharge) || 0) + (Number(form.customCharge) || 0)} {form.chargeCurrency}
+                  </p>
+                </div>
+              </div>
 
               {/* Dimensions */}
               <div className="space-y-4">

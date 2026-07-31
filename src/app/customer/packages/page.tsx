@@ -93,6 +93,9 @@ type UIPackage = {
     height: number;
     unit: string;
   };
+  regularCharge?: number;
+  customCharge?: number;
+  chargeCurrency?: string;
 };
 
 const PAGE_SIZE = 8;
@@ -328,12 +331,12 @@ function InvoiceModal({ pkg, onClose, userEmail }: { pkg: UIPackage; onClose: ()
   const [sendingEmail, setSendingEmail] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
 
-  const currencyCode = invoiceData?.currency || pkg.pricePaidCurrency || pkg.paymentCurrency || pkg.amountPaidCurrency || pkg.currency || 'USD';
+  const currencyCode = invoiceData?.currency || pkg.chargeCurrency || pkg.pricePaidCurrency || pkg.paymentCurrency || pkg.amountPaidCurrency || pkg.currency || 'JMD';
   const formatMoney = (value: number) => CurrencyService.format(value, currencyCode.toUpperCase());
   const invoiceNumber = invoiceData?.invoiceNumber || `INV-${new Date().getFullYear()}-XXXX`;
   const issueDate = invoiceData?.issueDate ? new Date(invoiceData.issueDate) : new Date();
   const dueDate = invoiceData?.dueDate ? new Date(invoiceData.dueDate) : new Date();
-  const invoiceTotalAmount = invoiceData?.total ?? (pkg.totalAmount || pkg.total_amount || pkg.freight || 0);
+  const invoiceTotalAmount = invoiceData?.total ?? ((pkg.regularCharge || 0) + (pkg.customCharge || 0));
   const amountPaid = invoiceData?.amountPaid ?? pkg.amountPaid ?? 0;
   const balanceDue = invoiceData?.balanceDue ?? Math.max(0, invoiceTotalAmount - amountPaid);
   const displayedSubtotal = invoiceData?.subtotal ?? invoiceTotalAmount;

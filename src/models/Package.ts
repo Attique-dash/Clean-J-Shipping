@@ -57,6 +57,11 @@ export interface IPackage extends Document {
     updatedBy: string;
   }>;
 
+  /** Manual charge fields for invoice calculation */
+  regularCharge?: number;
+  customCharge?: number;
+  chargeCurrency?: string;
+
   /** Invoice-related fields for customer invoice upload system */
   invoiceUploaded?: boolean;
   invoiceStatus?: 'pending' | 'submitted' | 'approved' | 'rejected' | 'billed';
@@ -201,6 +206,11 @@ const PackageSchema = new Schema<IPackage>(
       note: { type: String },
       updatedBy: { type: String }
     }],
+
+    // Manual charge fields for invoice calculation
+    regularCharge: { type: Number, min: 0, default: 0 },
+    customCharge: { type: Number, min: 0, default: 0 },
+    chargeCurrency: { type: String, trim: true, default: 'JMD' },
 
     // Invoice-related fields for customer invoice upload system
     invoiceUploaded: { type: Boolean, default: false },

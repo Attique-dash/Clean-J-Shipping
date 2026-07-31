@@ -781,7 +781,9 @@ export default function AdminPackagesPage() {
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Service</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Weight (lbs)</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Total Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Regular Charge</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Custom Charge</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Total Invoice</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Amount Paid</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Billing Invoice</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Invoice Status</th>
@@ -837,7 +839,15 @@ export default function AdminPackagesPage() {
                           {Number(pkg.weightLbs ?? pkg.Weight ?? 0).toFixed(2)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatPkgAmount(pkg, pkg.totalAmount || 0)}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        {pkg.regularCharge ? formatPkgAmount(pkg, pkg.regularCharge) : '—'}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        {pkg.customCharge ? formatPkgAmount(pkg, pkg.customCharge) : '—'}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                        {formatPkgAmount(pkg, (pkg.regularCharge || 0) + (pkg.customCharge || 0))}
+                      </td>
                       <td className="px-6 py-4 text-sm font-medium text-green-600">{formatPkgAmount(pkg, pkg.amountPaid || 0)}</td>
                       <td className="px-6 py-4">
                         {pkg.billingInvoiceId ? (
