@@ -783,6 +783,7 @@ export default function AdminPackagesPage() {
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Weight (lbs)</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Total Amount</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Amount Paid</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Billing Invoice</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Invoice Status</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Payment Status</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date Received</th>
@@ -838,6 +839,17 @@ export default function AdminPackagesPage() {
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatPkgAmount(pkg, pkg.totalAmount || 0)}</td>
                       <td className="px-6 py-4 text-sm font-medium text-green-600">{formatPkgAmount(pkg, pkg.amountPaid || 0)}</td>
+                      <td className="px-6 py-4">
+                        {pkg.billingInvoiceId ? (
+                          <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                            ✓ Generated
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                            Pending
+                          </span>
+                        )}
+                      </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getInvoiceStatusBadge(pkg.invoiceStatus)}`}>
                           {getInvoiceStatusLabel(pkg.invoiceStatus)}
