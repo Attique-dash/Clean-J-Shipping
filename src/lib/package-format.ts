@@ -258,6 +258,9 @@ export function toKcdPackage(
     amountPaid: asNumber(doc.amountPaid),
     paymentMethod: asString(doc.paymentMethod),
     totalAmount: asNumber(doc.totalAmount),
+    regularCharge: asNumber(doc.regularCharge),
+    customCharge: asNumber(doc.customCharge),
+    chargeCurrency: asString(doc.chargeCurrency) || 'JMD',
   };
 
   if (options?.includeMeta !== false) {
@@ -487,6 +490,9 @@ export function enrichKcdPackageRecord(
     senderCountry:
       asString(doc.senderCountry) || (sender ? asString(sender.country) : ''),
     billingInvoiceId: asString(doc.billingInvoiceId) || undefined,
+    regularCharge: asNumber(doc.regularCharge),
+    customCharge: asNumber(doc.customCharge),
+    chargeCurrency: asString(doc.chargeCurrency) || 'JMD',
   };
 }
 
