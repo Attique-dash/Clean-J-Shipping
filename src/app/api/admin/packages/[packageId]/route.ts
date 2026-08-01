@@ -93,9 +93,9 @@ export async function GET(
           asString((doc.dimensions as Record<string, unknown> | undefined)?.unit) ||
           'cm',
       },
-      regularCharge: asNumber(doc.regularCharge),
-      customCharge: asNumber(doc.customCharge),
-      chargeCurrency: asString(doc.chargeCurrency) || 'JMD',
+      regularCharge: asNumber(doc.regularCharge ?? doc.regular_charge),
+      customCharge: asNumber(doc.customCharge ?? doc.custom_charge),
+      chargeCurrency: asString(doc.chargeCurrency ?? doc.charge_currency) || 'JMD',
     };
 
     console.log('[Admin Package Detail API] KCD format:', JSON.stringify(formPayload, null, 2));

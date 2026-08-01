@@ -2,6 +2,7 @@ import { CurrencyService } from '@/lib/currency-service';
 import {
   calcShippingCostUsd,
   getPackagePaymentCurrency,
+  getPackageChargeTotals,
   parsePackagePayments,
 } from '@/lib/package-format';
 
@@ -98,10 +99,8 @@ export function buildBillingInvoicePayload(
     const invoiceCurrency = CurrencyService.isSupported(currency) ? currency : 'JMD';
     const isPackageCurrencyUsd = isUsdCurrency(currency);
 
-    // Use manual charges only (regularCharge + customCharge)
-    const regularCharge = asNumber(packageData.regularCharge);
-    const customCharge = asNumber(packageData.customCharge);
-    const chargeCurrency = asString(packageData.chargeCurrency) || 'JMD';
+    // Use canonical helper to get manual charges with legacy support
+    const chargeTotals = getPackageChargeTotals(packageData);
     const itemDescription =
       asString(packageData.itemDescription) ||
       asString(packageData.Description || packageData.description) ||
@@ -109,43 +108,53 @@ export function buildBillingInvoicePayload(
 
     const invoiceItems: BillingInvoicePayload['items'] = [];
     let invoiceTotal = 0;
+    let finalCurrency = invoiceCurrency;
 
-    // Use manual charges instead of automatic calculations
-    if (regularCharge > 0) {
-      invoiceItems.push({
-        description: `Regular Charge (${itemDescription})`,
-        quantity: 1,
-        unitPrice: regularCharge,
-        taxRate: 0,
-        amount: regularCharge,
-        taxAmount: 0,
-        total: regularCharge,
-      });
+    // Use manual charges if present, otherwise fall back to payment totals
+    if (chargeTotals.usedManualCharges) {
+      // Use manual charges
+      if (chargeTotals.regularCharge > 0) {
+        invoiceItems.push({
+          description: `Regular Charge (${itemDescription})`,
+          quantity: 1,
+          unitPrice: chargeTotals.regularCharge,
+          taxRate: 0,
+          amount: chargeTotals.regularCharge,
+          taxAmount: 0,
+          total: chargeTotals.regularCharge,
+        });
+      }
+
+      if (chargeTotals.customCharge > 0) {
+        invoiceItems.push({
+          description: `Custom Charge`,
+          quantity: 1,
+          unitPrice: chargeTotals.customCharge,
+          taxRate: 0,
+          amount: chargeTotals.customCharge,
+          taxAmount: 0,
+          total: chargeTotals.customCharge,
+        });
+      }
+
+      // Calculate total from manual charges
+      invoiceTotal = chargeTotals.manualTotal;
+      finalCurrency = chargeTotals.currency;
+    } else {
+      // Fall back to parsed PackagePayments totals
+      const payment = parsePackagePayments(asString(packageData.PackagePayments || packageData.packagePayments), packageData);
+      invoiceTotal = payment.totalAmountUsd;
+      finalCurrency = payment.currency || invoiceCurrency;
     }
-
-    if (customCharge > 0) {
-      invoiceItems.push({
-        description: `Custom Charge`,
-        quantity: 1,
-        unitPrice: customCharge,
-        taxRate: 0,
-        amount: customCharge,
-        taxAmount: 0,
-        total: customCharge,
-      });
-    }
-
-    // Calculate total from manual charges
-    invoiceTotal = regularCharge + customCharge;
 
     if (invoiceTotal <= 0 && invoiceItems.length === 0) {
       console.error('[buildBillingInvoicePayload] Cannot create invoice: invoiceTotal <= 0 and no items', {
         trackingNumber,
         invoiceTotal,
         invoiceItemsLength: invoiceItems.length,
-        regularCharge,
-        customCharge,
-        chargeCurrency
+        regularCharge: chargeTotals.regularCharge,
+        customCharge: chargeTotals.customCharge,
+        chargeCurrency: chargeTotals.currency
       });
       return null;
     }
@@ -173,7 +182,7 @@ export function buildBillingInvoicePayload(
       },
       invoiceType: 'billing',
       tracking_number: trackingNumber,
-      currency: chargeCurrency,
+      currency: finalCurrency,
       subtotal: subtotal || invoiceTotal,
       taxTotal: 0,
       discountAmount: 0,

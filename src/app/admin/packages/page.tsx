@@ -32,6 +32,7 @@ import {
   getPackageStatusLabel,
   logKcdPackages,
   logKcdPackageConsole,
+  getPackageChargeTotals,
 } from '@/lib/package-format';
 import PackageDetailsPanel from '@/components/packages/PackageDetailsPanel';
 
@@ -840,13 +841,22 @@ export default function AdminPackagesPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        {pkg.regularCharge ? formatPkgAmount(pkg, pkg.regularCharge, true) : '—'}
+                        {(() => {
+                          const charges = getPackageChargeTotals(pkg);
+                          return charges.regularCharge > 0 ? formatPackageAmount(charges.regularCharge, charges.currency) : '—';
+                        })()}
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        {pkg.customCharge ? formatPkgAmount(pkg, pkg.customCharge, true) : '—'}
+                        {(() => {
+                          const charges = getPackageChargeTotals(pkg);
+                          return charges.customCharge > 0 ? formatPackageAmount(charges.customCharge, charges.currency) : '—';
+                        })()}
                       </td>
                       <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                        {formatPkgAmount(pkg, (pkg.regularCharge || 0) + (pkg.customCharge || 0), true)}
+                        {(() => {
+                          const charges = getPackageChargeTotals(pkg);
+                          return formatPackageAmount(charges.manualTotal, charges.currency);
+                        })()}
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-green-600">{formatPkgAmount(pkg, pkg.amountPaid || 0)}</td>
                       <td className="px-6 py-4">

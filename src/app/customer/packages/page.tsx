@@ -32,7 +32,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { formatPackageAmount } from "@/lib/package-format";
+import { formatPackageAmount, getPackageChargeTotals, getDisplayTotal } from "@/lib/package-format";
 import { CurrencyService } from '@/lib/currency-service';
 
 type UIPackage = {
@@ -182,12 +182,16 @@ function InfoRow({ icon, label, value, mono }: { icon?: React.ReactNode; label: 
 
 /* ─── Package Detail Modal ─── */
 function PackageDetailModal({ pkg, onClose, onOpenInvoice }: { pkg: UIPackage; onClose: () => void; onOpenInvoice: (pkg: UIPackage) => void }) {
-  const regularCharge = pkg.regularCharge || 0;
-  const customCharge = pkg.customCharge || 0;
-  const totalAmount = (regularCharge + customCharge) || pkg.totalAmount || pkg.total_amount || pkg.freight || pkg.shipping_cost || 0;
+  // Use canonical helper for charge totals and currency
+  const chargeTotals = getPackageChargeTotals(pkg);
+  const displayTotal = getDisplayTotal(pkg);
+  
+  const regularCharge = chargeTotals.regularCharge;
+  const customCharge = chargeTotals.customCharge;
+  const totalAmount = displayTotal.total;
   const amountPaid = pkg.amountPaid || 0;
   const balance = Math.max(0, totalAmount - amountPaid);
-  const currency = pkg.chargeCurrency || pkg.pricePaidCurrency || "JMD";
+  const currency = displayTotal.currency;
   const formattedTotal = formatDisplayAmount(totalAmount, currency);
   const formattedRegularCharge = formatDisplayAmount(regularCharge, currency);
   const formattedCustomCharge = formatDisplayAmount(customCharge, currency);
@@ -334,12 +338,15 @@ function InvoiceModal({ pkg, onClose, userEmail }: { pkg: UIPackage; onClose: ()
   const [sendingEmail, setSendingEmail] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
 
-  const currencyCode = invoiceData?.currency || pkg.chargeCurrency || pkg.pricePaidCurrency || pkg.paymentCurrency || pkg.amountPaidCurrency || pkg.currency || 'JMD';
+  // Use canonical helper for charge totals and currency
+  const chargeTotals = getPackageChargeTotals(pkg);
+  const displayTotal = getDisplayTotal(pkg);
+  const currencyCode = invoiceData?.currency || displayTotal.currency || 'JMD';
   const formatMoney = (value: number) => CurrencyService.format(value, currencyCode.toUpperCase());
   const invoiceNumber = invoiceData?.invoiceNumber || `INV-${new Date().getFullYear()}-XXXX`;
   const issueDate = invoiceData?.issueDate ? new Date(invoiceData.issueDate) : new Date();
   const dueDate = invoiceData?.dueDate ? new Date(invoiceData.dueDate) : new Date();
-  const invoiceTotalAmount = invoiceData?.total ?? ((pkg.regularCharge || 0) + (pkg.customCharge || 0));
+  const invoiceTotalAmount = invoiceData?.total ?? displayTotal.total;
   const amountPaid = invoiceData?.amountPaid ?? pkg.amountPaid ?? 0;
   const balanceDue = invoiceData?.balanceDue ?? Math.max(0, invoiceTotalAmount - amountPaid);
   const displayedSubtotal = invoiceData?.subtotal ?? invoiceTotalAmount;

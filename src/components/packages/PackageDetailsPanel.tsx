@@ -7,6 +7,8 @@ import {
   formatSenderAddressLine,
   getCustomerDisplayName,
   getPackageStatusLabel,
+  getPackageChargeTotals,
+  getDisplayTotal,
 } from '@/lib/package-format';
 
 type Props = {
@@ -40,7 +42,11 @@ export default function PackageDetailsPanel({
   const statusClass =
     getStatusBadgeClass?.(pkg) ?? 'bg-purple-100 text-purple-800';
   const weightLbs = pkg.weightLbs ?? pkg.Weight ?? 0;
-  const currency = pkg.pricePaidCurrency || 'USD';
+  
+  // Use canonical helper for charge totals and currency
+  const chargeTotals = getPackageChargeTotals(pkg);
+  const displayTotal = getDisplayTotal(pkg);
+  const currency = displayTotal.currency;
   const formatAmount = (amount: number) => formatPackageAmount(amount, currency);
   const dimUnit = pkg.dimensionUnit || 'cm';
 

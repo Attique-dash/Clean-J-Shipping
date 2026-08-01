@@ -261,24 +261,22 @@ function buildPackageInfoTableRows(opts: {
   if (pkg?.EntryStaff) rows.push(['Received By', pkg.EntryStaff]);
   rows.push(['Received Date', receivedDisplay]);
   
-  // Add manual charges if available from package data
-  const regularCharge = (pkg as any)?.regularCharge || 0;
-  const customCharge = (pkg as any)?.customCharge || 0;
-  const chargeCurrency = ((pkg as any)?.chargeCurrency || 'JMD').toUpperCase();
+  // Add manual charges if available from package data using canonical helper
+  const { getPackageChargeTotals } = require('./package-format');
+  const chargeTotals = getPackageChargeTotals(pkg as any);
   
-  if (regularCharge > 0 || customCharge > 0) {
+  if (chargeTotals.usedManualCharges) {
     const { CurrencyService } = require('./currency-service');
-    const currencySymbol = CurrencyService.getCurrencyInfo(chargeCurrency)?.symbol || chargeCurrency;
+    const currencySymbol = CurrencyService.getCurrencyInfo(chargeTotals.currency)?.symbol || chargeTotals.currency;
     
-    if (regularCharge > 0) {
-      rows.push(['Regular Charge', `${currencySymbol}${regularCharge.toFixed(2)} ${chargeCurrency}`]);
+    if (chargeTotals.regularCharge > 0) {
+      rows.push(['Regular Charge', `${currencySymbol}${chargeTotals.regularCharge.toFixed(2)} ${chargeTotals.currency}`]);
     }
-    if (customCharge > 0) {
-      rows.push(['Custom Charge', `${currencySymbol}${customCharge.toFixed(2)} ${chargeCurrency}`]);
+    if (chargeTotals.customCharge > 0) {
+      rows.push(['Custom Charge', `${currencySymbol}${chargeTotals.customCharge.toFixed(2)} ${chargeTotals.currency}`]);
     }
-    const totalInvoice = regularCharge + customCharge;
-    if (totalInvoice > 0) {
-      rows.push(['Total Invoice', `${currencySymbol}${totalInvoice.toFixed(2)} ${chargeCurrency}`]);
+    if (chargeTotals.manualTotal > 0) {
+      rows.push(['Total Invoice', `${currencySymbol}${chargeTotals.manualTotal.toFixed(2)} ${chargeTotals.currency}`]);
     }
   }
 
