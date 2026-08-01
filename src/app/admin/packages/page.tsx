@@ -192,8 +192,8 @@ export default function AdminPackagesPage() {
 
   const selectedCount = selectedIds.size;
 
-  const formatPkgAmount = (pkg: KcdPackageRecord, amount: number) =>
-    formatPackageAmount(amount, pkg.pricePaidCurrency || 'USD');
+  const formatPkgAmount = (pkg: KcdPackageRecord, amount: number, useChargeCurrency = false) =>
+    formatPackageAmount(amount, useChargeCurrency ? (pkg.chargeCurrency || 'JMD') : (pkg.pricePaidCurrency || 'USD'));
 
   const formatJmd = (amount: number) => {
     return CurrencyService.format(amount, 'JMD');
@@ -840,13 +840,13 @@ export default function AdminPackagesPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        {pkg.regularCharge ? formatPkgAmount(pkg, pkg.regularCharge) : '—'}
+                        {pkg.regularCharge ? formatPkgAmount(pkg, pkg.regularCharge, true) : '—'}
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        {pkg.customCharge ? formatPkgAmount(pkg, pkg.customCharge) : '—'}
+                        {pkg.customCharge ? formatPkgAmount(pkg, pkg.customCharge, true) : '—'}
                       </td>
                       <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                        {formatPkgAmount(pkg, (pkg.regularCharge || 0) + (pkg.customCharge || 0))}
+                        {formatPkgAmount(pkg, (pkg.regularCharge || 0) + (pkg.customCharge || 0), true)}
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-green-600">{formatPkgAmount(pkg, pkg.amountPaid || 0)}</td>
                       <td className="px-6 py-4">
