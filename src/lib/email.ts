@@ -261,13 +261,25 @@ function buildPackageInfoTableRows(opts: {
   if (pkg?.EntryStaff) rows.push(['Received By', pkg.EntryStaff]);
   rows.push(['Received Date', receivedDisplay]);
   
-  // Add item value if available from package data
-  const itemValue = (pkg as any)?.itemValueUsd || (pkg as any)?.usdValue || (pkg as any)?.itemValue || 0;
-  if (itemValue > 0) {
-    const currencyCode = ((pkg as any)?.paymentCurrency || (pkg as any)?.pricePaidCurrency || (pkg as any)?.currency || 'USD').toUpperCase();
+  // Add manual charges if available from package data
+  const regularCharge = (pkg as any)?.regularCharge || 0;
+  const customCharge = (pkg as any)?.customCharge || 0;
+  const chargeCurrency = ((pkg as any)?.chargeCurrency || 'JMD').toUpperCase();
+  
+  if (regularCharge > 0 || customCharge > 0) {
     const { CurrencyService } = require('./currency-service');
-    const currencySymbol = CurrencyService.getCurrencyInfo(currencyCode)?.symbol || currencyCode;
-    rows.push(['Item Value', `${currencySymbol}${itemValue.toFixed(2)} ${currencyCode}`]);
+    const currencySymbol = CurrencyService.getCurrencyInfo(chargeCurrency)?.symbol || chargeCurrency;
+    
+    if (regularCharge > 0) {
+      rows.push(['Regular Charge', `${currencySymbol}${regularCharge.toFixed(2)} ${chargeCurrency}`]);
+    }
+    if (customCharge > 0) {
+      rows.push(['Custom Charge', `${currencySymbol}${customCharge.toFixed(2)} ${chargeCurrency}`]);
+    }
+    const totalInvoice = regularCharge + customCharge;
+    if (totalInvoice > 0) {
+      rows.push(['Total Invoice', `${currencySymbol}${totalInvoice.toFixed(2)} ${chargeCurrency}`]);
+    }
   }
 
   if (pkg?.Length || pkg?.Width || pkg?.Height) {

@@ -182,13 +182,15 @@ function InfoRow({ icon, label, value, mono }: { icon?: React.ReactNode; label: 
 
 /* ─── Package Detail Modal ─── */
 function PackageDetailModal({ pkg, onClose, onOpenInvoice }: { pkg: UIPackage; onClose: () => void; onOpenInvoice: (pkg: UIPackage) => void }) {
-  const totalAmount = pkg.totalAmount || pkg.total_amount || pkg.freight || pkg.shipping_cost || 0;
+  const regularCharge = pkg.regularCharge || 0;
+  const customCharge = pkg.customCharge || 0;
+  const totalAmount = (regularCharge + customCharge) || pkg.totalAmount || pkg.total_amount || pkg.freight || pkg.shipping_cost || 0;
   const amountPaid = pkg.amountPaid || 0;
-  const itemValue = pkg.itemValueUsd || pkg.usdValue || 0;
   const balance = Math.max(0, totalAmount - amountPaid);
-  const currency = pkg.pricePaidCurrency || "USD";
+  const currency = pkg.chargeCurrency || pkg.pricePaidCurrency || "JMD";
   const formattedTotal = formatDisplayAmount(totalAmount, currency);
-  const formattedItemValue = formatDisplayAmount(itemValue, currency);
+  const formattedRegularCharge = formatDisplayAmount(regularCharge, currency);
+  const formattedCustomCharge = formatDisplayAmount(customCharge, currency);
   const formattedAmountPaid = formatDisplayAmount(amountPaid, currency);
   const formattedBalance = formatDisplayAmount(balance, currency);
   const dims = pkg.dimensions || { length: 0, width: 0, height: 0, unit: "cm" };
@@ -258,7 +260,8 @@ function PackageDetailModal({ pkg, onClose, onOpenInvoice }: { pkg: UIPackage; o
               <h3 className="font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100">Payment Info</h3>
               <div className="space-y-0.5">
                 <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Currency" value={currency} />
-                <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Item Value" value={formattedItemValue} />
+                {regularCharge > 0 && <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Regular Charge" value={formattedRegularCharge} />}
+                {customCharge > 0 && <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Custom Charge" value={formattedCustomCharge} />}
                 <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Total Due" value={formattedTotal} />
                 <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Amount Paid" value={formattedAmountPaid} />
                 <InfoRow icon={<Tag className="h-3.5 w-3.5" />} label="Balance" value={formattedBalance} />

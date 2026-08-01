@@ -7,6 +7,7 @@ import Link from "next/link";
 import { CreditCard, FileText, CheckCircle, Lock, Unlock, ShoppingCart, Filter, X, Calendar, Package, User, MapPin, Printer, Mail, ChevronLeft, ChevronRight, Eye, Plane, Building, Hash, Scale, DollarSign, Copy, RefreshCw, Receipt } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { getCurrencySymbol } from "@/lib/package-format";
+import { CurrencyService } from "@/lib/currency-service";
 import Loading from "@/components/Loading";
 
 interface PackageDetails { branch?: string; manifest?: string; merchant?: string; weight?: number; description?: string; hsCode?: string; userCode?: string; pieces?: number; dimensions?: { length: number; width: number; height: number }; entryDate?: string; serviceMode?: string; itemValue?: number; freight?: number; processingFee?: number; storageFee?: number; dutyPercent?: number; gctPercent?: number; warehouseLocation?: string; rateGroup?: string; commercialInvoice?: string; houseAwb?: string; trackingNum?: string; collection?: string; customerName?: string; customerEmail?: string; customerPhone?: string; }
@@ -128,9 +129,9 @@ export default function BillsPage() {
                       {dt&&<span className="text-gray-400">({relDate(dt)})</span>}
                     </div>
                     <div className="space-y-1 mb-3 text-sm">
-                      <div className="flex justify-between"><span className="text-gray-500 text-xs">DUE:</span><span className="font-semibold text-gray-900 text-xs">{formatCurrency(due,bill.currency||"USD")}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500 text-xs">PAID:</span><span className="font-semibold text-gray-900 text-xs">{formatCurrency(paidAmt,bill.currency||"USD")}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500 text-xs">BALANCE:</span><span className={`font-bold text-xs ${bal>0?"text-red-600":"text-green-600"}`}>{formatCurrency(bal,bill.currency||"USD")}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500 text-xs">DUE:</span><span className="font-semibold text-gray-900 text-xs">{CurrencyService.format(due,bill.currency||"USD")}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500 text-xs">PAID:</span><span className="font-semibold text-gray-900 text-xs">{CurrencyService.format(paidAmt,bill.currency||"USD")}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500 text-xs">BALANCE:</span><span className={`font-bold text-xs ${bal>0?"text-red-600":"text-green-600"}`}>{CurrencyService.format(bal,bill.currency||"USD")}</span></div>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={()=>{setSelectedBill(bill);setDetailOpen(true);}} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 border border-[#0f4d8a] text-[#0f4d8a] rounded-lg hover:bg-blue-50 text-xs font-semibold"><Eye className="h-3.5 w-3.5"/>Details</button>

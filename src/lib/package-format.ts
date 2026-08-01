@@ -658,6 +658,9 @@ export function buildKcdPackageDocument(
     userId: user._id,
     customer: user._id,
     source: asString(body.source) || 'manual',
+    regularCharge: asNumber(body.regularCharge),
+    customCharge: asNumber(body.customCharge),
+    chargeCurrency: asString(body.chargeCurrency) || 'JMD',
     ...overrides,
   };
 }

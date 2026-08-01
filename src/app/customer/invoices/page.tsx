@@ -242,14 +242,14 @@ export default function CustomerInvoicesPage() {
                   {/* Amount */}
                   <div className="mx-6 mb-3 p-3 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg text-sm flex items-center justify-between">
                     <span className="text-gray-500 font-medium">Total:</span>
-                    <span className="font-bold text-gray-900 text-base">{CurrencyService.format(inv.total, inv.currency || 'USD')}</span>
+                    <span className="font-bold text-gray-900 text-base">{CurrencyService.format(inv.total, (inv.currency || 'USD').toUpperCase())}</span>
                   </div>
 
                   {/* Balance */}
                   {balance > 0 && (
                     <div className="mx-6 mb-3 p-3 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg text-sm flex items-center justify-between">
                       <span className="text-gray-500 font-medium">Balance Due:</span>
-                      <span className="font-bold text-red-600 text-base">{CurrencyService.format(balance, inv.currency || 'USD')}</span>
+                      <span className="font-bold text-red-600 text-base">{CurrencyService.format(balance, (inv.currency || 'USD').toUpperCase())}</span>
                     </div>
                   )}
 
@@ -311,9 +311,9 @@ function InvoiceDetailModal({ invoice, onClose }: { invoice: InvoiceData; onClos
             <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-500"><X className="h-5 w-5"/></button>
           </div>
           <div className="flex justify-end gap-8 mt-3 text-sm">
-            <div><span className="text-gray-500">Total:</span><span className="ml-2 font-semibold">{CurrencyService.format(invoice.total, invoice.currency || 'USD')}</span></div>
-            <div><span className="text-gray-500">Paid:</span><span className="ml-2 font-semibold">{CurrencyService.format(invoice.amountPaid || 0, invoice.currency || 'USD')}</span></div>
-            <div><span className="text-gray-500">Balance:</span><span className="ml-2 font-bold">{CurrencyService.format(balance, invoice.currency || 'USD')}</span></div>
+            <div><span className="text-gray-500">Total:</span><span className="ml-2 font-semibold">{CurrencyService.format(invoice.total, (invoice.currency || 'USD').toUpperCase())}</span></div>
+            <div><span className="text-gray-500">Paid:</span><span className="ml-2 font-semibold">{CurrencyService.format(invoice.amountPaid || 0, (invoice.currency || 'USD').toUpperCase())}</span></div>
+            <div><span className="text-gray-500">Balance:</span><span className="ml-2 font-bold">{CurrencyService.format(balance, (invoice.currency || 'USD').toUpperCase())}</span></div>
           </div>
         </div>
         
@@ -348,8 +348,8 @@ function InvoiceDetailModal({ invoice, onClose }: { invoice: InvoiceData; onClos
                     <tr key={idx} className="border-t border-gray-100 hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-700">{item.description}</td>
                       <td className="px-4 py-3 text-center">{item.quantity}</td>
-                      <td className="px-4 py-3 text-right">{CurrencyService.format(item.unitPrice, invoice.currency || 'USD')}</td>
-                      <td className="px-4 py-3 text-right font-semibold">{CurrencyService.format(item.total, invoice.currency || 'USD')}</td>
+                      <td className="px-4 py-3 text-right">{CurrencyService.format(item.unitPrice, (invoice.currency || 'USD').toUpperCase())}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{CurrencyService.format(item.total, (invoice.currency || 'USD').toUpperCase())}</td>
                     </tr>
                   ))}
                 </tbody>
