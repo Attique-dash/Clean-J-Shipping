@@ -109,7 +109,7 @@ export function getDisplayTotal(docOrPkg: Record<string, unknown> | KcdPackageRe
   const totalAmount = asNumber(doc.totalAmount);
   if (totalAmount > 0) {
     return {
-      total,
+      total: totalAmount,
       currency: chargeTotals.currency,
       source: 'totalAmount',
     };
