@@ -616,6 +616,10 @@ export default function CustomerPackagesPage() {
         trackingNum: pkg.trackingNum || pkg.tracking_number || pkg.trackingNumber,
         freight: pkg.freight || pkg.shipping_cost || pkg.totalAmount || pkg.total_amount || 0,
         billingInvoiceId: pkg.billingInvoiceId,
+        // Manual charge fields
+        regularCharge: pkg.regularCharge || 0,
+        customCharge: pkg.customCharge || 0,
+        chargeCurrency: pkg.chargeCurrency || 'JMD',
       }));
       try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: list, timestamp: Date.now() })); } catch {}
       setItems(list);
@@ -726,8 +730,10 @@ export default function CustomerPackagesPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {paginated.map((pkg) => {
-              const amt = pkg.totalAmount || pkg.total_amount || pkg.freight || 0;
-              const currencyCode = pkg.pricePaidCurrency || pkg.paymentCurrency || pkg.amountPaidCurrency || pkg.currency || "USD";
+              // Use canonical helper to get correct total with manual charge support
+              const displayTotal = getDisplayTotal(pkg);
+              const amt = displayTotal.total;
+              const currencyCode = displayTotal.currency;
               const trackNum = pkg.tracking_number;
               return (
                 <div key={trackNum} className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1">

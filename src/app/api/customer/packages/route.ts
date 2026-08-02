@@ -68,6 +68,9 @@ export async function GET(req: NextRequest) {
         'paymentStatus', 'paymentMethod', 'amountPaid', 'totalAmount',
         'itemValue', 'itemValueUSD', 'value', 'pricePaid', 'pricePaidCurrency',
         'paymentCurrency', 'amountPaidCurrency', 'PackagePayments',
+        // Manual charge fields (both camelCase and snake_case for legacy support)
+        'regularCharge', 'customCharge', 'chargeCurrency',
+        'regular_charge', 'custom_charge', 'charge_currency',
         // Location/warehouse
         'warehouseLocation', 'currentLocation',
         // Invoice fields
@@ -293,6 +296,11 @@ export async function GET(req: NextRequest) {
         paymentMethod: payment.paymentMethod,
         pricePaidCurrency: payment.currency,
         pricePaid: payment.itemValueUsd,
+
+        // Manual charge fields
+        regularCharge: getVal(p, 'regularCharge', 'regular_charge') || 0,
+        customCharge: getVal(p, 'customCharge', 'custom_charge') || 0,
+        chargeCurrency: getVal(p, 'chargeCurrency', 'charge_currency') || 'JMD',
 
         // Billing breakdown
         dutyPercent: p.dutyPercent ?? 20,
