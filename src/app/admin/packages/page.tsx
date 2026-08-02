@@ -392,10 +392,12 @@ export default function AdminPackagesPage() {
   const handleOpenPaymentModal = (pkg: KcdPackageRecord) => {
     setPackageToUpdatePayment(pkg);
     const status = (pkg.paymentStatus as 'pending' | 'paid' | 'partially_paid') || 'pending';
+    // Use display total to get correct amount when manual charges are set
+    const displayTotal = getDisplayTotal(pkg);
     setPaymentFormData({
       paymentStatus: status,
       paymentMethod: (pkg.paymentMethod as 'cash' | 'card' | 'paypal' | 'bank_transfer') || 'cash',
-      amountPaid: pkg.amountPaid ?? pkg.totalAmount ?? pkg.itemValueUsd ?? 0,
+      amountPaid: pkg.amountPaid ?? displayTotal.total,
       paymentNote: '',
     });
     setPaymentModalOpen(true);

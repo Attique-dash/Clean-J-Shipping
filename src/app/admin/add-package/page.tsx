@@ -335,6 +335,19 @@ function AdminAddPackagePageContent() {
               packageData.chargeCurrency || "JMD",
           });
 
+          // Ensure mutual exclusion between total amount and manual charges
+          // If manual charges are set, clear total amount
+          const hasManualCharges = !!(packageData.regularCharge || packageData.customCharge);
+          const hasTotalAmount = !!(packageData.totalAmount && packageData.totalAmount > 0);
+          
+          if (hasManualCharges && hasTotalAmount) {
+            // Manual charges take precedence, clear total amount
+            setForm(prev => ({ ...prev, totalAmount: "" }));
+          } else if (hasTotalAmount && hasManualCharges) {
+            // Total amount takes precedence, clear manual charges
+            setForm(prev => ({ ...prev, regularCharge: "", customCharge: "" }));
+          }
+
           if (
             packageData.totalAmount ||
             packageData.itemValueUsd ||
