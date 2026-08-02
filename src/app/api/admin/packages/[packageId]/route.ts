@@ -213,6 +213,13 @@ export async function PUT(
       paymentStatus: paymentMeta.paymentStatus,
       paymentMethod: paymentMeta.paymentMethod,
       specialInstructions: asString(body.specialInstructions ?? existingDoc.specialInstructions),
+      // Manual charge fields - save both camelCase and snake_case for legacy support
+      regularCharge: asNumber(body.regularCharge ?? existingDoc.regularCharge ?? existingDoc.regular_charge),
+      customCharge: asNumber(body.customCharge ?? existingDoc.customCharge ?? existingDoc.custom_charge),
+      chargeCurrency: asString(body.chargeCurrency ?? existingDoc.chargeCurrency ?? existingDoc.charge_currency) || 'JMD',
+      regular_charge: asNumber(body.regularCharge ?? existingDoc.regularCharge ?? existingDoc.regular_charge),
+      custom_charge: asNumber(body.customCharge ?? existingDoc.customCharge ?? existingDoc.custom_charge),
+      charge_currency: asString(body.chargeCurrency ?? existingDoc.chargeCurrency ?? existingDoc.charge_currency) || 'JMD',
     };
 
     if (body.recipient) {
