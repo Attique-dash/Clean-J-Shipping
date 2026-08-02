@@ -891,10 +891,10 @@ function AdminAddPackagePageContent() {
                 </div>
               </div>
 
-              {/* Total Amount */}
+              {/* Total Amount - Only used when manual charges are NOT set */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Total amount
+                  Total amount (Automatic Calculation)
                 </label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-500">
@@ -904,7 +904,11 @@ function AdminAddPackagePageContent() {
                     type="number"
                     step="0.01"
                     min="0"
-                    className="block w-full rounded-lg border-2 border-gray-300 pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    className={`block w-full rounded-lg border-2 pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 transition-all ${
+                      (form.regularCharge || form.customCharge) 
+                        ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed' 
+                        : 'border-gray-300 focus:border-blue-500'
+                    }`}
                     placeholder="0.00"
                     value={form.totalAmount}
                     onFocus={() => setShowPaymentOptions(true)}
@@ -912,10 +916,14 @@ function AdminAddPackagePageContent() {
                       setShowPaymentOptions(true);
                       setForm({ ...form, totalAmount: e.target.value });
                     }}
+                    disabled={!!(form.regularCharge || form.customCharge)}
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Total payment amount for this package
+                  {(form.regularCharge || form.customCharge) 
+                    ? "Disabled when manual charges are set. Invoice will use manual charges only."
+                    : "Total payment amount (used only if manual charges are not set)"
+                  }
                 </p>
               </div>
 
@@ -952,10 +960,21 @@ function AdminAddPackagePageContent() {
               )}
 
               {/* Manual Charges Section */}
-              <div className="rounded-xl border-2 border-orange-100 bg-orange-50/50 p-4 space-y-4">
-                <h4 className="text-sm font-semibold text-gray-900">Manual Charges (Invoice Calculation)</h4>
+              <div className={`rounded-xl border-2 p-4 space-y-4 ${
+                (form.regularCharge || form.customCharge) 
+                  ? 'border-green-200 bg-green-50/50' 
+                  : 'border-orange-100 bg-orange-50/50'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-gray-900">Manual Charges (Invoice Calculation)</h4>
+                  {(form.regularCharge || form.customCharge) && (
+                    <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                      Active
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-gray-600">
-                  Total Invoice = Regular Charge + Custom Charge
+                  When set, invoice will use ONLY these charges (no weight/shipping cost). Total Invoice = Regular Charge + Custom Charge
                 </p>
                 
                 <div className="grid gap-4 md:grid-cols-2">
