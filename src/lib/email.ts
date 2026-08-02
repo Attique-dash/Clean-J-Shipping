@@ -2,7 +2,7 @@ import * as nodemailer from "nodemailer";
 import { format } from 'date-fns';
 import type { IInvoice } from '@/models/Invoice';
 import type { KcdPackage } from "@/types/kcd-package";
-import { PACKAGE_STATUS_MAP } from "@/lib/tasoko-constants";
+import { getExternalStatusLabel } from "@/lib/mappings";
 
 const SMTP_USER = process.env.SMTP_USER || process.env.SMTP_USER;
 const EMAIL_PASS = process.env.EMAIL_PASS || process.env.SMTP_PASS || process.env.SMTP_PASS;
@@ -219,14 +219,10 @@ function buildPackageInfoTableRows(opts: {
   kcdPackage?: Partial<KcdPackage>;
 }): string {
   const pkg = opts.kcdPackage;
-  // Fixed: Safely access PACKAGE_STATUS_MAP with type checking
+  // Use getExternalStatusLabel to match admin portal status labels
   let statusLabel = opts.status;
   if (pkg?.PackageStatus !== undefined && pkg.PackageStatus !== null) {
-    const statusKey = String(pkg.PackageStatus);
-    // Check if the key exists in PACKAGE_STATUS_MAP
-    if (statusKey in PACKAGE_STATUS_MAP) {
-      statusLabel = PACKAGE_STATUS_MAP[statusKey as keyof typeof PACKAGE_STATUS_MAP] || opts.status;
-    }
+    statusLabel = getExternalStatusLabel(pkg.PackageStatus);
   }
 
   const weightVal = pkg?.Weight ?? opts.weight;

@@ -967,14 +967,21 @@ function AdminAddPackagePageContent() {
               }`}>
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-semibold text-gray-900">Manual Charges (Invoice Calculation)</h4>
-                  {(form.regularCharge || form.customCharge) && (
+                  {(form.regularCharge || form.customCharge) ? (
                     <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
                       Active
                     </span>
-                  )}
+                  ) : form.totalAmount && parseFloat(form.totalAmount) > 0 ? (
+                    <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">
+                      Disabled
+                    </span>
+                  ) : null}
                 </div>
                 <p className="text-xs text-gray-600">
-                  When set, invoice will use ONLY these charges (no weight/shipping cost). Total Invoice = Regular Charge + Custom Charge
+                  {form.totalAmount && parseFloat(form.totalAmount) > 0
+                    ? "Disabled when Total amount is set. Clear Total amount to use manual charges."
+                    : "When set, invoice will use ONLY these charges (no weight/shipping cost). Total Invoice = Regular Charge + Custom Charge"
+                  }
                 </p>
                 
                 <div className="grid gap-4 md:grid-cols-2">
@@ -986,12 +993,17 @@ function AdminAddPackagePageContent() {
                       type="number"
                       step="0.01"
                       min="0"
-                      className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      className={`block w-full rounded-lg border-2 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 transition-all ${
+                        form.totalAmount && parseFloat(form.totalAmount) > 0
+                          ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                          : 'border-gray-300 focus:border-blue-500'
+                      }`}
                       placeholder="0.00"
                       value={form.regularCharge}
                       onChange={(e) =>
                         setForm({ ...form, regularCharge: e.target.value })
                       }
+                      disabled={!!(form.totalAmount && parseFloat(form.totalAmount) > 0)}
                     />
                   </div>
                   
@@ -1003,12 +1015,17 @@ function AdminAddPackagePageContent() {
                       type="number"
                       step="0.01"
                       min="0"
-                      className="block w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      className={`block w-full rounded-lg border-2 px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 transition-all ${
+                        form.totalAmount && parseFloat(form.totalAmount) > 0
+                          ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                          : 'border-gray-300 focus:border-blue-500'
+                      }`}
                       placeholder="0.00"
                       value={form.customCharge}
                       onChange={(e) =>
                         setForm({ ...form, customCharge: e.target.value })
                       }
+                      disabled={!!(form.totalAmount && parseFloat(form.totalAmount) > 0)}
                     />
                   </div>
                 </div>
