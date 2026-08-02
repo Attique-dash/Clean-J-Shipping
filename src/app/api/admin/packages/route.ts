@@ -272,8 +272,9 @@ export async function GET(req: Request) {
         'Coloaded', 'ColoadIndicator', 'PackageStatus', 'PackagePayments',
         // Payment fields - explicitly select to ensure they're returned
         'paymentStatus', 'amountPaid', 'paymentMethod', 'totalAmount',
-        // Manual charge fields
+        // Manual charge fields (both camelCase and snake_case for legacy support)
         'regularCharge', 'customCharge', 'chargeCurrency',
+        'regular_charge', 'custom_charge', 'charge_currency',
         // Other fields
         'createdAt', 'updatedAt', 'weightLbs', 'itemValueUsd', 'pricePaid',
         'pricePaidCurrency', 'customerEmail', 'customerPhone', 'dateReceived',

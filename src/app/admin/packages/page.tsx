@@ -33,6 +33,7 @@ import {
   logKcdPackages,
   logKcdPackageConsole,
   getPackageChargeTotals,
+  getDisplayTotal,
 } from '@/lib/package-format';
 import PackageDetailsPanel from '@/components/packages/PackageDetailsPanel';
 
@@ -854,8 +855,8 @@ export default function AdminPackagesPage() {
                       </td>
                       <td className="px-6 py-4 text-sm font-bold text-gray-900">
                         {(() => {
-                          const charges = getPackageChargeTotals(pkg);
-                          return formatPackageAmount(charges.manualTotal, charges.currency);
+                          const displayTotal = getDisplayTotal(pkg);
+                          return formatPackageAmount(displayTotal.total, displayTotal.currency);
                         })()}
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-green-600">{formatPkgAmount(pkg, pkg.amountPaid || 0)}</td>
