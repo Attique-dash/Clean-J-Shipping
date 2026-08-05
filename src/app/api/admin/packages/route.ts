@@ -478,29 +478,29 @@ export async function POST(req: Request) {
     //   console.error('Failed to create pre-alert for admin package:', preAlertError);
     // }
 
-    // Create billing invoice automatically when package is added
-    let billingInvoice: { _id: any } | null = null;
-    try {
-      billingInvoice = await createBillingInvoice(
-        created.toObject() as Record<string, unknown> & { _id: unknown },
-        user,
-        asString(trackingNumber)
-      );
-      if (billingInvoice) {
-        await Package.findByIdAndUpdate(created._id, {
-          $set: {
-            billingInvoiceId: billingInvoice._id,
-            invoiceStatus: 'billed',
-            invoiceUploaded: false
-          }
-        });
-        console.log(`[Admin Package Create] Billing invoice ${billingInvoice._id} created and linked to package ${created._id}`);
-      }
-    } catch (invoiceError) {
-      console.error('Failed to create billing invoice:', invoiceError);
-    }
+    // DISABLED: Auto-create billing invoice removed - manual billing only
+    // let billingInvoice: { _id: any } | null = null;
+    // try {
+    //   billingInvoice = await createBillingInvoice(
+    //     created.toObject() as Record<string, unknown> & { _id: unknown },
+    //     user,
+    //     asString(trackingNumber)
+    //   );
+    //   if (billingInvoice) {
+    //     await Package.findByIdAndUpdate(created._id, {
+    //       $set: {
+    //         billingInvoiceId: billingInvoice._id,
+    //         invoiceStatus: 'billed',
+    //         invoiceUploaded: false
+    //       }
+    //     });
+    //     console.log(`[Admin Package Create] Billing invoice ${billingInvoice._id} created and linked to package ${created._id}`);
+    //   }
+    // } catch (invoiceError) {
+    //   console.error('Failed to create billing invoice:', invoiceError);
+    // }
 
-    // Send email notification to customer with invoice PDF if billing invoice was created
+    // Send email notification to customer (no invoice)
     let customerEmailResult: { sent: boolean; reason?: string } | undefined;
     try {
       const { sendNewPackageEmail } = await import('@/lib/email');
@@ -533,7 +533,6 @@ export async function POST(req: Request) {
         warehouse: asString(branch) || 'Main Warehouse',
         receivedBy: payload?.name || 'Admin',
         receivedDate: new Date(),
-        invoiceId: billingInvoice?._id?.toString(),
         description: asString(description),
         itemDescription: asString(description),
         warehouseAddresses: warehouseAddresses,

@@ -20,7 +20,6 @@ export async function POST(
 
   try {
     const body = await req.json();
-    const { goodsCost = 0, goodsDescription = '' } = body;
     
     // Get package details
     const pkg = await Package.findById(packageId).populate('userId');
@@ -31,6 +30,16 @@ export async function POST(
     const user = pkg.userId as unknown as { _id: string; firstName?: string; lastName?: string; email: string; };
     if (!user) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    }
+
+    // Use manual charges only (regularCharge + customCharge)
+    const regularCharge = pkg.regularCharge || 0;
+    const customCharge = pkg.customCharge || 0;
+    const totalAmount = regularCharge + customCharge;
+    const currency = pkg.chargeCurrency || 'JMD';
+
+    if (totalAmount === 0) {
+      return NextResponse.json({ error: "No charges defined. Please set Regular Charge and/or Custom Charge before generating invoice." }, { status: 400 });
     }
 
     // Create customer object for invoice generation
@@ -47,7 +56,7 @@ export async function POST(
       country: 'Jamaica'
     };
 
-    // Generate invoice using the new system
+    // Generate invoice using only manual charges
     const invoiceResult = await generateInvoiceForPackage(
       {
         trackingNumber: pkg.trackingNumber,
@@ -56,14 +65,15 @@ export async function POST(
         weight: pkg.weight,
         shipper: pkg.shipper,
         description: pkg.description,
-        shippingCost: pkg.shippingCost,
-        totalAmount: pkg.shippingCost + goodsCost,
+        shippingCost: 0, // No auto shipping cost
+        totalAmount: totalAmount, // Only manual charges
         entryDate: pkg.entryDate || pkg.createdAt
       },
       {
-        goodsCost,
-        goodsDescription: goodsDescription || `Goods from ${pkg.shipper || 'supplier'}`,
-        includeShipping: true
+        regularCharge,
+        customCharge,
+        currency,
+        includeShipping: false // No auto shipping charges
       }
     );
 
@@ -80,18 +90,18 @@ export async function POST(
         issueDate: new Date(),
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
         items: [
-          ...(goodsCost > 0 ? [{
-            description: goodsDescription || `Goods from ${pkg.shipper}`,
+          ...(regularCharge > 0 ? [{
+            description: 'Regular Charge',
             quantity: 1,
-            unitPrice: goodsCost,
-            total: goodsCost,
+            unitPrice: regularCharge,
+            total: regularCharge,
           }] : []),
-          {
-            description: `Shipping - ${pkg.description || 'Package'} (${pkg.trackingNumber})`,
+          ...(customCharge > 0 ? [{
+            description: 'Custom Charge',
             quantity: 1,
-            unitPrice: pkg.shippingCost,
-            total: pkg.shippingCost,
-          }
+            unitPrice: customCharge,
+            total: customCharge,
+          }] : []),
         ],
         subtotal: total,
         discountPercentage: 0,
@@ -99,14 +109,14 @@ export async function POST(
         taxRate: 0,
         taxAmount: 0,
         total,
-        currency: "JMD",
+        currency: currency,
         status: "sent",
         createdBy: payload._id || payload.email,
         metadata: {
           packageId: pkg._id,
           trackingNumber: pkg.trackingNumber,
-          goodsCost,
-          goodsDescription,
+          regularCharge,
+          customCharge,
         },
       });
 
@@ -116,12 +126,14 @@ export async function POST(
           invoiceRecords: {
             invoiceNumber,
             invoiceDate: new Date(),
-            currency: "JMD",
+            currency: currency,
             totalValue: total,
             status: "sent",
           }
         },
         paymentStatus: "pending",
+        totalAmount: total,
+        chargeCurrency: currency,
       });
 
       return NextResponse.json({

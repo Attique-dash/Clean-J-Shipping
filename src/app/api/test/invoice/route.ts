@@ -27,14 +27,15 @@ export async function POST(request: NextRequest) {
         weight: 2.5,
         shipper: 'Amazon',
         description: 'Test package with electronics',
-        shippingCost: 700,
-        totalAmount: 2700, // 700 shipping + 2000 goods
+        shippingCost: 0,
+        totalAmount: 2700, // regularCharge + customCharge
         entryDate: new Date()
       },
       {
-        goodsCost: 2000,
-        goodsDescription: 'Electronics from Amazon',
-        includeShipping: true
+        regularCharge: 1500,
+        customCharge: 1200,
+        currency: 'JMD',
+        includeShipping: false
       }
     );
 

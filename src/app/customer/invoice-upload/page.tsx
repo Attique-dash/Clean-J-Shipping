@@ -67,6 +67,7 @@ function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () =
   const tn = getTrack(pkg);
   const [price, setPrice] = useState(pkg.pricePaid?.toString() || "0");
   const [currency, setCurrency] = useState(pkg.pricePaidCurrency || "USD");
+  const [description, setDescription] = useState(pkg.description || "");
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -84,11 +85,12 @@ function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () =
     const p = parseFloat(price);
     if (!p || p <= 0) { toast.error("Enter a valid price"); return; }
     if (files.length === 0) { toast.error("Upload at least one file"); return; }
+    if (!description.trim()) { toast.error("Enter a description of goods"); return; }
     setSubmitting(true);
     try {
       const fd = new FormData();
       files.forEach(f => fd.append("files_0", f));
-      fd.append("upload_0", JSON.stringify({ tracking_number: tn, price_paid: p, currency }));
+      fd.append("upload_0", JSON.stringify({ tracking_number: tn, price_paid: p, currency, description }));
       const res = await fetch("/api/customer/invoice-upload", { method: "POST", body: fd, credentials: "include" });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || data?.message || "Failed");
@@ -126,6 +128,16 @@ function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () =
                 ))}
               </select>
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Description of Goods <span className="text-red-500">*</span></label>
+            <textarea 
+              placeholder="e.g., Electronics, Clothing, Household items" 
+              value={description} 
+              onChange={e=>setDescription(e.target.value)} 
+              className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0f4d8a] focus:border-transparent text-sm"
+              rows={2}
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Invoice Files <span className="text-red-500">*</span></label>
@@ -183,6 +195,15 @@ export default function CustomerInvoiceUploadPage() {
   const [uploadPkg, setUploadPkg] = useState<PackageData | null>(null);
   const [deletePkg, setDeletePkg] = useState<PackageData | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Handle ?tracking= URL parameter to pre-select package
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const trackingParam = params.get('tracking');
+    if (trackingParam) {
+      setQuery(trackingParam);
+    }
+  }, []);
 
   const handleDeleteInvoice = async (pkg: PackageData) => {
     if (!confirm(`Are you sure you want to delete the invoice for ${getTrack(pkg)}? This action cannot be undone.`)) {

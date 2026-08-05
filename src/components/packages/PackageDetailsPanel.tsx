@@ -1,6 +1,6 @@
 'use client';
 
-import { Package, User, Truck } from 'lucide-react';
+import { Package, User, Truck, FileText } from 'lucide-react';
 import type { KcdPackageRecord } from '@/types/kcd-package';
 import {
   formatPackageAmount,
@@ -145,6 +145,54 @@ export default function PackageDetailsPanel({
           <DetailRow label="Invoice status" value={pkg.invoiceStatus || 'pending'} />
         </div>
       </div>
+
+      {(pkg as any).customerInvoice && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-6">
+          <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <FileText className="h-5 w-5 text-amber-600" />
+            Customer Invoice
+          </h4>
+          <div className="grid gap-2 md:grid-cols-2">
+            <DetailRow 
+              label="Amount" 
+              value={`${(pkg as any).customerInvoice.amount} ${(pkg as any).customerInvoice.currency}`} 
+            />
+            <DetailRow 
+              label="Description" 
+              value={(pkg as any).customerInvoice.description || 'N/A'} 
+            />
+            <DetailRow 
+              label="Submitted" 
+              value={(pkg as any).customerInvoice.submittedAt 
+                ? new Date((pkg as any).customerInvoice.submittedAt).toLocaleDateString() 
+                : 'N/A'} 
+            />
+            <DetailRow 
+              label="Files" 
+              value={`${(pkg as any).customerInvoice.files?.length || 0} uploaded`} 
+            />
+          </div>
+          {(pkg as any).customerInvoice.files && (pkg as any).customerInvoice.files.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-sm font-medium text-gray-700">Uploaded Files:</p>
+              {(pkg as any).customerInvoice.files.map((file: any, idx: number) => (
+                <div key={idx} className="flex items-center gap-2 text-sm bg-white rounded px-3 py-2 border border-amber-200">
+                  <FileText className="h-4 w-4 text-amber-600" />
+                  <span className="truncate flex-1">{file.filename || 'Invoice file'}</span>
+                  <a 
+                    href={file.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    View
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

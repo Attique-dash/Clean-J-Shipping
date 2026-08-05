@@ -171,12 +171,12 @@ export async function POST(request: Request) {
             continue;
           }
 
-          // Calculate shipping costs
+          // Calculate shipping costs (for display only - no auto-charges)
           const weightNum = asNumber(Weight);
           const weightLbs = weightNum * 2.20462;
           const shippingCostJmd = calcShippingCostJmd(weightLbs);
 
-          // Create or update package
+          // Create or update package (no auto-charges)
           const packageData = {
             trackingNumber: TrackingNumber,
             userCode: UserCode,
@@ -195,8 +195,11 @@ export async function POST(request: Request) {
             courierId: CourierID || '',
             entryDate: EntryDate ? new Date(EntryDate) : new Date(),
             entryDateTime: EntryDateTime ? new Date(EntryDateTime) : new Date(),
-            shippingCost: shippingCostJmd,
-            totalAmount: shippingCostJmd,
+            shippingCost: shippingCostJmd, // For display only
+            totalAmount: 0, // No auto-charges
+            regularCharge: 0, // Manual billing only
+            customCharge: 0, // Manual billing only
+            chargeCurrency: 'JMD',
             paymentMethod: 'cash',
             packageType: 'parcel',
             serviceType: 'standard',
@@ -217,25 +220,27 @@ export async function POST(request: Request) {
             { upsert: true, new: true, session }
           );
 
-          // Generate invoice automatically
-          const invoiceResult = await generateInvoiceForPackage(
-            {
-              trackingNumber: TrackingNumber,
-              userId: customer._id.toString(),
-              customer,
-              weight: weightNum,
-              shipper: Shipper || '',
-              description: Description || '',
-              shippingCost: shippingCostJmd,
-              totalAmount: shippingCostJmd + (asNumber(GoodsCost) || 0),
-              entryDate: EntryDate ? new Date(EntryDate) : new Date()
-            },
-            {
-              goodsCost: asNumber(GoodsCost) || 0,
-              goodsDescription: GoodsDescription || `Goods from ${Shipper || 'supplier'}`,
-              includeShipping: true
-            }
-          );
+          // DISABLED: Auto-invoice generation removed - manual billing only
+          // const invoiceResult = await generateInvoiceForPackage(
+          //   {
+          //     trackingNumber: TrackingNumber,
+          //     userId: customer._id.toString(),
+          //     customer,
+          //     weight: weightNum,
+          //     shipper: Shipper || '',
+          //     description: Description || '',
+          //     shippingCost: 0,
+          //     totalAmount: 0,
+          //     entryDate: EntryDate ? new Date(EntryDate) : new Date()
+          //   },
+          //   {
+          //     regularCharge: 0,
+          //     customCharge: 0,
+          //     currency: 'JMD',
+          //     includeShipping: false
+          //   }
+          // );
+          const invoiceResult = { success: false, error: 'Auto-invoice disabled' };
 
           console.log('Invoice generation result:', invoiceResult);
 
@@ -257,10 +262,10 @@ export async function POST(request: Request) {
             EntryDateTime: populatedPkg.entryDateTime,
             Branch: populatedPkg.branch,
             PackageStatus: populatedPkg.status,
-            InvoiceGenerated: invoiceResult.success,
-            InvoiceNumber: invoiceResult.success ? invoiceResult.invoiceNumber : null,
-            PaymentLink: invoiceResult.success ? invoiceResult.paymentLink : null,
-            InvoiceError: invoiceResult.success ? null : invoiceResult.error,
+            InvoiceGenerated: false, // Auto-invoice disabled
+            InvoiceNumber: null,
+            PaymentLink: null,
+            InvoiceError: 'Auto-invoice disabled - manual billing only',
             PackagePayments: {
               totalAmount: populatedPkg.totalAmount,
               shippingCost: populatedPkg.shippingCost,

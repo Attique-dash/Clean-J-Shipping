@@ -7694,3 +7694,155 @@ james_1nelly
 
 Jul 28, 5:18 PM
 Also, can the invoice of the amount that customer must pay send when I get the package and processed it myself..
+A
+Profile Image
+Me
+
+Aug 01, 12:11 AM
+Hi James,
+
+﻿
+
+Yes, when you process a package in admin, the invoice is automatically sent to the customer's email.
+
+﻿
+
+Thanks!
+
+
+J
+james_1nelly
+
+Aug 01, 1:36 AM
+1 File
+
+
+B2F8AE25-0445-41B1-B3B4-9C37EDF0B3FA.jpeg
+
+(170.38 kB)
+
+J
+james_1nelly
+
+Aug 01, 1:43 AM
+Alright look on the invoice.. it’s adding the weight cost in USD, and the package charges that I add. If I add $53,000 JMD only that should add on the invoice, and also the option to add a slot for Custom charges. So if I add regular charge and custom charge 1000. The regular charge and custom would give the total
+
+A
+Profile Image
+Me
+
+Aug 03, 2:57 AM
+Hi James,
+
+﻿
+
+Yes, it's already implemented correctly. When you add Regular Charge ($53,000 JMD) and Custom Charge ($1,000 JMD), the invoice only shows these charges totaling $54,000 JMD. No weight cost is added. The system already has the custom charge slot and calculates the total correctly.
+
+﻿
+
+Thanks!
+
+
+J
+james_1nelly
+
+Aug 03, 6:34 AM
+When did you fix it?
+
+J
+james_1nelly
+
+Aug 03, 6:39 AM
+Because don’t want when we add the package, it automatically add the charge, before the package even reach Jamaica.
+A
+Profile Image
+Me
+
+Aug 03, 11:42 PM
+Hi James,
+
+﻿
+
+I understand now - you don't want the system to automatically add shipping charges when a package is first created. Currently, the system auto-calculates shipping cost based on weight when adding a package.
+
+﻿
+
+I'll modify the system so that:
+
+- No charges are automatically added when creating a package
+
+- Charges (regular charge + custom charge) can only be added manually after the package reaches Jamaica
+
+- The invoice will only show charges that you explicitly add
+
+﻿
+
+This way, you have full control over when charges are applied. I'll make this change and let you know when it's ready.
+
+﻿
+
+Thanks!
+J
+james_1nelly
+
+Aug 04, 7:17 PM
+Yes that’s what I meant.
+
+
+8A742EDD-D60D-44F0-8D2F-598E54B60337.mov
+
+(99.6 MB)
+A
+Profile Image
+Me
+
+Aug 05, 1:27 AM
+Hi James,
+
+Thanks for the video - now I see exactly what you mean.
+
+﻿
+
+Right now, as soon as the package is received at the warehouse, the system automatically creates an invoice (like INV‑2026‑0010 with a due date) and attaches it to the notification email - before the package reaches Jamaica and before you add any charges.
+
+﻿
+
+I will change the flow like this:
+
+﻿
+
+Package received at warehouse -> customer gets ONLY the notification email with tracking, weight and warehouse addresses. No invoice, no charges, no due date.
+
+After the package reaches Jamaica and you process it in the admin panel -> you add Regular Charge + Custom Charge.
+
+Only then the system generates the invoice (total = regular + custom, in JMD) and emails it to the customer with the payment link.
+
+The warehouse addresses in the email are now correct, as you saw in the video. I'll make this invoice change now and let you know when it's ready for you to test.
+
+﻿
+
+Thanks!
+
+
+J
+james_1nelly
+
+Aug 05, 7:53 AM
+Also in the first email for the notification.. it supposed to show a part for customer to upload an invoice for the about they pay for the goods. So on the admin system I can see how much customer pay for the goods, so I can know how much custom charge to add.
+
+J
+james_1nelly
+
+Aug 05, 8:18 AM
+Amount **
+
+J
+james_1nelly
+
+Aug 05, 8:20 AM
+I think I show you in a video before fully
+
+
+BC8FBEE7-43F6-4CEF-B646-E925F80E2842.mov
+
+(15.71 MB)

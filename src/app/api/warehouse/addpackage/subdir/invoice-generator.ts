@@ -16,8 +16,9 @@ interface PackageData {
 }
 
 interface InvoiceGenerationOptions {
-  goodsCost?: number; // Cost of items from Amazon/eBay
-  goodsDescription?: string; // Description of goods
+  regularCharge?: number; // Manual regular charge
+  customCharge?: number; // Manual custom charge
+  currency?: string; // Currency for charges (default JMD)
   includeShipping?: boolean; // Whether to include shipping cost
 }
 
@@ -38,27 +39,42 @@ export async function generateInvoiceForPackage(
       entryDate
     } = packageData;
 
-    const { goodsCost = 0, goodsDescription = '', includeShipping = true } = options;
+    const { regularCharge = 0, customCharge = 0, currency = 'JMD', includeShipping = false } = options;
 
     // Create invoice items
     const items = [];
 
-    // Add goods cost if provided
-    if (goodsCost > 0) {
+    // Add regular charge if provided
+    if (regularCharge > 0) {
       items.push({
-        description: goodsDescription || `Goods from ${shipper}`,
+        description: 'Regular Charge',
         quantity: 1,
-        unitPrice: goodsCost,
+        unitPrice: regularCharge,
         taxRate: 0,
-        amount: goodsCost,
+        amount: regularCharge,
         taxAmount: 0,
-        total: goodsCost,
+        total: regularCharge,
         trackingNumber,
-        serviceType: 'goods'
+        serviceType: 'regular'
       });
     }
 
-    // Add shipping cost
+    // Add custom charge if provided
+    if (customCharge > 0) {
+      items.push({
+        description: 'Custom Charge',
+        quantity: 1,
+        unitPrice: customCharge,
+        taxRate: 0,
+        amount: customCharge,
+        taxAmount: 0,
+        total: customCharge,
+        trackingNumber,
+        serviceType: 'custom'
+      });
+    }
+
+    // Only add shipping cost if explicitly requested (disabled by default)
     if (includeShipping && shippingCost > 0) {
       items.push({
         description: `Shipping for ${trackingNumber}`,
@@ -92,12 +108,12 @@ export async function generateInvoiceForPackage(
       issueDate: new Date(),
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
       paymentTerms: 7,
-      currency: 'JMD',
+      currency: currency,
       exchangeRate: 1,
       notes: `Package ${trackingNumber} received on ${entryDate.toLocaleDateString()}`,
       tracking_number: trackingNumber,
       item_description: description,
-      declared_value: goodsCost
+      declared_value: 0 // No declared value for manual billing
     });
 
     // Calculate totals automatically via pre-save hook

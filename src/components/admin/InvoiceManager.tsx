@@ -35,8 +35,9 @@ interface PackageData {
   invoiceGenerated?: boolean;
   invoiceNumber?: string;
   paymentLink?: string;
-  goodsCost?: number;
-  goodsDescription?: string;
+  regularCharge?: number;
+  customCharge?: number;
+  chargeCurrency?: string;
 }
 
 export default function InvoiceManager() {
@@ -44,9 +45,10 @@ export default function InvoiceManager() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPackage, setSelectedPackage] = useState<PackageData | null>(null);
-  const [showGoodsModal, setShowGoodsModal] = useState(false);
-  const [goodsCost, setGoodsCost] = useState('');
-  const [goodsDescription, setGoodsDescription] = useState('');
+  const [showChargeModal, setShowChargeModal] = useState(false);
+  const [regularCharge, setRegularCharge] = useState('');
+  const [customCharge, setCustomCharge] = useState('');
+  const [chargeCurrency, setChargeCurrency] = useState('JMD');
 
   useEffect(() => {
     fetchPackages();
@@ -67,22 +69,38 @@ export default function InvoiceManager() {
 
   const handleGenerateInvoice = async (pkg: PackageData) => {
     try {
+      // First update the package with the charges using PUT method
+      const updateResponse = await fetch(`/api/admin/packages/${pkg._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          regularCharge: parseFloat(regularCharge) || 0,
+          customCharge: parseFloat(customCharge) || 0,
+          chargeCurrency: chargeCurrency
+        })
+      });
+
+      if (!updateResponse.ok) {
+        alert('Error updating package charges');
+        return;
+      }
+
+      // Then generate the invoice
       const response = await fetch(`/api/admin/packages/${pkg._id}/invoice`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          goodsCost: parseFloat(goodsCost) || 0,
-          goodsDescription: goodsDescription || `Goods from ${pkg.shipper}`
-        })
+        body: JSON.stringify({}) // No body needed - uses package's regularCharge and customCharge
       });
 
       const result = await response.json();
       
       if (result.success) {
-        alert(`Invoice ${result.invoiceNumber} generated successfully!`);
-        setShowGoodsModal(false);
+        alert(`Invoice ${result.invoice_number} generated successfully!`);
+        setShowChargeModal(false);
         fetchPackages(); // Refresh data
       } else {
         alert(`Error: ${result.error}`);
@@ -179,12 +197,14 @@ export default function InvoiceManager() {
                       </td>
                       <td className="py-3 px-4">{pkg.shipper}</td>
                       <td className="py-3 px-4">{pkg.weight} kg</td>
-                      <td className="py-3 px-4">JMD {pkg.shippingCost.toFixed(2)}</td>
                       <td className="py-3 px-4">
-                        {pkg.goodsCost ? `JMD ${pkg.goodsCost.toFixed(2)}` : '-'}
+                        {pkg.regularCharge ? `${pkg.chargeCurrency || 'JMD'} ${pkg.regularCharge.toFixed(2)}` : '-'}
+                      </td>
+                      <td className="py-3 px-4">
+                        {pkg.customCharge ? `${pkg.chargeCurrency || 'JMD'} ${pkg.customCharge.toFixed(2)}` : '-'}
                       </td>
                       <td className="py-3 px-4 font-medium">
-                        JMD {pkg.totalAmount.toFixed(2)}
+                        {pkg.chargeCurrency || 'JMD'} {((pkg.regularCharge || 0) + (pkg.customCharge || 0)).toFixed(2)}
                       </td>
                       <td className="py-3 px-4">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
@@ -227,9 +247,10 @@ export default function InvoiceManager() {
                               size="sm"
                               onClick={() => {
                                 setSelectedPackage(pkg);
-                                setShowGoodsModal(true);
-                                setGoodsCost(pkg.goodsCost?.toString() || '');
-                                setGoodsDescription(pkg.goodsDescription || '');
+                                setShowChargeModal(true);
+                                setRegularCharge(pkg.regularCharge?.toString() || '');
+                                setCustomCharge(pkg.customCharge?.toString() || '');
+                                setChargeCurrency(pkg.chargeCurrency || 'JMD');
                               }}
                             >
                               <Plus className="h-3 w-3 mr-1" />
@@ -257,8 +278,8 @@ export default function InvoiceManager() {
         </CardContent>
       </Card>
 
-      {/* Goods Cost Modal */}
-      {showGoodsModal && selectedPackage && (
+      {/* Charge Modal */}
+      {showChargeModal && selectedPackage && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <Card className="w-full max-w-md">
             <CardHeader>
@@ -276,46 +297,41 @@ export default function InvoiceManager() {
                   Customer: <strong>{selectedPackage.customer.firstName} {selectedPackage.customer.lastName}</strong>
                 </p>
               </div>
-
               <div>
-                <label htmlFor="shippingCost" className="text-sm font-medium">Shipping Cost</label>
+                <label className="block text-sm font-medium mb-1">Regular Charge (JMD)</label>
                 <Input
-                  id="shippingCost"
-                  value={`JMD ${selectedPackage.shippingCost.toFixed(2)}`}
-                  disabled
-                  className="bg-gray-50"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="goodsCost" className="text-sm font-medium">Cost of Goods (Amazon/eBay/etc.)</label>
-                <Input
-                  id="goodsCost"
                   type="number"
+                  value={regularCharge}
+                  onChange={(e) => setRegularCharge(e.target.value)}
                   placeholder="0.00"
-                  value={goodsCost}
-                  onChange={(e) => setGoodsCost(e.target.value)}
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Enter the amount paid for the items in this package
-                </p>
               </div>
-
               <div>
-                <label htmlFor="goodsDescription" className="text-sm font-medium">Goods Description</label>
+                <label className="block text-sm font-medium mb-1">Custom Charge (JMD)</label>
                 <Input
-                  id="goodsDescription"
-                  placeholder="e.g., Electronics from Amazon"
-                  value={goodsDescription}
-                  onChange={(e) => setGoodsDescription(e.target.value)}
+                  type="number"
+                  value={customCharge}
+                  onChange={(e) => setCustomCharge(e.target.value)}
+                  placeholder="0.00"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Currency</label>
+                <select
+                  value={chargeCurrency}
+                  onChange={(e) => setChargeCurrency(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="JMD">JMD</option>
+                  <option value="USD">USD</option>
+                </select>
               </div>
 
               <div className="pt-2 border-t">
                 <div className="flex justify-between items-center mb-4">
                   <span className="font-medium">Total Invoice Amount:</span>
                   <span className="text-lg font-bold text-blue-600">
-                    JMD {(selectedPackage.shippingCost + (parseFloat(goodsCost) || 0)).toFixed(2)}
+                    {chargeCurrency} {((parseFloat(regularCharge) || 0) + (parseFloat(customCharge) || 0)).toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -323,7 +339,7 @@ export default function InvoiceManager() {
               <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  onClick={() => setShowGoodsModal(false)}
+                  onClick={() => setShowChargeModal(false)}
                   className="flex-1"
                 >
                   Cancel

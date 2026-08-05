@@ -345,6 +345,16 @@ export async function POST(req: Request) {
           continue;
         }
 
+        // Validate description field
+        if (!upload.description || !upload.description.trim()) {
+          results.push({
+            tracking_number: upload.tracking_number,
+            success: false,
+            error: "Description of goods is required"
+          });
+          continue;
+        }
+
         // Validate minimum price based on weight (minimum $1 per kg or $5 total)
         const minPricePerKg = 1.0; // $1 per kg minimum
         const absoluteMinPrice = 5.0; // $5 absolute minimum
@@ -446,7 +456,7 @@ export async function POST(req: Request) {
           continue;
         }
 
-        // Update package with invoice information and Cloudinary file data
+        // Update package with customer invoice information
         await Package.findByIdAndUpdate(
           pkg._id,
           { 
@@ -456,7 +466,14 @@ export async function POST(req: Request) {
               pricePaid: upload.price_paid,
               pricePaidCurrency: upload.currency,
               invoiceSubmittedAt: new Date(),
-              invoiceStatus: 'submitted'
+              invoiceStatus: 'submitted',
+              customerInvoice: {
+                amount: upload.price_paid,
+                currency: upload.currency,
+                description: upload.description,
+                files: cloudinaryFiles,
+                submittedAt: new Date()
+              }
             }
           }
         );

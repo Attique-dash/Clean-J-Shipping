@@ -306,7 +306,6 @@ export async function sendNewPackageEmail(opts: {
   warehouse?: string;
   receivedBy?: string;
   receivedDate?: Date;
-  invoiceId?: string; // NEW: Optional invoice ID to attach PDF
   description?: string; // Package description/contents
   itemDescription?: string; // Item description
   warehouseAddresses?: {
@@ -321,7 +320,7 @@ export async function sendNewPackageEmail(opts: {
   const t = getTransporter();
   if (!t) return { sent: false, reason: "Email not configured" };
 
-  const { to, firstName, trackingNumber, status, weight, shipper, warehouse, receivedBy, receivedDate, invoiceId, description, itemDescription, warehouseAddresses, userCode, kcdPackage } = opts;
+  const { to, firstName, trackingNumber, status, weight, shipper, warehouse, receivedBy, receivedDate, description, itemDescription, warehouseAddresses, userCode, kcdPackage } = opts;
 
   const subject = `Package Received at Warehouse — ${trackingNumber}`;
   const receivedDateStr = receivedDate ? new Date(receivedDate).toLocaleString() : new Date().toLocaleString();
@@ -344,114 +343,6 @@ export async function sendNewPackageEmail(opts: {
     kcdPackage,
   });
   
-  // Try to generate and attach invoice PDF if invoiceId is provided
-  const attachments: Array<{ filename: string; path: string; contentType: string }> = [];
-  let invoiceSummaryHtml = '';
-  if (invoiceId) {
-    try {
-      const { dbConnect } = await import('@/lib/db');
-      const Invoice = (await import('@/models/Invoice')).default;
-      const { generateInvoicePdf } = await import('@/lib/pdfGenerator');
-      const { CurrencyService } = await import('@/lib/currency-service');
-      
-      await dbConnect();
-      const invoice = await Invoice.findById(invoiceId).lean<IInvoice | null>();
-      
-      if (invoice) {
-        const company = {
-          name: APP_NAME,
-          address: formatAddress(process.env.COMPANY_ADDRESS || process.env.APP_ADDRESS || ''),
-          city: process.env.COMPANY_CITY || process.env.APP_CITY || '',
-          state: process.env.COMPANY_STATE || '',
-          zip: process.env.COMPANY_ZIP || '',
-          country: process.env.COMPANY_COUNTRY || '',
-          phone: process.env.COMPANY_PHONE || '',
-          email: ADMIN_EMAIL || "info@cleanjshipping.com",
-          website: APP_URL || "https://cleanjshipping.com",
-        };
-        
-        const pdfResult = await generateInvoicePdf({
-          invoice: invoice as any,
-          company,
-        });
-        
-        attachments.push({
-          filename: pdfResult.fileName,
-          path: pdfResult.filePath,
-          contentType: 'application/pdf',
-        });
-
-        // Get correct currency from invoice
-        const currencyCode = (invoice.currency || 'JMD').toUpperCase();
-        console.log(`[Email Invoice] Currency code: ${currencyCode}`);
-
-        const currencyInfo = CurrencyService.getCurrencyInfo(currencyCode);
-        const currencySymbol = currencyInfo?.symbol || getCurrencySymbolFallback(currencyCode);
-
-        console.log(`[Email Invoice] Currency symbol: ${currencySymbol}`);
-
-        const formatMoney = (value: number) => {
-          const formatted = `${currencySymbol}${value.toFixed(2)}`;
-          console.log(`[Email Invoice] Format ${value} to ${formatted}`);
-          return formatted;
-        };
-
-        // Add fallback for unknown currencies
-        function getCurrencySymbolFallback(code: string): string {
-          const symbols: Record<string, string> = {
-            'USD': '$', 'EUR': '€', 'GBP': '£', 'JMD': 'J$',
-            'CHF': 'CHF', 'GHC': 'GH₵', 'INR': '₹', 'PKR': 'Rs',
-            'CAD': 'C$', 'AUD': 'A$', 'SGD': 'S$'
-          };
-          return symbols[code] || code;
-        }
-        const invoiceItemsRows = (invoice.items || [])
-          .map((item) => {
-            const description = item.description || 'Item';
-            const qty = item.quantity ?? 1;
-            const unit = formatMoney(item.unitPrice || 0);
-            const total = formatMoney(item.total || 0);
-            return `
-              <tr>
-                <td style="padding:8px 10px;border:1px solid #e5e7eb;">${escapeHtml(description)}</td>
-                <td style="padding:8px 10px;border:1px solid #e5e7eb;text-align:right;">${qty}</td>
-                <td style="padding:8px 10px;border:1px solid #e5e7eb;text-align:right;">${unit}</td>
-                <td style="padding:8px 10px;border:1px solid #e5e7eb;text-align:right;">${total}</td>
-              </tr>`;
-          })
-          .join('');
-
-        invoiceSummaryHtml = `
-        <div style="margin:24px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
-          <h3 style="margin-top:0;color:#1e40af;">Invoice Summary</h3>
-          <p style="margin:0 0 8px 0;">Invoice <strong>${invoice.invoiceNumber}</strong> | Due <strong>${format(new Date(invoice.dueDate), 'MMM dd, yyyy')}</strong></p>
-          <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:13px;">
-            <thead>
-              <tr style="background:#eef2ff;color:#1e3a8a;">
-                <th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:left;">Description</th>
-                <th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:right;">Qty</th>
-                <th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:right;">Unit Price</th>
-                <th style="padding:10px 12px;border:1px solid #e5e7eb;text-align:right;">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${invoiceItemsRows}
-            </tbody>
-          </table>
-          <div style="margin-top:16px;text-align:right;font-size:13px;color:#111;">
-            <p style="margin:4px 0;">Subtotal: <strong>${formatMoney(invoice.subtotal || 0)}</strong></p>
-            <p style="margin:4px 0;">Tax: <strong>${formatMoney(invoice.taxTotal || 0)}</strong></p>
-            <p style="margin:4px 0;">Discount: <strong>${formatMoney(invoice.discountAmount || 0)}</strong></p>
-            <p style="margin:4px 0;font-size:15px;">Total Due: <strong>${formatMoney(invoice.total || 0)}</strong></p>
-          </div>
-        </div>`;
-      }
-    } catch (pdfError) {
-      console.error('Failed to generate invoice PDF for email:', pdfError);
-      // Continue without PDF attachment
-    }
-  }
-  
   const html = `
   <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111">
     <h2 style="margin:0 0 12px 0;">Package Received at Warehouse</h2>
@@ -471,45 +362,30 @@ export async function sendNewPackageEmail(opts: {
     <div style="background:#eff6ff;border:1px solid #3b82f6;border-radius:8px;padding:16px;margin:16px 0;">
       <h3 style="margin:0 0 12px 0;color:#1e40af;">📍 Our Warehouse Addresses</h3>
       <p style="margin:0 0 12px 0;color:#374151;font-size:14px;">Use these addresses when shipping packages to us:</p>
-      ${warehouseAddresses.airAddress ? `
       <div style="background:white;border:1px solid #bfdbfe;border-radius:6px;padding:12px;margin-bottom:8px;">
         <p style="margin:0 0 4px 0;color:#1e40af;font-weight:600;font-size:13px;">✈️ Air Shipments</p>
-        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${formatWarehouseAddress(warehouseAddresses.airAddress, userCode)}</p>
+        <p style="margin:0;color:#374151;font-size:13px;">700 NW 57 Place, AIR-${userCode || '[MAILBOX]'}, Ft. Lauderdale, Florida 33309, USA</p>
       </div>
-      ` : ''}
-      ${warehouseAddresses.seaAddress ? `
       <div style="background:white;border:1px solid #bfdbfe;border-radius:6px;padding:12px;margin-bottom:8px;">
         <p style="margin:0 0 4px 0;color:#0369a1;font-weight:600;font-size:13px;">🚢 Sea Shipments</p>
-        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${formatWarehouseAddress(warehouseAddresses.seaAddress, userCode)}</p>
+        <p style="margin:0;color:#374151;font-size:13px;">700 NW 57 Place, SEA-${userCode || '[MAILBOX]'}, Ft. Lauderdale, Florida 33309, USA</p>
       </div>
-      ` : ''}
-      ${warehouseAddresses.chinaAddress ? `
       <div style="background:white;border:1px solid #bfdbfe;border-radius:6px;padding:12px;">
         <p style="margin:0 0 4px 0;color:#dc2626;font-weight:600;font-size:13px;">🇨🇳 China Warehouse</p>
-        <p style="margin:0;color:#374151;font-size:13px;white-space:pre-line;">${formatWarehouseAddress(warehouseAddresses.chinaAddress, userCode)}</p>
+        <p style="margin:0;color:#374151;font-size:13px;">${userCode || '[MAILBOX]'}, Baoshan No.2 Industrial Zone, Shenzhen, Guangdong Province 518000, China</p>
       </div>
-      ` : ''}
     </div>
     ` : ''}
     
-    ${invoiceSummaryHtml}
-    ${attachments.length > 0 ? `
-    <div style="background:#dbeafe;border:1px solid #3b82f6;border-radius:8px;padding:16px;margin:16px 0;">
-      <h4 style="margin:0 0 8px 0;color:#1e40af;">📄 Invoice Attached</h4>
-      <p style="margin:0;color:#1e40af;">Your billing invoice has been generated and attached to this email. Please review the invoice and make payment through the customer portal.</p>
-    </div>
-    ` : ''}
-    ${!invoiceSummaryHtml && attachments.length === 0 ? `
     <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:16px;margin:16px 0;">
-      <h4 style="margin:0 0 8px 0;color:#92400e;">📋 Invoice Information Required</h4>
-      <p style="margin:0;color:#92400e;">Please provide the invoice value of your goods through the customer portal. This information is required for customs clearance and will help us calculate any applicable duties and taxes.</p>
+      <h4 style="margin:0 0 8px 0;color:#92400e;">⚠️ Customs Requirement</h4>
+      <p style="margin:0;color:#92400e;">Customs requires a proper invoice for all packages. Packages without a proper invoice will result in delays and/or additional storage costs.</p>
       <p style="margin:8px 0 0 0;">
-        <a href="https://www.cleanjshipping.com/customer/invoice-upload" style="display:inline-block;background:#E67919;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:600;">
-          Upload Invoice
+        <a href="https://www.cleanjshipping.com/customer/invoice-upload?tracking=${trackingNumber}" style="display:inline-block;background:#dc2626;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;">
+          Provide Invoice(s) Now
         </a>
       </p>
     </div>
-    ` : ''}
     
     <p style="margin-top:16px;">You can view live tracking updates and manage your package in your customer portal.</p>
     <p style="margin-top:8px;">If you have any questions, please don't hesitate to contact us.</p>
@@ -521,7 +397,6 @@ export async function sendNewPackageEmail(opts: {
       to,
       subject,
       html,
-      attachments: attachments.length > 0 ? attachments : undefined,
     });
     console.log(`[Email] Package notification sent to ${to} for tracking ${trackingNumber}`);
     return { sent: true };

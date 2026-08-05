@@ -737,6 +737,19 @@ export default function AdminPackagesPage() {
                             {getPaymentStatusLabel(pkg.paymentStatus)}
                           </span>
                         </div>
+                        <div className="flex justify-between text-sm items-center">
+                          <span className="text-gray-600">Invoice:</span>
+                          <div className="flex items-center gap-1">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getInvoiceStatusBadge(pkg.invoiceStatus)}`}>
+                              {getInvoiceStatusLabel(pkg.invoiceStatus)}
+                            </span>
+                            {(pkg as any).customerInvoice && (
+                              <span className="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                                Uploaded
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="flex items-center justify-end gap-2">
@@ -874,9 +887,16 @@ export default function AdminPackagesPage() {
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getInvoiceStatusBadge(pkg.invoiceStatus)}`}>
-                          {getInvoiceStatusLabel(pkg.invoiceStatus)}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getInvoiceStatusBadge(pkg.invoiceStatus)}`}>
+                            {getInvoiceStatusLabel(pkg.invoiceStatus)}
+                          </span>
+                          {(pkg as any).customerInvoice && (
+                            <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                              Invoice Uploaded
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getPaymentStatusBadge(pkg.paymentStatus)}`}>

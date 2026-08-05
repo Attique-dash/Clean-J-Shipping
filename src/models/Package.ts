@@ -77,6 +77,19 @@ export interface IPackage extends Document {
   pricePaid?: number;
   pricePaidCurrency?: string;
   billingInvoiceId?: Types.ObjectId;
+  customerInvoice?: {
+    amount: number;
+    currency: string;
+    description: string;
+    files: Array<{
+      url?: string;
+      publicId?: string;
+      filename?: string;
+      size?: number;
+      type?: string;
+    }>;
+    submittedAt: Date;
+  };
 
   /** Internal relations — not part of KCD webhook payload */
   userId?: Types.ObjectId;
@@ -231,6 +244,19 @@ const PackageSchema = new Schema<IPackage>(
     pricePaid: { type: Number, min: 0, default: 0 },
     pricePaidCurrency: { type: String, trim: true, default: 'USD' },
     billingInvoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice' },
+    customerInvoice: {
+      amount: { type: Number, min: 0 },
+      currency: { type: String, trim: true },
+      description: { type: String, trim: true },
+      files: [{
+        url: { type: String, trim: true },
+        publicId: { type: String, trim: true },
+        filename: { type: String, trim: true },
+        size: { type: Number, min: 0 },
+        type: { type: String, trim: true }
+      }],
+      submittedAt: { type: Date }
+    },
 
     userId: { type: Schema.Types.ObjectId, ref: 'User' },
     customer: { type: Schema.Types.ObjectId, ref: 'User' },

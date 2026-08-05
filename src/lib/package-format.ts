@@ -777,9 +777,9 @@ export function buildKcdPackageDocument(
     userId: user._id,
     customer: user._id,
     source: asString(body.source) || 'manual',
-    regularCharge: asNumber(body.regularCharge),
-    customCharge: asNumber(body.customCharge),
-    chargeCurrency: asString(body.chargeCurrency) || 'JMD',
+    regularCharge: 0, // No auto-charges - manual billing only
+    customCharge: 0, // No auto-charges - manual billing only
+    chargeCurrency: 'JMD',
     ...overrides,
   };
 }
