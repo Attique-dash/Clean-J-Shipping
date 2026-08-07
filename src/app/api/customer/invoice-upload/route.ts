@@ -258,8 +258,9 @@ export async function POST(req: Request) {
     for (const upload of uploads) {
       try {
         // First check if it's a pre-alert
+        const trackingValForPreAlert = (upload.tracking_number || '').toString().trim();
         const preAlert = await PreAlert.findOne({
-          trackingNumber: upload.tracking_number,
+          trackingNumber: trackingValForPreAlert,
           customer: new Types.ObjectId(userId),
           status: { $in: ['pending', 'approved'] }
         });
@@ -356,12 +357,20 @@ export async function POST(req: Request) {
 
         // Verify package exists and belongs to user
         // Search multiple tracking number fields for consistency with GET route
+        const trackingValForPackage = (upload.tracking_number || '').toString().trim();
+        const re = new RegExp(`^${escapeRegex(trackingValForPackage)}$`, 'i');
+        
+        console.log('[Invoice Upload POST] Looking up package', {
+          trackingVal: trackingValForPackage,
+          userId,
+        });
+        
         const pkg = await Package.findOne({
           userId: new Types.ObjectId(userId),
           $or: [
-            { TrackingNumber: upload.tracking_number },
-            { trackingNumber: upload.tracking_number },
-            { ControlNumber: upload.tracking_number }
+            { TrackingNumber: re },
+            { trackingNumber: re },
+            { ControlNumber: re }
           ],
           status: { $in: ['received', 'in_processing', 'pending', 'processing', 'customs_pending', 'AT WAREHOUSE', 'At Warehouse', 'at warehouse'] }
         });

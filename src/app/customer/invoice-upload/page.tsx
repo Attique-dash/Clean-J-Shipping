@@ -202,10 +202,12 @@ export default function CustomerInvoiceUploadPage() {
     const trackingParam = params.get('tracking');
     if (trackingParam) {
       setQuery(trackingParam);
-      // Clear the tracking param from URL after reading to avoid duplicate processing
-      const newUrl = new URL(window.location.href);
-      newUrl.searchParams.delete('tracking');
-      window.history.replaceState({}, '', newUrl.toString());
+      // Do NOT remove the tracking param — keep it so a page refresh still shows the single package.
+      // Removing the param causes the page to lose the filter on reload.
+      // If you want to avoid duplicate processing on back/forward, use a session flag instead.
+      // const newUrl = new URL(window.location.href);
+      // newUrl.searchParams.delete('tracking');
+      // window.history.replaceState({}, '', newUrl.toString());
     }
   }, []);
 
@@ -461,7 +463,7 @@ export default function CustomerInvoiceUploadPage() {
               const tn = getTrack(pkg);
               const cs = canSubmit(pkg);
               const desc = pkg.description || pkg.itemDescription || "Merchandise";
-              const amt = pkg.freight || pkg.totalAmount || pkg.total_amount || 0;
+              const amt = pkg.totalAmount || pkg.total_amount || pkg.freight || 0;
               return (
                 <div key={tn} className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col">
                   {/* Header with tracking number and status */}
