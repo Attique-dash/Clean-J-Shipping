@@ -239,8 +239,8 @@ export default function CustomerInvoiceUploadPage() {
       setLoading(true);
       // Fetch invoice-upload data, passing tracking param if present
       const params = new URLSearchParams(window.location.search);
-      const trackingParam = params.get('tracking');
-      const apiUrl = trackingParam 
+      const trackingParam = query?.trim() ? query.trim() : params.get('tracking');
+      const apiUrl = trackingParam
         ? `/api/customer/invoice-upload?tracking=${encodeURIComponent(trackingParam)}`
         : "/api/customer/invoice-upload";
       
