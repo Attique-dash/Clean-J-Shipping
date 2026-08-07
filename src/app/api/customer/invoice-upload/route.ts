@@ -18,6 +18,11 @@ const ALLOWED_TYPES = [
   'image/png'
 ];
 
+// Helper function to escape regex special characters
+function escapeRegex(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // GET - Fetch all packages needing invoice upload for the customer
 export async function GET(req: Request) {
   try {
@@ -38,18 +43,25 @@ export async function GET(req: Request) {
     // Check if tracking parameter is provided
     const { searchParams } = new URL(req.url);
     const trackingParam = searchParams.get('tracking');
+    
+    console.log('[Invoice Upload GET] Request details:', {
+      userId,
+      trackingParam: trackingParam || 'none',
+      hasTrackingParam: !!trackingParam,
+    });
 
     let packages;
 
     if (trackingParam) {
       // When tracking param is present, return that specific package regardless of invoice status
       // This allows customers to upload invoices even if the package was previously marked differently
+      const re = new RegExp(`^${escapeRegex(trackingParam)}$`, 'i');
       packages = await Package.find({
         userId: new Types.ObjectId(userId),
         $or: [
-          { TrackingNumber: trackingParam },
-          { trackingNumber: trackingParam },
-          { ControlNumber: trackingParam }
+          { TrackingNumber: re },
+          { trackingNumber: re },
+          { ControlNumber: re }
         ]
       }).sort({ dateReceived: -1 }).lean();
     } else {
@@ -77,9 +89,10 @@ export async function GET(req: Request) {
     
     if (trackingParam) {
       // When tracking param is present, also look for matching pre-alerts
+      const re = new RegExp(`^${escapeRegex(trackingParam)}$`, 'i');
       preAlerts = await PreAlert.find({
         customer: new Types.ObjectId(userId),
-        trackingNumber: trackingParam,
+        trackingNumber: re,
         status: { $in: ['pending', 'approved'] }
       }).sort({ expectedDate: -1 }).lean();
     } else {
@@ -494,6 +507,14 @@ export async function POST(req: Request) {
         }
 
         // Update package with customer invoice information
+        console.log('[Invoice Upload POST] Updating package with invoice data:', {
+          tracking_number: upload.tracking_number,
+          price_paid: upload.price_paid,
+          currency: upload.currency,
+          description: upload.description,
+          files_count: cloudinaryFiles.length,
+        });
+        
         await Package.findByIdAndUpdate(
           pkg._id,
           { 
@@ -514,6 +535,11 @@ export async function POST(req: Request) {
             }
           }
         );
+        
+        console.log('[Invoice Upload POST] Package updated successfully:', {
+          tracking_number: upload.tracking_number,
+          packageId: pkg._id,
+        });
 
         results.push({
           tracking_number: upload.tracking_number,

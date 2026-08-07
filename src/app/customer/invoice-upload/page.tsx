@@ -247,20 +247,57 @@ export default function CustomerInvoiceUploadPage() {
       const res = await fetch(apiUrl, { credentials: "include", cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load");
-      const invoicePkgs = (data.packages || []).map((p: any) => ({
-        ...p,
-        trackingNumber: p.trackingNumber || p.tracking_number || p.TrackingNumber || "",
-        tracking_number: p.tracking_number || p.trackingNumber || p.TrackingNumber || "",
-        merchant: p.Shipper || p.shipper || p.merchant || "UNKNOWN",
-        shipper: p.Shipper || p.shipper || "UNKNOWN",
-        weight: p.Weight || p.weight || 0,
-        description: p.Description || p.description || p.itemDescription || "",
-        warehouseLocation: p.Branch || p.warehouseLocation || p.branch || "",
-        userCode: p.UserCode || p.userCode || "",
-        pieces: p.Pieces || p.pieces || 1,
-        totalAmount: p.totalAmount || p.total_amount || p.freight || 0,
-        total_amount: p.totalAmount || p.total_amount || p.freight || 0,
-      }));
+      const invoicePkgs = (data.packages || []).map((p: any) => {
+        // Normalize invoiceFiles to ensure consistent object structure
+        const normalizedInvoiceFiles = Array.isArray(p.invoiceFiles) 
+          ? p.invoiceFiles.map((file: any) => {
+              // If file is already an object with required fields, keep it
+              if (typeof file === 'object' && file !== null && file.url) {
+                return {
+                  url: file.url,
+                  publicId: file.publicId || file.public_id || '',
+                  filename: file.filename || file.name || file.original_filename || '',
+                  size: file.size || 0,
+                  uploadedAt: file.uploadedAt || file.uploaded_at || new Date().toISOString(),
+                };
+              }
+              // If file is a string URL, convert to object
+              if (typeof file === 'string') {
+                return {
+                  url: file,
+                  publicId: '',
+                  filename: file.split('/').pop() || 'invoice.pdf',
+                  size: 0,
+                  uploadedAt: new Date().toISOString(),
+                };
+              }
+              // Fallback for unknown formats
+              return {
+                url: '',
+                publicId: '',
+                filename: 'unknown',
+                size: 0,
+                uploadedAt: new Date().toISOString(),
+              };
+            })
+          : [];
+
+        return {
+          ...p,
+          trackingNumber: p.trackingNumber || p.tracking_number || p.TrackingNumber || "",
+          tracking_number: p.tracking_number || p.trackingNumber || p.TrackingNumber || "",
+          merchant: p.Shipper || p.shipper || p.merchant || "UNKNOWN",
+          shipper: p.Shipper || p.shipper || "UNKNOWN",
+          weight: p.Weight || p.weight || 0,
+          description: p.Description || p.description || p.itemDescription || "",
+          warehouseLocation: p.Branch || p.warehouseLocation || p.branch || "",
+          userCode: p.UserCode || p.userCode || "",
+          pieces: p.Pieces || p.pieces || 1,
+          totalAmount: p.totalAmount || p.total_amount || p.freight || 0,
+          total_amount: p.totalAmount || p.total_amount || p.freight || 0,
+          invoiceFiles: normalizedInvoiceFiles,
+        };
+      });
 
       // Also fetch from packages API for better tracking numbers and details
       try {
@@ -294,6 +331,37 @@ export default function CustomerInvoiceUploadPage() {
               ip.freight = realPkg.freight || realPkg.shipping_cost || realPkg.totalAmount || ip.freight;
               ip.totalAmount = realPkg.totalAmount || realPkg.total_amount || realPkg.freight || ip.totalAmount;
               ip.status = realPkg.status || ip.status;
+              
+              // Normalize invoiceFiles from enriched package data
+              if (realPkg.invoiceFiles && Array.isArray(realPkg.invoiceFiles)) {
+                ip.invoiceFiles = realPkg.invoiceFiles.map((file: any) => {
+                  if (typeof file === 'object' && file !== null && file.url) {
+                    return {
+                      url: file.url,
+                      publicId: file.publicId || file.public_id || '',
+                      filename: file.filename || file.name || file.original_filename || '',
+                      size: file.size || 0,
+                      uploadedAt: file.uploadedAt || file.uploaded_at || new Date().toISOString(),
+                    };
+                  }
+                  if (typeof file === 'string') {
+                    return {
+                      url: file,
+                      publicId: '',
+                      filename: file.split('/').pop() || 'invoice.pdf',
+                      size: 0,
+                      uploadedAt: new Date().toISOString(),
+                    };
+                  }
+                  return {
+                    url: '',
+                    publicId: '',
+                    filename: 'unknown',
+                    size: 0,
+                    uploadedAt: new Date().toISOString(),
+                  };
+                });
+              }
             }
           });
         }

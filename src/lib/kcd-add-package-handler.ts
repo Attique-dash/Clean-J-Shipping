@@ -51,8 +51,14 @@ export async function processKcdPackageAdd(
   rawBody: Record<string, unknown>,
   requestId: string
 ): Promise<KcdAddPackageResult> {
+  console.log(`[KCD Add Package ${requestId}] Processing package add request`, {
+    trackingNumber: rawBody.TrackingNumber,
+    userCode: rawBody.UserCode,
+  });
+  
   const bodyValidation = validateAddPackageBody(rawBody);
   if (!bodyValidation.ok) {
+    console.log(`[KCD Add Package ${requestId}] Validation failed`, bodyValidation.errors);
     return {
       ok: false,
       status: 400,
@@ -68,6 +74,11 @@ export async function processKcdPackageAdd(
   const body = bodyValidation.normalized;
   const trackingNumber = extractTrackingNumber(body);
   const userCode = extractUserCode(body);
+  
+  console.log(`[KCD Add Package ${requestId}] Validated package`, {
+    trackingNumber,
+    userCode,
+  });
 
   const { dbConnect } = await import('@/lib/db');
   await dbConnect();
@@ -132,6 +143,11 @@ export async function processKcdPackageAdd(
   let createdPackage;
   try {
     createdPackage = await Package.create(packageData);
+    console.log(`[KCD Add Package ${requestId}] Package created successfully`, {
+      packageId: createdPackage._id,
+      trackingNumber: createdPackage.TrackingNumber,
+      userCode: createdPackage.UserCode,
+    });
   } catch (createError: unknown) {
     const err = createError as { name?: string; message?: string; errors?: Record<string, { message?: string }>; code?: number };
     
@@ -237,6 +253,11 @@ export async function processKcdPackageAdd(
   let emailSent = false;
   try {
     if (user.email) {
+      console.log(`[KCD Add Package ${requestId}] Sending email to customer`, {
+        email: user.email,
+        trackingNumber,
+      });
+      
       const kcdEmailPkg = toPublicKcdPackage(createdPackage.toObject());
       const emailPackage: typeof kcdEmailPkg = {
         ...kcdEmailPkg,
@@ -307,6 +328,10 @@ export async function processKcdPackageAdd(
         userCode: user.userCode,
       });
       emailSent = true;
+      console.log(`[KCD Add Package ${requestId}] Email sent successfully`, {
+        email: user.email,
+        trackingNumber,
+      });
     }
   } catch (emailError) {
     console.error(`[KCD Add ${requestId}] Email error:`, emailError);

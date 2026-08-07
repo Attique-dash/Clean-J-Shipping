@@ -381,7 +381,7 @@ export async function sendNewPackageEmail(opts: {
       <h4 style="margin:0 0 8px 0;color:#92400e;">⚠️ Customs Requirement</h4>
       <p style="margin:0;color:#92400e;">Customs requires a proper invoice for all packages. Packages without a proper invoice will result in delays and/or additional storage costs.</p>
       <p style="margin:8px 0 0 0;">
-        <a href="https://www.cleanjshipping.com/customer/invoice-upload?tracking=${trackingNumber}" style="display:inline-block;background:#dc2626;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;">
+        <a href="https://www.cleanjshipping.com/customer/invoice-upload?tracking=${encodeURIComponent(trackingNumber)}" style="display:inline-block;background:#dc2626;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;">
           Provide Invoice(s) Now
         </a>
       </p>

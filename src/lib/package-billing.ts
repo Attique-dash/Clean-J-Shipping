@@ -112,7 +112,15 @@ export function buildBillingInvoicePayload(
 
     // Use manual charges if present, otherwise fall back to payment totals
     if (chargeTotals.usedManualCharges) {
-      // Use manual charges
+      // Use manual charges (Test 4: Regular Charge + Custom Charge only, no weight/freight lines)
+      console.log('[buildBillingInvoicePayload] Using manual charges for billing invoice', {
+        trackingNumber,
+        regularCharge: chargeTotals.regularCharge,
+        customCharge: chargeTotals.customCharge,
+        manualTotal: chargeTotals.manualTotal,
+        currency: chargeTotals.currency,
+      });
+      
       if (chargeTotals.regularCharge > 0) {
         invoiceItems.push({
           description: `Regular Charge (${itemDescription})`,
@@ -142,6 +150,10 @@ export function buildBillingInvoicePayload(
       finalCurrency = chargeTotals.currency;
     } else {
       // Fall back to parsed PackagePayments totals
+      console.log('[buildBillingInvoicePayload] No manual charges, using PackagePayments fallback', {
+        trackingNumber,
+        invoiceCurrency,
+      });
       const payment = parsePackagePayments(asString(packageData.PackagePayments || packageData.packagePayments), packageData);
       invoiceTotal = payment.totalAmountUsd;
       finalCurrency = payment.currency || invoiceCurrency;
