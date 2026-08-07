@@ -342,10 +342,15 @@ export async function POST(req: Request) {
         }
 
         // Verify package exists and belongs to user
-        const pkg = await Package.findOne({ 
-          trackingNumber: upload.tracking_number,
+        // Search multiple tracking number fields for consistency with GET route
+        const pkg = await Package.findOne({
           userId: new Types.ObjectId(userId),
-          status: { $in: ['received', 'in_processing', 'pending', 'processing', 'customs_pending'] }
+          $or: [
+            { TrackingNumber: upload.tracking_number },
+            { trackingNumber: upload.tracking_number },
+            { ControlNumber: upload.tracking_number }
+          ],
+          status: { $in: ['received', 'in_processing', 'pending', 'processing', 'customs_pending', 'AT WAREHOUSE', 'At Warehouse', 'at warehouse'] }
         });
 
         if (!pkg) {
