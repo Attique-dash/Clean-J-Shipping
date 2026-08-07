@@ -35,33 +35,65 @@ export async function GET(req: Request) {
 
     await dbConnect();
 
-    // Find packages that need invoice upload
-    // - Package is received or in processing or at warehouse
-    // - Invoice not yet uploaded or pending
-    const packages = await Package.find({
-      userId: new Types.ObjectId(userId),
-      status: { $in: ['received', 'in_processing', 'pending', 'processing', 'customs_pending', 'AT WAREHOUSE', 'At Warehouse', 'at warehouse'] },
-      $or: [
-        { invoiceUploaded: { $exists: false } },
-        { invoiceUploaded: false },
-        { invoiceStatus: { $in: ['pending', 'rejected'] } }
-      ]
-    }).sort({ dateReceived: -1 }).lean();
+    // Check if tracking parameter is provided
+    const { searchParams } = new URL(req.url);
+    const trackingParam = searchParams.get('tracking');
+
+    let packages;
+
+    if (trackingParam) {
+      // When tracking param is present, return that specific package regardless of invoice status
+      // This allows customers to upload invoices even if the package was previously marked differently
+      packages = await Package.find({
+        userId: new Types.ObjectId(userId),
+        $or: [
+          { TrackingNumber: trackingParam },
+          { trackingNumber: trackingParam },
+          { ControlNumber: trackingParam }
+        ]
+      }).sort({ dateReceived: -1 }).lean();
+    } else {
+      // Find packages that need invoice upload
+      // - Package is received or in processing or at warehouse
+      // - Invoice not yet uploaded or pending
+      packages = await Package.find({
+        userId: new Types.ObjectId(userId),
+        status: { $in: ['received', 'in_processing', 'pending', 'processing', 'customs_pending', 'AT WAREHOUSE', 'At Warehouse', 'at warehouse'] },
+        $or: [
+          { invoiceUploaded: { $exists: false } },
+          { invoiceUploaded: false },
+          { invoiceStatus: { $in: ['pending', 'rejected'] } }
+        ]
+      }).sort({ dateReceived: -1 }).lean();
+    }
 
     // Also find pre-alerts that need invoice upload
     // - Pre-alert is pending or approved
     // - No attachment file uploaded yet
     // - Exclude pre-alerts that have already been converted to packages (tracking number exists in packages)
     const packageTrackingNumbers = packages.map(p => p.TrackingNumber || p.trackingNumber || p.TrackingNumber);
-    const preAlerts = await PreAlert.find({
-      customer: new Types.ObjectId(userId),
-      status: { $in: ['pending', 'approved'] },
-      trackingNumber: { $nin: packageTrackingNumbers },
-      $or: [
-        { attachmentFile: { $exists: false } },
-        { attachmentFile: null }
-      ]
-    }).sort({ expectedDate: -1 }).lean();
+    
+    let preAlerts;
+    
+    if (trackingParam) {
+      // When tracking param is present, also look for matching pre-alerts
+      preAlerts = await PreAlert.find({
+        customer: new Types.ObjectId(userId),
+        trackingNumber: trackingParam,
+        status: { $in: ['pending', 'approved'] }
+      }).sort({ expectedDate: -1 }).lean();
+    } else {
+      // Original pre-alert logic for general listing
+      preAlerts = await PreAlert.find({
+        customer: new Types.ObjectId(userId),
+        status: { $in: ['pending', 'approved'] },
+        trackingNumber: { $nin: packageTrackingNumbers },
+        $or: [
+          { attachmentFile: { $exists: false } },
+          { attachmentFile: null }
+        ]
+      }).sort({ expectedDate: -1 }).lean();
+    }
 
     // Helper function to resolve currency from multiple possible fields
     const resolveCurrency = (doc: any): string => {

@@ -202,6 +202,10 @@ export default function CustomerInvoiceUploadPage() {
     const trackingParam = params.get('tracking');
     if (trackingParam) {
       setQuery(trackingParam);
+      // Clear the tracking param from URL after reading to avoid duplicate processing
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('tracking');
+      window.history.replaceState({}, '', newUrl.toString());
     }
   }, []);
 
@@ -233,8 +237,14 @@ export default function CustomerInvoiceUploadPage() {
   async function load() {
     try {
       setLoading(true);
-      // Fetch invoice-upload data
-      const res = await fetch("/api/customer/invoice-upload", { credentials: "include", cache: "no-store" });
+      // Fetch invoice-upload data, passing tracking param if present
+      const params = new URLSearchParams(window.location.search);
+      const trackingParam = params.get('tracking');
+      const apiUrl = trackingParam 
+        ? `/api/customer/invoice-upload?tracking=${encodeURIComponent(trackingParam)}`
+        : "/api/customer/invoice-upload";
+      
+      const res = await fetch(apiUrl, { credentials: "include", cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load");
       const invoicePkgs = (data.packages || []).map((p: any) => ({
@@ -290,11 +300,20 @@ export default function CustomerInvoiceUploadPage() {
       } catch { /* continue without enrichment */ }
 
       setPackages(invoicePkgs);
+
+      // Auto-open upload modal if tracking param is present and exactly one matching package exists
+      if (trackingParam && invoicePkgs.length === 1) {
+        const pkg = invoicePkgs[0];
+        const pkgTracking = getTrack(pkg);
+        if (pkgTracking.toLowerCase() === trackingParam.toLowerCase()) {
+          setUploadPkg(pkg);
+        }
+      }
     } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
     finally { setLoading(false); }
   }
 
-  useEffect(() => { if (session?.user) load(); else if (session === null) setLoading(false); }, [session]);
+  useEffect(() => { if (session?.user) load(); else if (session === null) setLoading(false); }, [session, query]);
   useEffect(() => { setPage(1); }, [query, statusFilter]);
 
   const filtered = packages.filter(p => {
