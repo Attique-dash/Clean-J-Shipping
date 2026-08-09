@@ -141,6 +141,7 @@ export async function GET(req: Request) {
       invoiceUploaded: pkg.invoiceUploaded || false,
       pricePaid: pkg.pricePaid || 0,
       pricePaidCurrency: resolveCurrency(pkg),
+      displayCurrency: resolveCurrency(pkg), // Add canonical currency field for consistent UI formatting
       invoiceFiles: pkg.invoiceFiles || [],
       invoiceSubmittedAt: pkg.invoiceSubmittedAt,
       hasInvoice: pkg.invoiceUploaded === true,
@@ -174,6 +175,7 @@ export async function GET(req: Request) {
       invoiceUploaded: !!pa.attachmentFile,
       pricePaid: pa.pricePaid || 0,
       pricePaidCurrency: resolveCurrency(pa),
+      displayCurrency: resolveCurrency(pa), // Add canonical currency field for consistent UI formatting
       invoiceFiles: pa.attachmentFile ? [pa.attachmentFile] : [],
       invoiceSubmittedAt: pa.createdAt,
       hasInvoice: !!pa.attachmentFile,
@@ -357,13 +359,12 @@ export async function POST(req: Request) {
 
         // Verify package exists and belongs to user
         // Search multiple tracking number fields for consistency with GET route
-        const trackingValForPackage = (upload.tracking_number || '').toString().trim();
-        const re = new RegExp(`^${escapeRegex(trackingValForPackage)}$`, 'i');
+        const trackingValRaw = upload.tracking_number || upload.trackingNumber || upload.TrackingNumber || '';
+        const trackingVal = String(trackingValRaw).trim();
         
-        console.log('[Invoice Upload POST] Looking up package', {
-          trackingVal: trackingValForPackage,
-          userId,
-        });
+        console.debug(`[InvoiceUpload] finding package tracking="${trackingVal}" userId=${userId}`);
+        
+        const re = new RegExp(`^${escapeRegex(trackingVal)}$`, 'i');
         
         const pkg = await Package.findOne({
           userId: new Types.ObjectId(userId),
@@ -372,10 +373,25 @@ export async function POST(req: Request) {
             { trackingNumber: re },
             { ControlNumber: re }
           ],
-          status: { $in: ['received', 'in_processing', 'pending', 'processing', 'customs_pending', 'AT WAREHOUSE', 'At Warehouse', 'at warehouse'] }
+          status: {
+            $in: [
+              'received', 'in_processing', 'pending', 'processing', 'customs_pending',
+              'AT WAREHOUSE', 'At Warehouse', 'at warehouse'
+            ]
+          }
         });
 
         if (!pkg) {
+          // DEV: helpful debugging only - remove in production
+          const sample = await Package.findOne({
+            $or: [
+              { TrackingNumber: trackingVal },
+              { trackingNumber: trackingVal },
+              { ControlNumber: trackingVal }
+            ]
+          }).lean() as any;
+          console.debug('[InvoiceUpload] package sample (no userId filter):', sample ? { id: sample._id?.toString(), TrackingNumber: sample.TrackingNumber || sample.trackingNumber } : null);
+          
           results.push({
             tracking_number: upload.tracking_number,
             success: false,
