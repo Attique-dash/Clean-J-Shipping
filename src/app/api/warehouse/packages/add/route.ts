@@ -16,7 +16,7 @@ function asNumber(value: unknown): number {
     const n = Number(value);
     return Number.isFinite(n) ? n : 0;
   }
-  return 0;
+  return 0; 
 }
 
 function detectShippingMethod(shipper?: string, origin?: string, description?: string): 'air' | 'sea' | 'china' | 'local' {
