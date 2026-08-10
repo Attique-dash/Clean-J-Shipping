@@ -96,6 +96,12 @@ function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () =
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || data?.message || "Failed");
       toast.success("Invoice submitted!");
+      
+      // Update URL to include tracking parameter and refresh package state
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.set('tracking', tn);
+      window.history.replaceState({}, '', newUrl.toString());
+      
       onDone();
     } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
     finally { setSubmitting(false); }

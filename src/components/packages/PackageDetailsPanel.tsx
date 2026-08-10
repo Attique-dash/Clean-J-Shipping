@@ -146,7 +146,7 @@ export default function PackageDetailsPanel({
         </div>
       </div>
 
-      {(pkg as any).customerInvoice && (
+      {((pkg as any).customerInvoice || (pkg as any).invoiceUploaded) && (
         <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-6">
           <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <FileText className="h-5 w-5 text-amber-600" />
@@ -155,30 +155,34 @@ export default function PackageDetailsPanel({
           <div className="grid gap-2 md:grid-cols-2">
             <DetailRow 
               label="Amount" 
-              value={`${(pkg as any).customerInvoice.amount} ${(pkg as any).customerInvoice.currency}`} 
+              value={`${(pkg as any).customerInvoice?.amount || (pkg as any).pricePaid || (pkg as any).amountPaid || 0} ${(pkg as any).customerInvoice?.currency || (pkg as any).pricePaidCurrency || (pkg as any).amountPaidCurrency || currency}`} 
             />
             <DetailRow 
               label="Description" 
-              value={(pkg as any).customerInvoice.description || 'N/A'} 
+              value={(pkg as any).customerInvoice?.description || (pkg as any).description || (pkg as any).itemDescription || 'N/A'} 
             />
             <DetailRow 
               label="Submitted" 
-              value={(pkg as any).customerInvoice.submittedAt 
-                ? new Date((pkg as any).customerInvoice.submittedAt).toLocaleDateString() 
+              value={(pkg as any).customerInvoice?.submittedAt || (pkg as any).invoiceSubmittedAt
+                ? new Date((pkg as any).customerInvoice?.submittedAt || (pkg as any).invoiceSubmittedAt).toLocaleDateString() 
                 : 'N/A'} 
             />
             <DetailRow 
               label="Files" 
-              value={`${(pkg as any).customerInvoice.files?.length || 0} uploaded`} 
+              value={`${((pkg as any).customerInvoice?.files?.length || (pkg as any).invoiceFiles?.length || 0)} uploaded`} 
+            />
+            <DetailRow 
+              label="Status" 
+              value={(pkg as any).invoiceStatus || 'pending'} 
             />
           </div>
-          {(pkg as any).customerInvoice.files && (pkg as any).customerInvoice.files.length > 0 && (
+          {((pkg as any).customerInvoice?.files?.length || (pkg as any).invoiceFiles?.length || 0) > 0 && (
             <div className="mt-4 space-y-2">
               <p className="text-sm font-medium text-gray-700">Uploaded Files:</p>
-              {(pkg as any).customerInvoice.files.map((file: any, idx: number) => (
+              {((pkg as any).customerInvoice?.files || (pkg as any).invoiceFiles || []).map((file: any, idx: number) => (
                 <div key={idx} className="flex items-center gap-2 text-sm bg-white rounded px-3 py-2 border border-amber-200">
                   <FileText className="h-4 w-4 text-amber-600" />
-                  <span className="truncate flex-1">{file.filename || 'Invoice file'}</span>
+                  <span className="truncate flex-1">{file.filename || file.name || 'Invoice file'}</span>
                   <a 
                     href={file.url} 
                     target="_blank" 

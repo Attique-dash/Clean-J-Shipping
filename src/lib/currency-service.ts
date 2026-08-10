@@ -352,6 +352,23 @@ export class CurrencyService {
   }
 
   /**
+   * Convert amount between any two currencies (async for future API integration)
+   * @param amount Amount to convert
+   * @param fromCurrency Source currency code
+   * @param toCurrency Target currency code
+   * @returns Converted amount
+   */
+  static async convertCurrency(amount: number, fromCurrency: string, toCurrency: string): Promise<number> {
+    try {
+      return this.convert(amount, fromCurrency, toCurrency).amount;
+    } catch (error) {
+      console.error('Currency conversion error:', error);
+      // Return original amount if conversion fails
+      return amount;
+    }
+  }
+
+  /**
    * Format currency amount with symbol
    * @param amount Amount to format
    * @param currency Currency code

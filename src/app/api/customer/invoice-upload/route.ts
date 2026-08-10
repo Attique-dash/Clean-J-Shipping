@@ -555,21 +555,31 @@ export async function POST(req: Request) {
           files_count: cloudinaryFiles.length,
         });
         
+        const normalizedCloudinaryFiles = cloudinaryFiles.map(file => ({
+          url: file.url,
+          publicId: file.publicId,
+          filename: file.filename || 'invoice.pdf',
+          size: file.size || 0,
+          uploadedAt: file.uploadedAt ? file.uploadedAt.toISOString() : new Date().toISOString(),
+        }));
+        
         await Package.findByIdAndUpdate(
           pkg._id,
           { 
             $set: { 
               invoiceUploaded: true,
-              invoiceFiles: cloudinaryFiles,
+              invoiceFiles: normalizedCloudinaryFiles,
               pricePaid: upload.price_paid,
+              amountPaid: upload.price_paid,
               pricePaidCurrency: upload.currency,
+              amountPaidCurrency: upload.currency,
               invoiceSubmittedAt: new Date(),
               invoiceStatus: 'submitted',
               customerInvoice: {
                 amount: upload.price_paid,
                 currency: upload.currency,
                 description: upload.description,
-                files: cloudinaryFiles,
+                files: normalizedCloudinaryFiles,
                 submittedAt: new Date()
               }
             }
@@ -581,13 +591,17 @@ export async function POST(req: Request) {
           packageId: pkg._id,
         });
 
+        // Fetch the updated package to return in response
+        const updatedPackage = await Package.findById(pkg._id).lean();
+
         results.push({
           tracking_number: upload.tracking_number,
           success: true,
           files_uploaded: cloudinaryFiles.length,
           price_paid: upload.price_paid,
           currency: upload.currency,
-          invoiceFiles: cloudinaryFiles
+          invoiceFiles: normalizedCloudinaryFiles,
+          package: updatedPackage
         });
 
       } catch (error) {
@@ -607,7 +621,8 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         message: `Successfully uploaded ${successCount} invoice(s)`,
-        results
+        results,
+        packages: results.map(r => r.package).filter(Boolean)
       });
     } else if (successCount === 0) {
       return NextResponse.json({
@@ -619,7 +634,8 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         message: `Successfully uploaded ${successCount} invoice(s), ${failureCount} failed`,
-        results
+        results,
+        packages: results.map(r => r.package).filter(Boolean)
       });
     }
 

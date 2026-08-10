@@ -114,12 +114,31 @@ export default function InvoiceClient() {
         amounts.unpaidAmount = CurrencyService.format(await CurrencyService.fromUSD(totalStats.unpaidAmount, selectedCurrency), selectedCurrency);
         amounts.overdueAmount = CurrencyService.format(await CurrencyService.fromUSD(totalStats.overdueAmount, selectedCurrency), selectedCurrency);
         
-        // Convert invoice amounts (all stored in JMD)
+        // Convert invoice amounts using actual invoice currency instead of assuming JMD
         for (const invoice of invoices) {
           const key = `invoice_${invoice._id}`;
-          amounts[`${key}_total`] = CurrencyService.format(await CurrencyService.fromUSD(CurrencyService.toUSD(invoice.total || 0, 'JMD'), selectedCurrency), selectedCurrency);
-          amounts[`${key}_paid`] = CurrencyService.format(await CurrencyService.fromUSD(CurrencyService.toUSD(invoice.amountPaid || 0, 'JMD'), selectedCurrency), selectedCurrency);
-          amounts[`${key}_balance`] = CurrencyService.format(await CurrencyService.fromUSD(CurrencyService.toUSD(invoice.balanceDue || 0, 'JMD'), selectedCurrency), selectedCurrency);
+          const invoiceCurrency = invoice.currency || 'JMD';
+          
+          try {
+            amounts[`${key}_total`] = CurrencyService.format(
+              await CurrencyService.convertCurrency(invoice.total || 0, invoiceCurrency, selectedCurrency), 
+              selectedCurrency
+            );
+            amounts[`${key}_paid`] = CurrencyService.format(
+              await CurrencyService.convertCurrency(invoice.amountPaid || 0, invoiceCurrency, selectedCurrency), 
+              selectedCurrency
+            );
+            amounts[`${key}_balance`] = CurrencyService.format(
+              await CurrencyService.convertCurrency(invoice.balanceDue || 0, invoiceCurrency, selectedCurrency), 
+              selectedCurrency
+            );
+          } catch (invoiceError) {
+            console.error(`Currency conversion error for invoice ${invoice._id}:`, invoiceError);
+            // Fallback to using the raw amounts with invoice currency
+            amounts[`${key}_total`] = CurrencyService.format(invoice.total || 0, invoiceCurrency);
+            amounts[`${key}_paid`] = CurrencyService.format(invoice.amountPaid || 0, invoiceCurrency);
+            amounts[`${key}_balance`] = CurrencyService.format(invoice.balanceDue || 0, invoiceCurrency);
+          }
         }
       } catch (error) {
         console.error("Currency conversion error:", error);

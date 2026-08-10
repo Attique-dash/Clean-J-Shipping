@@ -194,8 +194,8 @@ export default function AdminPackagesPage() {
 
   const selectedCount = selectedIds.size;
 
-  const formatPkgAmount = (pkg: KcdPackageRecord, amount: number, useChargeCurrency = false) =>
-    formatPackageAmount(amount, useChargeCurrency ? (pkg.chargeCurrency || 'JMD') : (pkg.pricePaidCurrency || 'USD'));
+  const formatPkgAmount = (pkg: KcdPackageRecord, amount: number, useChargeCurrency = false, overrideCurrency?: string) =>
+    formatPackageAmount(amount, overrideCurrency || (useChargeCurrency ? (pkg.chargeCurrency || 'JMD') : (pkg.pricePaidCurrency || 'USD')));
 
   const formatJmd = (amount: number) => {
     return CurrencyService.format(amount, 'JMD');
@@ -728,6 +728,16 @@ export default function AdminPackagesPage() {
                           <span className="font-medium text-gray-900">{formatPkgAmount(pkg, pkg.totalAmount || 0)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Customer Invoice:</span>
+                          <span className="font-medium text-blue-600">
+                            {(() => {
+                              const customerInvoiceAmount = (pkg as any).customerInvoice?.amount || (pkg as any).pricePaid || (pkg as any).amountPaid || 0;
+                              const currency = (pkg as any).customerInvoice?.currency || (pkg as any).pricePaidCurrency || (pkg as any).amountPaidCurrency || 'USD';
+                              return customerInvoiceAmount > 0 ? formatPkgAmount(pkg, customerInvoiceAmount, false, currency) : '—';
+                            })()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Amount Paid:</span>
                           <span className="font-medium text-green-600">{formatPkgAmount(pkg, pkg.amountPaid || 0)}</span>
                         </div>
@@ -743,7 +753,7 @@ export default function AdminPackagesPage() {
                             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getInvoiceStatusBadge(pkg.invoiceStatus)}`}>
                               {getInvoiceStatusLabel(pkg.invoiceStatus)}
                             </span>
-                            {(pkg as any).customerInvoice && (
+                            {((pkg as any).customerInvoice || (pkg as any).invoiceUploaded) && (
                               <span className="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 border border-blue-200">
                                 Uploaded
                               </span>
@@ -801,6 +811,7 @@ export default function AdminPackagesPage() {
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Regular Charge</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Custom Charge</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Total Invoice</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Customer Invoice</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Amount Paid</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Billing Invoice</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Invoice Status</th>
@@ -874,7 +885,19 @@ export default function AdminPackagesPage() {
                           return formatPackageAmount(displayTotal.total, displayTotal.currency);
                         })()}
                       </td>
-                      <td className="px-6 py-4 text-sm font-medium text-green-600">{formatPkgAmount(pkg, pkg.amountPaid || 0)}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-blue-600">
+                        {(() => {
+                          const customerInvoiceAmount = (pkg as any).customerInvoice?.amount || (pkg as any).pricePaid || (pkg as any).amountPaid || 0;
+                          const currency = (pkg as any).customerInvoice?.currency || (pkg as any).pricePaidCurrency || (pkg as any).amountPaidCurrency || 'USD';
+                          return customerInvoiceAmount > 0 ? formatPkgAmount(pkg, customerInvoiceAmount, false, currency) : '—';
+                        })()}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-green-600">
+                        {(() => {
+                          const amountPaid = pkg.amountPaid || 0;
+                          return formatPkgAmount(pkg, amountPaid);
+                        })()}
+                      </td>
                       <td className="px-6 py-4">
                         {pkg.billingInvoiceId ? (
                           <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
@@ -891,7 +914,7 @@ export default function AdminPackagesPage() {
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getInvoiceStatusBadge(pkg.invoiceStatus)}`}>
                             {getInvoiceStatusLabel(pkg.invoiceStatus)}
                           </span>
-                          {(pkg as any).customerInvoice && (
+                          {((pkg as any).customerInvoice || (pkg as any).invoiceUploaded) && (
                             <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 border border-blue-200">
                               Invoice Uploaded
                             </span>
