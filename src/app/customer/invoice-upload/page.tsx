@@ -97,6 +97,9 @@ function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () =
       if (!res.ok) throw new Error(data?.error || data?.message || "Failed");
       toast.success("Invoice submitted!");
       
+      // Set sessionStorage flag to prevent auto-open on refresh
+      try { sessionStorage.setItem(`invoiceAutoOpened:${tn}`, '1'); } catch {}
+      
       // Update URL to include tracking parameter and refresh package state
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.set('tracking', tn);
@@ -388,11 +391,15 @@ export default function CustomerInvoiceUploadPage() {
       setPackages(invoicePkgs);
 
       // Auto-open upload modal if tracking param is present and exactly one matching package exists
+      // Use sessionStorage flag to prevent re-opening on refresh
       if (trackingParam && invoicePkgs.length === 1) {
         const pkg = invoicePkgs[0];
         const pkgTracking = getTrack(pkg);
-        if (pkgTracking.toLowerCase() === trackingParam.toLowerCase()) {
+        const key = `invoiceAutoOpened:${trackingParam}`;
+        const alreadyOpened = sessionStorage.getItem(key);
+        if (pkgTracking.toLowerCase() === trackingParam.toLowerCase() && !alreadyOpened) {
           setUploadPkg(pkg);
+          try { sessionStorage.setItem(key, '1'); } catch {}
         }
       }
     } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }

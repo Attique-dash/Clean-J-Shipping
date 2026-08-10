@@ -8,6 +8,7 @@ import {
   RefreshCw, Filter,
 } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { safeLower } from "@/lib/string-utils";
 
 interface Payment {
   _id: string;
@@ -30,7 +31,7 @@ function fmtDate(d?: string) { return d ? new Date(d).toLocaleDateString("en-GB"
 function fmtDateTime(d?: string) { return d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "N/A"; }
 
 function getStatusInfo(status: string) {
-  const s = (status || "").toLowerCase();
+  const s = safeLower(status || "");
   if (s === "completed" || s === "paid" || s === "success" || s === "captured") return { label: "Completed", classes: "bg-green-100 text-green-800", icon: CheckCircle };
   if (s === "pending" || s === "processing") return { label: "Pending", classes: "bg-yellow-100 text-yellow-800", icon: Clock };
   if (s === "failed" || s === "cancelled") return { label: "Failed", classes: "bg-red-100 text-red-800", icon: AlertCircle };
@@ -38,7 +39,7 @@ function getStatusInfo(status: string) {
 }
 
 function getMethodIcon(method: string) {
-  const m = (method || "").toLowerCase();
+  const m = safeLower(method || "");
   if (m === "paypal") return { label: "PayPal", gradient: "from-blue-500 to-blue-600" };
   if (m === "visa" || m === "card") return { label: "Card", gradient: "from-purple-500 to-purple-600" };
   if (m === "cash") return { label: "Cash", gradient: "from-green-500 to-green-600" };
@@ -151,9 +152,9 @@ export default function PaymentsPage() {
   useEffect(() => { setPage(1); }, [query, statusFilter]);
 
   const filtered = payments.filter(p => {
-    const q = query.trim().toLowerCase();
-    const matchQ = !q || (p.reference || "").toLowerCase().includes(q) || (p.trackingNumber || "").toLowerCase().includes(q) || (p.gatewayId || "").toLowerCase().includes(q);
-    const matchS = !statusFilter || (p.status || "").toLowerCase() === statusFilter.toLowerCase();
+    const q = safeLower(query.trim());
+    const matchQ = !q || safeLower(p.reference || "").includes(q) || safeLower(p.trackingNumber || "").includes(q) || safeLower(p.gatewayId || "").includes(q);
+    const matchS = !statusFilter || safeLower(p.status || "") === safeLower(statusFilter);
     return matchQ && matchS;
   });
 

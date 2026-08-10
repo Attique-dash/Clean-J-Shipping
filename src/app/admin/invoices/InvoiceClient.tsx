@@ -8,6 +8,7 @@ import Loading from "@/components/Loading";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { CurrencyService } from "@/lib/currency-service";
 import EnhancedCurrencySelector from "@/components/EnhancedCurrencySelector";
+import { safeLower } from "@/lib/string-utils";
 
 type Invoice = {
   _id: string;
@@ -185,13 +186,13 @@ export default function InvoiceClient() {
   };
 
   const filteredInvoices = invoices.filter((invoice) => {
-    const q = searchTerm.trim().toLowerCase();
+    const q = safeLower(searchTerm.trim());
     const matchesSearch =
       q.length === 0 ||
-      invoice.invoiceNumber.toLowerCase().includes(q) ||
-      invoice.customer?.name.toLowerCase().includes(q) ||
-      invoice.customer?.email.toLowerCase().includes(q) ||
-      (invoice.package?.trackingNumber || "").toLowerCase().includes(q);
+      safeLower(invoice.invoiceNumber).includes(q) ||
+      safeLower(invoice.customer?.name).includes(q) ||
+      safeLower(invoice.customer?.email).includes(q) ||
+      safeLower(invoice.package?.trackingNumber || "").includes(q);
     const matchesStatus = statusFilter === "all" || invoice.status === statusFilter;
     const matchesType = typeFilter === "all" || invoice.invoiceType === typeFilter;
 
@@ -774,7 +775,7 @@ export default function InvoiceClient() {
               </div>
 
               {/* Invoice Items with Breakdown */}
-              {viewingInvoice.items && viewingInvoice.items.length > 0 && (
+              {viewingInvoice && Array.isArray(viewingInvoice.items) && viewingInvoice.items.length > 0 && (
                 <div className="border-t pt-6">
                   <h3 className="font-semibold text-gray-900 mb-4">Invoice Items & Charges</h3>
                   <div className="overflow-x-auto">
@@ -790,32 +791,31 @@ export default function InvoiceClient() {
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {viewingInvoice.items.map((item, idx) => (
-                          <tr key={idx}>
-                            <td className="px-4 py-3">
-                              <div className="font-medium text-gray-900">{item.description}</div>
-                              {/* Categorize charge type if description contains keywords */}
-                              {(item.description.toLowerCase().includes('shipping') || 
-                                item.description.toLowerCase().includes('freight') ||
-                                item.description.toLowerCase().includes('transport')) && (
-                                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded mt-1 inline-block">Shipping</span>
-                              )}
-                              {(item.description.toLowerCase().includes('customs') || 
-                                item.description.toLowerCase().includes('duty')) && (
-                                <span className="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded mt-1 inline-block">Customs Duty</span>
-                              )}
-                              {(item.description.toLowerCase().includes('storage') || 
-                                item.description.toLowerCase().includes('warehouse')) && (
-                                <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded mt-1 inline-block">Storage</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-right">{item.quantity}</td>
-                            <td className="px-4 py-3 text-right">{formatAmount(item.unitPrice, "USD")}</td>
-                            <td className="px-4 py-3 text-right">{formatAmount(item.amount, "USD")}</td>
-                            <td className="px-4 py-3 text-right">{formatAmount(item.taxAmount, "USD")}</td>
-                            <td className="px-4 py-3 text-right font-semibold">{formatAmount(item.total, "USD")}</td>
-                          </tr>
-                        ))}
+                        {viewingInvoice.items.map((item, idx) => {
+                          const desc = safeLower(item.description || "");
+                          return (
+                            <tr key={idx}>
+                              <td className="px-4 py-3">
+                                <div className="font-medium text-gray-900">{item.description || ""}</div>
+                                {/* Categorize charge type if description contains keywords */}
+                                {desc.includes('shipping') || desc.includes('freight') || desc.includes('transport') ? (
+                                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded mt-1 inline-block">Shipping</span>
+                                ) : null}
+                                {desc.includes('customs') || desc.includes('duty') ? (
+                                  <span className="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded mt-1 inline-block">Customs Duty</span>
+                                ) : null}
+                                {desc.includes('storage') || desc.includes('warehouse') ? (
+                                  <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded mt-1 inline-block">Storage</span>
+                                ) : null}
+                              </td>
+                              <td className="px-4 py-3 text-right">{item.quantity}</td>
+                              <td className="px-4 py-3 text-right">{formatAmount(item.unitPrice, "USD")}</td>
+                              <td className="px-4 py-3 text-right">{formatAmount(item.amount, "USD")}</td>
+                              <td className="px-4 py-3 text-right">{formatAmount(item.taxAmount, "USD")}</td>
+                              <td className="px-4 py-3 text-right font-semibold">{formatAmount(item.total, "USD")}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

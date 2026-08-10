@@ -15,6 +15,7 @@ import {
   DollarSign,
   Calendar
 } from 'lucide-react';
+import { safeLower } from '@/lib/string-utils';
 
 interface PackageData {
   _id: string;
@@ -111,9 +112,9 @@ export default function InvoiceManager() {
   };
 
   const filteredPackages = packages.filter(pkg =>
-    pkg.trackingNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    pkg.customer.userCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    `${pkg.customer.firstName} ${pkg.customer.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
+    safeLower(pkg.trackingNumber).includes(safeLower(searchTerm)) ||
+    safeLower(pkg.customer.userCode).includes(safeLower(searchTerm)) ||
+    safeLower(`${pkg.customer.firstName} ${pkg.customer.lastName}`).includes(safeLower(searchTerm))
   );
 
   return (
