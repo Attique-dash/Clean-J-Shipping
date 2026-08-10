@@ -70,11 +70,21 @@ export async function GET(req: Request) {
       // - Invoice not yet uploaded or pending
       packages = await Package.find({
         userId: new Types.ObjectId(userId),
-        status: { $in: ['received', 'in_processing', 'pending', 'processing', 'customs_pending', 'AT WAREHOUSE', 'At Warehouse', 'at warehouse'] },
-        $or: [
-          { invoiceUploaded: { $exists: false } },
-          { invoiceUploaded: false },
-          { invoiceStatus: { $in: ['pending', 'rejected'] } }
+        $and: [
+          {
+            $or: [
+              { status: { $in: ['received', 'in_processing', 'pending', 'processing', 'customs_pending', 'AT WAREHOUSE', 'At Warehouse', 'at warehouse'] } },
+              { status: { $type: 'number' } }, // Any numeric status
+              { PackageStatus: { $type: 'number' } } // Any numeric PackageStatus
+            ]
+          },
+          {
+            $or: [
+              { invoiceUploaded: { $exists: false } },
+              { invoiceUploaded: false },
+              { invoiceStatus: { $in: ['pending', 'rejected'] } }
+            ]
+          }
         ]
       }).sort({ dateReceived: -1 }).lean();
     }
@@ -368,17 +378,22 @@ export async function POST(req: Request) {
         
         const pkg = await Package.findOne({
           userId: new Types.ObjectId(userId),
-          $or: [
-            { TrackingNumber: re },
-            { trackingNumber: re },
-            { ControlNumber: re }
-          ],
-          status: {
-            $in: [
-              'received', 'in_processing', 'pending', 'processing', 'customs_pending',
-              'AT WAREHOUSE', 'At Warehouse', 'at warehouse'
-            ]
-          }
+          $and: [
+            {
+              $or: [
+                { TrackingNumber: re },
+                { trackingNumber: re },
+                { ControlNumber: re }
+              ]
+            },
+            {
+              $or: [
+                { status: { $in: ['received', 'in_processing', 'pending', 'processing', 'customs_pending', 'AT WAREHOUSE', 'At Warehouse', 'at warehouse'] } },
+                { status: { $type: 'number' } }, // Any numeric status
+                { PackageStatus: { $type: 'number' } } // Any numeric PackageStatus
+              ]
+            }
+          ]
         });
 
         if (!pkg) {
