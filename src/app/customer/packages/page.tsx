@@ -604,7 +604,7 @@ export default function CustomerPackagesPage() {
         amountPaid: pkg.amountPaid || 0,
         itemValueUsd: pkg.itemValueUsd || pkg.usdValue || 0,
         usdValue: pkg.itemValueUsd || pkg.usdValue || 0,
-        pricePaidCurrency: pkg.pricePaidCurrency || "USD",
+        pricePaidCurrency: pkg.pricePaidCurrency || pkg.amountPaidCurrency || pkg.paymentCurrency || pkg.currency || "USD",
         paymentStatus: pkg.paymentStatus || "pending",
         paymentMethod: pkg.paymentMethod || "cash",
         warehouseLocation: pkg.warehouseLocation || pkg.warehouse_location || pkg.branch || "Main Warehouse",
@@ -619,7 +619,7 @@ export default function CustomerPackagesPage() {
         // Manual charge fields
         regularCharge: pkg.regularCharge || 0,
         customCharge: pkg.customCharge || 0,
-        chargeCurrency: pkg.chargeCurrency || 'JMD',
+        chargeCurrency: pkg.chargeCurrency || pkg.pricePaidCurrency || pkg.amountPaidCurrency || pkg.paymentCurrency || pkg.currency || 'JMD',
       }));
       try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: list, timestamp: Date.now() })); } catch {}
       setItems(list);

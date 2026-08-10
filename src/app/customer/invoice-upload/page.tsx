@@ -67,7 +67,7 @@ function fileIcon(fn: string) { return fn.endsWith('.pdf') ? <FileText className
 function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () => void; onDone: () => void }) {
   const tn = getTrack(pkg);
   const [price, setPrice] = useState(pkg.pricePaid?.toString() || "0");
-  const [currency, setCurrency] = useState(pkg.pricePaidCurrency || "USD");
+  const [currency, setCurrency] = useState(pkg.pricePaidCurrency || pkg.displayCurrency || "USD");
   const [description, setDescription] = useState(pkg.description || "");
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -157,10 +157,19 @@ function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () =
               ))}</div>
             )}
             {files.length < 3 && (
-              <label className="flex items-center justify-center gap-2 px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-[#0f4d8a] hover:bg-blue-50 transition-colors">
-                <Upload className="h-5 w-5 text-gray-400"/><span className="text-sm text-gray-600">{files.length===0?"Upload Files":"Add More"}</span>
-                <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange} className="hidden"/>
-              </label>
+              <div className="relative">
+                <input 
+                  type="file" 
+                  multiple 
+                  accept=".pdf,.jpg,.jpeg,.png" 
+                  onChange={handleFileChange} 
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  id="file-upload-input"
+                />
+                <div className="flex items-center justify-center gap-2 px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-[#0f4d8a] hover:bg-blue-50 transition-colors">
+                  <Upload className="h-5 w-5 text-gray-400"/><span className="text-sm text-gray-600">{files.length===0?"Upload Files":"Add More"}</span>
+                </div>
+              </div>
             )}
             <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG — max 10MB each, up to 3 files</p>
           </div>
