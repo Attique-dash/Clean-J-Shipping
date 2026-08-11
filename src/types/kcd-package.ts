@@ -50,6 +50,7 @@ export interface KcdPackageRecord extends KcdPackage {
   daysInStorage?: number;
   totalAmount?: number;
   amountPaid?: number;
+  amountPaidCurrency?: string;
   paymentStatus?: string;
   paymentMethod?: string;
   serviceMode?: string;
