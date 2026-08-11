@@ -7846,3 +7846,31 @@ I think I show you in a video before fully
 BC8FBEE7-43F6-4CEF-B646-E925F80E2842.mov
 
 (15.71 MB)
+A
+Profile Image
+Me
+
+Aug 05, 5:02 PM
+Hi James,
+
+Thanks for the Packit4U example - now I see exactly how the first email should work.
+
+I will make our system match it:
+
+1. First email (package received at warehouse) will show the package info, warehouse addresses, the customs notice, and a "Provide Invoice(s) Now" button - with NO invoice and NO charges at this stage.
+
+2. When the customer clicks the button, they go to your website where they enter the amount they paid for the goods and upload the invoice file.
+
+3. In your admin panel you will see the amount the customer declared + their uploaded invoice, so you know what custom charge to add.
+
+4. Only after the package reaches Jamaica and you add Regular Charge + Custom Charge, the system generates the final invoice (JMD total) and emails it to the customer with the payment link - like the "Bill #" emails with PDF in the Packit4U example.
+
+I'm making these changes now and will let you know when it's ready for you to test.
+
+Thanks!
+
+J
+james_1nelly
+
+Aug 05, 6:29 PM
+Thanks
