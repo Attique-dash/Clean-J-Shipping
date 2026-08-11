@@ -223,18 +223,22 @@ export default function CustomerInvoiceUploadPage() {
   const [deletePkg, setDeletePkg] = useState<PackageData | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Handle ?tracking= URL parameter to pre-select package
+  // Handle ?tracking= URL parameter to pre-select package and persist across redirects
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const trackingParam = params.get('tracking');
     if (trackingParam) {
       setQuery(trackingParam);
+      try { sessionStorage.setItem('invoiceTracking', trackingParam); } catch {}
       // Do NOT remove the tracking param — keep it so a page refresh still shows the single package.
-      // Removing the param causes the page to lose the filter on reload.
-      // If you want to avoid duplicate processing on back/forward, use a session flag instead.
-      // const newUrl = new URL(window.location.href);
-      // newUrl.searchParams.delete('tracking');
-      // window.history.replaceState({}, '', newUrl.toString());
+    } else {
+      // If no query param but we have a stored tracking from before (e.g., after login), restore it
+      try {
+        const stored = sessionStorage.getItem('invoiceTracking');
+        if (stored && !query) {
+          setQuery(stored);
+        }
+      } catch {}
     }
   }, []);
 
@@ -275,9 +279,11 @@ export default function CustomerInvoiceUploadPage() {
   async function load() {
     try {
       setLoading(true);
-      // Fetch invoice-upload data, passing tracking param if present
+      // Determine tracking parameter: prefer explicit search box value, then URL param, then sessionStorage fallback
       const params = new URLSearchParams(window.location.search);
-      const trackingParam = query?.trim() ? query.trim() : params.get('tracking');
+      const urlTracking = params.get('tracking');
+      const storedTracking = (() => { try { return sessionStorage.getItem('invoiceTracking'); } catch { return null; } })();
+      const trackingParam = query?.trim() ? query.trim() : (urlTracking || storedTracking || null);
       const apiUrl = trackingParam
         ? `/api/customer/invoice-upload?tracking=${encodeURIComponent(trackingParam)}`
         : "/api/customer/invoice-upload";
@@ -413,6 +419,13 @@ export default function CustomerInvoiceUploadPage() {
           });
         }
       } catch { /* continue without enrichment */ }
+
+      // normalize currency fields for consistent formatting
+      invoicePkgs.forEach((ip: any) => {
+        ip.pricePaidCurrency = (ip.pricePaidCurrency || ip.pricePaid || ip.paymentCurrency || ip.currency || ip.displayCurrency || 'USD').toString().toUpperCase();
+        // keep displayCurrency as fallback but normalized
+        ip.displayCurrency = (ip.displayCurrency || ip.pricePaidCurrency || 'USD').toString().toUpperCase();
+      });
 
       setPackages(invoicePkgs);
 
@@ -552,7 +565,7 @@ export default function CustomerInvoiceUploadPage() {
                   {amt > 0 && (
                     <div className="mx-6 mb-3 p-3 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg text-sm flex items-center justify-between">
                       <span className="text-gray-500 font-medium">Freight:</span>
-                      <span className="font-bold text-gray-900 text-base">{CurrencyService.format(amt, pkg.pricePaidCurrency || pkg.displayCurrency || 'USD')}</span>
+                      <span className="font-bold text-gray-900 text-base">{CurrencyService.format(amt, (pkg.pricePaidCurrency || pkg.paymentCurrency || pkg.currency || pkg.displayCurrency || 'USD').toUpperCase())}</span>
                     </div>
                   )}
 
@@ -560,7 +573,7 @@ export default function CustomerInvoiceUploadPage() {
                   {pkg.pricePaid > 0 && (
                     <div className="mx-6 mb-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg text-sm flex items-center justify-between">
                       <span className="text-gray-500 font-medium">Price Paid:</span>
-                      <span className="font-bold text-gray-900 text-base">{CurrencyService.format(pkg.pricePaid, pkg.pricePaidCurrency || pkg.displayCurrency || 'USD')}</span>
+                      <span className="font-bold text-gray-900 text-base">{CurrencyService.format(pkg.pricePaid, (pkg.pricePaidCurrency || pkg.paymentCurrency || pkg.currency || pkg.displayCurrency || 'USD').toUpperCase())}</span>
                     </div>
                   )}
 

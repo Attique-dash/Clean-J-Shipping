@@ -130,7 +130,11 @@ export async function GET(req: Request) {
       ];
       for (const value of values) {
         if (value && typeof value === 'string' && value.trim()) {
-          return value.trim().toUpperCase();
+          const normalized = value.trim().toUpperCase();
+          // Validate that it's a 3-letter code
+          if (/^[A-Z]{3}$/.test(normalized)) {
+            return normalized;
+          }
         }
       }
       return 'USD';
@@ -345,12 +349,16 @@ export async function POST(req: Request) {
           }
 
           // Update pre-alert with attachment file (use first file)
+          // Normalize currency to uppercase 3-letter code
+          const normalizedCurrency = (upload.currency || 'USD').toString().trim().toUpperCase();
+          
           await PreAlert.findByIdAndUpdate(
             preAlert._id,
             { 
               $set: { 
                 attachmentFile: cloudinaryFiles[0],
                 pricePaid: upload.price_paid || preAlert.pricePaid || 0,
+                pricePaidCurrency: normalizedCurrency,
               }
             }
           );
@@ -554,6 +562,9 @@ export async function POST(req: Request) {
           description: upload.description,
           files_count: cloudinaryFiles.length,
         });
+
+        // Normalize currency to uppercase 3-letter code
+        const normalizedCurrency = (upload.currency || 'USD').toString().trim().toUpperCase();
         
         const normalizedCloudinaryFiles = cloudinaryFiles.map(file => ({
           url: file.url,
@@ -571,13 +582,13 @@ export async function POST(req: Request) {
               invoiceFiles: normalizedCloudinaryFiles,
               pricePaid: upload.price_paid,
               amountPaid: upload.price_paid,
-              pricePaidCurrency: upload.currency,
-              amountPaidCurrency: upload.currency,
+              pricePaidCurrency: normalizedCurrency,
+              amountPaidCurrency: normalizedCurrency,
               invoiceSubmittedAt: new Date(),
               invoiceStatus: 'submitted',
               customerInvoice: {
                 amount: upload.price_paid,
-                currency: upload.currency,
+                currency: normalizedCurrency,
                 description: upload.description,
                 files: normalizedCloudinaryFiles,
                 submittedAt: new Date()
