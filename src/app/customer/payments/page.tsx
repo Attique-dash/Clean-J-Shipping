@@ -138,7 +138,16 @@ export default function PaymentsPage() {
     setError(null);
     try {
       const res = await fetch("/api/customer/payments", { method: "GET", credentials: "include", cache: "no-store" });
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        console.error('Failed to parse payments response:', parseError);
+        if (!res.ok) {
+          throw new Error('Failed to load payments');
+        }
+        throw new Error('Failed to parse server response');
+      }
       if (!res.ok) throw new Error(data?.error || "Failed to load payments");
       setPayments(data?.payments || []);
     } catch (e) {
@@ -162,7 +171,7 @@ export default function PaymentsPage() {
   const curPage = Math.min(page, totalPages);
   const paginated = filtered.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
 
-  const totalPaid = filtered.filter(p => ["completed", "paid", "success", "captured"].includes((p.status || "").toLowerCase())).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const totalPaid = filtered.filter(p => ["completed", "paid", "success", "captured"].includes(safeLower(p.status || ""))).reduce((s, p) => s + (Number(p.amount) || 0), 0);
   const totalPayments = filtered.length;
 
   if (loading) {

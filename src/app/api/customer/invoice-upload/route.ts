@@ -617,12 +617,17 @@ export async function POST(req: Request) {
     const successCount = results.filter(r => r.success).length;
     const failureCount = results.length - successCount;
 
+    // Extract the first successful updated package for client-side state update
+    const firstSuccessfulResult = results.find(r => r.success);
+    const updatedPackage = firstSuccessfulResult?.package;
+
     if (failureCount === 0) {
       return NextResponse.json({
         success: true,
         message: `Successfully uploaded ${successCount} invoice(s)`,
         results,
-        packages: results.map(r => r.package).filter(Boolean)
+        packages: results.map(r => r.package).filter(Boolean),
+        updatedPackage // Include for immediate client-side update
       });
     } else if (successCount === 0) {
       return NextResponse.json({
@@ -635,7 +640,8 @@ export async function POST(req: Request) {
         success: true,
         message: `Successfully uploaded ${successCount} invoice(s), ${failureCount} failed`,
         results,
-        packages: results.map(r => r.package).filter(Boolean)
+        packages: results.map(r => r.package).filter(Boolean),
+        updatedPackage // Include for immediate client-side update
       });
     }
 

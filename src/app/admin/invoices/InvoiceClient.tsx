@@ -93,7 +93,16 @@ export default function InvoiceClient() {
     try {
       const res = await fetch("/api/admin/invoices", { cache: "no-store" });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        console.error('Failed to parse invoices response:', parseError);
+        if (!res.ok) {
+          throw new Error('Failed to load invoices');
+        }
+        throw new Error('Failed to parse server response');
+      }
       if (!res.ok) throw new Error(data?.error || "Failed to load invoices");
       setInvoices(Array.isArray(data?.data) ? data.data : []);
     } catch (e) {
@@ -275,7 +284,13 @@ export default function InvoiceClient() {
       });
 
       if (!res.ok) {
-        const error = await res.json();
+        let error;
+        try {
+          error = await res.json();
+        } catch (parseError) {
+          console.error('Failed to parse delete invoice error response:', parseError);
+          throw new Error('Failed to delete invoice');
+        }
         throw new Error(error?.error || 'Failed to delete invoice');
       }
 
@@ -710,7 +725,12 @@ export default function InvoiceClient() {
       </div>
 
       {/* Invoice Details Modal */}
-      {viewingInvoice && (
+      {(() => {
+        if (!viewingInvoice) return null;
+        const items = Array.isArray(viewingInvoice.items) ? viewingInvoice.items : [];
+        const taxRate = viewingInvoice.items?.[0]?.taxRate ?? 0;
+        
+        return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-gradient-to-r from-[#0f4d8a] to-[#E67919] p-6 rounded-t-2xl flex items-center justify-between">
@@ -786,12 +806,12 @@ export default function InvoiceClient() {
                           <th className="px-4 py-3 text-right font-semibold text-gray-700">Quantity</th>
                           <th className="px-4 py-3 text-right font-semibold text-gray-700">Unit Price</th>
                           <th className="px-4 py-3 text-right font-semibold text-gray-700">Amount</th>
-                          <th className="px-4 py-3 text-right font-semibold text-gray-700">Tax ({viewingInvoice.items[0]?.taxRate || 0}%)</th>
+                          <th className="px-4 py-3 text-right font-semibold text-gray-700">Tax ({taxRate}%)</th>
                           <th className="px-4 py-3 text-right font-semibold text-gray-700">Total</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {viewingInvoice.items.map((item, idx) => {
+                        {items.map((item, idx) => {
                           const desc = safeLower(item.description || "");
                           return (
                             <tr key={idx}>
@@ -899,7 +919,8 @@ export default function InvoiceClient() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

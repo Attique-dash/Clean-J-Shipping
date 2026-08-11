@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
 import { CurrencyService } from '@/lib/currency-service';
+import { safeLower } from '@/lib/string-utils';
 import {
   Upload, FileText, X, Loader2, CheckCircle, AlertCircle, RefreshCw,
   Package, DollarSign, Plane, Ship, Truck, Check, Eye, Download, Search,
@@ -50,7 +51,7 @@ function statusIcon(s: string) {
   }
 }
 function serviceIcon(mode?: string) {
-  switch ((mode||"").toLowerCase()) {
+  switch (safeLower(mode)) {
     case 'air': return <Plane className="h-5 w-5" />;
     case 'ocean': case 'sea': return <Ship className="h-5 w-5" />;
     case 'local': return <Truck className="h-5 w-5" />;
@@ -64,7 +65,7 @@ function canSubmit(p: PackageData) { return p.invoiceStatus !== 'submitted' && p
 function fileIcon(fn: string) { return fn.endsWith('.pdf') ? <FileText className="h-4 w-4 text-red-500"/> : <FileText className="h-4 w-4 text-blue-500"/>; }
 
 /* ═══ Upload Modal ═══ */
-function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () => void; onDone: () => void }) {
+function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () => void; onDone: (updatedPkg?: PackageData) => void }) {
   const tn = getTrack(pkg);
   const [price, setPrice] = useState(pkg.pricePaid?.toString() || "0");
   const [currency, setCurrency] = useState(pkg.pricePaidCurrency || pkg.displayCurrency || "USD");
@@ -93,7 +94,13 @@ function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () =
       files.forEach(f => fd.append("files_0", f));
       fd.append("upload_0", JSON.stringify({ tracking_number: tn, price_paid: p, currency, description }));
       const res = await fetch("/api/customer/invoice-upload", { method: "POST", body: fd, credentials: "include" });
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        console.error('Failed to parse invoice upload response:', parseError);
+        throw new Error('Failed to parse server response');
+      }
       if (!res.ok) throw new Error(data?.error || data?.message || "Failed");
       toast.success("Invoice submitted!");
       
@@ -105,7 +112,8 @@ function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () =
       newUrl.searchParams.set('tracking', tn);
       window.history.replaceState({}, '', newUrl.toString());
       
-      onDone();
+      // Pass the updated package data to parent so it can update state
+      onDone(data.updatedPackage || pkg);
     } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
     finally { setSubmitting(false); }
   };
@@ -244,7 +252,16 @@ export default function CustomerInvoiceUploadPage() {
         credentials: "include",
         body: JSON.stringify({ tracking_number: tn }),
       });
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        console.error('Failed to parse delete invoice response:', parseError);
+        if (!res.ok) {
+          throw new Error('Failed to delete invoice');
+        }
+        throw new Error('Failed to parse server response');
+      }
       if (!res.ok) throw new Error(data?.error || "Failed to delete invoice");
       toast.success("Invoice deleted successfully!");
       load();
@@ -266,7 +283,16 @@ export default function CustomerInvoiceUploadPage() {
         : "/api/customer/invoice-upload";
       
       const res = await fetch(apiUrl, { credentials: "include", cache: "no-store" });
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        console.error('Failed to parse invoice packages response:', parseError);
+        if (!res.ok) {
+          throw new Error('Failed to load packages');
+        }
+        throw new Error('Failed to parse server response');
+      }
       if (!res.ok) throw new Error(data?.error || "Failed to load");
       const invoicePkgs = (data.packages || []).map((p: any) => {
         // Normalize invoiceFiles to ensure consistent object structure
@@ -397,7 +423,7 @@ export default function CustomerInvoiceUploadPage() {
         const pkgTracking = getTrack(pkg);
         const key = `invoiceAutoOpened:${trackingParam}`;
         const alreadyOpened = sessionStorage.getItem(key);
-        if (pkgTracking.toLowerCase() === trackingParam.toLowerCase() && !alreadyOpened) {
+        if (safeLower(pkgTracking) === safeLower(trackingParam) && !alreadyOpened) {
           setUploadPkg(pkg);
           try { sessionStorage.setItem(key, '1'); } catch {}
         }
@@ -411,8 +437,8 @@ export default function CustomerInvoiceUploadPage() {
 
   const filtered = packages.filter(p => {
     const tn = getTrack(p);
-    const q = query.trim().toLowerCase();
-    const matchQ = !q || tn.toLowerCase().includes(q) || (p.shipper||"").toLowerCase().includes(q) || (p.description||"").toLowerCase().includes(q);
+    const q = safeLower(query.trim());
+    const matchQ = !q || safeLower(tn).includes(q) || safeLower(p.shipper||"").includes(q) || safeLower(p.description||"").includes(q);
     const matchS = !statusFilter || p.invoiceStatus === statusFilter;
     return matchQ && matchS;
   });
@@ -606,7 +632,18 @@ export default function CustomerInvoiceUploadPage() {
         )}
       </div>
 
-      {uploadPkg && <UploadModal pkg={uploadPkg} onClose={()=>setUploadPkg(null)} onDone={()=>{setUploadPkg(null); load();}}/>}
+      {uploadPkg && <UploadModal pkg={uploadPkg} onClose={()=>setUploadPkg(null)} onDone={(updatedPkg) => {
+        setUploadPkg(null);
+        if (updatedPkg) {
+          // Update local state to include the updated package at the top
+          setPackages(prev => {
+            const tn = getTrack(updatedPkg);
+            const next = prev.filter(p => getTrack(p) !== tn);
+            return [updatedPkg, ...next];
+          });
+        }
+        load();
+      }}/>}
     </div>
   );
 }

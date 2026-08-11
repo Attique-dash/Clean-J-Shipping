@@ -124,7 +124,14 @@ export default function AdminPackagesPage() {
           'Pragma': 'no-cache'
         }
       });
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        console.error('Failed to parse response JSON:', parseError);
+        const textError = await res.text();
+        throw new Error(textError || 'Failed to parse server response');
+      }
       console.log('[Admin Frontend] Fetch packages response:', data);
       if (res.ok) {
         const list: KcdPackageRecord[] = data.packages || [];
@@ -194,8 +201,10 @@ export default function AdminPackagesPage() {
 
   const selectedCount = selectedIds.size;
 
-  const formatPkgAmount = (pkg: KcdPackageRecord, amount: number, useChargeCurrency = false, overrideCurrency?: string) =>
-    formatPackageAmount(amount, overrideCurrency || (useChargeCurrency ? (pkg.chargeCurrency || 'JMD') : (pkg.pricePaidCurrency || 'USD')));
+  const formatPkgAmount = (pkg: KcdPackageRecord, amount: number, useChargeCurrency = false, overrideCurrency?: string) => {
+    const currency = overrideCurrency || (useChargeCurrency ? (pkg.chargeCurrency || 'JMD') : (pkg.amountPaidCurrency || pkg.pricePaidCurrency || 'USD'));
+    return formatPackageAmount(amount, currency);
+  };
 
   const formatJmd = (amount: number) => {
     return CurrencyService.format(amount, 'JMD');
@@ -341,7 +350,13 @@ export default function AdminPackagesPage() {
         credentials: 'include'
       });
       if (res.ok) {
-        const fullPackageData: KcdPackageRecord = await res.json();
+        let fullPackageData: KcdPackageRecord;
+        try {
+          fullPackageData = await res.json();
+        } catch (parseError) {
+          console.error('Failed to parse package detail JSON:', parseError);
+          throw new Error('Failed to parse package data');
+        }
         logKcdPackageConsole('Admin Package Detail', fullPackageData);
         setPackageToView(fullPackageData);
       } else {
@@ -378,7 +393,14 @@ export default function AdminPackagesPage() {
         setDeleteModalOpen(false);
         setPackageToDelete(null);
       } else {
-        const data = await res.json();
+        let data;
+        try {
+          data = await res.json();
+        } catch (parseError) {
+          const textError = await res.text();
+          toast.error(textError || 'Failed to delete package');
+          return;
+        }
         toast.error(data.error || 'Failed to delete package');
       }
     } catch {
@@ -421,7 +443,14 @@ export default function AdminPackagesPage() {
         }),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        console.error('Failed to parse payment update response:', parseError);
+        toast.error('Failed to parse server response');
+        return;
+      }
 
       if (res.ok) {
         toast.success(`Payment status updated to ${getPaymentStatusLabel(paymentFormData.paymentStatus)}`);
@@ -731,8 +760,8 @@ export default function AdminPackagesPage() {
                           <span className="text-gray-600">Customer Invoice:</span>
                           <span className="font-medium text-blue-600">
                             {(() => {
-                              const customerInvoiceAmount = (pkg as any).customerInvoice?.amount || (pkg as any).pricePaid || (pkg as any).amountPaid || 0;
-                              const currency = (pkg as any).customerInvoice?.currency || (pkg as any).pricePaidCurrency || (pkg as any).amountPaidCurrency || 'USD';
+                              const customerInvoiceAmount = (pkg as any).customerInvoice?.amount || pkg.amountPaid || 0;
+                              const currency = (pkg as any).customerInvoice?.currency || pkg.amountPaidCurrency || 'USD';
                               return customerInvoiceAmount > 0 ? formatPkgAmount(pkg, customerInvoiceAmount, false, currency) : '—';
                             })()}
                           </span>
@@ -811,7 +840,6 @@ export default function AdminPackagesPage() {
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Regular Charge</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Custom Charge</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Total Invoice</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Customer Invoice</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Amount Paid</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Billing Invoice</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Invoice Status</th>
@@ -883,13 +911,6 @@ export default function AdminPackagesPage() {
                         {(() => {
                           const displayTotal = getDisplayTotal(pkg);
                           return formatPackageAmount(displayTotal.total, displayTotal.currency);
-                        })()}
-                      </td>
-                      <td className="px-6 py-4 text-sm font-medium text-blue-600">
-                        {(() => {
-                          const customerInvoiceAmount = (pkg as any).customerInvoice?.amount || (pkg as any).pricePaid || (pkg as any).amountPaid || 0;
-                          const currency = (pkg as any).customerInvoice?.currency || (pkg as any).pricePaidCurrency || (pkg as any).amountPaidCurrency || 'USD';
-                          return customerInvoiceAmount > 0 ? formatPkgAmount(pkg, customerInvoiceAmount, false, currency) : '—';
                         })()}
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-green-600">
