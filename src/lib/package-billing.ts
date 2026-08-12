@@ -96,7 +96,7 @@ export function buildBillingInvoicePayload(
       packageData
     );
     const currency = getPackagePaymentCurrency(packageData, payment);
-    const invoiceCurrency = CurrencyService.isSupported(currency) ? currency : 'JMD';
+    const invoiceCurrency = CurrencyService.isSupported(currency) ? currency : 'USD';
     const isPackageCurrencyUsd = isUsdCurrency(currency);
 
     // Use canonical helper to get manual charges with legacy support

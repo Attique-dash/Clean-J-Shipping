@@ -237,6 +237,10 @@ export default function CustomerInvoiceUploadPage() {
         const stored = sessionStorage.getItem('invoiceTracking');
         if (stored && !query) {
           setQuery(stored);
+          // Restore the tracking parameter in URL
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.set('tracking', stored);
+          window.history.replaceState({}, '', newUrl.toString());
         }
       } catch {}
     }

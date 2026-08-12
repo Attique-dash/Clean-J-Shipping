@@ -191,7 +191,7 @@ function PackageDetailModal({ pkg, onClose, onOpenInvoice }: { pkg: UIPackage; o
   const totalAmount = displayTotal.total;
   const amountPaid = pkg.amountPaid || 0;
   const balance = Math.max(0, totalAmount - amountPaid);
-  const currency = displayTotal.currency;
+  const currency = displayTotal.currency || pkg.chargeCurrency || pkg.pricePaidCurrency || 'USD';
   const formattedTotal = formatDisplayAmount(totalAmount, currency);
   const formattedRegularCharge = formatDisplayAmount(regularCharge, currency);
   const formattedCustomCharge = formatDisplayAmount(customCharge, currency);
@@ -341,7 +341,7 @@ function InvoiceModal({ pkg, onClose, userEmail }: { pkg: UIPackage; onClose: ()
   // Use canonical helper for charge totals and currency
   const chargeTotals = getPackageChargeTotals(pkg);
   const displayTotal = getDisplayTotal(pkg);
-  const currencyCode = invoiceData?.currency || displayTotal.currency || 'JMD';
+  const currencyCode = invoiceData?.currency || displayTotal.currency || pkg.chargeCurrency || pkg.pricePaidCurrency || 'USD';
   const formatMoney = (value: number) => CurrencyService.format(value, currencyCode.toUpperCase());
   const invoiceNumber = invoiceData?.invoiceNumber || `INV-${new Date().getFullYear()}-XXXX`;
   const issueDate = invoiceData?.issueDate ? new Date(invoiceData.issueDate) : new Date();
@@ -604,9 +604,10 @@ export default function CustomerPackagesPage() {
         amountPaid: pkg.amountPaid || 0,
         itemValueUsd: pkg.itemValueUsd || pkg.usdValue || 0,
         usdValue: pkg.itemValueUsd || pkg.usdValue || 0,
-        pricePaidCurrency: pkg.pricePaidCurrency || pkg.amountPaidCurrency || pkg.paymentCurrency || pkg.currency || "USD",
+        pricePaidCurrency: pkg.pricePaidCurrency || pkg.chargeCurrency || pkg.amountPaidCurrency || pkg.paymentCurrency || pkg.currency || "USD",
         paymentStatus: pkg.paymentStatus || "pending",
         paymentMethod: pkg.paymentMethod || "cash",
+        paymentCurrency: pkg.chargeCurrency || pkg.pricePaidCurrency || pkg.amountPaidCurrency || pkg.paymentCurrency || pkg.currency || "USD",
         warehouseLocation: pkg.warehouseLocation || pkg.warehouse_location || pkg.branch || "Main Warehouse",
         branch: pkg.branch || pkg.warehouseLocation || "Main Branch",
         dateReceived: pkg.dateReceived || pkg.entryDate || pkg.createdAt,
@@ -619,7 +620,7 @@ export default function CustomerPackagesPage() {
         // Manual charge fields
         regularCharge: pkg.regularCharge || 0,
         customCharge: pkg.customCharge || 0,
-        chargeCurrency: pkg.chargeCurrency || pkg.pricePaidCurrency || pkg.amountPaidCurrency || pkg.paymentCurrency || pkg.currency || 'JMD',
+        chargeCurrency: pkg.chargeCurrency || pkg.pricePaidCurrency || pkg.amountPaidCurrency || pkg.paymentCurrency || pkg.currency || 'USD',
       }));
       try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: list, timestamp: Date.now() })); } catch {}
       setItems(list);
@@ -733,7 +734,7 @@ export default function CustomerPackagesPage() {
               // Use canonical helper to get correct total with manual charge support
               const displayTotal = getDisplayTotal(pkg);
               const amt = displayTotal.total;
-              const currencyCode = displayTotal.currency;
+              const currencyCode = displayTotal.currency || pkg.chargeCurrency || pkg.pricePaidCurrency || 'USD';
               const trackNum = pkg.tracking_number;
               return (
                 <div key={trackNum} className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1">

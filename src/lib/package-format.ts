@@ -61,13 +61,10 @@ export function getPackageChargeTotals(docOrPkg: Record<string, unknown> | KcdPa
   const usedManualCharges = regularCharge > 0 || customCharge > 0;
   const manualTotal = regularCharge + customCharge;
   
-  // When manual charges are used, default to JMD currency for billing invoices
-  // This ensures Test 4 compliance: Regular Charge + Custom Charge = JMD total only
+  // Always try to resolve currency from multiple sources
   let currency = chargeCurrency;
-  if (usedManualCharges && (!currency || currency === 'JMD')) {
-    currency = 'JMD';
-  } else if (!currency || currency === 'JMD') {
-    // Fall back to PackagePayments currency only if no manual charges
+  if (!currency) {
+    // Fall back to PackagePayments currency
     const packagePayments = doc.PackagePayments || doc.packagePayments;
     if (typeof packagePayments === 'string') {
       try {
@@ -81,7 +78,7 @@ export function getPackageChargeTotals(docOrPkg: Record<string, unknown> | KcdPa
     }
   }
   if (!currency) {
-    currency = asString(doc.pricePaidCurrency) || 'USD';
+    currency = asString(doc.pricePaidCurrency) || asString(doc.paymentCurrency) || asString(doc.amountPaidCurrency) || asString(doc.currency) || 'USD';
   }
   
   return {

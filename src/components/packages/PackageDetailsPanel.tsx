@@ -46,7 +46,7 @@ export default function PackageDetailsPanel({
   // Use canonical helper for charge totals and currency
   const chargeTotals = getPackageChargeTotals(pkg);
   const displayTotal = getDisplayTotal(pkg);
-  const currency = displayTotal.currency;
+  const currency = displayTotal.currency || (pkg as any).chargeCurrency || (pkg as any).pricePaidCurrency || (pkg as any).paymentCurrency || 'USD';
   const formatAmount = (amount: number) => formatPackageAmount(amount, currency);
   const dimUnit = pkg.dimensionUnit || 'cm';
 

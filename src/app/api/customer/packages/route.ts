@@ -175,6 +175,8 @@ export async function GET(req: NextRequest) {
       if (amountPaidUsd === 0) {
         amountPaidUsd = parseFloat(String(doc.amountPaid || 0));
       }
+      // Always resolve currency from actual package data, not default to USD
+      // But only if not already set from PackagePayments JSON
       if (currency === 'USD') {
         currency = resolveCurrency([
           doc.pricePaidCurrency,
@@ -300,7 +302,7 @@ export async function GET(req: NextRequest) {
         // Manual charge fields
         regularCharge: getVal(p, 'regularCharge', 'regular_charge') || 0,
         customCharge: getVal(p, 'customCharge', 'custom_charge') || 0,
-        chargeCurrency: getVal(p, 'chargeCurrency', 'charge_currency') || 'JMD',
+        chargeCurrency: getVal(p, 'chargeCurrency', 'charge_currency') || payment.currency,
 
         // Billing breakdown
         dutyPercent: p.dutyPercent ?? 20,
