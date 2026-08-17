@@ -8,7 +8,8 @@
     "start": "cross-env NODE_OPTIONS='--max-old-space-size=2048' next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "prepare": "echo Ready"
+    "prepare": "echo Ready",
+    "fix-currencies": "node scripts/fix-package-currencies.js"
   },
   "dependencies": {
     "@auth/core": "^0.34.3",

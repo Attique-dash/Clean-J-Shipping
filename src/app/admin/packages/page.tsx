@@ -202,7 +202,7 @@ export default function AdminPackagesPage() {
   const selectedCount = selectedIds.size;
 
   const formatPkgAmount = (pkg: KcdPackageRecord, amount: number, useChargeCurrency = false, overrideCurrency?: string) => {
-    const currency = overrideCurrency || (useChargeCurrency ? (pkg.chargeCurrency || 'JMD') : (pkg.amountPaidCurrency || pkg.pricePaidCurrency || 'USD'));
+    const currency = overrideCurrency || (useChargeCurrency ? (pkg.chargeCurrency || pkg.pricePaidCurrency || (pkg as any).paymentCurrency || 'USD') : (pkg.amountPaidCurrency || pkg.pricePaidCurrency || (pkg as any).paymentCurrency || 'USD'));
     return formatPackageAmount(amount, currency);
   };
 

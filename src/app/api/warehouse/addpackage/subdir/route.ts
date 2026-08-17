@@ -139,7 +139,10 @@ export async function POST(request: Request) {
             Pieces,
             PackageStatus,
             GoodsCost, // NEW: Cost of goods from Amazon/eBay
-            GoodsDescription // NEW: Description of goods
+            GoodsDescription, // NEW: Description of goods
+            Currency, // NEW: Currency field from KCD data
+            PricePaidCurrency, // NEW: Price paid currency
+            PaymentCurrency // NEW: Payment currency
           } = pkgData;
 
           // Validate required fields
@@ -176,6 +179,9 @@ export async function POST(request: Request) {
           const weightLbs = weightNum * 2.20462;
           const shippingCostJmd = calcShippingCostJmd(weightLbs);
 
+          // Resolve currency from package data or default to USD
+          const packageCurrency = (Currency || PricePaidCurrency || PaymentCurrency || 'USD').toString().trim().toUpperCase();
+
           // Create or update package (no auto-charges)
           const packageData = {
             trackingNumber: TrackingNumber,
@@ -199,7 +205,9 @@ export async function POST(request: Request) {
             totalAmount: 0, // No auto-charges
             regularCharge: 0, // Manual billing only
             customCharge: 0, // Manual billing only
-            chargeCurrency: 'JMD',
+            chargeCurrency: packageCurrency, // Use actual currency instead of hardcoded JMD
+            pricePaidCurrency: packageCurrency, // Set for consistency
+            paymentCurrency: packageCurrency, // Set for consistency
             paymentMethod: 'cash',
             packageType: 'parcel',
             serviceType: 'standard',

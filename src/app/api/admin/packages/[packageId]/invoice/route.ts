@@ -36,7 +36,7 @@ export async function POST(
     const regularCharge = pkg.regularCharge || 0;
     const customCharge = pkg.customCharge || 0;
     const totalAmount = regularCharge + customCharge;
-    const currency = pkg.chargeCurrency || 'JMD';
+    const currency = pkg.chargeCurrency || pkg.pricePaidCurrency || pkg.paymentCurrency || 'USD';
 
     if (totalAmount === 0) {
       return NextResponse.json({ error: "No charges defined. Please set Regular Charge and/or Custom Charge before generating invoice." }, { status: 400 });

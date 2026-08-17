@@ -61,24 +61,27 @@ export function getPackageChargeTotals(docOrPkg: Record<string, unknown> | KcdPa
   const usedManualCharges = regularCharge > 0 || customCharge > 0;
   const manualTotal = regularCharge + customCharge;
   
-  // Always try to resolve currency from multiple sources
-  let currency = chargeCurrency;
+  // Always try to resolve currency from multiple sources (canonical priority)
+  let currency = (String(chargeCurrency || '').trim() || '').toUpperCase();
+
+  // If chargeCurrency is empty, try parsing PackagePayments (string JSON) for currency
   if (!currency) {
-    // Fall back to PackagePayments currency
     const packagePayments = doc.PackagePayments || doc.packagePayments;
     if (typeof packagePayments === 'string') {
       try {
         const parsed = JSON.parse(packagePayments);
-        if (parsed.currency) {
-          currency = asString(parsed.currency);
-        }
+        if (parsed.currency) currency = String(parsed.currency).trim().toUpperCase();
       } catch {
-        // Ignore parse errors
+        // ignore parse errors
       }
     }
   }
+
+  // Final fallbacks (explicit fields) and ensure uppercase
   if (!currency) {
-    currency = asString(doc.pricePaidCurrency) || asString(doc.paymentCurrency) || asString(doc.amountPaidCurrency) || asString(doc.currency) || 'USD';
+    currency =
+      (String(doc.pricePaidCurrency || doc.paymentCurrency || doc.amountPaidCurrency || doc.currency || '').trim() || 'USD')
+        .toUpperCase();
   }
   
   return {
@@ -261,7 +264,7 @@ export function getPackagePaymentCurrency(
 }
 
 export function formatPackageAmount(amount: number, currencyCode?: string): string {
-  const code = (currencyCode || 'USD').toUpperCase();
+  const code = (currencyCode || 'USD').toString().trim().toUpperCase();
   if (CurrencyService.isSupported(code)) {
     return CurrencyService.format(amount, code);
   }

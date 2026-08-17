@@ -122,6 +122,9 @@ export const addPackageSchema = z.object({
   itemDescription: z.string().max(500).optional(),
   entryDate: z.string().optional(),
   status: z.string().optional(),
+  currency: z.string().optional(),
+  pricePaidCurrency: z.string().optional(),
+  paymentCurrency: z.string().optional(),
   dimensions: z.object({
     length: z.number().min(0).optional(),
     width: z.number().min(0).optional(),

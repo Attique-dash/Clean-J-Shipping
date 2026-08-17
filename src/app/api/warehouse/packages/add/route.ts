@@ -65,11 +65,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { trackingNumber, userCode, weight, shipper, description, itemDescription, entryDate, status, dimensions, recipient, sender, contents, value, specialInstructions, receivedBy, warehouse } = parsed.data;
+  const { trackingNumber, userCode, weight, shipper, description, itemDescription, entryDate, status, dimensions, recipient, sender, contents, value, specialInstructions, receivedBy, warehouse, currency, pricePaidCurrency, paymentCurrency } = parsed.data;
 
   // Detect shipping method
   const shippingMethod = detectShippingMethod(shipper, warehouse, description);
   console.log(`Detected shipping method for ${trackingNumber}: ${shippingMethod}`);
+
+  // Resolve currency from package data or default to USD
+  const packageCurrency = (currency || pricePaidCurrency || paymentCurrency || 'USD').toString().trim().toUpperCase();
 
   // Get warehouse addresses based on shipping method
   let warehouseAddresses = { airAddress: '', seaAddress: '', chinaAddress: '' };
@@ -128,7 +131,9 @@ export async function POST(req: Request) {
           // No auto-charges - regularCharge and customCharge start at 0
           regularCharge: 0,
           customCharge: 0,
-          chargeCurrency: "JMD",
+          chargeCurrency: packageCurrency, // Use actual currency instead of hardcoded JMD
+          pricePaidCurrency: packageCurrency, // Set for consistency
+          paymentCurrency: packageCurrency, // Set for consistency
           paymentMethod: "cash",
           // Recipient information
           receiverName: recipient?.name || undefined,

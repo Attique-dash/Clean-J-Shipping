@@ -19,6 +19,7 @@ interface PackageData {
   weight: number; serviceMode: 'air' | 'ocean' | 'local'; dateReceived?: string;
   received_date?: string; invoiceStatus: 'pending' | 'submitted' | 'approved' | 'rejected' | 'billed';
   invoiceUploaded: boolean; pricePaid: number; pricePaidCurrency: string;
+  paymentCurrency?: string; chargeCurrency?: string;
   displayCurrency?: string; // Add canonical currency field for consistent UI formatting
   invoiceFiles: InvoiceFile[] | string[]; invoiceSubmittedAt?: string; hasInvoice: boolean;
   description?: string; itemDescription?: string; warehouseLocation?: string; merchant?: string;
@@ -569,7 +570,7 @@ export default function CustomerInvoiceUploadPage() {
                   {amt > 0 && (
                     <div className="mx-6 mb-3 p-3 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg text-sm flex items-center justify-between">
                       <span className="text-gray-500 font-medium">Freight:</span>
-                      <span className="font-bold text-gray-900 text-base">{CurrencyService.format(amt, (pkg.pricePaidCurrency || pkg.displayCurrency || 'USD').toUpperCase())}</span>
+                      <span className="font-bold text-gray-900 text-base">{CurrencyService.format(amt, (pkg.pricePaidCurrency || (pkg as any).paymentCurrency || (pkg as any).chargeCurrency || pkg.displayCurrency || 'USD').toUpperCase())}</span>
                     </div>
                   )}
 
@@ -577,7 +578,7 @@ export default function CustomerInvoiceUploadPage() {
                   {pkg.pricePaid > 0 && (
                     <div className="mx-6 mb-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg text-sm flex items-center justify-between">
                       <span className="text-gray-500 font-medium">Price Paid:</span>
-                      <span className="font-bold text-gray-900 text-base">{CurrencyService.format(pkg.pricePaid, (pkg.pricePaidCurrency || pkg.displayCurrency || 'USD').toUpperCase())}</span>
+                      <span className="font-bold text-gray-900 text-base">{CurrencyService.format(pkg.pricePaid, (pkg.pricePaidCurrency || (pkg as any).paymentCurrency || (pkg as any).chargeCurrency || pkg.displayCurrency || 'USD').toUpperCase())}</span>
                     </div>
                   )}
 

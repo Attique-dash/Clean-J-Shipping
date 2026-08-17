@@ -95,7 +95,7 @@ export async function GET(
       },
       regularCharge: asNumber(doc.regularCharge ?? doc.regular_charge),
       customCharge: asNumber(doc.customCharge ?? doc.custom_charge),
-      chargeCurrency: asString(doc.chargeCurrency ?? doc.charge_currency) || 'JMD',
+      chargeCurrency: asString(doc.chargeCurrency ?? doc.charge_currency) || asString(doc.pricePaidCurrency) || asString(doc.paymentCurrency) || 'USD',
     };
 
     console.log('[Admin Package Detail API] KCD format:', JSON.stringify(formPayload, null, 2));
@@ -216,10 +216,10 @@ export async function PUT(
       // Manual charge fields - save both camelCase and snake_case for legacy support
       regularCharge: asNumber(body.regularCharge ?? existingDoc.regularCharge ?? existingDoc.regular_charge),
       customCharge: asNumber(body.customCharge ?? existingDoc.customCharge ?? existingDoc.custom_charge),
-      chargeCurrency: asString(body.chargeCurrency ?? existingDoc.chargeCurrency ?? existingDoc.charge_currency) || 'JMD',
+      chargeCurrency: asString(body.chargeCurrency ?? existingDoc.chargeCurrency ?? existingDoc.charge_currency) || paymentMeta.currency || 'USD',
       regular_charge: asNumber(body.regularCharge ?? existingDoc.regularCharge ?? existingDoc.regular_charge),
       custom_charge: asNumber(body.customCharge ?? existingDoc.customCharge ?? existingDoc.custom_charge),
-      charge_currency: asString(body.chargeCurrency ?? existingDoc.chargeCurrency ?? existingDoc.charge_currency) || 'JMD',
+      charge_currency: asString(body.chargeCurrency ?? existingDoc.chargeCurrency ?? existingDoc.charge_currency) || paymentMeta.currency || 'USD',
     };
 
     if (body.recipient) {
