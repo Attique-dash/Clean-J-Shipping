@@ -20,7 +20,11 @@ import {
   Filter, 
   ChevronRight, 
   Eye,
-  X
+  X,
+  FileText,
+  Send,
+  CheckCircle,
+  DollarSign
 } from 'lucide-react';
 import Link from 'next/link';
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
@@ -89,6 +93,17 @@ export default function AdminPackagesPage() {
     paymentNote: ''
   });
   const [updatingPayment, setUpdatingPayment] = useState(false);
+
+  // Generate invoice modal state
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [packageToInvoice, setPackageToInvoice] = useState<KcdPackageRecord | null>(null);
+  const [invoiceFormData, setInvoiceFormData] = useState({
+    regularCharge: '',
+    customCharge: '',
+    chargeCurrency: 'JMD',
+    notes: ''
+  });
+  const [generatingInvoice, setGeneratingInvoice] = useState(false);
 
   // Get userCode from URL params on mount
   useEffect(() => {
@@ -469,6 +484,71 @@ export default function AdminPackagesPage() {
     }
   };
 
+  // Handle open invoice generation modal
+  const handleOpenInvoiceModal = (pkg: KcdPackageRecord) => {
+    setPackageToInvoice(pkg);
+    const regular = pkg.regularCharge ?? (pkg as any).regular_charge ?? 0;
+    const custom = pkg.customCharge ?? (pkg as any).custom_charge ?? 0;
+    const currency = (pkg.chargeCurrency || (pkg as any).charge_currency || pkg.pricePaidCurrency || pkg.paymentCurrency || 'JMD').toString().trim().toUpperCase();
+    setInvoiceFormData({
+      regularCharge: regular > 0 ? String(regular) : '',
+      customCharge: custom > 0 ? String(custom) : '',
+      chargeCurrency: currency || 'JMD',
+      notes: '',
+    });
+    setInvoiceModalOpen(true);
+  };
+
+  // Handle invoice generation submission
+  const handleGenerateInvoice = async () => {
+    if (!packageToInvoice) return;
+
+    const reg = Number(invoiceFormData.regularCharge) || 0;
+    const cust = Number(invoiceFormData.customCharge) || 0;
+    if (reg + cust <= 0) {
+      toast.error('Please enter a Regular Charge or Custom Charge greater than 0');
+      return;
+    }
+
+    setGeneratingInvoice(true);
+    try {
+      const res = await fetch(`/api/admin/packages/${packageToInvoice._id}/invoice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          regularCharge: reg,
+          customCharge: cust,
+          chargeCurrency: invoiceFormData.chargeCurrency || 'JMD',
+        }),
+      });
+
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        console.error('Failed to parse invoice generation response:', parseErr);
+        toast.error('Failed to parse server response');
+        return;
+      }
+
+      if (res.ok && data.success) {
+        toast.success(data.message || `Invoice ${data.invoice_number} generated & emailed successfully!`);
+        setInvoiceModalOpen(false);
+        setPackageToInvoice(null);
+        // Refresh packages list
+        fetchPackages();
+      } else {
+        toast.error(data?.error || 'Failed to generate invoice');
+      }
+    } catch (error) {
+      console.error('Error generating invoice:', error);
+      toast.error('Network error generating invoice');
+    } finally {
+      setGeneratingInvoice(false);
+    }
+  };
+
   if (status === 'loading' || loading) {
     return <Loading message="Loading packages..." />;
   }
@@ -801,6 +881,22 @@ export default function AdminPackagesPage() {
                             <Eye className="h-3 w-3 mr-1" />
                             View
                           </button>
+                          <button
+                            onClick={() => handleOpenInvoiceModal(pkg)}
+                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-emerald-700 bg-white rounded-md hover:bg-emerald-50 transition-all shadow-sm"
+                            title="Generate / Update Invoice"
+                          >
+                            <FileText className="h-3 w-3 mr-1" />
+                            Invoice
+                          </button>
+                          <button
+                            onClick={() => handleOpenPaymentModal(pkg)}
+                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-700 bg-white rounded-md hover:bg-green-50 transition-all shadow-sm"
+                            title="Update Payment Status"
+                          >
+                            <DollarSign className="h-3 w-3 mr-1" />
+                            Pay
+                          </button>
                           <Link
                             href={`/admin/add-package?edit=${pkg._id}`}
                             className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-700 bg-white rounded-md hover:bg-gray-50 transition-all shadow-sm"
@@ -964,6 +1060,14 @@ export default function AdminPackagesPage() {
                               View
                             </button>
                             <button
+                              onClick={() => handleOpenInvoiceModal(pkg)}
+                              className="inline-flex items-center px-2 py-1 text-xs font-medium text-emerald-700 bg-white rounded-md hover:bg-emerald-50 transition-all shadow-sm"
+                              title="Generate / Update Invoice"
+                            >
+                              <FileText className="h-3 w-3 mr-1" />
+                              Invoice
+                            </button>
+                            <button
                               onClick={() => handleOpenPaymentModal(pkg)}
                               className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-700 bg-white rounded-md hover:bg-green-50 transition-all shadow-sm"
                               title="Update Payment Status"
@@ -1038,18 +1142,30 @@ export default function AdminPackagesPage() {
               </div>
 
               <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 space-y-3">
-                <button
-                  onClick={() => {
-                    setViewModalOpen(false);
-                    handleOpenPaymentModal(packageToView);
-                  }}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all font-medium shadow-lg flex items-center justify-center gap-2"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Update Payment
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setViewModalOpen(false);
+                      handleOpenInvoiceModal(packageToView);
+                    }}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl hover:from-blue-700 hover:to-indigo-800 transition-all font-medium shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <FileText className="h-5 w-5" />
+                    Generate Invoice
+                  </button>
+                  <button
+                    onClick={() => {
+                      setViewModalOpen(false);
+                      handleOpenPaymentModal(packageToView);
+                    }}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all font-medium shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Update Payment
+                  </button>
+                </div>
                 <button
                   onClick={() => setViewModalOpen(false)}
                   className="w-full px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl hover:from-gray-700 hover:to-gray-800 transition-all font-medium shadow-lg"
@@ -1203,6 +1319,206 @@ export default function AdminPackagesPage() {
                   className="w-full px-4 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all font-medium shadow-md disabled:opacity-50 text-sm"
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Generate & Send Invoice Modal */}
+        {invoiceModalOpen && packageToInvoice && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="bg-gradient-to-r from-blue-700 to-indigo-800 p-5 rounded-t-2xl flex-shrink-0 text-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white/10 rounded-lg">
+                      <FileText className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold">Generate & Send Invoice</h3>
+                      <p className="text-xs text-blue-100 font-mono">{packageToInvoice.TrackingNumber}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setInvoiceModalOpen(false);
+                      setPackageToInvoice(null);
+                    }}
+                    className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 overflow-y-auto space-y-4">
+                {/* Customer Information */}
+                <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3 text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-medium">Customer:</span>
+                    <span className="font-semibold text-gray-900">{getCustomerDisplayName(packageToInvoice) || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-medium">Mailbox / Code:</span>
+                    <span className="font-semibold text-gray-900">{packageToInvoice.UserCode || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-medium">Email:</span>
+                    <span className="font-semibold text-blue-700">{packageToInvoice.customerEmail || '—'}</span>
+                  </div>
+                  {packageToInvoice.weightLbs ? (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 font-medium">Weight:</span>
+                      <span className="font-semibold text-gray-900">{Number(packageToInvoice.weightLbs).toFixed(2)} lbs</span>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Declared Value & Customer Uploaded Invoice Info */}
+                {((packageToInvoice as any).pricePaid || (packageToInvoice as any).customerInvoice || (packageToInvoice as any).invoiceFiles?.length > 0 || (packageToInvoice as any).invoiceUploaded) && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs space-y-2">
+                    <div className="font-bold text-amber-800 flex items-center gap-1.5">
+                      <span>📋 Customer Declared Information</span>
+                    </div>
+                    {((packageToInvoice as any).pricePaid || (packageToInvoice as any).itemValueUSD) && (
+                      <div className="flex justify-between text-amber-900">
+                        <span>Declared Goods Value:</span>
+                        <span className="font-bold">
+                          USD ${Number((packageToInvoice as any).pricePaid || (packageToInvoice as any).itemValueUSD || 0).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                    {(packageToInvoice as any).itemDescription && (
+                      <div className="text-amber-800">
+                        <span className="font-medium">Item Description: </span>
+                        <span>{(packageToInvoice as any).itemDescription}</span>
+                      </div>
+                    )}
+                    {(packageToInvoice as any).invoiceFiles?.length > 0 && (
+                      <div className="space-y-1 pt-1 border-t border-amber-200">
+                        <span className="font-medium text-amber-800">Uploaded Invoices:</span>
+                        <div className="space-y-1">
+                          {(packageToInvoice as any).invoiceFiles.map((file: any, index: number) => (
+                            <a
+                              key={index}
+                              href={file.path || file.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block text-blue-600 hover:underline truncate bg-white p-1.5 rounded border border-amber-200"
+                            >
+                              📎 {file.originalName || file.filename || `Invoice File ${index + 1}`}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Regular Charge Input */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Regular Charge ({invoiceFormData.chargeCurrency})
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 font-medium text-sm">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={invoiceFormData.regularCharge}
+                      onChange={(e) => setInvoiceFormData({ ...invoiceFormData, regularCharge: e.target.value })}
+                      placeholder="e.g. 1500"
+                      className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Freight / Standard shipping charge</p>
+                </div>
+
+                {/* Custom Charge Input */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Custom Charge ({invoiceFormData.chargeCurrency})
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 font-medium text-sm">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={invoiceFormData.customCharge}
+                      onChange={(e) => setInvoiceFormData({ ...invoiceFormData, customCharge: e.target.value })}
+                      placeholder="e.g. 500"
+                      className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Customs duty / clearance fee based on declared value</p>
+                </div>
+
+                {/* Currency selector */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Invoice Currency
+                  </label>
+                  <select
+                    value={invoiceFormData.chargeCurrency}
+                    onChange={(e) => setInvoiceFormData({ ...invoiceFormData, chargeCurrency: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  >
+                    <option value="JMD">JMD (Jamaican Dollar)</option>
+                    <option value="USD">USD (US Dollar)</option>
+                  </select>
+                </div>
+
+                {/* Total Calculation Preview */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">Total Invoice Amount</span>
+                      <p className="text-[11px] text-gray-500">Regular Charge + Custom Charge</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xl font-extrabold text-blue-700">
+                        {invoiceFormData.chargeCurrency} {((Number(invoiceFormData.regularCharge) || 0) + (Number(invoiceFormData.customCharge) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-gray-50 border-t border-gray-200 flex gap-3 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInvoiceModalOpen(false);
+                    setPackageToInvoice(null);
+                  }}
+                  disabled={generatingInvoice}
+                  className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-all font-medium text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateInvoice}
+                  disabled={generatingInvoice}
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl hover:from-blue-700 hover:to-indigo-800 transition-all font-medium text-sm shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {generatingInvoice ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Generating & Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" />
+                      Generate & Send Invoice
+                    </>
+                  )}
                 </button>
               </div>
             </div>

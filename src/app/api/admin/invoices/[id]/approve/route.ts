@@ -79,12 +79,48 @@ export async function POST(
       // Generate bill if requested
       if (data.generateBill) {
         try {
-          // Get customer information first
+          // Get customer information first with robust multi-tier fallback
+          let customer: any = null;
           const userIdString = typeof pkg.userId === 'string' ? pkg.userId : pkg.userId?.toString();
-          const customer = await User.findById(userIdString);
-          
+          if (userIdString) {
+            try {
+              customer = await User.findById(userIdString);
+            } catch (err) {
+              console.warn('Error looking up user by userIdString:', err);
+            }
+          }
+          if (!customer && (pkg.userCode || (pkg as any).UserCode)) {
+            const code = (pkg.userCode || (pkg as any).UserCode).toString().toUpperCase();
+            customer = await User.findOne({
+              $or: [{ userCode: code }, { shippingId: code }]
+            });
+          }
+          if (!customer && (pkg as any).customer) {
+            try {
+              customer = await User.findById((pkg as any).customer);
+            } catch (err) {
+              console.warn('Error looking up user by pkg.customer:', err);
+            }
+          }
+          if (!customer && ((pkg as any).customerEmail || (pkg as any).receiverEmail || (pkg as any).recipient?.email)) {
+            const emailToSearch = (pkg as any).customerEmail || (pkg as any).receiverEmail || (pkg as any).recipient?.email;
+            customer = await User.findOne({ email: emailToSearch });
+          }
+
           if (!customer) {
-            return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+            const fallbackEmail = (pkg as any).customerEmail || (pkg as any).receiverEmail || (pkg.recipient as any)?.email;
+            if (fallbackEmail) {
+              customer = {
+                _id: pkg.userId || pkg._id,
+                firstName: (pkg as any).receiverName || (pkg.recipient as any)?.name || 'Valued',
+                lastName: (pkg.recipient as any)?.lastName || '',
+                name: (pkg as any).receiverName || (pkg.recipient as any)?.name || 'Valued Customer',
+                email: fallbackEmail,
+                userCode: pkg.userCode || (pkg as any).UserCode || 'N/A'
+              };
+            } else {
+              return NextResponse.json({ error: 'Customer not found. Please ensure package has customer or recipient email assigned.' }, { status: 404 });
+            }
           }
 
           // Get customer name from available fields

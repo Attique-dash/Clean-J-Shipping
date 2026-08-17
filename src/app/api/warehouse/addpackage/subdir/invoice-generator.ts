@@ -5,6 +5,7 @@ import { generatePaymentLink } from '@/lib/payment-service';
 
 interface PackageData {
   trackingNumber: string;
+  packageId?: string;
   userId: string;
   customer: any;
   weight: number;
@@ -35,6 +36,7 @@ export async function generateInvoiceForPackage(
 
     const {
       trackingNumber,
+      packageId,
       userId,
       customer,
       weight,
@@ -109,8 +111,8 @@ export async function generateInvoiceForPackage(
     const invoice = new Invoice({
       userId,
       customer: {
-        id: customer._id.toString(),
-        name: `${customer.firstName} ${customer.lastName}`,
+        id: customer._id ? customer._id.toString() : String(userId),
+        name: `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || customer.email || 'Customer',
         email: customer.email,
         phone: customer.phone || '',
         address: customer.address || '',
@@ -121,14 +123,16 @@ export async function generateInvoiceForPackage(
       },
       items,
       status: 'sent',
+      invoiceType: 'billing',
       issueDate: new Date(),
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
       paymentTerms: 7,
       currency: currency,
       exchangeRate: 1,
-      notes: `Package ${trackingNumber} received on ${entryDate.toLocaleDateString()}`,
+      notes: `Package ${trackingNumber} received on ${entryDate ? new Date(entryDate).toLocaleDateString() : new Date().toLocaleDateString()}`,
       tracking_number: trackingNumber,
       item_description: description,
+      package: packageId || (packageData as any)._id,
       declared_value: 0 // No declared value for manual billing
     });
 
@@ -153,12 +157,13 @@ export async function generateInvoiceForPackage(
     // Send email notification (fire and forget - don't block on email failures)
     emailService.sendInvoiceEmail({
       to: customer.email,
-      customerName: `${customer.firstName} ${customer.lastName}`,
+      customerName: `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || customer.email,
       invoiceNumber: invoice.invoiceNumber,
       trackingNumber,
       totalAmount: invoice.total,
       paymentLink,
-      items: invoice.items
+      items: invoice.items,
+      currency
     }).then((emailSuccess) => {
       console.log('[Invoice Generator] Email send result:', emailSuccess ? 'Success' : 'Failed');
     }).catch((emailError) => {

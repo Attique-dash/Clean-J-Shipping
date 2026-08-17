@@ -125,7 +125,9 @@ export default function PackageDetailsPanel({
         </h4>
         <div className="grid gap-2 md:grid-cols-2">
           <DetailRow label="Currency" value={currency} />
-          <DetailRow label="Item value" value={formatAmount(pkg.itemValueUsd ?? 0)} />
+          <DetailRow label="Regular Charge" value={formatAmount(chargeTotals.regularCharge)} />
+          <DetailRow label="Custom Charge" value={formatAmount(chargeTotals.customCharge)} />
+          <DetailRow label="Item value" value={formatAmount(pkg.itemValueUsd ?? (pkg as any).itemValueUSD ?? (pkg as any).pricePaid ?? 0)} />
           <DetailRow label="Total due" value={formatAmount(pkg.totalAmount ?? 0)} />
           <DetailRow label="Amount paid" value={formatAmount(pkg.amountPaid ?? 0)} />
           <DetailRow

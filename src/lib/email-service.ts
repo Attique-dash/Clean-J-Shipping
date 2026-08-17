@@ -536,6 +536,7 @@ export class EmailService {
       quantity: number;
       total: number;
     }>;
+    currency?: string;
   }): Promise<boolean> {
     const html = this.getInvoiceTemplate(data);
     
