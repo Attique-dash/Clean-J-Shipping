@@ -27,6 +27,12 @@ export async function generateInvoiceForPackage(
   options: InvoiceGenerationOptions = {}
 ) {
   try {
+    console.log('[Invoice Generator] Starting invoice generation:', {
+      trackingNumber: packageData.trackingNumber,
+      totalAmount: packageData.totalAmount,
+      options
+    });
+
     const {
       trackingNumber,
       userId,
@@ -89,6 +95,16 @@ export async function generateInvoiceForPackage(
       });
     }
 
+    if (items.length === 0) {
+      console.error('[Invoice Generator] No items to invoice');
+      return {
+        success: false,
+        error: 'No items to invoice. Please add Regular Charge and/or Custom Charge.'
+      };
+    }
+
+    console.log('[Invoice Generator] Creating invoice with items:', items);
+
     // Create invoice
     const invoice = new Invoice({
       userId,
@@ -119,6 +135,12 @@ export async function generateInvoiceForPackage(
     // Calculate totals automatically via pre-save hook
     await invoice.save();
 
+    console.log('[Invoice Generator] Invoice saved:', {
+      invoiceNumber: invoice.invoiceNumber,
+      invoiceId: invoice._id,
+      total: invoice.total
+    });
+
     // Generate payment link
     const paymentLink = generatePaymentLink(invoice._id.toString());
 
@@ -126,8 +148,10 @@ export async function generateInvoiceForPackage(
     (invoice as any).paymentLink = paymentLink;
     await invoice.save();
 
-    // Send email notification
-    await emailService.sendInvoiceEmail({
+    console.log('[Invoice Generator] Payment link generated:', paymentLink);
+
+    // Send email notification (fire and forget - don't block on email failures)
+    emailService.sendInvoiceEmail({
       to: customer.email,
       customerName: `${customer.firstName} ${customer.lastName}`,
       invoiceNumber: invoice.invoiceNumber,
@@ -135,6 +159,10 @@ export async function generateInvoiceForPackage(
       totalAmount: invoice.total,
       paymentLink,
       items: invoice.items
+    }).then((emailSuccess) => {
+      console.log('[Invoice Generator] Email send result:', emailSuccess ? 'Success' : 'Failed');
+    }).catch((emailError) => {
+      console.error('[Invoice Generator] Email send error:', emailError);
     });
 
     return {
@@ -146,7 +174,7 @@ export async function generateInvoiceForPackage(
     };
 
   } catch (error) {
-    console.error('Error generating invoice:', error);
+    console.error('[Invoice Generator] Error generating invoice:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'

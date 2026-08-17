@@ -38,7 +38,17 @@ export async function POST(
     const totalAmount = regularCharge + customCharge;
     const currency = pkg.chargeCurrency || pkg.pricePaidCurrency || pkg.paymentCurrency || 'USD';
 
+    console.log('[Invoice Generation] Package details:', {
+      packageId,
+      trackingNumber: pkg.trackingNumber,
+      regularCharge,
+      customCharge,
+      totalAmount,
+      currency
+    });
+
     if (totalAmount === 0) {
+      console.error('[Invoice Generation] No charges defined');
       return NextResponse.json({ error: "No charges defined. Please set Regular Charge and/or Custom Charge before generating invoice." }, { status: 400 });
     }
 
@@ -57,6 +67,13 @@ export async function POST(
     };
 
     // Generate invoice using only manual charges
+    console.log('[Invoice Generation] Calling invoice generator with:', {
+      regularCharge,
+      customCharge,
+      currency,
+      includeShipping: false
+    });
+
     const invoiceResult = await generateInvoiceForPackage(
       {
         trackingNumber: pkg.trackingNumber,
@@ -76,6 +93,8 @@ export async function POST(
         includeShipping: false // No auto shipping charges
       }
     );
+
+    console.log('[Invoice Generation] Invoice generator result:', invoiceResult);
 
     if (invoiceResult.success) {
       // Also create legacy invoice record for compatibility
