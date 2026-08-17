@@ -277,11 +277,13 @@ export async function GET(req: Request) {
         'regular_charge', 'custom_charge', 'charge_currency',
         // Other fields
         'createdAt', 'updatedAt', 'weightLbs', 'itemValueUsd', 'pricePaid',
-        'pricePaidCurrency', 'customerEmail', 'customerPhone', 'dateReceived',
+        'pricePaidCurrency', 'amountPaidCurrency', 'paymentCurrency', 'customerEmail', 'customerPhone', 'dateReceived',
         'daysInStorage', 'serviceMode', 'invoiceStatus', 'itemDescription',
         'specialInstructions', 'dimensionUnit', 'senderName', 'senderEmail',
         'senderPhone', 'senderAddress', 'senderCity', 'senderState',
-        'senderZipCode', 'senderCountry', 'userId'
+        'senderZipCode', 'senderCountry', 'userId',
+        // Customer invoice uploaded data & linked billing invoice
+        'invoiceFiles', 'customerInvoice', 'invoiceUploaded', 'invoiceSubmittedAt', 'billingInvoiceId'
       ].join(' '))
       .sort({ createdAt: -1 });
 

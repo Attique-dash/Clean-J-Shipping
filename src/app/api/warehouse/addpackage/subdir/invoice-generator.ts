@@ -115,11 +115,13 @@ export async function generateInvoiceForPackage(
         name: `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || customer.email || 'Customer',
         email: customer.email,
         phone: customer.phone || '',
-        address: customer.address || '',
-        city: customer.city || '',
-        state: customer.state || '',
-        zipCode: customer.zipCode || '',
-        country: customer.country || 'Jamaica'
+        address: typeof customer.address === 'object' && customer.address !== null
+          ? String((customer.address as any).street || (customer.address as any).addressLine1 || (customer.address as any).address || [customer.address.city, customer.address.state, customer.address.country].filter(Boolean).join(', ') || '')
+          : String(customer.address || ''),
+        city: customer.city || (typeof customer.address === 'object' ? customer.address?.city : '') || '',
+        state: customer.state || (typeof customer.address === 'object' ? customer.address?.state : '') || '',
+        zipCode: customer.zipCode || (typeof customer.address === 'object' ? customer.address?.zipCode : '') || '',
+        country: customer.country || (typeof customer.address === 'object' ? customer.address?.country : '') || 'Jamaica'
       },
       items,
       status: 'sent',

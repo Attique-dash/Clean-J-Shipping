@@ -188,9 +188,11 @@ export function buildBillingInvoicePayload(
         name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
         email: user.email,
         phone: user.phone,
-        address: user.address,
-        city: user.city,
-        country: user.country,
+        address: typeof user.address === 'object' && user.address !== null
+          ? String((user.address as any).street || (user.address as any).addressLine1 || (user.address as any).address || [user.city, user.country].filter(Boolean).join(', ') || '')
+          : String(user.address || ''),
+        city: user.city || (typeof user.address === 'object' ? (user.address as any)?.city : '') || '',
+        country: user.country || (typeof user.address === 'object' ? (user.address as any)?.country : '') || 'Jamaica',
       },
       invoiceType: 'billing',
       tracking_number: trackingNumber,

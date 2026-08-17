@@ -53,9 +53,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         name: `${customer.firstName} ${customer.lastName}`,
         email: customer.email,
         phone: customer.phone || '',
-        address: customer.address || '',
-        city: customer.city || '',
-        country: customer.country || 'Jamaica',
+        address: typeof customer.address === 'object' && customer.address !== null
+          ? String((customer.address as any).street || (customer.address as any).addressLine1 || (customer.address as any).address || [customer.city, customer.country].filter(Boolean).join(', ') || '')
+          : String(customer.address || ''),
+        city: customer.city || (typeof customer.address === 'object' ? (customer.address as any)?.city : '') || '',
+        country: customer.country || (typeof customer.address === 'object' ? (customer.address as any)?.country : '') || 'Jamaica',
         taxId: ''
       },
       items: invoiceItems,

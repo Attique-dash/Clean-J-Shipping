@@ -105,7 +105,9 @@ export async function GET(req: NextRequest) {
     if (search) {
       query.$or = [
         { trackingNumber: { $regex: search, $options: 'i' } },
-        { shipper: { $regex: search, $options: 'i' } }
+        { TrackingNumber: { $regex: search, $options: 'i' } },
+        { shipper: { $regex: search, $options: 'i' } },
+        { Shipper: { $regex: search, $options: 'i' } }
       ];
     }
 
@@ -113,7 +115,7 @@ export async function GET(req: NextRequest) {
     // Note: Using regular find without .lean() to get proper population
     const packages = await Package.find(query)
       .populate('userId', '_id name firstName lastName email phone shippingId userCode')
-      .sort({ invoiceSubmittedAt: -1 })
+      .sort({ invoiceSubmittedAt: -1, createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
@@ -163,10 +165,11 @@ export async function GET(req: NextRequest) {
       if ((!userData || !userData._id) && pkg.userId) {
         const userIdString = typeof pkg.userId === 'string' ? pkg.userId : (pkg.userId as any).toString();
         userData = userMap.get(userIdString) || null;
-        console.log('Using manually fetched user for package:', pkg.trackingNumber, 'User:', userData?.name);
+        console.log('Using manually fetched user for package:', pkg.trackingNumber || (pkg as any).TrackingNumber, 'User:', userData?.name);
       }
       
-      console.log('Processing package:', pkg.trackingNumber, 'Customer name:', userData?.name);
+      const trackingNo = pkg.trackingNumber || (pkg as any).TrackingNumber || '';
+      console.log('Processing package:', trackingNo, 'Customer name:', userData?.name);
       
       // Get warehouse address based on service mode
       let warehouseAddress: string;
@@ -215,53 +218,58 @@ export async function GET(req: NextRequest) {
           phone: userData.phone || 'N/A',
           shippingId: userData.shippingId || userData.userCode || ''
         };
-        console.log('Built customer:', customer.name, 'for package:', pkg.trackingNumber);
+        console.log('Built customer:', customer.name, 'for package:', trackingNo);
       } else {
-        console.log('No user data found for package:', pkg.trackingNumber, 'userId:', pkg.userId);
+        console.log('No user data found for package:', trackingNo, 'userId:', pkg.userId);
       }
+
+      const shipperName = pkg.shipper || (pkg as any).Shipper || (pkg as any).senderName || 'N/A';
+      const weightVal = pkg.weight ?? (pkg as any).Weight ?? 0;
+      const custInvoice = (pkg as any).customerInvoice;
+      const rawFiles = (custInvoice?.files?.length ? custInvoice.files : pkg.invoiceFiles) || [];
       
       return {
         packageId: (pkg._id as Types.ObjectId)?.toString(),
-        trackingNumber: pkg.trackingNumber,
-        shipper: pkg.shipper || pkg.senderName || 'N/A',
-        weight: pkg.weight,
+        trackingNumber: trackingNo,
+        shipper: shipperName,
+        weight: weightVal,
         serviceMode: pkg.serviceMode || 'air',
         // Invoice details
-        invoiceStatus: pkg.invoiceStatus,
+        invoiceStatus: pkg.invoiceStatus || 'submitted',
         warehouseLocation: warehouseAddress,
         
         // Package info
-        isReceived: !!(pkg.dateReceived || pkg.createdAt),
-        dateReceived: pkg.dateReceived?.toISOString() || pkg.createdAt?.toISOString(),
-        invoiceSubmittedAt: pkg.invoiceSubmittedAt?.toISOString(),
+        isReceived: !!(pkg.dateReceived || (pkg as any).EntryDate || pkg.createdAt),
+        dateReceived: pkg.dateReceived?.toISOString() || (pkg as any).EntryDate?.toISOString() || pkg.createdAt?.toISOString(),
+        invoiceSubmittedAt: pkg.invoiceSubmittedAt?.toISOString() || custInvoice?.submittedAt?.toISOString(),
         invoiceReviewedAt: pkg.invoiceReviewedAt?.toISOString(),
         invoiceReviewedBy: pkg.invoiceReviewedBy,
         invoiceRejectionReason: pkg.invoiceRejectionReason,
         
         // Price info
-        pricePaid: pkg.pricePaid,
-        pricePaidCurrency: pkg.pricePaidCurrency || 'USD',
+        pricePaid: pkg.pricePaid ?? custInvoice?.amount ?? 0,
+        pricePaidCurrency: pkg.pricePaidCurrency || custInvoice?.currency || 'USD',
         
         // Invoice files - handle both Cloudinary objects and string URLs
-        invoiceFiles: (pkg.invoiceFiles || []).map((file: any) => {
-          // If file is a Cloudinary object with url property
-          if (typeof file === 'object' && file.url) {
-            return file.url;
+        invoiceFiles: rawFiles.map((file: any) => {
+          if (typeof file === 'object' && file !== null) {
+            if (file.url) return file.url;
+            if (file.path) return file.path;
           }
-          // If file is a string (legacy)
           if (typeof file === 'string') {
+            if (file.startsWith('http') || file.startsWith('/')) return file;
             const filename = file.split('/').pop();
             return `/api/invoices/download?file=${filename}`;
           }
-          return String(file);
-        }),
+          return String(file || '');
+        }).filter(Boolean),
         
         // Customer info - properly populated from userId
         customer,
         
         // Package description
-        itemDescription: pkg.itemDescription,
-        itemCategory: pkg.itemCategory
+        itemDescription: custInvoice?.description || pkg.itemDescription || (pkg as any).Description || '',
+        itemCategory: pkg.itemCategory || ''
       };
     });
 

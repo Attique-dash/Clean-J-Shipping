@@ -40,6 +40,36 @@ export function getDocUserCode(doc: Record<string, unknown>): string {
   return asString(doc.UserCode || doc.userCode);
 }
 
+export function getPackagePaymentCurrency(
+  doc?: Record<string, unknown>,
+  parsed?: PackagePaymentMeta
+): string {
+  const candidates = [
+    doc?.amountPaidCurrency,
+    doc?.paymentCurrency,
+    (doc?.customerInvoice as any)?.currency,
+    doc?.pricePaidCurrency,
+    doc?.paymentCurrencyCode,
+    doc?.currencyCode,
+    doc?.currency,
+    parsed?.currency,
+  ];
+
+  // Prioritize any explicitly defined non-USD currency
+  for (const candidate of candidates) {
+    const value = asString(candidate).trim().toUpperCase();
+    if (value && value !== 'USD') return value;
+  }
+
+  // If only USD or nothing found, return first valid candidate or USD
+  for (const candidate of candidates) {
+    const value = asString(candidate).trim().toUpperCase();
+    if (value) return value;
+  }
+
+  return 'USD';
+}
+
 /** Canonical helper to compute package charge totals with clear precedence */
 export interface PackageChargeTotals {
   regularCharge: number;
@@ -56,16 +86,21 @@ export function getPackageChargeTotals(docOrPkg: Record<string, unknown> | KcdPa
   // Read both camelCase and snake_case variants for legacy support
   const regularCharge = asNumber(doc.regularCharge ?? doc.regular_charge);
   const customCharge = asNumber(doc.customCharge ?? doc.custom_charge);
-  const chargeCurrency = asString(doc.chargeCurrency ?? doc.charge_currency) || 'JMD';
+  
+  const rawChargeCurrency = asString(doc.chargeCurrency ?? doc.charge_currency).trim().toUpperCase();
+  const rawPackageCurrency = getPackagePaymentCurrency(doc);
   
   const usedManualCharges = regularCharge > 0 || customCharge > 0;
   const manualTotal = regularCharge + customCharge;
   
-  // Always try to resolve currency from multiple sources (canonical priority)
-  let currency = (String(chargeCurrency || '').trim() || '').toUpperCase();
+  // Priority: if manual charges exist, use explicit chargeCurrency if set, otherwise package currency.
+  // If manual charges are NOT used, ALWAYS use package's own currency!
+  let currency = usedManualCharges 
+    ? (rawChargeCurrency || rawPackageCurrency || 'JMD')
+    : (rawPackageCurrency || rawChargeCurrency || 'USD');
 
   // If chargeCurrency is empty, try parsing PackagePayments (string JSON) for currency
-  if (!currency) {
+  if (!currency || currency === 'USD') {
     const packagePayments = doc.PackagePayments || doc.packagePayments;
     if (typeof packagePayments === 'string') {
       try {
@@ -77,18 +112,11 @@ export function getPackageChargeTotals(docOrPkg: Record<string, unknown> | KcdPa
     }
   }
 
-  // Final fallbacks (explicit fields) and ensure uppercase
-  if (!currency) {
-    currency =
-      (String(doc.pricePaidCurrency || doc.paymentCurrency || doc.amountPaidCurrency || doc.currency || '').trim() || 'USD')
-        .toUpperCase();
-  }
-  
   return {
     regularCharge,
     customCharge,
     manualTotal,
-    currency,
+    currency: currency || 'USD',
     usedManualCharges,
   };
 }
@@ -97,28 +125,29 @@ export function getPackageChargeTotals(docOrPkg: Record<string, unknown> | KcdPa
 export function getDisplayTotal(docOrPkg: Record<string, unknown> | KcdPackageRecord): { total: number; currency: string; source: string } {
   // Cast to Record to access legacy snake_case fields
   const doc = docOrPkg as Record<string, unknown>;
-  
   const chargeTotals = getPackageChargeTotals(docOrPkg);
+  const packageCurrency = getPackagePaymentCurrency(doc);
   
+  // 1. If manual charges are defined (Regular Charge + Custom Charge)
   if (chargeTotals.usedManualCharges) {
     return {
       total: chargeTotals.manualTotal,
-      currency: chargeTotals.currency,
+      currency: chargeTotals.currency || packageCurrency || 'JMD',
       source: 'manual',
     };
   }
   
-  // Fall back to totalAmount field
+  // 2. Fall back to totalAmount field with package's own selected currency
   const totalAmount = asNumber(doc.totalAmount);
   if (totalAmount > 0) {
     return {
       total: totalAmount,
-      currency: chargeTotals.currency,
+      currency: packageCurrency || 'USD',
       source: 'totalAmount',
     };
   }
   
-  // Fall back to parsed PackagePayments total
+  // 3. Fall back to parsed PackagePayments total
   const packagePayments = doc.PackagePayments || doc.packagePayments;
   if (typeof packagePayments === 'string') {
     try {
@@ -127,7 +156,7 @@ export function getDisplayTotal(docOrPkg: Record<string, unknown> | KcdPackageRe
       if (paymentTotal > 0) {
         return {
           total: paymentTotal,
-          currency: asString(parsed.currency) || 'USD',
+          currency: asString(parsed.currency || packageCurrency) || 'USD',
           source: 'packagePayments',
         };
       }
@@ -136,11 +165,11 @@ export function getDisplayTotal(docOrPkg: Record<string, unknown> | KcdPackageRe
     }
   }
   
-  // Final fallback to amountPaid
+  // 4. Final fallback to amountPaid
   const amountPaid = asNumber(doc.amountPaid);
   return {
     total: amountPaid,
-    currency: chargeTotals.currency,
+    currency: packageCurrency || 'USD',
     source: 'amountPaid',
   };
 }
@@ -239,28 +268,6 @@ export function packageStatusToFormStatus(
     10: '10',
   };
   return fromNumeric[packageStatus] ?? '0';
-}
-
-export function getPackagePaymentCurrency(
-  doc?: Record<string, unknown>,
-  parsed?: PackagePaymentMeta
-): string {
-  const candidates = [
-    doc?.amountPaidCurrency,
-    doc?.paymentCurrency,
-    doc?.pricePaidCurrency,
-    doc?.paymentCurrencyCode,
-    doc?.currencyCode,
-    doc?.currency,
-    parsed?.currency,
-  ];
-
-  for (const candidate of candidates) {
-    const value = asString(candidate).trim().toUpperCase();
-    if (value) return value;
-  }
-
-  return 'USD';
 }
 
 export function formatPackageAmount(amount: number, currencyCode?: string): string {
@@ -564,6 +571,8 @@ export function enrichKcdPackageRecord(
       ? (doc.sender as Record<string, unknown>)
       : null;
 
+  const chargeTotals = getPackageChargeTotals(doc);
+
   return {
     ...kcd,
     weightLbs: Math.round(weightLbs * 100) / 100,
@@ -572,15 +581,17 @@ export function enrichKcdPackageRecord(
     amountPaid: payment.amountPaidUsd,
     paymentStatus: payment.paymentStatus,
     paymentMethod: payment.paymentMethod,
-    pricePaid: payment.amountPaidUsd,
+    pricePaid: asNumber(doc.pricePaid ?? (doc.customerInvoice as any)?.amount ?? payment.itemValueUsd),
     pricePaidCurrency: payment.currency,
+    amountPaidCurrency: payment.currency,
+    paymentCurrency: payment.currency,
     customerEmail: populatedUser ? asString(populatedUser.email) : undefined,
     customerPhone: populatedUser ? asString(populatedUser.phone) : undefined,
     dateReceived: entryDate || null,
     daysInStorage: calcDaysInStorage(entryDate, kcd.createdAt),
     serviceMode: asString(doc.serviceMode) || 'air',
     invoiceStatus: asString(doc.invoiceStatus) || 'pending',
-    itemDescription: asString(doc.itemDescription),
+    itemDescription: asString((doc.customerInvoice as any)?.description || doc.itemDescription || doc.Description || doc.description),
     specialInstructions: asString(doc.specialInstructions),
     dimensionUnit:
       asString(doc.dimensionUnit) ||
@@ -598,18 +609,14 @@ export function enrichKcdPackageRecord(
     senderCountry:
       asString(doc.senderCountry) || (sender ? asString(sender.country) : ''),
     billingInvoiceId: asString(doc.billingInvoiceId) || undefined,
-  };
-
-  // Use canonical helper to set manual charge fields with legacy support
-  const chargeTotals = getPackageChargeTotals(doc);
-  const enriched = {
-    ...kcd,
+    invoiceFiles: ((doc.customerInvoice as any)?.files?.length ? (doc.customerInvoice as any).files : (doc.invoiceFiles as any)) || [],
+    customerInvoice: (doc.customerInvoice as any) || undefined,
+    invoiceUploaded: asBool(doc.invoiceUploaded || !!doc.invoiceFiles || !!doc.customerInvoice),
+    invoiceSubmittedAt: toIso(doc.invoiceSubmittedAt || (doc.customerInvoice as any)?.submittedAt),
     regularCharge: chargeTotals.regularCharge,
     customCharge: chargeTotals.customCharge,
     chargeCurrency: chargeTotals.currency,
   };
-
-  return enriched;
 }
 
 /** Map legacy string status to KCD numeric PackageStatus */
@@ -780,9 +787,9 @@ export function buildKcdPackageDocument(
     userId: user._id,
     customer: user._id,
     source: asString(body.source) || 'manual',
-    regularCharge: 0, // No auto-charges - manual billing only
-    customCharge: 0, // No auto-charges - manual billing only
-    chargeCurrency: 'JMD',
+    regularCharge: asNumber(body.regularCharge ?? body.regular_charge ?? 0),
+    customCharge: asNumber(body.customCharge ?? body.custom_charge ?? 0),
+    chargeCurrency: asString(body.chargeCurrency || body.charge_currency || paymentCurrency || 'JMD').toUpperCase(),
     ...overrides,
   };
 }

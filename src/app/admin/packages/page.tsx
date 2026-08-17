@@ -489,7 +489,7 @@ export default function AdminPackagesPage() {
     setPackageToInvoice(pkg);
     const regular = pkg.regularCharge ?? (pkg as any).regular_charge ?? 0;
     const custom = pkg.customCharge ?? (pkg as any).custom_charge ?? 0;
-    const currency = (pkg.chargeCurrency || (pkg as any).charge_currency || pkg.pricePaidCurrency || pkg.paymentCurrency || 'JMD').toString().trim().toUpperCase();
+    const currency = (pkg.chargeCurrency || (pkg as any).charge_currency || pkg.paymentCurrency || pkg.amountPaidCurrency || pkg.pricePaidCurrency || (pkg as any).customerInvoice?.currency || 'JMD').toString().trim().toUpperCase();
     setInvoiceFormData({
       regularCharge: regular > 0 ? String(regular) : '',
       customCharge: custom > 0 ? String(custom) : '',
@@ -1375,45 +1375,68 @@ export default function AdminPackagesPage() {
                 </div>
 
                 {/* Declared Value & Customer Uploaded Invoice Info */}
-                {((packageToInvoice as any).pricePaid || (packageToInvoice as any).customerInvoice || (packageToInvoice as any).invoiceFiles?.length > 0 || (packageToInvoice as any).invoiceUploaded) && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs space-y-2">
-                    <div className="font-bold text-amber-800 flex items-center gap-1.5">
-                      <span>📋 Customer Declared Information</span>
-                    </div>
-                    {((packageToInvoice as any).pricePaid || (packageToInvoice as any).itemValueUSD) && (
-                      <div className="flex justify-between text-amber-900">
-                        <span>Declared Goods Value:</span>
-                        <span className="font-bold">
-                          USD ${Number((packageToInvoice as any).pricePaid || (packageToInvoice as any).itemValueUSD || 0).toFixed(2)}
-                        </span>
+                {(() => {
+                  const p = packageToInvoice as any;
+                  const declaredAmount = Number(p.customerInvoice?.amount || p.pricePaid || p.itemValueUSD || p.amountPaid || 0);
+                  const declaredCurrency = (p.customerInvoice?.currency || p.pricePaidCurrency || p.paymentCurrency || p.amountPaidCurrency || 'USD').toString().toUpperCase();
+                  const itemDesc = p.customerInvoice?.description || p.itemDescription || p.Description || p.description;
+                  const files = (p.customerInvoice?.files?.length ? p.customerInvoice.files : p.invoiceFiles) || [];
+                  const hasDeclaredInfo = declaredAmount > 0 || itemDesc || files.length > 0 || p.invoiceUploaded;
+
+                  if (!hasDeclaredInfo) return null;
+
+                  return (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs space-y-2.5">
+                      <div className="font-bold text-amber-800 flex items-center gap-1.5 border-b border-amber-200 pb-1.5">
+                        <span>📋 Customer Declared Information</span>
                       </div>
-                    )}
-                    {(packageToInvoice as any).itemDescription && (
-                      <div className="text-amber-800">
-                        <span className="font-medium">Item Description: </span>
-                        <span>{(packageToInvoice as any).itemDescription}</span>
-                      </div>
-                    )}
-                    {(packageToInvoice as any).invoiceFiles?.length > 0 && (
-                      <div className="space-y-1 pt-1 border-t border-amber-200">
-                        <span className="font-medium text-amber-800">Uploaded Invoices:</span>
-                        <div className="space-y-1">
-                          {(packageToInvoice as any).invoiceFiles.map((file: any, index: number) => (
-                            <a
-                              key={index}
-                              href={file.path || file.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block text-blue-600 hover:underline truncate bg-white p-1.5 rounded border border-amber-200"
-                            >
-                              📎 {file.originalName || file.filename || `Invoice File ${index + 1}`}
-                            </a>
-                          ))}
+                      {declaredAmount > 0 && (
+                        <div className="flex justify-between items-center text-amber-900">
+                          <span className="font-medium text-gray-700">Declared Goods Value:</span>
+                          <span className="font-bold text-amber-900 text-sm">
+                            {formatPackageAmount(declaredAmount, declaredCurrency)}
+                          </span>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                      {itemDesc && (
+                        <div className="text-amber-900 bg-amber-100/60 p-2 rounded-lg border border-amber-200/70">
+                          <span className="font-semibold text-amber-900 block mb-0.5">Item Description:</span>
+                          <span className="text-gray-800 break-words">{itemDesc}</span>
+                        </div>
+                      )}
+                      {files.length > 0 && (
+                        <div className="space-y-1.5 pt-1 border-t border-amber-200">
+                          <span className="font-semibold text-amber-900 block">Uploaded Receipt / Invoice File{files.length > 1 ? 's' : ''}:</span>
+                          <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                            {files.map((file: any, index: number) => {
+                              const fileUrl = typeof file === 'string' ? file : (file.url || file.path || '');
+                              const fileName = typeof file === 'string' 
+                                ? (file.split('/').pop() || `Invoice File ${index + 1}`) 
+                                : (file.originalName || file.filename || file.name || `Invoice File ${index + 1}`);
+                              return (
+                                <a
+                                  key={index}
+                                  href={fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center justify-between gap-2 text-blue-600 hover:text-blue-800 hover:underline bg-white p-2 rounded-lg border border-amber-200 shadow-sm transition-all text-xs font-medium"
+                                >
+                                  <span className="truncate flex items-center gap-1.5">
+                                    <span>📎</span>
+                                    <span className="truncate">{fileName}</span>
+                                  </span>
+                                  <span className="flex-shrink-0 text-[11px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 font-semibold hover:bg-blue-100">
+                                    View / Download ↗
+                                  </span>
+                                </a>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Regular Charge Input */}
                 <div>
@@ -1469,8 +1492,11 @@ export default function AdminPackagesPage() {
                     onChange={(e) => setInvoiceFormData({ ...invoiceFormData, chargeCurrency: e.target.value })}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                   >
-                    <option value="JMD">JMD (Jamaican Dollar)</option>
-                    <option value="USD">USD (US Dollar)</option>
+                    <option value="JMD">JMD (Jamaican Dollar) — J$</option>
+                    <option value="USD">USD (US Dollar) — $</option>
+                    <option value="EUR">EUR (Euro) — €</option>
+                    <option value="CAD">CAD (Canadian Dollar) — C$</option>
+                    <option value="GBP">GBP (British Pound) — £</option>
                   </select>
                 </div>
 

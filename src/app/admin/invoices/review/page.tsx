@@ -227,28 +227,41 @@ export default function AdminInvoiceReviewPage() {
   };
 
   const filteredPackages = packages.filter(pkg => {
-    const searchLower = searchTerm.toLowerCase();
+    const searchLower = (searchTerm || '').toLowerCase().trim();
+    if (!searchLower) return true;
+    const tracking = String(pkg.trackingNumber || (pkg as any).TrackingNumber || '').toLowerCase();
+    const shipper = String(pkg.shipper || (pkg as any).Shipper || '').toLowerCase();
+    const customerName = String(pkg.customer?.name || '').toLowerCase();
+    const customerEmail = String(pkg.customer?.email || '').toLowerCase();
+    const customerShippingId = String(pkg.customer?.shippingId || '').toLowerCase();
     return (
-      pkg.trackingNumber.toLowerCase().includes(searchLower) ||
-      pkg.shipper.toLowerCase().includes(searchLower) ||
-      pkg.customer?.name?.toLowerCase().includes(searchLower) ||
-      pkg.customer?.shippingId?.toLowerCase().includes(searchLower)
+      tracking.includes(searchLower) ||
+      shipper.includes(searchLower) ||
+      customerName.includes(searchLower) ||
+      customerEmail.includes(searchLower) ||
+      customerShippingId.includes(searchLower)
     );
   });
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    try {
+      const d = new Date(dateString);
+      if (isNaN(d.getTime())) return 'N/A';
+      return d.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return 'N/A';
+    }
   };
 
-  const getFileIcon = (filename: string) => {
-    if (filename.endsWith('.pdf')) {
+  const getFileIcon = (filename?: string) => {
+    if (filename && typeof filename === 'string' && filename.toLowerCase().endsWith('.pdf')) {
       return <FileText className="h-5 w-5 text-red-500" />;
     }
     return <File className="h-5 w-5 text-blue-500" />;

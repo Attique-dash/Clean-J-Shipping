@@ -51,9 +51,11 @@ export async function POST(
     const totalAmount = regularCharge + customCharge;
     const currency = (body.chargeCurrency || body.currency || pkg.chargeCurrency || (pkg as any).charge_currency || pkg.pricePaidCurrency || pkg.paymentCurrency || 'JMD').toString().trim().toUpperCase();
 
+    const tracking = pkg.trackingNumber || (pkg as any).TrackingNumber || '';
+
     console.log('[Invoice Generation] Package details & charges:', {
       packageId,
-      trackingNumber: pkg.trackingNumber,
+      trackingNumber: tracking,
       regularCharge,
       customCharge,
       totalAmount,
@@ -96,6 +98,29 @@ export async function POST(
       }, { status: 400 });
     }
 
+    // Format customer address cleanly to prevent object-to-string casting issues
+    let customerAddress = '';
+    let customerCity = user?.city || '';
+    let customerState = user?.state || '';
+    let customerZip = user?.zipCode || '';
+    let customerCountry = user?.country || (pkg.recipient as any)?.country || 'Jamaica';
+
+    const rawAddress = user?.address || (pkg.recipient as any)?.address;
+    if (typeof rawAddress === 'object' && rawAddress !== null) {
+      const addrObj = rawAddress as Record<string, any>;
+      customerAddress = String(addrObj.street || addrObj.addressLine1 || addrObj.streetAddress || addrObj.address || '').trim();
+      customerCity = customerCity || String(addrObj.city || '').trim();
+      customerState = customerState || String(addrObj.state || addrObj.province || '').trim();
+      customerZip = customerZip || String(addrObj.zipCode || addrObj.zip || addrObj.postalCode || '').trim();
+      customerCountry = customerCountry || String(addrObj.country || '').trim();
+      if (!customerAddress) {
+        const parts = [customerCity, customerState, customerZip, customerCountry].filter(Boolean);
+        customerAddress = parts.join(', ');
+      }
+    } else if (typeof rawAddress === 'string') {
+      customerAddress = rawAddress;
+    }
+
     // Create customer object for invoice generation
     const customer = {
       _id: user?._id || pkg._id,
@@ -103,11 +128,11 @@ export async function POST(
       lastName: user?.lastName || (pkg.recipient as any)?.lastName || '',
       email: customerEmail,
       phone: user?.phone || (pkg.recipient as any)?.phone || '',
-      address: user?.address || (pkg.recipient as any)?.address || '',
-      city: user?.city || '',
-      state: user?.state || '',
-      zipCode: user?.zipCode || '',
-      country: user?.country || (pkg.recipient as any)?.country || 'Jamaica'
+      address: customerAddress || '',
+      city: customerCity || '',
+      state: customerState || '',
+      zipCode: customerZip || '',
+      country: customerCountry || 'Jamaica'
     };
 
     // Generate invoice using manual charges
@@ -120,16 +145,16 @@ export async function POST(
 
     const invoiceResult = await generateInvoiceForPackage(
       {
-        trackingNumber: pkg.trackingNumber,
+        trackingNumber: tracking,
         packageId: pkg._id.toString(),
         userId: customer._id.toString(),
         customer,
-        weight: pkg.weight,
-        shipper: pkg.shipper,
-        description: pkg.description || (pkg as any).itemDescription || '',
+        weight: pkg.weight ?? (pkg as any).Weight ?? 0,
+        shipper: pkg.shipper || (pkg as any).Shipper || 'Unknown Shipper',
+        description: pkg.description || (pkg as any).itemDescription || (pkg as any).Description || '',
         shippingCost: 0,
         totalAmount: totalAmount,
-        entryDate: pkg.entryDate || pkg.createdAt || new Date()
+        entryDate: pkg.entryDate || (pkg as any).EntryDate || pkg.createdAt || new Date()
       },
       {
         regularCharge,

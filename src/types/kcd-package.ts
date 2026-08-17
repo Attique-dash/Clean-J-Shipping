@@ -77,4 +77,21 @@ export interface KcdPackageRecord extends KcdPackage {
   regularCharge?: number;
   customCharge?: number;
   chargeCurrency?: string;
+  invoiceFiles?: Array<{
+    url?: string;
+    path?: string;
+    filename?: string;
+    originalName?: string;
+    size?: number;
+    uploadedAt?: string;
+  }> | string[];
+  customerInvoice?: {
+    amount?: number;
+    currency?: string;
+    description?: string;
+    files?: Array<any>;
+    submittedAt?: string;
+  };
+  invoiceUploaded?: boolean;
+  invoiceSubmittedAt?: string;
 }

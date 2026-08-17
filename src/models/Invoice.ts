@@ -109,7 +109,24 @@ const InvoiceSchema = new Schema<IInvoice>({
     id: { type: String, required: true },
     name: { type: String, required: true },
     email: { type: String, required: true },
-    address: String,
+    address: {
+      type: String,
+      set: function(val: unknown) {
+        if (!val) return '';
+        if (typeof val === 'string') return val;
+        if (typeof val === 'object' && val !== null) {
+          const addr = val as Record<string, unknown>;
+          const street = String(addr.street || addr.addressLine1 || addr.streetAddress || addr.address || '').trim();
+          const city = String(addr.city || '').trim();
+          const state = String(addr.state || addr.province || '').trim();
+          const zip = String(addr.zipCode || addr.zip || addr.postalCode || '').trim();
+          const country = String(addr.country || '').trim();
+          const parts = [street, city, state, zip, country].filter(Boolean);
+          return parts.join(', ') || '';
+        }
+        return String(val);
+      }
+    },
     city: String,
     state: String,
     zipCode: String,
