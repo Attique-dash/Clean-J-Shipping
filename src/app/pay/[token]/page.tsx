@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle, AlertCircle, CreditCard, Package } from 'lucide-react';
@@ -20,42 +20,61 @@ interface InvoiceData {
     total: number;
   }>;
   total: number;
+  currency?: string;
   status: string;
   issueDate: string;
   dueDate: string;
   trackingNumber?: string;
 }
 
-export default function PaymentPage({ params }: { params: Promise<{ token: string }> }) {
-  const [resolvedParams, setResolvedParams] = useState<{ token: string } | null>(null);
+export default function PaymentPage({ params }: { params?: { token?: string } | Promise<{ token?: string }> }) {
+  const routeParams = useParams();
+  const searchParams = useSearchParams();
+
+  const tokenFromRoute = routeParams?.token ? String(routeParams.token) : '';
+  const tokenFromProp = params && typeof params === 'object' && 'token' in params && typeof (params as any).token === 'string'
+    ? (params as any).token
+    : '';
+
+  const [resolvedToken, setResolvedToken] = useState<string>(tokenFromRoute || tokenFromProp || '');
   const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
-  const searchParams = useSearchParams();
   
-  // Resolve params
+  // Resolve params safely (handles object params, promise params, or routeParams)
   useEffect(() => {
-    params.then(p => setResolvedParams(p));
-  }, [params]);
+    if (tokenFromRoute || tokenFromProp) {
+      setResolvedToken(tokenFromRoute || tokenFromProp);
+    } else if (params && typeof (params as any)?.then === 'function') {
+      (params as Promise<{ token?: string }>).then(p => {
+        if (p?.token) setResolvedToken(p.token);
+      }).catch(err => {
+        console.error('Failed to resolve payment params:', err);
+      });
+    }
+  }, [params, tokenFromRoute, tokenFromProp]);
 
   const invoiceId = searchParams?.get('invoice');
 
   useEffect(() => {
-    if (resolvedParams) {
-      fetchInvoice();
+    if (resolvedToken && invoiceId) {
+      fetchInvoice(resolvedToken, invoiceId);
+    } else if (resolvedToken && !invoiceId) {
+      setError('Invoice reference ID is missing in the payment link.');
+      setLoading(false);
     }
-  }, [resolvedParams, invoiceId]);
+  }, [resolvedToken, invoiceId]);
 
-  const fetchInvoice = async () => {
-    if (!resolvedParams) return;
-    
+  const fetchInvoice = async (token: string, invId: string) => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/invoices/public/${invoiceId}?token=${resolvedParams.token}`);
+      setError(null);
+      const response = await fetch(`/api/invoices/public/${invId}?token=${token}`);
       
       if (!response.ok) {
-        throw new Error('Invoice not found or link has expired');
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.error || 'Invoice not found or link has expired');
       }
       
       const data = await response.json();
@@ -68,27 +87,27 @@ export default function PaymentPage({ params }: { params: Promise<{ token: strin
   };
 
   const handlePayment = async () => {
-    if (!invoiceData || !resolvedParams) return;
+    if (!invoiceData || !resolvedToken) return;
     
     try {
       setPaying(true);
       
-      // Here you would integrate with your payment gateway (Stripe, PayPal, etc.)
-      // For now, we'll simulate a payment
+      // Submit payment
       const response = await fetch(`/api/invoices/${invoiceData.id}/pay`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          token: resolvedParams.token,
+          token: resolvedToken,
           paymentMethod: 'online',
           amount: invoiceData.total
         })
       });
 
       if (!response.ok) {
-        throw new Error('Payment failed');
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Payment failed');
       }
 
       const result = await response.json();
@@ -96,7 +115,9 @@ export default function PaymentPage({ params }: { params: Promise<{ token: strin
       // Redirect to success page or update UI
       if (result.success) {
         // Refresh invoice data to show updated status
-        await fetchInvoice();
+        if (invoiceId) {
+          await fetchInvoice(resolvedToken, invoiceId);
+        }
       } else {
         throw new Error(result.error || 'Payment failed');
       }
@@ -229,9 +250,9 @@ export default function PaymentPage({ params }: { params: Promise<{ token: strin
                         <div key={index} className="flex justify-between items-center py-2 border-b">
                           <div className="flex-1">
                             <p className="font-medium">{item.description}</p>
-                            <p className="text-sm text-gray-600">Qty: {item.quantity} × JMD {item.unitPrice.toFixed(2)}</p>
+                            <p className="text-sm text-gray-600">Qty: {item.quantity} × {invoiceData.currency || 'JMD'} {item.unitPrice.toFixed(2)}</p>
                           </div>
-                          <p className="font-medium">JMD {item.total.toFixed(2)}</p>
+                          <p className="font-medium">{invoiceData.currency || 'JMD'} {item.total.toFixed(2)}</p>
                         </div>
                       ))}
                     </div>
@@ -242,7 +263,7 @@ export default function PaymentPage({ params }: { params: Promise<{ token: strin
                     <div className="flex justify-between items-center">
                       <span className="text-lg font-semibold">Total Amount</span>
                       <span className="text-2xl font-bold text-blue-600">
-                        JMD {invoiceData.total.toFixed(2)}
+                        {invoiceData.currency || 'JMD'} {invoiceData.total.toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -278,7 +299,7 @@ export default function PaymentPage({ params }: { params: Promise<{ token: strin
                   <div className="space-y-4">
                     <div className="text-center py-4">
                       <p className="text-3xl font-bold text-gray-900 mb-2">
-                        JMD {invoiceData.total.toFixed(2)}
+                        {invoiceData.currency || 'JMD'} {invoiceData.total.toFixed(2)}
                       </p>
                       <p className="text-sm text-gray-600">Amount Due</p>
                     </div>

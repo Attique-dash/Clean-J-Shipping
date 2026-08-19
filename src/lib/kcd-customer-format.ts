@@ -33,16 +33,17 @@ export function toKcdCustomer(user: {
   } | null;
 }): KcdCustomer {
   const rawCode = (user.userCode || '').trim().toUpperCase();
-  const mailbox = rawCode.startsWith('CLEAN-')
-    ? rawCode
-    : rawCode
-      ? `CLEAN-${rawCode.replace(/^CLEAN-?/i, '')}`
+  const cleanCode = rawCode.replace(/[^A-Z0-9]/g, '');
+  const mailbox = cleanCode.startsWith('CLEAN')
+    ? cleanCode
+    : cleanCode
+      ? `CLEAN${cleanCode.replace(/^CLEAN/i, '')}`
       : '';
 
   const addr = user.address || {};
 
   return {
-    UserCode: rawCode || mailbox,
+    UserCode: cleanCode || mailbox || rawCode,
     FirstName: user.firstName || '',
     LastName: user.lastName || '',
     Email: user.email || '',

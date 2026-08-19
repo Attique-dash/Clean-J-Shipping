@@ -69,11 +69,10 @@ function asNumber(value: unknown): number {
   return 0;
 }
 
-// Helper to format mailbox code as CLEAN-XXXX
+// Helper to format mailbox code as CLEANXXXX
 function formatMailboxCode(userCode: string): string {
-  if (userCode.startsWith("CLEAN-")) return userCode;
   const cleanCode = userCode.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-  return `CLEAN-${cleanCode.slice(0, 4)}`;
+  return cleanCode.startsWith("CLEAN") ? cleanCode : `CLEAN${cleanCode.slice(0, 4)}`;
 }
 
 /**

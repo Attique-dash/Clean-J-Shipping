@@ -47,14 +47,15 @@ export async function GET(req: NextRequest) {
     // Map to exact Tasoko API response format
     const customers = users.map((user: any) => {
       const rawCode = (user.userCode || '').trim().toUpperCase();
-      const userCode = rawCode.startsWith('CLEAN-')
-        ? rawCode
-        : rawCode
-          ? `CLEAN-${rawCode.replace(/^CLEAN-?/i, '')}`
+      const cleanCode = rawCode.replace(/[^A-Z0-9]/g, '');
+      const userCode = cleanCode.startsWith('CLEAN')
+        ? cleanCode
+        : cleanCode
+          ? `CLEAN${cleanCode.replace(/^CLEAN/i, '')}`
           : '';
 
       return {
-        UserCode: userCode || rawCode,
+        UserCode: cleanCode || userCode || rawCode,
         FirstName: user.firstName || '',
         LastName: user.lastName || '',
         Branch: user.branch || 'Kingston',
@@ -106,14 +107,15 @@ export async function POST(req: NextRequest) {
 
     const customers = users.map((user: any) => {
       const rawCode = (user.userCode || '').trim().toUpperCase();
-      const userCode = rawCode.startsWith('CLEAN-')
-        ? rawCode
-        : rawCode
-          ? `CLEAN-${rawCode.replace(/^CLEAN-?/i, '')}`
+      const cleanCode = rawCode.replace(/[^A-Z0-9]/g, '');
+      const userCode = cleanCode.startsWith('CLEAN')
+        ? cleanCode
+        : cleanCode
+          ? `CLEAN${cleanCode.replace(/^CLEAN/i, '')}`
           : '';
 
       return {
-        UserCode: userCode || rawCode,
+        UserCode: cleanCode || userCode || rawCode,
         FirstName: user.firstName || '',
         LastName: user.lastName || '',
         Branch: user.branch || 'Kingston',

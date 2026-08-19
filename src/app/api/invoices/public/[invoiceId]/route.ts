@@ -52,6 +52,7 @@ export async function GET(
       },
       items: (invoice as any).items || [],
       total: (invoice as any).total || 0,
+      currency: (invoice as any).currency || 'JMD',
       status: (invoice as any).status || 'draft',
       issueDate: (invoice as any).issueDate,
       dueDate: (invoice as any).dueDate,

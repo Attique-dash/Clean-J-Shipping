@@ -83,7 +83,22 @@ export async function processKcdPackageAdd(
   const { dbConnect } = await import('@/lib/db');
   await dbConnect();
 
-  const user = await User.findOne({ userCode });
+  const rawUserCode = String(userCode || '').trim();
+  const cleanUserCode = rawUserCode.replace(/[^a-zA-Z0-9]/g, '');
+  const withHyphenUserCode = rawUserCode.startsWith('CLEAN-') ? rawUserCode : `CLEAN-${cleanUserCode.replace(/^CLEAN/i, '')}`;
+
+  const user = await User.findOne({
+    $or: [
+      { userCode: rawUserCode },
+      { userCode: cleanUserCode },
+      { userCode: withHyphenUserCode },
+      { userCode: { $regex: new RegExp(`^${cleanUserCode.replace(/^CLEAN/i, 'CLEAN-?')}$`, 'i') } },
+      { shippingId: rawUserCode },
+      { shippingId: cleanUserCode },
+      { shippingId: withHyphenUserCode },
+    ]
+  });
+
   if (!user) {
     return {
       ok: false,
