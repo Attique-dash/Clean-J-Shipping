@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
-/** Internal mailbox codes (e.g. CLEAN-0033) or external KCD codes (e.g. EPXUUYE) */
-export const USER_CODE_REGEX = /^[A-Z0-9][A-Z0-9-]{1,29}$/;
+/** Internal mailbox codes (e.g. CLEAN0033) or external KCD codes (e.g. EPXUUYE) */
+export const USER_CODE_REGEX = /^[A-Z0-9][A-Z0-9]{1,29}$/;
 
 export interface KcdValidationError {
   field: string;
@@ -137,7 +137,7 @@ export function validateUserCode(
     return {
       field: 'UserCode',
       message:
-        'UserCode must be 2–30 characters (letters, numbers, hyphens), e.g. CLEAN-0033 or EPXUUYE',
+        'UserCode must be 2–30 characters (letters, numbers), e.g. CLEAN0033 or EPXUUYE',
       value: code,
     };
   }

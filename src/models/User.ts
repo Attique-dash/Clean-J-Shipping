@@ -44,7 +44,7 @@ const UserSchema = new Schema<IUser>(
       required: true, 
       unique: true, 
       index: true,
-      default: () => `USR-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+      default: () => `USR${Math.random().toString(36).substring(2, 8).toUpperCase()}`
     },
     name: { type: String },
     firstName: { type: String },
@@ -144,6 +144,17 @@ UserSchema.methods.generatePasswordResetToken = function(this: IUser) {
 UserSchema.methods.matchPassword = async function(this: IUser, enteredPassword: string) {
   return await comparePassword(enteredPassword, this.passwordHash);
 };
+
+// Pre-save hook to strip hyphens from userCode and shippingId
+UserSchema.pre('save', function(next) {
+  if (this.userCode) {
+    this.userCode = this.userCode.replace(/-/g, '').toUpperCase();
+  }
+  if ((this as any).shippingId) {
+    (this as any).shippingId = (this as any).shippingId.replace(/-/g, '').toUpperCase();
+  }
+  next();
+});
 
 const User = (models && models.User) || model<IUser>("User", UserSchema);
 

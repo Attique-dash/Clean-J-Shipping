@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { validationResult } from 'express-validator';
+import { validationResult, ValidationError } from 'express-validator';
 import { errorResponse } from '../utils/helpers';
 import { ERROR_MESSAGES } from '../utils/constants';
 
@@ -7,7 +7,7 @@ export const handleValidationErrors = (req: Request, res: Response, next: NextFu
   const errors = validationResult(req);
   
   if (!errors.isEmpty()) {
-    const errorMessages = errors.array().map(error => ({
+    const errorMessages = errors.array().map((error: ValidationError) => ({
       field: error.type === 'field' ? (error as any).path : 'unknown',
       message: error.msg,
       value: error.type === 'field' ? (error as any).value : undefined

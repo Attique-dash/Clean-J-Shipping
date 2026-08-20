@@ -1,19 +1,19 @@
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { Package } from '../../models/Package';
 import { User } from '../../models/User';
 import { successResponse, errorResponse, generateTrackingNumber } from '../../utils/helpers';
 import { logger } from '../../utils/logger';
-import multer from 'multer';
+import multer, { FileFilterCallback } from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
     cb(null, 'uploads/');
   },
-  filename: (req, file, cb) => {
+  filename: (req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
   }
@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
 const upload = multer({ 
   storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-  fileFilter: (req, file, cb) => {
+  fileFilter: (req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
     const allowedTypes = ['.csv', '.json'];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowedTypes.includes(ext)) {

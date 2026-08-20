@@ -269,7 +269,7 @@ export const register = async (req: RegisterRequest, res: Response): Promise<voi
 
     // Create default shipping addresses for the new customer
     try {
-      await ShippingAddressService.createDefaultShippingAddresses(newUser._id);
+      await ShippingAddressService.createDefaultShippingAddresses(newUser._id.toString());
       logger.info(`Default shipping addresses created for: ${newUser.email}`);
     } catch (addressError) {
       logger.error('Failed to create default shipping addresses:', addressError);

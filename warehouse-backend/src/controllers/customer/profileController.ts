@@ -22,7 +22,7 @@ export const getProfile = async (req: AuthRequest, res: Response): Promise<void>
     }
     
     // Get formatted shipping addresses with mailbox information
-    const shippingAddresses = await ShippingAddressService.getShippingAddresses(req.user._id);
+    const shippingAddresses = await ShippingAddressService.getShippingAddresses(req.user._id.toString());
     
     // Create clean profile data without MongoDB internals
     const profileData = {

@@ -24,7 +24,7 @@ async function addShippingAddressesToExistingUsers() {
 
     for (const customer of customersWithoutAddresses) {
       try {
-        await ShippingAddressService.createDefaultShippingAddresses(customer._id);
+        await ShippingAddressService.createDefaultShippingAddresses(customer._id.toString());
         logger.info(`Added shipping addresses for: ${customer.email} (${customer.userCode})`);
       } catch (error) {
         logger.error(`Failed to add addresses for ${customer.email}:`, error);

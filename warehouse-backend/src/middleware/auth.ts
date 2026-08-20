@@ -8,6 +8,7 @@ import { logger } from '../utils/logger';
 
 export interface AuthRequest extends Request {
   user?: IUser;
+  file?: Express.Multer.File;
 }
 
 export { Response };

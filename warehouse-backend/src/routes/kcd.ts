@@ -661,7 +661,7 @@ router.post('/packages/:trackingNumber',
           message: 'Package found (no updates provided)',
           data: [
             toKcdPackagePayload(
-              packageDoc.toObject() as Record<string, unknown>,
+              packageDoc.toObject() as unknown as Record<string, unknown>,
               customer
             ),
           ],
@@ -709,7 +709,7 @@ router.post('/packages/:trackingNumber',
         message: 'Package updated successfully',
         data: [
           toKcdPackagePayload(
-            updatedPackage.toObject() as Record<string, unknown>,
+            updatedPackage.toObject() as unknown as Record<string, unknown>,
             customer
           ),
         ],
@@ -876,7 +876,7 @@ router.post('/packages/:trackingNumber/delete',
         lastName?: string;
       } | null;
       const kcdSnapshot = toKcdPackagePayload(
-        packageDoc.toObject() as Record<string, unknown>,
+        packageDoc.toObject() as unknown as Record<string, unknown>,
         customer
       );
 

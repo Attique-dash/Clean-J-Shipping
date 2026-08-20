@@ -1,4 +1,4 @@
-import { body, query, validationResult } from 'express-validator';
+import { body, query, validationResult, CustomValidator, Meta } from 'express-validator';
 
 // Validation for generating API key
 export const generateApiKeyValidation = [
@@ -23,7 +23,7 @@ export const generateApiKeyValidation = [
 
 // Validation for adding package - supports both camelCase and PascalCase (PDF format)
 export const addPackageValidation = [
-  body().custom((_, { req }) => {
+  body().custom((_: any, { req }: Meta) => {
     const b = req.body || {};
     const tracking =
       b.trackingNumber ?? b.TrackingNumber ?? b.tracking_number;
@@ -47,7 +47,7 @@ export const addPackageValidation = [
     .withMessage('Tracking number must be 3-50 characters'),
   
   // Single check for userCode / UserCode / customerMailbox (avoid duplicate field errors)
-  body().custom((_, { req }) => {
+  body().custom((_: any, { req }: Meta) => {
     const b = req.body || {};
     const raw =
       b.userCode ?? b.UserCode ?? b.customerMailbox ?? b.customerCode;
@@ -57,9 +57,9 @@ export const addPackageValidation = [
       );
     }
     const normalized = String(raw).trim().toUpperCase();
-    if (!/^[A-Z0-9][A-Z0-9-]{1,29}$/.test(normalized)) {
+    if (!/^[A-Z0-9][A-Z0-9]{1,29}$/.test(normalized)) {
       throw new Error(
-        'UserCode must be 2–30 characters (letters, numbers, hyphens), e.g. CLEAN-0033 or EPXUUYE'
+        'UserCode must be 2–30 characters (letters, numbers), e.g. CLEAN0033 or EPXUUYE'
       );
     }
     req.body.userCode = normalized;
@@ -211,14 +211,14 @@ export const updatePackageValidation = [
     .isLength({ min: 3, max: 50 })
     .withMessage('Tracking number must be 3-50 characters'),
   
-  body().custom((_, { req }) => {
+  body().custom((_: any, { req }: Meta) => {
     const b = req.body || {};
     const raw = b.userCode ?? b.UserCode;
     if (raw === undefined || raw === null || raw === '') return true;
     const normalized = String(raw).trim().toUpperCase();
-    if (!/^[A-Z0-9][A-Z0-9-]{1,29}$/.test(normalized)) {
+    if (!/^[A-Z0-9][A-Z0-9]{1,29}$/.test(normalized)) {
       throw new Error(
-        'UserCode must be 2–30 characters (letters, numbers, hyphens), e.g. CLEAN-0033 or EPXUUYE'
+        'UserCode must be 2–30 characters (letters, numbers), e.g. CLEAN0033 or EPXUUYE'
       );
     }
     req.body.userCode = normalized;
@@ -399,7 +399,7 @@ export const handleValidationErrors = (req: any, res: any, next: any) => {
         message,
         ...(err.value !== undefined && err.value !== '' ? { value: err.value } : {}),
       };
-    }).filter((e) => {
+    }).filter((e: any) => {
       const key = `${e.field}:${e.message}`;
       if (seen.has(key)) return false;
       seen.add(key);

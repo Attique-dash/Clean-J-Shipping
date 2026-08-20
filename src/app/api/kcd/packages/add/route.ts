@@ -376,7 +376,7 @@ export async function GET(req: NextRequest) {
             : 'Validation failed',
           errors: getValidation.errors,
           hint:
-            'Example: GET /api/kcd/packages/add?id=YOUR_API_KEY&TrackingNumber=TBA123&UserCode=CLEAN-0007&Weight=5&Shipper=Amazon',
+            'Example: GET /api/kcd/packages/add?id=YOUR_API_KEY&TrackingNumber=TBA123&UserCode=CLEAN0007&Weight=5&Shipper=Amazon',
           data: [],
         },
         { status: 400 }

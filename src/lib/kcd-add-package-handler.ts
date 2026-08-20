@@ -84,18 +84,14 @@ export async function processKcdPackageAdd(
   await dbConnect();
 
   const rawUserCode = String(userCode || '').trim();
-  const cleanUserCode = rawUserCode.replace(/[^a-zA-Z0-9]/g, '');
-  const withHyphenUserCode = rawUserCode.startsWith('CLEAN-') ? rawUserCode : `CLEAN-${cleanUserCode.replace(/^CLEAN/i, '')}`;
+  const cleanUserCode = rawUserCode.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 
   const user = await User.findOne({
     $or: [
       { userCode: rawUserCode },
       { userCode: cleanUserCode },
-      { userCode: withHyphenUserCode },
-      { userCode: { $regex: new RegExp(`^${cleanUserCode.replace(/^CLEAN/i, 'CLEAN-?')}$`, 'i') } },
       { shippingId: rawUserCode },
       { shippingId: cleanUserCode },
-      { shippingId: withHyphenUserCode },
     ]
   });
 

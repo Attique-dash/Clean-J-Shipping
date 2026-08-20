@@ -4,7 +4,7 @@ import { logger } from './logger';
 
 /**
  * Generate unique mailbox code for Clean J Shipping customers
- * Format: CLEAN-0001, CLEAN-0002, etc.
+ * Format: CLEAN0001, CLEAN0002, etc.
  * 
  * @param warehouseId - Optional warehouse ID to get company abbreviation
  * @returns Promise<string> - Unique mailbox code
@@ -34,7 +34,7 @@ export const generateMailboxCode = async (warehouseId?: string): Promise<string>
 
     // Find all users with this abbreviation and get the highest number
     const users = await User.find({
-      mailboxNumber: new RegExp(`^${abbreviation}-`, 'i')
+      mailboxNumber: new RegExp(`^${abbreviation}`, 'i')
     }).select('mailboxNumber');
 
     let nextNumber = 1;
@@ -44,7 +44,7 @@ export const generateMailboxCode = async (warehouseId?: string): Promise<string>
       const numbers = users
         .map(user => {
           if (user.mailboxNumber) {
-            const match = user.mailboxNumber.match(/-(\d+)$/);
+            const match = user.mailboxNumber.match(/(\d+)$/);
             return match ? parseInt(match[1], 10) : 0;
           }
           return 0;
@@ -58,7 +58,7 @@ export const generateMailboxCode = async (warehouseId?: string): Promise<string>
 
     // Format with leading zeros (4 digits)
     const formattedNumber = nextNumber.toString().padStart(4, '0');
-    const mailboxCode = `${abbreviation}-${formattedNumber}`;
+    const mailboxCode = `${abbreviation}${formattedNumber}`;
 
     // Verify uniqueness
     const existingUser = await User.findOne({ mailboxNumber: mailboxCode });
@@ -74,19 +74,19 @@ export const generateMailboxCode = async (warehouseId?: string): Promise<string>
     logger.error('Error generating mailbox code:', error);
     // Fallback to random code
     const random = Math.random().toString(36).substr(2, 4).toUpperCase();
-    return `CLEAN-${random}`;
+    return `CLEAN${random}`;
   }
 };
 
 /**
  * Validate mailbox code format
- * Format: 2-5 letters, hyphen, 4 digits
+ * Format: 2-5 letters followed by 4 digits
  * 
  * @param code - Mailbox code to validate
  * @returns boolean
  */
 export const isValidMailboxCode = (code: string): boolean => {
-  const pattern = /^[A-Z]{2,5}-\d{4}$/;
+  const pattern = /^[A-Z]{2,5}\d{4}$/;
   return pattern.test(code);
 };
 
@@ -133,7 +133,9 @@ export const getMailboxCodeStats = async (): Promise<{
 
     users.forEach(user => {
       if (user.mailboxNumber) {
-        const prefix = user.mailboxNumber.split('-')[0];
+        // Extract the prefix (letters before numbers)
+        const match = user.mailboxNumber.match(/^([A-Z]+)/);
+        const prefix = match ? match[1] : user.mailboxNumber.substring(0, 5);
         prefixMap.set(prefix, (prefixMap.get(prefix) || 0) + 1);
       }
     });

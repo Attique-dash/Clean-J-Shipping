@@ -281,6 +281,17 @@ const PackageSchema = new Schema<IPackage>(
   { timestamps: true, strict: false }
 );
 
+// Pre-save hook to strip hyphens from UserCode and userCode
+PackageSchema.pre('save', function(next) {
+  if (this.UserCode) {
+    this.UserCode = this.UserCode.replace(/-/g, '').toUpperCase();
+  }
+  if ((this as any).userCode) {
+    (this as any).userCode = (this as any).userCode.replace(/-/g, '').toUpperCase();
+  }
+  next();
+});
+
 PackageSchema.index({ userId: 1 });
 PackageSchema.index({ PackageStatus: 1 });
 PackageSchema.index({ createdAt: -1 });
