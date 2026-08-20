@@ -7874,3 +7874,70 @@ james_1nelly
 
 Aug 05, 6:29 PM
 Thanks
+J
+james_1nelly
+
+Aug 12, 8:49 PM
+How it’s going?
+
+J
+james_1nelly
+
+Aug 12, 10:38 PM
+Because I have a invoice to generate, and it’s not generating
+
+A
+Profile Image
+Me
+
+Aug 18, 3:18 AM
+Hi James,
+
+Thanks for your patience! Everything is now set up and ready for you to generate invoices:
+
+How it works now:
+
+1. When packages arrive at the warehouse, customers only get the arrival notification email with their tracking and warehouse info (no invoices or unexpected charges).
+
+2. Customers can upload their purchase receipt/value from their portal so you know the goods' value.
+
+3. In your Admin Panel > Packages page, you will now see a dedicated "Invoice" button on every package.
+
+4. When you click "Invoice":
+- You will see the customer's declared value and uploaded receipt (if provided).
+- You can simply enter your Regular Charge (e.g., 1500) and Custom Charge (e.g., 500) in JMD.
+- Click "Generate & Send Invoice".
+
+5. The system will immediately generate the official invoice, update the package total in JMD, and email the customer the invoice breakdown along with their secure online payment link.
+
+Please go ahead, log into your admin portal at Packages, and try clicking the Invoice button on your package to generate it. Let me know if you'd like any adjustments!
+
+Thanks
+
+J
+james_1nelly
+
+Aug 19, 4:43 AM
+I am talking to the I.T manager at the place.. he is trying to help us getting the automatic update of packages on our system and notifications.
+
+J
+james_1nelly
+
+Aug 19, 4:49 AM
+He think the best approach here is to let you  remove the hyphen from the usercode. E.g CLEAN-0007. 
+ 
+Edit all usercodes on your backend by removing the hyphens. ‘-‘
+
+Then update us as soon as it is done so that we can do a sync
+
+J
+james_1nelly
+
+Aug 19, 5:29 AM
+As soon as you do that he can update it
+
+J
+james_1nelly
+
+Aug 20, 2:03 AM
+Please see how quick you can do it. he is waiting on us?
