@@ -94,15 +94,22 @@ function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () =
       const fd = new FormData();
       files.forEach(f => fd.append("files_0", f));
       fd.append("upload_0", JSON.stringify({ tracking_number: tn, price_paid: p, currency, description }));
+      console.log('[Invoice Upload] Submitting:', { tracking_number: tn, price_paid: p, currency, description, fileCount: files.length });
       const res = await fetch("/api/customer/invoice-upload", { method: "POST", body: fd, credentials: "include" });
+      console.log('[Invoice Upload] Response status:', res.status, res.statusText);
       let data;
       try {
         data = await res.json();
+        console.log('[Invoice Upload] Response data:', data);
       } catch (parseError) {
-        console.error('Failed to parse invoice upload response:', parseError);
+        console.error('[Invoice Upload] Failed to parse response:', parseError);
         throw new Error('Failed to parse server response');
       }
-      if (!res.ok) throw new Error(data?.error || data?.message || "Failed");
+      if (!res.ok) {
+        const errorMsg = data?.error || data?.message || (data?.results?.[0]?.error) || "Failed to submit invoice";
+        console.error('[Invoice Upload] Server error:', errorMsg);
+        throw new Error(errorMsg);
+      }
       toast.success("Invoice submitted!");
       
       // Set sessionStorage flag to prevent auto-open on refresh
@@ -115,7 +122,10 @@ function UploadModal({ pkg, onClose, onDone }: { pkg: PackageData; onClose: () =
       
       // Pass the updated package data to parent so it can update state
       onDone(data.updatedPackage || pkg);
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
+    } catch (e) { 
+      console.error('[Invoice Upload] Submission error:', e);
+      toast.error(e instanceof Error ? e.message : "Failed to submit invoice"); 
+    }
     finally { setSubmitting(false); }
   };
 
