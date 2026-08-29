@@ -7941,3 +7941,118 @@ james_1nelly
 
 Aug 20, 2:03 AM
 Please see how quick you can do it. he is waiting on us?
+A
+Profile Image
+Me
+
+Aug 20, 9:55 PM
+Hi James,
+
+I've removed all hyphens from the usercodes in the backend. The system is ready for your IT manager to sync.
+
+Thanks
+
+J
+james_1nelly
+
+Aug 21, 3:27 AM
+He started that it’s Sync now
+
+J
+james_1nelly
+
+Aug 27, 9:11 PM
+Good morning Do you have logs on you system that shows what calls are made?
+
+J
+james_1nelly
+
+Aug 27, 9:12 PM
+That’s from the I.T personel
+
+J
+james_1nelly
+
+Aug 27, 9:31 PM
+Because I am see where one package update on the system.. So he would like to know that information
+
+A
+Profile Image
+Me
+
+Aug 27, 9:35 PM
+Hi James,
+
+Yes, I can see the package update in our logs. The screenshot shows the recent API calls made to the system, including the package update activity.
+
+Your IT personnel can review this to verify the sync is working correctly. If they need more specific details about any particular call, please let me know.
+
+Thanks
+
+Download All
+
+Screenshot 2026-08-27 at 9.23.07 PM.png
+
+(685.96 kB)
+
+
+Screenshot 2026-08-27 at 9.23.34 PM.png
+
+(664.79 kB)
+
+
+Screenshot 2026-08-27 at 9.23.43 PM.png
+
+(666.47 kB)
+
+J
+james_1nelly
+
+Aug 27, 10:36 PM
+No problem
+
+J
+james_1nelly
+
+Aug 27, 10:37 PM
+You can send me back the Gmail information for website.. The login and password
+
+A
+Profile Image
+Me
+
+Aug 28, 12:33 AM
+Hi James,
+
+For security reasons, I cannot share login credentials via chat. 
+
+If you need access to the email account for the website, I recommend:
+1. Setting up a new Gmail account specifically for the website
+2. I can help you configure it in the system securely
+
+Please let me know how you'd like to proceed with setting up secure email access.
+
+Thanks
+
+J
+james_1nelly
+
+Aug 28, 12:41 AM
+That’s fine
+
+J
+james_1nelly
+
+Aug 28, 12:41 AM
+I will find it
+
+J
+james_1nelly
+
+Aug 29, 7:12 AM
+Customer states that when they add the invoice and try submitting.. It’s not
+
+
+E58B93DD-792A-4FAF-A569-485D3F6B2E30.jpeg
+
+(56.35 kB)
